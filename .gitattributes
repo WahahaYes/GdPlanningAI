@@ -1,0 +1,4 @@
+# Normalize EOL for all files that Git considers text files.
+* text=auto eol=lf
+addons/GdPlanningAI/bin/** filter=lfs diff=lfs merge=lfs -text
+addons/GdPlanningAI/bin/.gitignore !text !filter !merge !diff
