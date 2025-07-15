@@ -1,7 +1,7 @@
 [gd_scene load_steps=11 format=3 uid="uid://c6e4soq02bk6t"]
 
-[ext_resource type="Script" uid="uid://btddahvu1jjhb" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_world_node.gd" id="1_xkp6b"]
-[ext_resource type="Script" uid="uid://dsov73hfryg5g" path="res://addons/GdPlanningAI/scripts/gdpai_blackboard_plan.gd" id="2_8r7yq"]
+[ext_resource type="Script" uid="uid://cu134mwsik6n5" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_world_node.gd" id="1_xkp6b"]
+[ext_resource type="Script" uid="uid://cvie3m6t7c0hd" path="res://addons/GdPlanningAI/scripts/gdpai_blackboard_plan.gd" id="2_8r7yq"]
 [ext_resource type="Texture2D" uid="uid://cd0g4f4qjpbun" path="res://addons/GdPlanningAI/examples/2D/assets/barrel.png" id="3_qw25j"]
 [ext_resource type="PackedScene" uid="uid://h4yk5sl17vo0" path="res://addons/GdPlanningAI/examples/2D/assets/banana_tree.tscn" id="4_u7v1t"]
 [ext_resource type="PackedScene" uid="uid://b1bmo16x83s1x" path="res://addons/GdPlanningAI/examples/2D/assets/sample_agent.tscn" id="5_5e8by"]
@@ -33,7 +33,6 @@ size = Vector2(32, 32)
 [node name="GdPAIWorldNode" type="Node" parent="."]
 script = ExtResource("1_xkp6b")
 blackboard_plan = SubResource("Resource_u0rx4")
-metadata/_custom_type_script = "uid://btddahvu1jjhb"
 
 [node name="Background" type="Sprite2D" parent="."]
 texture = SubResource("GradientTexture2D_4r6bb")
