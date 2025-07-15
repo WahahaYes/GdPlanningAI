@@ -74,6 +74,14 @@ To streamline object interactions, the **SpatialAction** class bundles agent mov
 
 The **SpatialAction** class adapts to 2D or 3D depending on the location node specified on the object's **GdPAILocationData**.  **SpatialAction** has its own `script_template` that is expanded and highly recommended to use.
 
+### Demos
+
+Demos with sample actions and objects are located in `GdPlanningAI/examples`.  Currently, there is a simple setup consisting of food objects and fruit trees.  The agents' only goal is to satisfy hunger.  Eating fruit will grant hunger, and shaking fruit trees will spawn fruit.  There is a delay interval before trees can be shaken again.  `examples/2D/single_agent_demo.tscn` has a single agent and `examples/2D/multi_agent_demo.tscn` has two agents competing for the available food.  As an exercise, consider adding new goals and actions to this starting point!
+
+![Screenshot of the single_agent_demo.tscn scene running](media/single_agent_demo_screenshot.png)
+
+*NOTE: There's an open todo related to improving the pixel art for these demos.  If anyone's interested, it'd be a fun way to contribute!*
+
 ### License
 
 Copyright 2025 Ethan Wilson

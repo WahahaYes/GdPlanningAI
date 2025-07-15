@@ -1,11 +1,11 @@
 [gd_scene load_steps=9 format=3 uid="uid://b1bmo16x83s1x"]
 
-[ext_resource type="Script" uid="uid://rjd0wf16u2" path="res://addons/GdPlanningAI/examples/2D/assets/sample_2d_nav.gd" id="2_4rrwl"]
-[ext_resource type="Script" uid="uid://ddw54h286tvmn" path="res://addons/GdPlanningAI/examples/sample_hungry_agent.gd" id="3_qsotd"]
-[ext_resource type="Script" uid="uid://ds28ja8f5lbis" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_agent.gd" id="4_7hb32"]
+[ext_resource type="Script" uid="uid://kfoja1kvby1g" path="res://addons/GdPlanningAI/examples/2D/assets/sample_2d_nav.gd" id="2_4rrwl"]
+[ext_resource type="Script" uid="uid://b8t4xxrgkxf3j" path="res://addons/GdPlanningAI/examples/sample_hungry_agent.gd" id="3_qsotd"]
+[ext_resource type="Script" uid="uid://dadt3s5cpl0e5" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_agent.gd" id="4_7hb32"]
 [ext_resource type="Texture2D" uid="uid://sgocx5lqbql" path="res://addons/GdPlanningAI/examples/2D/assets/guy.png" id="4_d7och"]
-[ext_resource type="Script" uid="uid://cuyxblb1dmw3x" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_location_data.gd" id="5_2s6wp"]
-[ext_resource type="Script" uid="uid://dsov73hfryg5g" path="res://addons/GdPlanningAI/scripts/gdpai_blackboard_plan.gd" id="5_83xqa"]
+[ext_resource type="Script" uid="uid://b4nu0eehv0waq" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_location_data.gd" id="5_2s6wp"]
+[ext_resource type="Script" uid="uid://cvie3m6t7c0hd" path="res://addons/GdPlanningAI/scripts/gdpai_blackboard_plan.gd" id="5_83xqa"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_b137p"]
 size = Vector2(64, 64)
