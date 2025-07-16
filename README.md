@@ -84,9 +84,9 @@ Demos with sample actions and objects are located in `GdPlanningAI/examples`.  C
 
 ### License
 
-Copyright 2025 Ethan Wilson
+GdPlanningAI, Copyright 2025 Ethan Wilson
 
-This work is licensed under the Apache License, Version 2.0.  The license file can be viewed at [LICENSE.md](LICENSE.md) and at [http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0).  Note that this license requires attribution within any derivative works (I want to be credited!), the license must be redistributed with derivative works, and any modified files must contain notices that they have been changed from the original material.
+This work is licensed under the Apache License, Version 2.0.  The license file can be viewed at [LICENSE.txt](LICENSE.txt) and at [http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0).  Note that this license requires attribution within any derivative works (I want to be credited!), the license must be redistributed with derivative works, and any modified files must contain notices that they have been changed from the original material.
 
 ### TODOs
 
