@@ -39,13 +39,21 @@ func get_validity_checks() -> Array[Precondition]:
 	can_get_to_check.eval_func = func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
 		# The target should be reachable by the agent.
 		var entity: Node = blackboard.get_property("entity")
-		var agent_location_data: GdPAILocationData = blackboard.get_first_object_in_group("GdPAILocationData")
+		var agent_location_data: GdPAILocationData = blackboard.get_first_object_in_group(
+			"GdPAILocationData"
+		)
 
 		# nav_agent could be NavigationAgent2D or NavigationAgent3D depending on the setup.
 		var nav_agent: Node
-		if agent_location_data.location_node_2d != null and object_location.location_node_2d != null:
+		if (
+			agent_location_data.location_node_2d != null
+			and object_location.location_node_2d != null
+		):
 			nav_agent = GdPAIUTILS.get_child_of_type(entity, NavigationAgent2D)
-		if agent_location_data.location_node_3d != null and object_location.location_node_3d != null:
+		if (
+			agent_location_data.location_node_3d != null
+			and object_location.location_node_3d != null
+		):
 			nav_agent = GdPAIUTILS.get_child_of_type(entity, NavigationAgent3D)
 
 		if nav_agent == null:
@@ -91,7 +99,9 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	var entity: Node = agent.blackboard.get_property("entity")
 
 	# Cache the location data.
-	var agent_location_data: GdPAILocationData = agent.blackboard.get_first_object_in_group("GdPAILocationData")
+	var agent_location_data: GdPAILocationData = agent.blackboard.get_first_object_in_group(
+		"GdPAILocationData"
+	)
 	agent.blackboard.set_property(uid_property("agent_location"), agent_location_data)
 
 	# nav_agent could be NavigationAgent2D or NavigationAgent3D depending on the setup.
@@ -117,12 +127,14 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 		return Action.Status.FAILURE
 
 	var nav_agent: Node = agent.blackboard.get_property(uid_property("nav_agent"))
-	var agent_location_data: GdPAILocationData = agent.blackboard.get_property(uid_property("agent_location"))
+	var agent_location_data: GdPAILocationData = agent.blackboard.get_property(
+		uid_property("agent_location")
+	)
 
-	# Maintain a list of 10 prior positions.
+	# Maintain a list of prior positions to check if the agent isn't moving.
 	var prior_positions: Array = agent.blackboard.get_property(uid_property("prior_positions"))
 	prior_positions.append(agent_location_data.position)
-	if prior_positions.size() > 10:
+	if prior_positions.size() > 60:
 		prior_positions.pop_front()
 	agent.blackboard.set_property(uid_property("prior_positions"), prior_positions)
 
@@ -138,9 +150,10 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 
 	# Terminating conditions.
 	# Either the navigation agent passes, or the agent has stopped for some other reason.
-	var dist_traveled: float = ((prior_positions[-1] - prior_positions[0]).length() *
-	delta * prior_positions.size())
-	if nav_agent.is_navigation_finished() or (prior_positions.size() == 10 and dist_traveled < 1):
+	var dist_traveled: float = (
+		(prior_positions[-1] - prior_positions[0]).length() * delta * prior_positions.size()
+	)
+	if nav_agent.is_navigation_finished() or (prior_positions.size() == 60 and dist_traveled < 1):
 		# Pass if we have no interaction distance constraint.
 		if interactable_attribs.max_interaction_distance <= 0:
 			agent.blackboard.set_property(uid_property("target_reached"), true)
@@ -151,8 +164,6 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 			agent.blackboard.set_property(uid_property("target_reached"), true)
 			return Action.Status.SUCCESS
 		else:
-			# clear the navigation target
-			nav_agent.target_position = agent_location_data.position
 			return Action.Status.FAILURE
 
 	# Continue navigating.
@@ -162,7 +173,9 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 # Override
 func post_perform_action(agent: GdPAIAgent) -> Action.Status:
 	var nav_agent: Node = agent.blackboard.get_property(uid_property("nav_agent"))
-	var agent_location_data: GdPAILocationData = agent.blackboard.get_property(uid_property("agent_location"))
+	var agent_location_data: GdPAILocationData = agent.blackboard.get_property(
+		uid_property("agent_location")
+	)
 	# Clear the navigation target.
 	nav_agent.target_position = agent_location_data.position
 
