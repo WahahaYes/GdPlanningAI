@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://da8b50ry1060i"
-path="res://.godot/imported/banana_tree.png-614488dd5fb914c7ddf297b9cfbe4c11.ctex"
+uid="uid://cqi0wac4ge1bd"
+path="res://.godot/imported/Idle.png-78eb90ae291d7e7196505fa796a7460e.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://addons/GdPlanningAI/examples/2D/assets/banana_tree.png"
-dest_files=["res://.godot/imported/banana_tree.png-614488dd5fb914c7ddf297b9cfbe4c11.ctex"]
+source_file="res://addons/GdPlanningAI/examples/2D/assets/TinySwordsPack/Units/Blue Units/Monk/Idle.png"
+dest_files=["res://.godot/imported/Idle.png-78eb90ae291d7e7196505fa796a7460e.ctex"]
 
 [params]
 

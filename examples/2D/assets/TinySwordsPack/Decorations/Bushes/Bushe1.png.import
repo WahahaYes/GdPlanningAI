@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://sgocx5lqbql"
-path="res://.godot/imported/guy.png-7e0d97872bd1d3de8c65a3c8a61ce149.ctex"
+uid="uid://05slhr6k4wdg"
+path="res://.godot/imported/Bushe1.png-8760a08fc82e44148a5ac01028f32945.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://addons/GdPlanningAI/examples/2D/assets/guy.png"
-dest_files=["res://.godot/imported/guy.png-7e0d97872bd1d3de8c65a3c8a61ce149.ctex"]
+source_file="res://addons/GdPlanningAI/examples/2D/assets/TinySwordsPack/Decorations/Bushes/Bushe1.png"
+dest_files=["res://.godot/imported/Bushe1.png-8760a08fc82e44148a5ac01028f32945.ctex"]
 
 [params]
 
