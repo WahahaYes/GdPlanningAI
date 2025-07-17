@@ -14,6 +14,11 @@ func get_validity_checks() -> Array[Precondition]:
 	checks.append(Precondition.agent_has_property("hunger"))
 	checks.append(Precondition.check_is_object_valid(food_item))
 
+	var is_hungry_check: Precondition = Precondition.new()
+	is_hungry_check.eval_func = func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
+		return blackboard.get_property("hunger") < 100
+	checks.append(is_hungry_check)
+
 	return checks
 
 

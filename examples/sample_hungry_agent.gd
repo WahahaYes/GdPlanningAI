@@ -18,6 +18,9 @@ func _ready() -> void:
 	# Set up the world node, agent goals, and agent available actions.
 	GdPAI_agent.world_node = GdPAIUTILS.get_child_of_type(get_tree().root, GdPAIWorldNode)
 	GdPAI_agent.goals.append(SampleHungerGoal.new())
+	GdPAI_agent.goals.append(SampleWanderGoal.new())
+	# Here the SampleWanderAction is being created with wander_distance of 256px.
+	GdPAI_agent.self_actions.append(SampleWanderAction.new(256))
 
 
 func _process(delta: float) -> void:

@@ -9,6 +9,7 @@ const SHAKE_DURATION: float = 0.5
 ## Reference to the food item that provided this action.
 var fruit_tree: SampleFruitTreeObject
 
+
 # Override
 func get_validity_checks() -> Array[Precondition]:
 	var checks: Array[Precondition] = super()
@@ -16,6 +17,11 @@ func get_validity_checks() -> Array[Precondition]:
 
 	checks.append(Precondition.agent_has_property("hunger"))
 	checks.append(Precondition.check_is_object_valid(fruit_tree))
+
+	var is_hungry_check: Precondition = Precondition.new()
+	is_hungry_check.eval_func = func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
+		return blackboard.get_property("hunger") < 100
+	checks.append(is_hungry_check)
 
 	var on_cooldown_check: Precondition = Precondition.new()
 	on_cooldown_check.eval_func = func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
@@ -101,6 +107,7 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 			return Action.Status.SUCCESS
 		else:
 			return Action.Status.RUNNING
+
 
 # Override
 func post_perform_action(agent: GdPAIAgent) -> Action.Status:
