@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cd0g4f4qjpbun"
-path="res://.godot/imported/barrel.png-4b145c9f4d8eb30a5191641fd76e5af9.ctex"
+uid="uid://b22ckbemud140"
+path="res://.godot/imported/Idle.png-376c3f886a91ce6c0ef836c8f26d59fc.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://addons/GdPlanningAI/examples/2D/assets/barrel.png"
-dest_files=["res://.godot/imported/barrel.png-4b145c9f4d8eb30a5191641fd76e5af9.ctex"]
+source_file="res://addons/GdPlanningAI/examples/2D/assets/TinySwordsPack/Units/Red Units/Monk/Idle.png"
+dest_files=["res://.godot/imported/Idle.png-376c3f886a91ce6c0ef836c8f26d59fc.ctex"]
 
 [params]
 

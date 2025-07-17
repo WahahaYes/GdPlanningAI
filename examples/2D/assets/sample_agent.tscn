@@ -1,14 +1,99 @@
-[gd_scene load_steps=9 format=3 uid="uid://b1bmo16x83s1x"]
+[gd_scene load_steps=22 format=3 uid="uid://b1bmo16x83s1x"]
 
+[ext_resource type="Texture2D" uid="uid://cqi0wac4ge1bd" path="res://addons/GdPlanningAI/examples/2D/assets/TinySwordsPack/Units/Blue Units/Monk/Idle.png" id="1_15dhw"]
 [ext_resource type="Script" uid="uid://kfoja1kvby1g" path="res://addons/GdPlanningAI/examples/2D/assets/sample_2d_nav.gd" id="2_4rrwl"]
+[ext_resource type="Texture2D" uid="uid://c2m2dh28u207a" path="res://addons/GdPlanningAI/examples/2D/assets/TinySwordsPack/Units/Blue Units/Monk/Run.png" id="2_6mdly"]
 [ext_resource type="Script" uid="uid://b8t4xxrgkxf3j" path="res://addons/GdPlanningAI/examples/sample_hungry_agent.gd" id="3_qsotd"]
+[ext_resource type="Script" uid="uid://c83g2wdh6tqsp" path="res://addons/GdPlanningAI/examples/2D/assets/sample_2d_agent_animator.gd" id="4_6mdly"]
 [ext_resource type="Script" uid="uid://dadt3s5cpl0e5" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_agent.gd" id="4_7hb32"]
-[ext_resource type="Texture2D" uid="uid://sgocx5lqbql" path="res://addons/GdPlanningAI/examples/2D/assets/guy.png" id="4_d7och"]
 [ext_resource type="Script" uid="uid://b4nu0eehv0waq" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_location_data.gd" id="5_2s6wp"]
 [ext_resource type="Script" uid="uid://cvie3m6t7c0hd" path="res://addons/GdPlanningAI/scripts/gdpai_blackboard_plan.gd" id="5_83xqa"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_b137p"]
 size = Vector2(64, 64)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_cf5je"]
+atlas = ExtResource("1_15dhw")
+region = Rect2(0, 0, 192, 192)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_yrly3"]
+atlas = ExtResource("1_15dhw")
+region = Rect2(192, 0, 192, 192)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_heyjs"]
+atlas = ExtResource("1_15dhw")
+region = Rect2(384, 0, 192, 192)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_1bvo6"]
+atlas = ExtResource("1_15dhw")
+region = Rect2(576, 0, 192, 192)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_poccw"]
+atlas = ExtResource("1_15dhw")
+region = Rect2(768, 0, 192, 192)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_1lwmn"]
+atlas = ExtResource("1_15dhw")
+region = Rect2(960, 0, 192, 192)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_pe1om"]
+atlas = ExtResource("2_6mdly")
+region = Rect2(0, 0, 192, 192)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_kb5cc"]
+atlas = ExtResource("2_6mdly")
+region = Rect2(192, 0, 192, 192)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_tdyj0"]
+atlas = ExtResource("2_6mdly")
+region = Rect2(384, 0, 192, 192)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_v5pdt"]
+atlas = ExtResource("2_6mdly")
+region = Rect2(576, 0, 192, 192)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_n5362"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_cf5je")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_yrly3")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_heyjs")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_1bvo6")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_poccw")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_1lwmn")
+}],
+"loop": true,
+"name": &"Idle",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_pe1om")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_kb5cc")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_tdyj0")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_v5pdt")
+}],
+"loop": true,
+"name": &"Run",
+"speed": 5.0
+}]
 
 [sub_resource type="Resource" id="Resource_q8vck"]
 script = ExtResource("5_83xqa")
@@ -18,16 +103,20 @@ blackboard_backend = {
 metadata/_custom_type_script = "uid://dsov73hfryg5g"
 
 [node name="SampleAgent" type="RigidBody2D"]
+collision_layer = 0
+collision_mask = 0
 gravity_scale = 0.0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("RectangleShape2D_b137p")
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
-texture = ExtResource("4_d7och")
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
+z_index = 1
+sprite_frames = SubResource("SpriteFrames_n5362")
+animation = &"Run"
+frame_progress = 0.959604
 
 [node name="NavigationAgent2D" type="NavigationAgent2D" parent="."]
-debug_enabled = true
 
 [node name="Label" type="Label" parent="."]
 offset_left = -40.0
@@ -39,8 +128,15 @@ Goal: [Value]
 Current
 Action: [Value]"
 
-[node name="SampleHungryAgent" type="Node" parent="." node_paths=PackedStringArray("GdPAI_agent", "display_text")]
+[node name="SampleHungryAgent" type="Node" parent="." node_paths=PackedStringArray("GdPAI_agent")]
 script = ExtResource("3_qsotd")
+GdPAI_agent = NodePath("../GdPAIAgent")
+
+[node name="Sample2DAgentAnimator" type="Node" parent="." node_paths=PackedStringArray("entity", "animated_sprite", "GdPAI_agent", "display_text")]
+script = ExtResource("4_6mdly")
+entity = NodePath("..")
+animated_sprite = NodePath("../AnimatedSprite2D")
+idle_threshold = 16.0
 GdPAI_agent = NodePath("../GdPAIAgent")
 display_text = NodePath("../Label")
 

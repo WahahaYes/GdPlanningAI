@@ -64,7 +64,8 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 	var parent_status: Action.Status = super(agent, delta)
 	if parent_status == Action.Status.FAILURE:
-		return Action.Status.FAILURE
+		# return Action.Status.FAILURE
+		print("WARN: SpatialAction failed when going towards food.")
 	if not agent.blackboard.get_property(uid_property("target_reached")):
 		# Can add any actions that occur while navigating here.
 		return Action.Status.RUNNING

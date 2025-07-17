@@ -10,6 +10,7 @@ size = Vector2(32, 32)
 
 [node name="Banana" type="RigidBody2D"]
 collision_layer = 0
+collision_mask = 0
 gravity_scale = 0.0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
@@ -25,7 +26,7 @@ entity = NodePath("..")
 
 [node name="GdPAIInteractable" type="Node" parent="." node_paths=PackedStringArray("entity")]
 script = ExtResource("3_tlk72")
-max_interaction_distance = 128.0
+max_interaction_distance = 32.0
 entity = NodePath("..")
 
 [node name="SampleFoodObject" type="Node" parent="." node_paths=PackedStringArray("interactable_attribs", "location_data", "entity")]

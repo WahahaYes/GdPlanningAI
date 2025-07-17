@@ -38,7 +38,7 @@ func get_action_cost(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackb
 	# Add any additional cost computations.
 
 	# This action needs a high cost to discourage shaking the tree when there are alternatives.
-	return 100 + cost
+	return 10 + cost
 
 
 # Override

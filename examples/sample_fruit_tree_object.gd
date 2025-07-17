@@ -55,7 +55,7 @@ func drop_fruit():
 				location_data.position
 				+ Vector2(
 					randf_range(-drop_distance, drop_distance),
-					randf_range(-drop_distance, drop_distance)
+					randf_range(0.5 * drop_distance, drop_distance)  # For top-down effect.
 				)
 			)
 		elif fruit_obj is Node3D:
