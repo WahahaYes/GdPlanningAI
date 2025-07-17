@@ -48,13 +48,11 @@ display_text = NodePath("../Label")
 script = ExtResource("4_7hb32")
 entity = NodePath("..")
 blackboard_plan = SubResource("Resource_q8vck")
-metadata/_custom_type_script = "uid://ds28ja8f5lbis"
 
 [node name="GdPAILocationData" type="Node" parent="." node_paths=PackedStringArray("location_node_2d", "entity")]
 script = ExtResource("5_2s6wp")
 location_node_2d = NodePath("..")
 entity = NodePath("..")
-metadata/_custom_type_script = "uid://cuyxblb1dmw3x"
 
 [node name="Sample2DNav" type="Node" parent="." node_paths=PackedStringArray("entity", "nav_agent")]
 script = ExtResource("2_4rrwl")

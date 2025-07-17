@@ -1,9 +1,9 @@
 [gd_scene load_steps=7 format=3 uid="uid://h4yk5sl17vo0"]
 
-[ext_resource type="Script" uid="uid://cuyxblb1dmw3x" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_location_data.gd" id="2_gjm7u"]
-[ext_resource type="Script" uid="uid://hjvdw7i5csit" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_interactable.gd" id="3_bvj2h"]
+[ext_resource type="Script" uid="uid://b4nu0eehv0waq" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_location_data.gd" id="2_gjm7u"]
+[ext_resource type="Script" uid="uid://buur1dj8yvfc1" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_interactable.gd" id="3_bvj2h"]
 [ext_resource type="PackedScene" uid="uid://l6cmjpqel81b" path="res://addons/GdPlanningAI/examples/2D/assets/banana.tscn" id="4_13ry2"]
-[ext_resource type="Script" uid="uid://bs3kclibkr6a7" path="res://addons/GdPlanningAI/examples/sample_fruit_tree_object.gd" id="4_d15qn"]
+[ext_resource type="Script" uid="uid://d03hyt0jr43ba" path="res://addons/GdPlanningAI/examples/sample_fruit_tree_object.gd" id="4_d15qn"]
 [ext_resource type="Texture2D" uid="uid://da8b50ry1060i" path="res://addons/GdPlanningAI/examples/2D/assets/banana_tree.png" id="5_d8awf"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_teil7"]
@@ -29,13 +29,11 @@ horizontal_alignment = 1
 script = ExtResource("2_gjm7u")
 location_node_2d = NodePath("..")
 entity = NodePath("..")
-metadata/_custom_type_script = "uid://cuyxblb1dmw3x"
 
 [node name="GdPAIInteractable" type="Node" parent="." node_paths=PackedStringArray("entity")]
 script = ExtResource("3_bvj2h")
 max_interaction_distance = -1.0
 entity = NodePath("..")
-metadata/_custom_type_script = "uid://hjvdw7i5csit"
 
 [node name="SampleFruitTreeObject" type="Node" parent="." node_paths=PackedStringArray("cooldown_display", "interactable_attribs", "location_data", "entity")]
 script = ExtResource("4_d15qn")
@@ -46,4 +44,3 @@ cooldown_display = NodePath("../Label")
 interactable_attribs = NodePath("../GdPAIInteractable")
 location_data = NodePath("../GdPAILocationData")
 entity = NodePath("..")
-metadata/_custom_type_script = "uid://bs3kclibkr6a7"
