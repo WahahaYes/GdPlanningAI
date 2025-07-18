@@ -1,3 +1,5 @@
+## Simple animation script used to power the GdPAI 2D demo.
+
 extends Node
 
 ## Reference to the agent's entity
@@ -16,10 +18,16 @@ extends Node
 
 
 func _process(delta: float) -> void:
+	# Animations.
 	if entity.linear_velocity.length() > idle_threshold:
 		animated_sprite.play("Run")
 	else:
 		animated_sprite.play("Idle")
+	# Flip the agent to face their movement direction.
+	if entity.linear_velocity.x < 0:
+		animated_sprite.scale.x = -1
+	elif entity.linear_velocity.x > 0:
+		animated_sprite.scale.x = 1
 
 	# Hacky way to display the goal and action being considered at this moment.
 	var hunger: float = GdPAI_agent.blackboard.get_property("hunger")

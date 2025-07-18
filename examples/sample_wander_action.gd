@@ -83,7 +83,7 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 	# Maintain a list of 10 prior positions.
 	var prior_positions: Array = agent.blackboard.get_property(uid_property("prior_positions"))
 	prior_positions.append(agent_location_data.position)
-	if prior_positions.size() > 10:
+	if prior_positions.size() > 60:
 		prior_positions.pop_front()
 	agent.blackboard.set_property(uid_property("prior_positions"), prior_positions)
 
@@ -97,7 +97,7 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 	var dist_traveled: float = (
 		(prior_positions[-1] - prior_positions[0]).length() * delta * prior_positions.size()
 	)
-	if nav_agent.is_navigation_finished():  #  or (prior_positions.size() == 10 and dist_traveled < 1):
+	if nav_agent.is_navigation_finished() or (prior_positions.size() == 60 and dist_traveled < 1):
 		return Action.Status.SUCCESS
 
 	# Continue navigating.
