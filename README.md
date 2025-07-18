@@ -4,6 +4,8 @@
 
 GdPlanningAI (shortened as **GdPAI**) is an agent planning addon for Godot that allows you to build sophisticated AI agents for your game world.  These agents are able to reason in real-time and plan actions based on their own attributes and nearby interactable objects.
 
+![GIF of the multi_agent_demo.tscn scene running](media/2d_demo.gif)
+
 This framework is originally based on Goal Oriented Action Planning (GOAP), a planning system developed by Jeff Orkin in the early 2000's.  GOAP has been used in many games since; some popular titles using GOAP systems include F.E.A.R., Fallout 3, and Alien Isolation.  This framework started as a reimplementation of GOAP.  I noticed some areas for improvement and expanded the planning logics and place more emphasis on interactable objects.
 
 The original motivation and "making of" process is covered here:
@@ -85,15 +87,17 @@ The `SpatialAction` class adapts to 2D or 3D depending on the location node spec
 
 Demos with sample actions and objects are located in `GdPlanningAI/examples`.  Currently, there is a simple setup consisting of food objects and fruit trees.  The agents' main goal is to satisfy hunger.  Eating fruit will grant hunger, and shaking fruit trees will spawn fruit.  There is a delay interval before trees can be shaken again.  When the agent isn't hungry or there isn't food around, a wandering goal takes priority and the agent explores by moving in a random direction.  `examples/2D/single_agent_demo.tscn` shows a single agent and `examples/2D/multi_agent_demo.tscn` has two agents competing for the available food.  As an exercise, consider adding new goals and actions to this starting point!
 
-![Screenshot of the single_agent_demo.tscn scene running](media/single_agent_demo_screenshot.png)
-
-*NOTE: There's an open todo related to improving the pixel art for these demos.  If anyone's interested, it'd be a fun way to contribute!*
+![GIF of the multi_agent_demo.tscn scene running](media/2d_demo.gif)
 
 ### License
 
 GdPlanningAI, Copyright 2025 Ethan Wilson
 
 This work is licensed under the Apache License, Version 2.0.  The license file can be viewed at [LICENSE.txt](LICENSE.txt) and at [http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0).
+
+**Demo assets**
+
+The 2D demo assets belong to the Tiny Swords asset pack by Pixel Frog.  Link to the project page here: [https://pixelfrog-assets.itch.io/tiny-swords](https://pixelfrog-assets.itch.io/tiny-swords).
 
 ### TODOs
 
@@ -103,10 +107,9 @@ Here is a running list of todo items *(if anyone wants to claim one, like logo o
 
 - Making a true project logo!  I quickly threw something together, but welcome a more professional looking logo.
 - Making icons for the custom nodes that have been introduced.  Not that important for functionality, but they'd look nice!
-- Updating the demo scene's assets.  I threw together some very quick pixel art so that I wouldn't need to worry about licensing issues, but they could use an upgrade!
 - Creating a visual debugger similar to Beehave or LimboAI's debuggers for behavior trees.
 - Multithreaded agent planning.  In simple contexts this may not be needed, but longer planning sequences could bottleneck the main thread and lead to stutters.  Single or multithreading will be specifiable per agent.
-- A more complicated demo scene.  Because the current demo uses **SpatialAction**s, which bundle movement in with eating, the actual planning is very simple, and most plans contain a single action.
+- More varied and complex demo scenes.  Because the current demo uses `SpatialActions`, which bundle movement in with eating, the actual planning is very simple, and most plans consist of a single action.
 - Tutorial video.
 
 ### FAQs
