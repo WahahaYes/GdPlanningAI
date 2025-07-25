@@ -50,6 +50,7 @@ func get_group_labels() -> Array[String]:
 
 # Override
 func copy_for_simulation() -> GdPAIObjectData:
+	# TODO: entity is failing here, so we need to protect whatever is calling this
 	var new_data: GdPAIObjectData = GdPAILocationData.new()
 	new_data.uid = uid
 	new_data.entity = entity

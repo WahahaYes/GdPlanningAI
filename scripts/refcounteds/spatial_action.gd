@@ -38,7 +38,7 @@ func get_validity_checks() -> Array[Precondition]:
 	var can_get_to_check: Precondition = Precondition.new()
 	can_get_to_check.eval_func = func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
 		# The target should be reachable by the agent.
-		var entity: Node = blackboard.get_property("entity")
+		var entity: Node = blackboard.get_property("entity") as Node
 		var agent_location_data: GdPAILocationData = blackboard.get_first_object_in_group(
 			"GdPAILocationData"
 		)
@@ -66,18 +66,29 @@ func get_validity_checks() -> Array[Precondition]:
 			return true
 
 		# Create a one-off navigation agent to test if it is possible to reach the object.
-		var test_nav: Node = nav_agent.duplicate()
-		entity.add_child(test_nav)
-		test_nav.queue_free()
+		var test_nav: Node
+		if GdPAIUTILS.am_I_on_main_thread():
+			test_nav = _spawn_test_nav(nav_agent, entity)
+		else:
+			test_nav = await (
+				GdPAIAwaitable.callDeferred(self, "_spawn_test_nav", [nav_agent, entity]).finished
+			)
 		# At this point, the types of test_nav should match the types returned by our object
 		# location data.
 		test_nav.target_position = object_location.position
 		test_nav.get_next_path_position()  # compute the initial path.
 		var final_dist: float = (object_location.position - test_nav.get_final_position()).length()
+		test_nav.queue_free()
 		return final_dist < interactable_attribs.max_interaction_distance
 	checks.append(can_get_to_check)
 
 	return checks
+
+
+func _spawn_test_nav(nav_agent: Node, entity: Node):
+	var test_nav: Node = nav_agent.duplicate()
+	entity.add_child(test_nav)
+	return test_nav
 
 
 # Override

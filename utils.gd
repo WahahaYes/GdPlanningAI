@@ -1,6 +1,11 @@
 @tool
 
 
+## Checks if the currently executing code is on the main thread.
+static func am_I_on_main_thread() -> bool:
+	return OS.get_main_thread_id() == OS.get_thread_caller_id()
+
+
 ## Searches a node's tree to find the first instance of _class.
 static func get_child_of_type(node: Node, _class: Variant) -> Variant:
 	if is_instance_of(node, _class):

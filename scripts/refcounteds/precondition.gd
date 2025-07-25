@@ -35,7 +35,7 @@ var eval_func: Callable
 func evaluate(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard) -> bool:
 	if is_satisfied:
 		return true
-	is_satisfied = eval_func.call(blackboard, world_state)
+	is_satisfied = await eval_func.call(blackboard, world_state)
 	return is_satisfied
 
 

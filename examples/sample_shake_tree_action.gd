@@ -57,12 +57,13 @@ func simulate_effect(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackb
 	# take this action than to simulate the creation of fruit.
 	var hunger: float = agent_blackboard.get_property("hunger")
 	# Create a temporary instance of the tree's fruit to determine hunger restored.
-	var fruit = fruit_tree.fruit_prefab.instantiate()
-	fruit.queue_free()
-	var food_item: SampleFoodObject = GdPAIUTILS.get_child_of_type(fruit, SampleFoodObject)
-	# Add however much hunger is guaranteed to drop from the tree.
-	hunger += food_item.hunger_value * fruit_tree.drop_min_amount
-	agent_blackboard.set_property("hunger", hunger)
+	# TODO: THIS IS WHERE ITS FAILING
+	#var fruit = fruit_tree.fruit_prefab.instantiate()
+	#var food_item: SampleFoodObject = GdPAIUTILS.get_child_of_type(fruit, SampleFoodObject)
+	## Add however much hunger is guaranteed to drop from the tree.
+	#hunger += food_item.hunger_value * fruit_tree.drop_min_amount
+	#agent_blackboard.set_property("hunger", hunger)
+	agent_blackboard.set_property("hunger", hunger + 20)
 
 
 # Override

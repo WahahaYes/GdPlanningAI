@@ -15,6 +15,8 @@ const GdPAI_OBJECTS = "GDPAI_OBJECTS"
 
 var _blackboard: Dictionary = {GdPAI_OBJECTS: []}
 
+var _mutex: Mutex = Mutex.new()
+
 ## Flag to indicate that this blackboard is a copy.  If so, when it is deleted, all
 ## GdPAIObjectData inside it (which are also copies) are deleted to prevent memory leaks.
 var is_a_copy: bool
@@ -22,9 +24,10 @@ var is_a_copy: bool
 
 ## Return the value of a requested property.
 func get_property(prop: String) -> Variant:
+	var val: Variant = null
 	if prop in _blackboard:
-		return _blackboard[prop]
-	return null
+		val = _blackboard[prop]
+	return val
 
 
 ## Iterate over the list of GdPAI objects in the blackboard and return any in the requested group.
