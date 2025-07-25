@@ -2,6 +2,9 @@
 class_name Plan
 extends RefCounted
 
+## A reference to utils for the GdPAI addon.
+const GdPAIUTILS: Resource = preload("res://addons/GdPlanningAI/utils.gd")
+
 var _agent: GdPAIAgent
 var _goal: Goal
 var _available_actions: Array[Action]

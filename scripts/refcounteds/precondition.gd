@@ -20,6 +20,9 @@
 class_name Precondition
 extends RefCounted
 
+## A reference to utils for the GdPAI addon.
+const GdPAIUTILS: Resource = preload("res://addons/GdPlanningAI/utils.gd")
+
 ## Variable to keep track of whether earlier evaluations of this precondition were successful.
 var is_satisfied: bool = false
 
