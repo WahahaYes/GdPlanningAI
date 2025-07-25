@@ -4,7 +4,7 @@ class_name GdPAIAgent
 extends Node
 
 ## A reference to utils for the GdPAI addon.
-const GdPAIUTILS: Resource = preload("res://addons/GdPLanningAI/utils.gd")
+const GdPAIUTILS: Resource = preload("res://addons/GdPlanningAI/utils.gd")
 
 ## The top-level node of the agent.
 @export var entity: Node

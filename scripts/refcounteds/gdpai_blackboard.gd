@@ -8,6 +8,9 @@
 class_name GdPAIBlackboard
 extends RefCounted
 
+## A reference to utils for the GdPAI addon.
+const GdPAIUTILS: Resource = preload("res://addons/GdPlanningAI/utils.gd")
+
 const GdPAI_OBJECTS = "GDPAI_OBJECTS"
 
 var _blackboard: Dictionary = {GdPAI_OBJECTS: []}

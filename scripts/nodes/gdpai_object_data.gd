@@ -3,6 +3,9 @@
 class_name GdPAIObjectData
 extends Node
 
+## A reference to utils for the GdPAI addon.
+const GdPAIUTILS: Resource = preload("res://addons/GdPlanningAI/utils.gd")
+
 ## A uid is automatically allocated so that the actual object can be tracked throughout the
 ## simulated blackboards as they are duplicated.  These are copied over in copy_for_simulation().
 var uid: String
