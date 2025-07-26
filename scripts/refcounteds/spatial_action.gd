@@ -187,11 +187,3 @@ func post_perform_action(agent: GdPAIAgent) -> Action.Status:
 	agent.blackboard.erase_property(uid_property("prior_positions"))
 
 	return Action.Status.SUCCESS
-
-
-# Override
-func copy_for_simulation() -> Action:
-	var dupe: SpatialAction = SpatialAction.new()
-	dupe.object_location = object_location
-	dupe.interactable_attribs = interactable_attribs
-	return dupe

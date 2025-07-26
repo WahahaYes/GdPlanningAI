@@ -138,5 +138,5 @@ func _compute_worldly_actions() -> Array[Action]:
 					is_satisfied = false
 					break
 			if is_satisfied:
-				actions.append(obj_act.copy_for_simulation())
+				actions.append(obj_act)
 	return actions
