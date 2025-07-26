@@ -76,7 +76,6 @@ func _build_plan(
 		return true
 	# Otherwise, continue to look for viable actions.
 	for action in _available_actions:
-		action = action.copy_for_simulation()
 		# Track if this action will make progress towards our target world state.
 		var should_use_action: bool = false
 		# Clone the agent and world states for simulation.

@@ -65,13 +65,3 @@ func post_perform_action(agent: GdPAIAgent) -> Action.Status:
 	super(agent)
 	# Add any additional postactions here.
 	return Action.Status.SUCCESS
-
-
-# Override
-func copy_for_simulation() -> Action:
-	# Override if copying more object data over.  Otherwise, no need to.
-	# Make sure to replace <Action> with the subclass name, and to duplicate any new properties.
-	var dupe: SpatialAction = SpatialAction.new()
-	dupe.object_location = object_location
-	dupe.interactable_attribs = interactable_attribs
-	return dupe

@@ -10,7 +10,7 @@ const GdPAIUTILS: Resource = preload("res://addons/GdPlanningAI/utils.gd")
 enum Status { FAILURE, RUNNING, SUCCESS }
 
 ## A uid is automatically allocated for actions so that they can put unique properties into the
-## agent and world blackboards as needed without risk of collisions with other actions.
+## blackboards as needed without risk of collisions with other actions.
 var uid: String
 # For allocating new uids.
 static var _uid_counter: int = 0
@@ -97,9 +97,3 @@ func post_perform_action(agent: GdPAIAgent) -> Status:
 ## Generates a String that appends this action's uid to allow for easier blackboard referencing.
 func uid_property(prop: String) -> String:
 	return "%s_%s" % [uid, prop]
-
-
-## Duplicate the action reference.
-func copy_for_simulation() -> Action:
-	var dupe: Action = Action.new()
-	return dupe
