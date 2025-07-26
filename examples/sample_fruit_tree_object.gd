@@ -79,10 +79,9 @@ func get_group_labels():
 func get_provided_actions() -> Array[Action]:
 	# Overwrite the get_provided_actions function to serve any actions that become possible because
 	# this object exists out in the world.
-	var shake_tree_action: SampleShakeTreeAction = SampleShakeTreeAction.new()
-	shake_tree_action.fruit_tree = self
-	shake_tree_action.object_location = location_data
-	shake_tree_action.interactable_attribs = interactable_attribs
+	var shake_tree_action: SampleShakeTreeAction = SampleShakeTreeAction.new(
+		location_data, interactable_attribs, self
+	)
 	return [shake_tree_action]
 
 

@@ -24,10 +24,9 @@ func get_group_labels():
 func get_provided_actions() -> Array[Action]:
 	# Overwrite the get_provided_actions function to serve any actions that become possible because
 	# this object exists out in the world.
-	var food_action: SampleFoodAction = SampleFoodAction.new()
-	food_action.food_item = self
-	food_action.object_location = location_data
-	food_action.interactable_attribs = interactable_attribs
+	var food_action: SampleFoodAction = SampleFoodAction.new(
+		location_data, interactable_attribs, self
+	)
 	return [food_action]
 
 

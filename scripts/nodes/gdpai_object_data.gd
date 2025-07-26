@@ -5,20 +5,18 @@ extends Node
 
 ## A reference to utils for the GdPAI addon.
 const GdPAIUTILS: Resource = preload("res://addons/GdPlanningAI/utils.gd")
-
 ## A uid is automatically allocated so that the actual object can be tracked throughout the
 ## simulated blackboards as they are duplicated.  These are copied over in copy_for_simulation().
 var uid: String
-# For allocating new uids.
+## Counter for allocating new uids.
 static var _uid_counter: int = 0
-
 ## Reference to the top-level node of this object, enabling referencing to the actual object during
 ## simulation.
 @export var entity: Node
 
 
-# The uid and groups are assigned when this node is initialized.
 func _init() -> void:
+	# The uid and groups are assigned when this node is initialized.
 	uid = str(_uid_counter)
 	_uid_counter += 1
 	for label in get_group_labels():
@@ -39,8 +37,7 @@ func get_provided_actions() -> Array[Action]:
 ## Duplicate the data about the object without altering the physical thing.  Make sure to clone
 ## anything that would be relevant for agent planning or altered during simulation.
 func copy_for_simulation() -> GdPAIObjectData:
-	# TODO: Give this method a more descriptive name once things are stable.
 	var new_data: GdPAIObjectData = GdPAIObjectData.new()
-	new_data.uid = uid
+	new_data.uid = uid  # Restore the original's uid so the clone can be tracked in simulation.
 	new_data.entity = entity
 	return new_data

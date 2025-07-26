@@ -1,11 +1,10 @@
-## Advanced Action Planning Agent.  The agent has their own record of the world state and a
+## GdPlanningAI Agent.  The agent has their own record of the world state and a
 ## personal blackboard of attributes.  Agents form plans given their available goals and actions.
 class_name GdPAIAgent
 extends Node
 
 ## A reference to utils for the GdPAI addon.
 const GdPAIUTILS: Resource = preload("res://addons/GdPlanningAI/utils.gd")
-
 ## The top-level node of the agent.
 @export var entity: Node
 ## Reference the plan for this agent's own blackboard.
@@ -22,12 +21,12 @@ var self_actions: Array[Action]
 var _current_goal: Goal
 ## The current plan being followed.
 var _current_plan: Plan
+## The current step within a plan.  Also used to control flow for pre/post actions.
 var _current_plan_step: int = -1
 
 
 func _ready() -> void:
 	blackboard = blackboard_plan.generate_blackboard()
-
 	# Initial blackboard setup common for all agents.
 	blackboard.set_property("entity", entity)
 	# Collect any GdPAI nodes under this agent's entity.
@@ -52,6 +51,7 @@ func _process(delta: float):
 	_execute_plan(delta)
 
 
+## Queries the world state for potential actions and concatenates with the agent's own list.
 func _collect_actions() -> Array[Action]:
 	# Collect possible actions.
 	var actions_with_worldly: Array[Action] = []
@@ -60,9 +60,11 @@ func _collect_actions() -> Array[Action]:
 	return actions_with_worldly
 
 
+## Iterates over all goals in order of reward until a valid plan is found.
 func _select_highest_reward_goal() -> Dictionary:
 	var return_dict: Dictionary = {}
 	var rewards: Array[float] = []
+	var potential_actions: Array[Action] = _collect_actions()
 	# Deterimine the rewards from each possible goal.
 	var highest_reward_goal: Goal = goals[0]
 	for goal in goals:
@@ -72,7 +74,7 @@ func _select_highest_reward_goal() -> Dictionary:
 		var max_reward: float = rewards.max()
 		var idx: int = rewards.find(max_reward)
 		var test_plan = Plan.new()
-		test_plan.initialize(self, goals[idx], _collect_actions())
+		test_plan.initialize(self, goals[idx], potential_actions)
 		if test_plan.get_plan().size() > 0:  # This means a plan was created.
 			return_dict["goal"] = goals[idx]
 			return_dict["plan"] = test_plan
@@ -83,6 +85,7 @@ func _select_highest_reward_goal() -> Dictionary:
 	return {"goal": null, "plan": null}
 
 
+## Executes the currently selected plan based on the current step.
 func _execute_plan(delta: float):
 	if _current_plan == null:  # No plan formed yet.
 		return
@@ -138,5 +141,5 @@ func _compute_worldly_actions() -> Array[Action]:
 					is_satisfied = false
 					break
 			if is_satisfied:
-				actions.append(obj_act.copy_for_simulation())
+				actions.append(obj_act)
 	return actions

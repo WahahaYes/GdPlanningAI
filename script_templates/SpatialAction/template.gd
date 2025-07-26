@@ -1,12 +1,14 @@
-# meta-description: GdPAI spatial action template.
+# meta-description: GdPAI SpatialAction template.
 # meta-default: true
 
 extends SpatialAction
 
 
-func _init():
-	# If implementing _init(), make sure to call super() so a uid is created.
-	super()
+# Override
+func _init(object_location: GdPAILocationData, interactable_attribs: GdPAIInteractable):
+	# If extending _init(), make sure to call super() so a uid is created and references are
+	# assigned.
+	super(object_location, interactable_attribs)
 
 
 # Override
@@ -65,13 +67,3 @@ func post_perform_action(agent: GdPAIAgent) -> Action.Status:
 	super(agent)
 	# Add any additional postactions here.
 	return Action.Status.SUCCESS
-
-
-# Override
-func copy_for_simulation() -> Action:
-	# Override if copying more object data over.  Otherwise, no need to.
-	# Make sure to replace <Action> with the subclass name, and to duplicate any new properties.
-	var dupe: SpatialAction = SpatialAction.new()
-	dupe.object_location = object_location
-	dupe.interactable_attribs = interactable_attribs
-	return dupe

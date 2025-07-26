@@ -5,9 +5,32 @@ extends SpatialAction
 ## While not necessary, I'm encoding a duration into shaking the tree here, just to make the
 ## simulation a little more visually interesting.
 const SHAKE_DURATION: float = 0.5
-
 ## Reference to the food item that provided this action.
 var fruit_tree: SampleFruitTreeObject
+## An internal param to cache how much food the tree is guaranteed to drop.
+var _fruit_hunger_value: float
+
+
+# Override
+func _init(
+	object_location: GdPAILocationData,
+	interactable_attribs: GdPAIInteractable,
+	fruit_tree: SampleFruitTreeObject
+):
+	# If extending _init(), make sure to call super() so a uid is created and references are
+	# assigned.
+	super(object_location, interactable_attribs)
+	self.fruit_tree = fruit_tree
+
+	# I am faking that the agent will restore hunger by shaking the tree.  It doesn't
+	# actually do that; it drops fruit.  Faking it makes it easier to hook preconditions, rather
+	# than trying to simulate the creation of new objects.
+
+	# Create a temporary instance for the tree's fruit to determine hunger restored.
+	var fruit = fruit_tree.fruit_prefab.instantiate()
+	fruit.queue_free()
+	var food_item: SampleFoodObject = GdPAIUTILS.get_child_of_type(fruit, SampleFoodObject)
+	_fruit_hunger_value = food_item.hunger_value * fruit_tree.drop_min_amount
 
 
 # Override
@@ -52,17 +75,8 @@ func simulate_effect(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackb
 	super(agent_blackboard, world_state)
 	# Add any additional simulation here.
 
-	# Here I am faking that the agent will restore hunger by shaking the tree.  It doesn't
-	# actually do that; it drops fruit.  However this is way simpler to entice the agent to
-	# take this action than to simulate the creation of fruit.
 	var hunger: float = agent_blackboard.get_property("hunger")
-	# Create a temporary instance of the tree's fruit to determine hunger restored.
-	var fruit = fruit_tree.fruit_prefab.instantiate()
-	fruit.queue_free()
-	var food_item: SampleFoodObject = GdPAIUTILS.get_child_of_type(fruit, SampleFoodObject)
-	# Add however much hunger is guaranteed to drop from the tree.
-	hunger += food_item.hunger_value * fruit_tree.drop_min_amount
-	agent_blackboard.set_property("hunger", hunger)
+	agent_blackboard.set_property("hunger", hunger + _fruit_hunger_value)
 
 
 # Override
@@ -115,14 +129,3 @@ func post_perform_action(agent: GdPAIAgent) -> Action.Status:
 	# Add any additional postactions here.
 	agent.blackboard.erase_property(uid_property("shake_duration"))
 	return Action.Status.SUCCESS
-
-
-# Override
-func copy_for_simulation() -> Action:
-	# Override if copying more object data over.  Otherwise, no need to.
-	# Make sure to replace <Action> with the subclass name, and to duplicate any new properties.
-	var dupe: SampleShakeTreeAction = SampleShakeTreeAction.new()
-	dupe.object_location = object_location
-	dupe.interactable_attribs = interactable_attribs
-	dupe.fruit_tree = fruit_tree
-	return dupe
