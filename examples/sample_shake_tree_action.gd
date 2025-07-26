@@ -11,6 +11,18 @@ var fruit_tree: SampleFruitTreeObject
 
 
 # Override
+func _init(
+	object_location: GdPAILocationData,
+	interactable_attribs: GdPAIInteractable,
+	fruit_tree: SampleFruitTreeObject
+):
+	# If extending _init(), make sure to call super() so a uid is created and references are
+	# assigned.
+	super(object_location, interactable_attribs)
+	self.fruit_tree = fruit_tree
+
+
+# Override
 func get_validity_checks() -> Array[Precondition]:
 	var checks: Array[Precondition] = super()
 	# Add any additional checks here.
