@@ -72,15 +72,15 @@ func get_validity_checks() -> Array[Precondition]:
 		if interactable_attribs.max_interaction_distance <= 0:
 			return true
 
-		# Create a one-off navigation agent to test if it is possible to reach the object.
-		var test_nav: Node = nav_agent.duplicate()
-		entity.add_child(test_nav)
-		test_nav.queue_free()
-		# At this point, the types of test_nav should match the types returned by our object
-		# location data.
-		test_nav.target_position = object_location.position
-		test_nav.get_next_path_position()  # compute the initial path.
-		var final_dist: float = (object_location.position - test_nav.get_final_position()).length()
+		# Override the entity's nav agent to test if it is possible to get to this object.
+		nav_agent = nav_agent as NavigationAgent2D
+		var old_target_position = nav_agent.target_position
+		nav_agent.target_position = object_location.position
+		nav_agent.get_next_path_position()  # Compute the path.
+		var final_dist: float = (object_location.position - nav_agent.get_final_position()).length()
+		# Restore the nav agent's earlier state.
+		nav_agent.target_position = old_target_position
+		nav_agent.get_next_path_position()
 		return final_dist < interactable_attribs.max_interaction_distance
 	checks.append(can_get_to_check)
 
