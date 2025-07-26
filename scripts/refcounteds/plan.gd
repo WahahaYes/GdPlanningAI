@@ -4,11 +4,15 @@ extends RefCounted
 
 ## A reference to utils for the GdPAI addon.
 const GdPAIUTILS: Resource = preload("res://addons/GdPlanningAI/utils.gd")
-
+## A reference to the agent.
 var _agent: GdPAIAgent
+## A reference to the goal.
 var _goal: Goal
+## The currently available actions provided by the agent.
 var _available_actions: Array[Action]
+## How deep to traverse when forming a plan.
 var _max_recursion: int
+## After planning, this stores the best valid plan found.
 var _best_plan: Array
 
 
@@ -28,6 +32,7 @@ func get_plan() -> Array:
 	return _best_plan
 
 
+## Computes the plan recursively by simulating outside of the scene tree.
 func _compute_plan() -> Array:
 	var blackboard: GdPAIBlackboard = _agent.blackboard.copy_for_simulation()
 	blackboard.is_a_copy = true
@@ -44,7 +49,7 @@ func _compute_plan() -> Array:
 	var success: bool = _build_plan(root_node, [], blackboard, world_state, 0)
 	# Parse out the actions from the most cost effective plan.
 	if success:
-		var plans: Array = _transform_tree_into_array(root_node, blackboard, world_state)
+		var plans: Array = _transform_tree_into_array(root_node)
 		var best_plan: Variant = null
 
 		var i = 0
@@ -57,8 +62,8 @@ func _compute_plan() -> Array:
 		return []
 
 
-# Builds a plan recursively to find cases where the goal is realized.  If there is no valid
-# plan within the recursion limit, returns false.
+## Builds a plan recursively to find cases where the goal is realized.  If there is no valid
+## plan within the recursion limit, returns false.
 func _build_plan(
 	node: Dictionary,
 	prior_actions: Array[Action],
@@ -76,7 +81,6 @@ func _build_plan(
 		return true
 	# Otherwise, continue to look for viable actions.
 	for action in _available_actions:
-		action = action.copy_for_simulation()
 		# Track if this action will make progress towards our target world state.
 		var should_use_action: bool = false
 		# Clone the agent and world states for simulation.
@@ -128,11 +132,9 @@ func _build_plan(
 	return has_solution
 
 
-# Traverses the tree of action plans and builds up an array of all the potential plans and their
-# scores.
-func _transform_tree_into_array(
-	node: Dictionary, blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard
-) -> Array:
+## Traverses the tree of action plans and builds up an array of all the potential plans and their
+## scores.
+func _transform_tree_into_array(node: Dictionary) -> Array:
 	var plans = []
 
 	if node.children.size() == 0:
@@ -140,15 +142,15 @@ func _transform_tree_into_array(
 		return plans
 
 	for child in node.children:
-		for child_plan in _transform_tree_into_array(child, blackboard, world_state):
+		for child_plan in _transform_tree_into_array(child):
 			child_plan.actions.append(node.action)
 			child_plan.cost += node.cost
 			plans.append(child_plan)
 	return plans
 
 
-# Run the evaluation on any preconditions not previously addressed.  Returns true if any
-# conditions not previously met are satisfied.
+## Run the evaluation on any preconditions not previously addressed.  Returns true if any
+## conditions not previously met are satisfied.
 func _evaluate_goals(
 	preconditions: Array[Precondition], blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard
 ) -> bool:
@@ -162,8 +164,8 @@ func _evaluate_goals(
 	return is_closer_to_goal
 
 
-# Checks over the list of preconditions to verify if all conditions have been previously
-# satisfied.
+## Checks over the list of preconditions to verify if all conditions have been previously
+## satisfied.  Doesn't attempt to verify any of the conditions.
 func _is_goal_satisfied(preconditions: Array[Precondition]):
 	# Early terminate if any of the target states are not met.
 	for condition: Precondition in preconditions:

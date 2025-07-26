@@ -53,6 +53,8 @@ func copy_for_simulation() -> GdPAIObjectData:
 	var new_data: GdPAIObjectData = GdPAILocationData.new()
 	new_data.uid = uid
 	new_data.entity = entity
+	# NOTE: Location node is not being copied over.  At simulation time, we are essentially taking
+	# 		a snapshot of position and rotation that can then be changed safely during simulation.
 	new_data.position = position
 	new_data.rotation = rotation
 	return new_data

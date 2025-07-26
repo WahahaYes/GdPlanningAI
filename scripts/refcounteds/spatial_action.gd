@@ -16,13 +16,23 @@ var interactable_attribs: GdPAIInteractable
 
 
 # Override
+func _init(object_location: GdPAILocationData, interactable_attribs: GdPAIInteractable):
+	super()
+	self.object_location = object_location
+	self.interactable_attribs = interactable_attribs
+
+
+# Override
 func get_action_cost(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard) -> float:
 	var agent_location: GdPAILocationData = agent_blackboard.get_first_object_in_group(
 		"GdPAILocationData"
 	)
 	var sim_location = world_state.get_object_by_uid(object_location.uid)
 	# NOTE: This is a heuristic using Euclidean distance but not taking navigation obstacles into
-	# account.  Using the navigation agent would be more expensive but yield a more accurate cost.
+	# 		account.  Using the navigation agent would be more expensive but yield a more accurate
+	# 		cost.
+	# TODO: Make navigation agent-based cost an option.  Maybe could configure in plugin.cfg?
+	# 		Alternative would be to parameterize within the agent, but that could be tricky.
 	var dist: float = (agent_location.position - sim_location.position).length()
 	return dist
 
@@ -55,7 +65,6 @@ func get_validity_checks() -> Array[Precondition]:
 			and object_location.location_node_3d != null
 		):
 			nav_agent = GdPAIUTILS.get_child_of_type(entity, NavigationAgent3D)
-
 		if nav_agent == null:
 			# It is possible for objects and agents to be in 2D/3D space separately (I guess?).
 			# But in those cases this particular action is not valid.
@@ -65,15 +74,15 @@ func get_validity_checks() -> Array[Precondition]:
 		if interactable_attribs.max_interaction_distance <= 0:
 			return true
 
-		# Create a one-off navigation agent to test if it is possible to reach the object.
-		var test_nav: Node = nav_agent.duplicate()
-		entity.add_child(test_nav)
-		test_nav.queue_free()
-		# At this point, the types of test_nav should match the types returned by our object
-		# location data.
-		test_nav.target_position = object_location.position
-		test_nav.get_next_path_position()  # compute the initial path.
-		var final_dist: float = (object_location.position - test_nav.get_final_position()).length()
+		# Override the entity's nav agent to test if it is possible to get to this object.
+		nav_agent = nav_agent as NavigationAgent2D
+		var old_target_position = nav_agent.target_position
+		nav_agent.target_position = object_location.position
+		nav_agent.get_next_path_position()  # Compute the path.
+		var final_dist: float = (object_location.position - nav_agent.get_final_position()).length()
+		# Restore the nav agent's earlier state.
+		nav_agent.target_position = old_target_position
+		nav_agent.get_next_path_position()
 		return final_dist < interactable_attribs.max_interaction_distance
 	checks.append(can_get_to_check)
 
@@ -153,6 +162,8 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 	var dist_traveled: float = (
 		(prior_positions[-1] - prior_positions[0]).length() * delta * prior_positions.size()
 	)
+	# TODO: Parameterize the dist_traveled condition.  It could need different effective values in
+	# 		2D or 3D, and for really slow agents.
 	if nav_agent.is_navigation_finished() or (prior_positions.size() == 60 and dist_traveled < 1):
 		# Pass if we have no interaction distance constraint.
 		if interactable_attribs.max_interaction_distance <= 0:
@@ -187,11 +198,3 @@ func post_perform_action(agent: GdPAIAgent) -> Action.Status:
 	agent.blackboard.erase_property(uid_property("prior_positions"))
 
 	return Action.Status.SUCCESS
-
-
-# Override
-func copy_for_simulation() -> Action:
-	var dupe: SpatialAction = SpatialAction.new()
-	dupe.object_location = object_location
-	dupe.interactable_attribs = interactable_attribs
-	return dupe

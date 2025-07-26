@@ -1,4 +1,4 @@
-## Denotes an interactable APP object and associated attributes needed for navigation.
+## Denotes an interactable GdPAI object and maintains common associated attributes.
 class_name GdPAIInteractable
 extends GdPAIObjectData
 
@@ -16,4 +16,5 @@ func copy_for_simulation() -> GdPAIObjectData:
 	var new_data: GdPAIInteractable = GdPAIInteractable.new()
 	new_data.uid = uid
 	new_data.entity = entity
+	new_data.max_interaction_distance = max_interaction_distance
 	return new_data

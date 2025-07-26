@@ -1,4 +1,4 @@
-## The Blackboard uses an underlying dictionary to store key information about an agent's state or
+## The GdPAIBlackboard uses an underlying dictionary to store key information about an agent's state or
 ## the state of the world.  Duplicated copies of the blackboard are passed through a chain of
 ## events when agents are planning.
 ##[br]
@@ -10,11 +10,10 @@ extends RefCounted
 
 ## A reference to utils for the GdPAI addon.
 const GdPAIUTILS: Resource = preload("res://addons/GdPlanningAI/utils.gd")
-
+## Special property in blackboards to cache object data.
 const GdPAI_OBJECTS = "GDPAI_OBJECTS"
-
+## Underlying blackboard data structure.
 var _blackboard: Dictionary = {GdPAI_OBJECTS: []}
-
 ## Flag to indicate that this blackboard is a copy.  If so, when it is deleted, all
 ## GdPAIObjectData inside it (which are also copies) are deleted to prevent memory leaks.
 var is_a_copy: bool
@@ -82,22 +81,18 @@ func copy_for_simulation():
 	return duplicate
 
 
-## Check if the blackboard is empty (does not contain any properties).
-func is_empty() -> bool:
-	# NOTE: Should always return false because of reserved properties.
-	return _blackboard.is_empty()
-
-
 ## Return the underlying dictionary when requested.
 func get_dict() -> Dictionary:
 	return _blackboard
 
 
-# For better readability when debugging, pass the underlying dict through _to_string().
+# Override
 func _to_string() -> String:
+	# For better readability when debugging, pass the underlying dict through _to_string().
 	return str(_blackboard)
 
 
+# Override
 func _notification(what):
 	if not is_a_copy:
 		return
