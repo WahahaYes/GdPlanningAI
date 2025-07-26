@@ -25,7 +25,7 @@ git submodule add https://github.com/WahahaYes/GdPlanningAI.git addons/GdPlannin
 
 Then, inside the project editor, go to **Project -> Project Settings -> Plugins** and enable the GdPlanningAI addon.
 
-Release versions will also be available on the Godot asset library [https://godotengine.org/asset-library/asset](https://godotengine.org/asset-library/asset).
+Release versions are available on the Godot asset library [https://godotengine.org/asset-library/asset](https://godotengine.org/asset-library/asset).  **NOTE: The Godot Asset Library tries to import this addon at the top folder of your project because I have set it up to be better as a git submodule.  If installing through the asset library, make sure to click *Change Install Folder* and put the addon in `addons/GdPlanningAI`.**
 
 **Script Templates**
 
@@ -69,7 +69,7 @@ The `Precondition` class evaluates a lambda function `eval_func(agent_blackboard
 
 **GdPAIObjectData**
 
-The final major component of this framework, and the most novel improvement over GOAP, is the inclusion of `GdPAIObjectData`.  This framework introduces an object-oriented approach where interactable objects broadcast the actions they provide.  Each subclass of `GdPAIObjectData` may broadcast its own action and functionality, and the composition of multiple of these under a single object results in an object that's usable in multiple ways.  
+The final major component of this framework, and the most novel improvement over GOAP, is the inclusion of `GdPAIObjectData`.  This framework introduces an object-oriented approach where interactable objects broadcast the actions they provide.  Each subclass of `GdPAIObjectData` may broadcast its own action and functionality, and the composition of multiple of these under a single object results in an object that's usable in multiple ways.  During simulation, copies of this object data are moved outside the scene tree entirely so that it can be manipulated and simulated by the agent.  This enables much greater simulation potential than GOAP's dictionary-based simulation.
 
 In addition to an agent's self-actions, which are not dependent on external factors (for example, maybe an agent has the action to rest to regain stamina), these `GdPAIObjectData` broadcast their relevent actions.  A `banana` object may broadcast the `eat_food` action.  The relevant subclass of `GdPAIObjectData` contains a `hunger_restored` attribute that the `eat_food` action references.  Through a validity check, the `eat_food` action ensures that agents have a `hunger` property, to prevent unnecessary computations for agents that don't become hungry.
 
