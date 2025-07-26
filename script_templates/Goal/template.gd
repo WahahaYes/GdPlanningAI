@@ -1,4 +1,4 @@
-# meta-description: GdPAI goal template.
+# meta-description: GdPAI Goal template.
 # meta-default: true
 
 extends Goal

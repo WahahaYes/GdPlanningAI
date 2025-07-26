@@ -1,9 +1,10 @@
-# meta-description: GdPAI object data template.
+# meta-description: GdPAIObjectData template.
 # meta-default: true
 
 extends GdPAIObjectData
 
 
+# Override
 func _init() -> void:
 	# In case extending _init(), make sure to call super() so that the group is assigned.
 	super()

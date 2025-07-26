@@ -29,7 +29,10 @@ func get_action_cost(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackb
 	)
 	var sim_location = world_state.get_object_by_uid(object_location.uid)
 	# NOTE: This is a heuristic using Euclidean distance but not taking navigation obstacles into
-	# account.  Using the navigation agent would be more expensive but yield a more accurate cost.
+	# 		account.  Using the navigation agent would be more expensive but yield a more accurate
+	# 		cost.
+	# TODO: Make navigation agent-based cost an option.  Maybe could configure in plugin.cfg?
+	# 		Alternative would be to parameterize within the agent, but that could be tricky.
 	var dist: float = (agent_location.position - sim_location.position).length()
 	return dist
 
@@ -62,7 +65,6 @@ func get_validity_checks() -> Array[Precondition]:
 			and object_location.location_node_3d != null
 		):
 			nav_agent = GdPAIUTILS.get_child_of_type(entity, NavigationAgent3D)
-
 		if nav_agent == null:
 			# It is possible for objects and agents to be in 2D/3D space separately (I guess?).
 			# But in those cases this particular action is not valid.
@@ -160,6 +162,8 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 	var dist_traveled: float = (
 		(prior_positions[-1] - prior_positions[0]).length() * delta * prior_positions.size()
 	)
+	# TODO: Parameterize the dist_traveled condition.  It could need different effective values in
+	# 		2D or 3D, and for really slow agents.
 	if nav_agent.is_navigation_finished() or (prior_positions.size() == 60 and dist_traveled < 1):
 		# Pass if we have no interaction distance constraint.
 		if interactable_attribs.max_interaction_distance <= 0:
