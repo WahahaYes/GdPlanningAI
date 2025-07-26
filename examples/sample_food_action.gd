@@ -7,6 +7,18 @@ var food_item: SampleFoodObject
 
 
 # Override
+func _init(
+	object_location: GdPAILocationData,
+	interactable_attribs: GdPAIInteractable,
+	food_item: SampleFoodObject
+):
+	# If extending _init(), make sure to call super() so a uid is created and references are
+	# assigned.
+	super(object_location, interactable_attribs)
+	self.food_item = food_item
+
+
+# Override
 func get_validity_checks() -> Array[Precondition]:
 	var checks: Array[Precondition] = super()
 	# Add any additional checks here.

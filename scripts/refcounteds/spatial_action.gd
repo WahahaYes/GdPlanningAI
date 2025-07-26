@@ -16,6 +16,13 @@ var interactable_attribs: GdPAIInteractable
 
 
 # Override
+func _init(object_location: GdPAILocationData, interactable_attribs: GdPAIInteractable):
+	super()
+	self.object_location = object_location
+	self.interactable_attribs = interactable_attribs
+
+
+# Override
 func get_action_cost(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard) -> float:
 	var agent_location: GdPAILocationData = agent_blackboard.get_first_object_in_group(
 		"GdPAILocationData"
