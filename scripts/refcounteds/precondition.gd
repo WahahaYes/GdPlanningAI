@@ -22,10 +22,8 @@ extends RefCounted
 
 ## A reference to utils for the GdPAI addon.
 const GdPAIUTILS: Resource = preload("res://addons/GdPlanningAI/utils.gd")
-
 ## Variable to keep track of whether earlier evaluations of this precondition were successful.
 var is_satisfied: bool = false
-
 ## The evaluation function is dynamic and can be set by instantiating the precondition using one
 ## of the static methods, or by defining a custom check.
 var eval_func: Callable
@@ -48,7 +46,7 @@ func copy_for_simulation():
 
 
 #region
-# Agent property value comparsions
+# Agent property value comparsions.
 
 
 ## Instantiate a precondition that checks whether a property in the agent blackboard exists.
@@ -63,8 +61,8 @@ static func agent_has_property(prop: String) -> Precondition:
 ## than a specified value.
 static func agent_property_greater_than(prop: String, value: Variant) -> Precondition:
 	var precondition: Precondition = Precondition.new()
-	precondition.eval_func = (func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
-		return blackboard.get_property(prop) > value)
+	precondition.eval_func = func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
+		return blackboard.get_property(prop) > value
 	return precondition
 
 
@@ -72,8 +70,8 @@ static func agent_property_greater_than(prop: String, value: Variant) -> Precond
 ## or equal than a specified value.
 static func agent_property_geq_than(prop: String, value: Variant) -> Precondition:
 	var precondition: Precondition = Precondition.new()
-	precondition.eval_func = (func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
-		return blackboard.get_property(prop) > value)
+	precondition.eval_func = func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
+		return blackboard.get_property(prop) > value
 	return precondition
 
 
@@ -81,8 +79,8 @@ static func agent_property_geq_than(prop: String, value: Variant) -> Preconditio
 ## than a specified value.
 static func agent_property_less_than(prop: String, value: Variant) -> Precondition:
 	var precondition: Precondition = Precondition.new()
-	precondition.eval_func = (func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
-		return blackboard.get_property(prop) < value)
+	precondition.eval_func = func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
+		return blackboard.get_property(prop) < value
 	return precondition
 
 
@@ -90,8 +88,8 @@ static func agent_property_less_than(prop: String, value: Variant) -> Preconditi
 ## than or equal to a specified value.
 static func agent_property_leq_than(prop: String, value: Variant) -> Precondition:
 	var precondition: Precondition = Precondition.new()
-	precondition.eval_func = (func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
-		return blackboard.get_property(prop) <= value)
+	precondition.eval_func = func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
+		return blackboard.get_property(prop) <= value
 	return precondition
 
 
@@ -99,21 +97,21 @@ static func agent_property_leq_than(prop: String, value: Variant) -> Preconditio
 ## a specified value.
 static func agent_property_equal_to(prop: String, value: Variant) -> Precondition:
 	var precondition: Precondition = Precondition.new()
-	precondition.eval_func = (func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
-		return blackboard.get_property(prop) == value)
+	precondition.eval_func = func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
+		return blackboard.get_property(prop) == value
 	return precondition
 
 
 #endregion
 #region
-# World state property value comparsions
+# World state property value comparsions.
 
 
 ## Instantiate a precondition that checks whether a property in the agent blackboard exists.
 static func world_state_has_property(prop: String) -> Precondition:
 	var precondition: Precondition = Precondition.new()
-	precondition.eval_func = (func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
-		return prop in world_state.get_dict())
+	precondition.eval_func = func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
+		return prop in world_state.get_dict()
 	return precondition
 
 
@@ -121,8 +119,8 @@ static func world_state_has_property(prop: String) -> Precondition:
 ## than a specified value.
 static func world_state_property_greater_than(prop: String, value: Variant) -> Precondition:
 	var precondition: Precondition = Precondition.new()
-	precondition.eval_func = (func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
-		return world_state.get_property(prop) > value)
+	precondition.eval_func = func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
+		return world_state.get_property(prop) > value
 	return precondition
 
 
@@ -130,8 +128,8 @@ static func world_state_property_greater_than(prop: String, value: Variant) -> P
 ## or equal than a specified value.
 static func world_state_property_geq_than(prop: String, value: Variant) -> Precondition:
 	var precondition: Precondition = Precondition.new()
-	precondition.eval_func = (func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
-		return world_state.get_property(prop) > value)
+	precondition.eval_func = func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
+		return world_state.get_property(prop) > value
 	return precondition
 
 
@@ -139,8 +137,8 @@ static func world_state_property_geq_than(prop: String, value: Variant) -> Preco
 ## than a specified value.
 static func world_state_property_less_than(prop: String, value: Variant) -> Precondition:
 	var precondition: Precondition = Precondition.new()
-	precondition.eval_func = (func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
-		return world_state.get_property(prop) < value)
+	precondition.eval_func = func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
+		return world_state.get_property(prop) < value
 	return precondition
 
 
@@ -148,8 +146,8 @@ static func world_state_property_less_than(prop: String, value: Variant) -> Prec
 ## than or equal to a specified value.
 static func world_state_property_leq_than(prop: String, value: Variant) -> Precondition:
 	var precondition: Precondition = Precondition.new()
-	precondition.eval_func = (func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
-		return world_state.get_property(prop) <= value)
+	precondition.eval_func = func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
+		return world_state.get_property(prop) <= value
 	return precondition
 
 
@@ -157,8 +155,8 @@ static func world_state_property_leq_than(prop: String, value: Variant) -> Preco
 ## a specified value.
 static func world_state_property_equal_to(prop: String, value: Variant) -> Precondition:
 	var precondition: Precondition = Precondition.new()
-	precondition.eval_func = (func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
-		return world_state.get_property(prop) == value)
+	precondition.eval_func = func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
+		return world_state.get_property(prop) == value
 	return precondition
 
 

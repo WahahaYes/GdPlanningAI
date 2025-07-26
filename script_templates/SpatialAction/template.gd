@@ -1,4 +1,4 @@
-# meta-description: GdPAI spatial action template.
+# meta-description: GdPAI SpatialAction template.
 # meta-default: true
 
 extends SpatialAction

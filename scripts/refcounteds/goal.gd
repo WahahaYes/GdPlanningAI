@@ -1,4 +1,4 @@
-## An GdPAI agent's goal defines a reward level and a required state to satisfy the goal.
+## A GdPAI agent's goal defines a reward level and a required state to satisfy the goal.
 class_name Goal
 extends RefCounted
 

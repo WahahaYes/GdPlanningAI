@@ -5,24 +5,23 @@ extends RefCounted
 
 ## A reference to utils for the GdPAI addon.
 const GdPAIUTILS: Resource = preload("res://addons/GdPlanningAI/utils.gd")
-
 ## Return states for actions during true simulation.
 enum Status { FAILURE, RUNNING, SUCCESS }
-
 ## A uid is automatically allocated for actions so that they can put unique properties into the
 ## blackboards as needed without risk of collisions with other actions.
 var uid: String
-# For allocating new uids.
+## Counter for allocating new uids.
 static var _uid_counter: int = 0
 
 
+# Override
 func _init():
 	uid = str(_uid_counter)
 	_uid_counter += 1
 
 
 ## List of static preconditions needed for the action to be considered.  This is
-## evaluated at the time of assigning wordly actions (so there is no need to grab sim data).
+## evaluated at the time of assigning wordly actions (so, there is no need to grab sim data).
 func get_validity_checks() -> Array[Precondition]:
 	return []
 
@@ -32,7 +31,7 @@ func get_validity_checks() -> Array[Precondition]:
 ## with world_state.get_object_by_uid(<object>.uid).
 ##[br]
 ##[br]
-## Can assume that any validity checks are already true at this point.
+## Can assume that any validity checks are true at this point.
 func get_action_cost(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard) -> float:
 	return 0
 
@@ -73,7 +72,7 @@ func reverse_simulate_effect(agent_blackboard: GdPAIBlackboard, world_state: GdP
 ## Status.FAILURE to indicate the plan should be aborted.
 ##[br]
 ##[br]
-## At this point, validity checks from planning could be false in the real world.
+## At this point, validity checks true during planning could be false in the real world.
 func pre_perform_action(agent: GdPAIAgent) -> Status:
 	return Status.SUCCESS
 
@@ -82,7 +81,7 @@ func pre_perform_action(agent: GdPAIAgent) -> Status:
 ## duration.
 ##[br]
 ##[br]
-## Need to monitor any validity checks that can be made false in the real world.
+## Need to monitor any validity checks that could become false after some time.
 func perform_action(agent: GdPAIAgent, delta: float) -> Status:
 	return Status.SUCCESS
 
