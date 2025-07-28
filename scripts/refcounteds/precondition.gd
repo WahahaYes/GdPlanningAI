@@ -1,6 +1,7 @@
 ## Preconditions for planning chains of actions.  This class allows for custom preconditions
 ## to be defined and evaluation at simulation-time.  Stores a check ("is_satisfied") to keep
 ## track if this precondition has been satisfied at some other point in the chain of actions.
+## For multithreaded planning, it is possible to await information with GdPAIUTILS.await_callv(..).
 ##[br]
 ##[br]
 ## There are static methods, like Precondition.agent_property_greater_than(<prop>, <value>),

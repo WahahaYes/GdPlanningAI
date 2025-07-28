@@ -89,10 +89,6 @@ func get_provided_actions() -> Array[Action]:
 func copy_for_simulation() -> GdPAIObjectData:
 	# Make sure to replace <GdPAIObjectData> with the subclass name, and to duplicate any new properties.
 	var new_data: SampleFruitTreeObject = SampleFruitTreeObject.new()
-	new_data.uid = uid
-	new_data.entity = entity
-	new_data.fruit_prefab = fruit_prefab
+	assign_uid_and_entity(new_data)
 	new_data.is_on_cooldown = is_on_cooldown
-	new_data.interactable_attribs = interactable_attribs
-	new_data.location_data = location_data
 	return new_data

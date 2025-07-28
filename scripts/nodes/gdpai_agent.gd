@@ -7,6 +7,8 @@ extends Node
 const GdPAIUTILS: Resource = preload("res://addons/GdPlanningAI/utils.gd")
 ## Whether this agent should do planning on a separate thread.
 @export var use_multithreading: bool
+## Agent has ownership over one thread during its lifespan.
+var thread: Thread
 ## The top-level node of the agent.
 @export var entity: Node
 ## Reference the plan for this agent's own blackboard.
@@ -28,6 +30,8 @@ var _current_plan_step: int = -1
 
 
 func _ready() -> void:
+	if use_multithreading:
+		thread = Thread.new()
 	blackboard = blackboard_plan.generate_blackboard()
 	# Initial blackboard setup common for all agents.
 	blackboard.set_property("entity", entity)
@@ -46,27 +50,42 @@ func _process(delta: float):
 		return
 	# Check if a new plan is needed.
 	if _current_plan == null or _current_plan_step > _current_plan.get_plan().size():
-		var goal_and_plan: Dictionary = _select_highest_reward_goal()
-		_current_goal = goal_and_plan["goal"]
-		_current_plan = goal_and_plan["plan"]
-		_current_plan_step = -1
+		# Query the world state at the start of planning.
+		var worldly_actions: Array[Action] = await _compute_worldly_actions()
+		if use_multithreading:
+			# Spin up a thread to call the planning logic.  Variable assignment happens at the
+			# end of planning.
+			if not thread.is_started():
+				# Spin up a new thread to handle planning.
+				thread.start(_select_highest_reward_goal.bind(worldly_actions))
+				print("started thread %s" % thread.get_id())
+			else:
+				return
+		else:
+			var goal_and_plan: Dictionary = await _select_highest_reward_goal(worldly_actions)
+			_current_goal = goal_and_plan["goal"]
+			_current_plan = goal_and_plan["plan"]
+			_current_plan_step = -1
 	_execute_plan(delta)
 
 
-## Queries the world state for potential actions and concatenates with the agent's own list.
-func _collect_actions() -> Array[Action]:
-	# Collect possible actions.
-	var actions_with_worldly: Array[Action] = []
-	actions_with_worldly.append_array(self_actions)
-	actions_with_worldly.append_array(_compute_worldly_actions())
-	return actions_with_worldly
-
-
 ## Iterates over all goals in order of reward until a valid plan is found.
-func _select_highest_reward_goal() -> Dictionary:
+func _select_highest_reward_goal(worldly_actions: Array[Action]) -> Dictionary:
+	if not GdPAIUTILS.am_I_on_main_thread():
+		# Removing safety checks usually isn't a good idea.  In our processing we will read from
+		# the scene tree or will await information, but we don't write.  With some checks to
+		# ensure that data exists, and knowing that this thread's processing is constrained to
+		# planning, this is maybe okay to do.
+		thread.set_thread_safety_checks_enabled(false)
+
 	var return_dict: Dictionary = {}
 	var rewards: Array[float] = []
-	var potential_actions: Array[Action] = _collect_actions()
+
+	# Poll the world state for valid actions.
+	var actions_with_worldly: Array[Action] = []
+	actions_with_worldly.append_array(self_actions)
+	actions_with_worldly.append_array(worldly_actions)
+
 	# Deterimine the rewards from each possible goal.
 	var highest_reward_goal: Goal = goals[0]
 	for goal in goals:
@@ -76,15 +95,31 @@ func _select_highest_reward_goal() -> Dictionary:
 		var max_reward: float = rewards.max()
 		var idx: int = rewards.find(max_reward)
 		var test_plan = Plan.new()
-		test_plan.initialize(self, goals[idx], potential_actions)
+		test_plan.initialize(self, goals[idx], actions_with_worldly)
+
 		if test_plan.get_plan().size() > 0:  # This means a plan was created.
 			return_dict["goal"] = goals[idx]
 			return_dict["plan"] = test_plan
+			# For multithreading, we need to sync to main thread before exiting.
+			if use_multithreading:
+				call_deferred("_sync_multithreaded_plan")
 			return return_dict
 		else:
 			rewards[idx] = -1
 
+	# For multithreading, we need to sync to main thread before exiting.
+	if use_multithreading:
+		call_deferred("_sync_multithreaded_plan")
 	return {"goal": null, "plan": null}
+
+
+## Waits for thread to finish then assigns return values.
+func _sync_multithreaded_plan():
+	print("collected thread %s" % thread.get_id())
+	var goal_and_plan = thread.wait_to_finish()
+	_current_goal = goal_and_plan["goal"]
+	_current_plan = goal_and_plan["plan"]
+	_current_plan_step = -1
 
 
 ## Executes the currently selected plan based on the current step.
@@ -139,7 +174,8 @@ func _compute_worldly_actions() -> Array[Action]:
 			var validity_checks: Array[Precondition] = obj_act.get_validity_checks()
 			var is_satisfied: bool = true
 			for check: Precondition in validity_checks:
-				if not check.evaluate(blackboard, ws_checkpoint):
+				var status: bool = await check.evaluate(blackboard, ws_checkpoint)
+				if not status:
 					is_satisfied = false
 					break
 			if is_satisfied:
