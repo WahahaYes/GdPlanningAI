@@ -9,6 +9,8 @@ const GdPAIUTILS: Resource = preload("res://addons/GdPlanningAI/utils.gd")
 @export var use_multithreading: bool
 ## Agent has ownership over one thread during its lifespan.
 var thread: Thread
+## The maximum recursion depth for the agent when planning.
+@export var max_recursion: int = 4
 ## The top-level node of the agent.
 @export var entity: Node
 ## Reference the plan for this agent's own blackboard.
@@ -57,15 +59,17 @@ func _process(delta: float):
 			# end of planning.
 			if not thread.is_started():
 				# Spin up a new thread to handle planning.
+				_current_plan = null
+				_current_plan_step = -1
 				thread.start(_select_highest_reward_goal.bind(worldly_actions))
 				print("started thread %s" % thread.get_id())
-			else:
-				return
+			return
 		else:
 			var goal_and_plan: Dictionary = await _select_highest_reward_goal(worldly_actions)
+			_current_plan_step = -1
 			_current_goal = goal_and_plan["goal"]
 			_current_plan = goal_and_plan["plan"]
-			_current_plan_step = -1
+			return
 	_execute_plan(delta)
 
 
@@ -95,7 +99,7 @@ func _select_highest_reward_goal(worldly_actions: Array[Action]) -> Dictionary:
 		var max_reward: float = rewards.max()
 		var idx: int = rewards.find(max_reward)
 		var test_plan = Plan.new()
-		test_plan.initialize(self, goals[idx], actions_with_worldly)
+		test_plan.initialize(self, goals[idx], actions_with_worldly, max_recursion)
 
 		if test_plan.get_plan().size() > 0:  # This means a plan was created.
 			return_dict["goal"] = goals[idx]
@@ -119,7 +123,6 @@ func _sync_multithreaded_plan():
 	var goal_and_plan = thread.wait_to_finish()
 	_current_goal = goal_and_plan["goal"]
 	_current_plan = goal_and_plan["plan"]
-	_current_plan_step = -1
 
 
 ## Executes the currently selected plan based on the current step.
