@@ -22,6 +22,9 @@ func _init():
 
 ## List of static preconditions needed for the action to be considered.  This is
 ## evaluated at the time of assigning wordly actions (so, there is no need to grab sim data).
+##[br]
+##[br]
+## For multithreaded planning, it is possible to await information with GdPAIUTILS.await_callv(..).
 func get_validity_checks() -> Array[Precondition]:
 	return []
 
@@ -31,7 +34,9 @@ func get_validity_checks() -> Array[Precondition]:
 ## with world_state.get_object_by_uid(<object>.uid).
 ##[br]
 ##[br]
-## Can assume that any validity checks are true at this point.
+## Can assume that validity checks are true at this point, EXCEPT continued references existing in
+## the scene tree.  If a reference is invalid, returning INF tells the planner to skip this action.
+## For multithreaded planning, it is possible to await information with GdPAIUTILS.await_callv(..).
 func get_action_cost(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard) -> float:
 	return 0
 
@@ -41,7 +46,9 @@ func get_action_cost(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackb
 ## get the simulated version with world_state.get_object_by_uid(<object>.uid).
 ##[br]
 ##[br]
-## Can assume that any validity checks are already true at this point.
+## Can assume that validity checks are true at this point, EXCEPT continued references existing in
+## the scene tree.  If a reference is invalid, returning INF tells the planner to skip this action.
+## For multithreaded planning, it is possible to await information with GdPAIUTILS.await_callv(..).
 func get_preconditions() -> Array[Precondition]:
 	return []
 
@@ -49,6 +56,7 @@ func get_preconditions() -> Array[Precondition]:
 ## Simulates onto the agent's blackboards the change that would occur if this action is taken out.
 ## Does not return a value; this modifies the blackboards in-place.  If referencing an object
 ## make sure to first get the simulated version with world_state.get_object_by_uid(<object>.uid).
+## This method SHOULD NOT make any changes inside the scene tree.
 ##[br]
 ##[br]
 ## Can assume that any validity checks are already true.

@@ -71,13 +71,16 @@ func append_other_blackboard(other_blackboard: GdPAIBlackboard):
 ## Duplicate this object by duplicating the underlying dictionary so that changes to the copy do
 ## not effect the original.
 func copy_for_simulation():
+	GdPAIUTILS.mutex.lock()
 	var duplicate = GdPAIBlackboard.new()
 	duplicate._blackboard = _blackboard.duplicate(true)
 	var duped_objects: Array[GdPAIObjectData] = []
-	for aod: GdPAIObjectData in duplicate._blackboard[GdPAI_OBJECTS]:
+	for aod in _blackboard[GdPAI_OBJECTS]:
 		# aod.copy_for_simulation() preserves uids and properties but detaches from the scene graph.
-		duped_objects.append(aod.copy_for_simulation())
+		if is_instance_valid(aod) and is_instance_valid(aod.entity):
+			duped_objects.append(aod.copy_for_simulation())
 	duplicate._blackboard[GdPAI_OBJECTS] = duped_objects
+	GdPAIUTILS.mutex.unlock()
 	return duplicate
 
 

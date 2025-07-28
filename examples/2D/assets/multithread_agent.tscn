@@ -1,0 +1,14 @@
+[gd_scene load_steps=2 format=3 uid="uid://cpispy78now33"]
+
+[ext_resource type="PackedScene" uid="uid://b1bmo16x83s1x" path="res://addons/GdPlanningAI/examples/2D/assets/sample_agent.tscn" id="1_7qpkc"]
+
+[node name="MultithreadAgent" instance=ExtResource("1_7qpkc")]
+
+[node name="SampleHungryAgent" parent="." index="4"]
+hunger_decay = 2.5
+
+[node name="GdPAIAgent" parent="." index="6"]
+use_multithreading = true
+
+[node name="Sample2DNav" parent="." index="8"]
+speed = 196.0

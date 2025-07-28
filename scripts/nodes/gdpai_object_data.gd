@@ -38,6 +38,15 @@ func get_provided_actions() -> Array[Action]:
 ## anything that would be relevant for agent planning or altered during simulation.
 func copy_for_simulation() -> GdPAIObjectData:
 	var new_data: GdPAIObjectData = GdPAIObjectData.new()
-	new_data.uid = uid  # Restore the original's uid so the clone can be tracked in simulation.
-	new_data.entity = entity
+	assign_uid_and_entity(new_data)
 	return new_data
+
+
+## Reassigns the original's uid and copies over the entity if valid.  Call this when extending
+## copy_for_simulation().
+func assign_uid_and_entity(new_data: GdPAIObjectData):
+	new_data.uid = uid  # Restore the original's uid so the clone can be tracked in simulation.
+	if entity == null or not is_instance_valid(entity):
+		new_data.entity = null
+	else:
+		new_data.entity = entity

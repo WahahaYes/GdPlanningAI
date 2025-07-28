@@ -14,7 +14,6 @@ func get_group_labels():
 # Override
 func copy_for_simulation() -> GdPAIObjectData:
 	var new_data: GdPAIInteractable = GdPAIInteractable.new()
-	new_data.uid = uid
-	new_data.entity = entity
+	assign_uid_and_entity(new_data)
 	new_data.max_interaction_distance = max_interaction_distance
 	return new_data

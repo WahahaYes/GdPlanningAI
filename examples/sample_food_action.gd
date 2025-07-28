@@ -37,8 +37,12 @@ func get_validity_checks() -> Array[Precondition]:
 # Override
 func get_action_cost(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard) -> float:
 	var cost: float = super(agent_blackboard, world_state)
+	if cost == INF:
+		return INF
 	# Add any additional cost computations.
 
+	if not is_instance_valid(food_item):
+		return INF
 	# Including how long it takes to eat the item as a cost metric for demo purposes.
 	return cost + food_item.eating_duration
 

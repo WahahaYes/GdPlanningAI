@@ -2,8 +2,8 @@
 
 [ext_resource type="Script" uid="uid://cu134mwsik6n5" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_world_node.gd" id="1_rkncr"]
 [ext_resource type="Script" uid="uid://cvie3m6t7c0hd" path="res://addons/GdPlanningAI/scripts/gdpai_blackboard_plan.gd" id="2_0u4pw"]
-[ext_resource type="PackedScene" uid="uid://b1bmo16x83s1x" path="res://addons/GdPlanningAI/examples/2D/assets/sample_agent.tscn" id="4_6degm"]
-[ext_resource type="PackedScene" path="res://addons/GdPlanningAI/examples/2D/assets/huge_scenery.tscn" id="4_ik4h7"]
+[ext_resource type="PackedScene" uid="uid://ccwogpiprdh6r" path="res://addons/GdPlanningAI/examples/2D/assets/huge_scenery.tscn" id="4_ik4h7"]
+[ext_resource type="PackedScene" uid="uid://cpispy78now33" path="res://addons/GdPlanningAI/examples/2D/assets/multithread_agent.tscn" id="4_mbmwo"]
 
 [sub_resource type="Resource" id="Resource_mer3k"]
 script = ExtResource("2_0u4pw")
@@ -16,115 +16,33 @@ metadata/_custom_type_script = "uid://dsov73hfryg5g"
 script = ExtResource("1_rkncr")
 blackboard_plan = SubResource("Resource_mer3k")
 
-[node name="SampleAgent" parent="." instance=ExtResource("4_6degm")]
-position = Vector2(-614, -1799)
-lock_rotation = true
-
-[node name="SampleHungryAgent" parent="SampleAgent" index="4"]
-hunger_decay = 2.5
-
-[node name="GdPAIAgent" parent="SampleAgent" index="6"]
-use_multithreading = true
-
-[node name="SampleAgent2" parent="." instance=ExtResource("4_6degm")]
-position = Vector2(-609, -1661)
-lock_rotation = true
-
-[node name="SampleHungryAgent" parent="SampleAgent2" index="4"]
-hunger_decay = 2.5
-
-[node name="GdPAIAgent" parent="SampleAgent2" index="6"]
-use_multithreading = true
-
-[node name="SampleAgent3" parent="." instance=ExtResource("4_6degm")]
-position = Vector2(-614, -1542)
-lock_rotation = true
-
-[node name="SampleHungryAgent" parent="SampleAgent3" index="4"]
-hunger_decay = 2.5
-
-[node name="GdPAIAgent" parent="SampleAgent3" index="6"]
-use_multithreading = true
-
-[node name="SampleAgent4" parent="." instance=ExtResource("4_6degm")]
-position = Vector2(-628, -1400)
-lock_rotation = true
-
-[node name="SampleHungryAgent" parent="SampleAgent4" index="4"]
-hunger_decay = 2.5
-
-[node name="GdPAIAgent" parent="SampleAgent4" index="6"]
-use_multithreading = true
-
-[node name="SampleAgent5" parent="." instance=ExtResource("4_6degm")]
-position = Vector2(-591, -1281)
-lock_rotation = true
-
-[node name="SampleHungryAgent" parent="SampleAgent5" index="4"]
-hunger_decay = 2.5
-
-[node name="GdPAIAgent" parent="SampleAgent5" index="6"]
-use_multithreading = true
-
-[node name="SampleAgent6" parent="." instance=ExtResource("4_6degm")]
-position = Vector2(-619, -1152)
-lock_rotation = true
-
-[node name="SampleHungryAgent" parent="SampleAgent6" index="4"]
-hunger_decay = 2.5
-
-[node name="GdPAIAgent" parent="SampleAgent6" index="6"]
-use_multithreading = true
-
-[node name="SampleAgent7" parent="." instance=ExtResource("4_6degm")]
-position = Vector2(-605, -1037)
-lock_rotation = true
-
-[node name="SampleHungryAgent" parent="SampleAgent7" index="4"]
-hunger_decay = 2.5
-
-[node name="GdPAIAgent" parent="SampleAgent7" index="6"]
-use_multithreading = true
-
-[node name="SampleAgent8" parent="." instance=ExtResource("4_6degm")]
-position = Vector2(-619, -936)
-lock_rotation = true
-
-[node name="SampleHungryAgent" parent="SampleAgent8" index="4"]
-hunger_decay = 2.5
-
-[node name="GdPAIAgent" parent="SampleAgent8" index="6"]
-use_multithreading = true
-
-[node name="SampleAgent9" parent="." instance=ExtResource("4_6degm")]
-position = Vector2(-610, -826)
-lock_rotation = true
-
-[node name="SampleHungryAgent" parent="SampleAgent9" index="4"]
-hunger_decay = 2.5
-
-[node name="GdPAIAgent" parent="SampleAgent9" index="6"]
-use_multithreading = true
-
-[node name="SampleAgent10" parent="." instance=ExtResource("4_6degm")]
-position = Vector2(-661, -679)
-lock_rotation = true
-
-[node name="SampleHungryAgent" parent="SampleAgent10" index="4"]
-hunger_decay = 2.5
-
-[node name="GdPAIAgent" parent="SampleAgent10" index="6"]
-use_multithreading = true
-
 [node name="HugeScenery" parent="." instance=ExtResource("4_ik4h7")]
 
-[editable path="SampleAgent"]
-[editable path="SampleAgent2"]
-[editable path="SampleAgent3"]
-[editable path="SampleAgent4"]
-[editable path="SampleAgent5"]
-[editable path="SampleAgent6"]
-[editable path="SampleAgent7"]
-[editable path="SampleAgent8"]
-[editable path="SampleAgent9"]
-[editable path="SampleAgent10"]
+[node name="MultithreadAgent" parent="." instance=ExtResource("4_mbmwo")]
+
+[node name="MultithreadAgent2" parent="." instance=ExtResource("4_mbmwo")]
+position = Vector2(-1391, 821)
+
+[node name="MultithreadAgent3" parent="." instance=ExtResource("4_mbmwo")]
+position = Vector2(-2619, -126)
+
+[node name="MultithreadAgent4" parent="." instance=ExtResource("4_mbmwo")]
+position = Vector2(-2530, -1088)
+
+[node name="MultithreadAgent5" parent="." instance=ExtResource("4_mbmwo")]
+position = Vector2(-2027, -2250)
+
+[node name="MultithreadAgent6" parent="." instance=ExtResource("4_mbmwo")]
+position = Vector2(-554, -1880)
+
+[node name="MultithreadAgent7" parent="." instance=ExtResource("4_mbmwo")]
+position = Vector2(1007, -2213)
+
+[node name="MultithreadAgent8" parent="." instance=ExtResource("4_mbmwo")]
+position = Vector2(1954, -2095)
+
+[node name="MultithreadAgent9" parent="." instance=ExtResource("4_mbmwo")]
+position = Vector2(1303, -452)
+
+[node name="MultithreadAgent10" parent="." instance=ExtResource("4_mbmwo")]
+position = Vector2(2065, 651)
