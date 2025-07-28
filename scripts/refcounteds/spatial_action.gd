@@ -14,6 +14,9 @@ var object_location: GdPAILocationData
 ## Reference to the GdPAI interactable attributes.  This is set when the action is created.
 var interactable_attribs: GdPAIInteractable
 
+var has_done_pre: bool
+var has_done_post: bool
+
 
 # Override
 func _init(object_location: GdPAILocationData, interactable_attribs: GdPAIInteractable):
@@ -30,6 +33,8 @@ func get_action_cost(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackb
 	if not is_instance_valid(object_location):
 		return INF
 	var sim_location = world_state.get_object_by_uid(object_location.uid)
+	if not is_instance_valid(sim_location):
+		return INF
 	# NOTE: This is a heuristic using Euclidean distance but not taking navigation obstacles into
 	# 		account.  Using the navigation agent would be more expensive but yield a more accurate
 	# 		cost.
@@ -131,6 +136,8 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	agent.blackboard.set_property(uid_property("target_set"), false)
 	agent.blackboard.set_property(uid_property("target_reached"), false)
 	agent.blackboard.set_property(uid_property("prior_positions"), [agent_location_data.position])
+
+	has_done_pre = true
 	return Action.Status.SUCCESS
 
 
@@ -188,6 +195,10 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 
 # Override
 func post_perform_action(agent: GdPAIAgent) -> Action.Status:
+	# Corresponding failure state to what could skip pre actions.
+	if not is_instance_valid(object_location) or not is_instance_valid(interactable_attribs):
+		return Action.Status.FAILURE
+
 	var nav_agent: Node = agent.blackboard.get_property(uid_property("nav_agent"))
 	var agent_location_data: GdPAILocationData = agent.blackboard.get_property(
 		uid_property("agent_location")
@@ -202,4 +213,5 @@ func post_perform_action(agent: GdPAIAgent) -> Action.Status:
 	agent.blackboard.erase_property(uid_property("time_elapsed"))
 	agent.blackboard.erase_property(uid_property("prior_positions"))
 
+	has_done_post = true
 	return Action.Status.SUCCESS
