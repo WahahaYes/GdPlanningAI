@@ -5,6 +5,8 @@ extends Node
 
 ## A reference to utils for the GdPAI addon.
 const GdPAIUTILS: Resource = preload("res://addons/GdPlanningAI/utils.gd")
+## Whether this agent should do planning on a separate thread.
+@export var use_multithreading: bool
 ## The top-level node of the agent.
 @export var entity: Node
 ## Reference the plan for this agent's own blackboard.
