@@ -14,6 +14,7 @@ const GdPAIUTILS: Resource = preload("res://addons/GdPlanningAI/utils.gd")
 const GdPAI_OBJECTS = "GDPAI_OBJECTS"
 ## Underlying blackboard data structure.
 var _blackboard: Dictionary = {GdPAI_OBJECTS: []}
+## A mutex is needed when multithreading because multiple
 ## Flag to indicate that this blackboard is a copy.  If so, when it is deleted, all
 ## GdPAIObjectData inside it (which are also copies) are deleted to prevent memory leaks.
 var is_a_copy: bool
@@ -71,21 +72,21 @@ func append_other_blackboard(other_blackboard: GdPAIBlackboard):
 ## Duplicate this object by duplicating the underlying dictionary so that changes to the copy do
 ## not effect the original.
 func copy_for_simulation():
-	GdPAIUTILS.mutex.lock()
 	var duplicate = GdPAIBlackboard.new()
 	for _key in _blackboard.keys():
 		if _key == GdPAI_OBJECTS:
 			continue
 		duplicate._blackboard[_key] = _blackboard[_key]
 	var duped_objects: Array[GdPAIObjectData] = []
-	# TODO: This throws a c++ error but continues.  The next if statement protects the code but
-	# 		it might be nice to revisit this (might need a custom iterator).
+	# TODO: This can throw a c++ error but continues.  The next if statement protects the code,
+	# 		but it might be nice to revisit this (might need a custom iterator).
+	# NOTE: Before custom iterator try hooking up a signal between object on_destroy and a
+	#		function that pops the element from _blackboard[GdPAI_OBJECTS] automatically.
 	for aod in _blackboard[GdPAI_OBJECTS]:
 		# aod.copy_for_simulation() preserves uids and properties but detaches from the scene graph.
 		if aod != null and is_instance_valid(aod):
 			duped_objects.append(aod.copy_for_simulation())
 	duplicate._blackboard[GdPAI_OBJECTS] = duped_objects
-	GdPAIUTILS.mutex.unlock()
 	return duplicate
 
 

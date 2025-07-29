@@ -7,6 +7,7 @@ extends Node
 const GdPAIUTILS: Resource = preload("res://addons/GdPlanningAI/utils.gd")
 ## Whether this agent should do planning on a separate thread.
 @export var use_multithreading: bool
+@export var thread_priority: Thread.Priority = Thread.PRIORITY_LOW
 ## Agent has ownership over one thread during its lifespan.
 var thread: Thread
 ## The maximum recursion depth for the agent when planning.
@@ -61,15 +62,12 @@ func _process(delta: float):
 				# Spin up a new thread to handle planning.
 				_current_plan = null
 				_current_plan_step = -1
-				thread.start(_select_highest_reward_goal.bind(worldly_actions))
-				print("started thread %s" % thread.get_id())
-			return
+				thread.start(_select_highest_reward_goal.bind(worldly_actions), thread_priority)
 		else:
 			var goal_and_plan: Dictionary = await _select_highest_reward_goal(worldly_actions)
 			_current_plan_step = -1
 			_current_goal = goal_and_plan["goal"]
 			_current_plan = goal_and_plan["plan"]
-			return
 	_execute_plan(delta)
 
 
@@ -119,7 +117,6 @@ func _select_highest_reward_goal(worldly_actions: Array[Action]) -> Dictionary:
 
 ## Waits for thread to finish then assigns return values.
 func _sync_multithreaded_plan():
-	print("collected thread %s" % thread.get_id())
 	var goal_and_plan = thread.wait_to_finish()
 	_current_goal = goal_and_plan["goal"]
 	_current_plan = goal_and_plan["plan"]
