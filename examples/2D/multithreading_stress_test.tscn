@@ -12,7 +12,7 @@ blackboard_backend = {}
 metadata/_custom_type_script = "uid://dsov73hfryg5g"
 
 [sub_resource type="LabelSettings" id="LabelSettings_rkncr"]
-font_size = 100
+font_size = 120
 
 [node name="MultithreadingStressTest" type="Node2D"]
 
@@ -52,10 +52,10 @@ position = Vector2(1303, -452)
 position = Vector2(2065, 651)
 
 [node name="FPSDisplay" type="Label" parent="." node_paths=PackedStringArray("display_text")]
-offset_left = -3858.0
-offset_top = -2784.0
-offset_right = -3251.0
-offset_bottom = -2384.0
+offset_left = -4754.0
+offset_top = -2768.0
+offset_right = -4026.0
+offset_bottom = -2368.0
 text = "FPS average:
 Low spike:"
 label_settings = SubResource("LabelSettings_rkncr")
