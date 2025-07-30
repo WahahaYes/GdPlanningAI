@@ -21,6 +21,8 @@ func get_validity_checks() -> Array[Precondition]:
 # Override
 func get_action_cost(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard) -> float:
 	var cost: float = super(agent_blackboard, world_state)
+	if cost == INF:
+		return INF
 	# Add any additional cost computations.
 	return cost
 

@@ -10,7 +10,7 @@ extends GdPAIObjectData
 
 ## Reference to GdPAI interactable.
 @export var interactable_attribs: GdPAIInteractable
-# Reference to GdPAI location data.
+## Reference to GdPAI location data.
 @export var location_data: GdPAILocationData
 
 
@@ -34,10 +34,7 @@ func get_provided_actions() -> Array[Action]:
 func copy_for_simulation() -> GdPAIObjectData:
 	# Make sure to replace <GdPAIObjectData> with the subclass name, and to duplicate any new properties.
 	var new_data: SampleFoodObject = SampleFoodObject.new()
-	new_data.uid = uid
-	new_data.entity = entity
+	assign_uid_and_entity(new_data)
 	new_data.hunger_value = hunger_value
 	new_data.eating_duration = eating_duration
-	new_data.interactable_attribs = interactable_attribs
-	new_data.location_data = location_data
 	return new_data

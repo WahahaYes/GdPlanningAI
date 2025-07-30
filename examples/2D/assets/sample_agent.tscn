@@ -1,4 +1,4 @@
-[gd_scene load_steps=22 format=3 uid="uid://b1bmo16x83s1x"]
+[gd_scene load_steps=23 format=3 uid="uid://b1bmo16x83s1x"]
 
 [ext_resource type="Texture2D" uid="uid://cqi0wac4ge1bd" path="res://addons/GdPlanningAI/examples/2D/assets/TinySwordsPack/Units/Blue Units/Monk/Idle.png" id="1_15dhw"]
 [ext_resource type="Script" uid="uid://kfoja1kvby1g" path="res://addons/GdPlanningAI/examples/2D/assets/sample_2d_nav.gd" id="2_4rrwl"]
@@ -95,6 +95,9 @@ animations = [{
 "speed": 5.0
 }]
 
+[sub_resource type="LabelSettings" id="LabelSettings_6mdly"]
+font_size = 20
+
 [sub_resource type="Resource" id="Resource_q8vck"]
 script = ExtResource("5_83xqa")
 blackboard_backend = {
@@ -120,13 +123,14 @@ frame_progress = 0.959604
 
 [node name="Label" type="Label" parent="."]
 offset_left = -40.0
-offset_top = -140.0
+offset_top = -157.0
 offset_right = 160.0
-offset_bottom = -39.0
+offset_bottom = -36.0
 text = "Hunger: [Value]
 Goal: [Value]
 Current
 Action: [Value]"
+label_settings = SubResource("LabelSettings_6mdly")
 
 [node name="SampleHungryAgent" type="Node" parent="." node_paths=PackedStringArray("GdPAI_agent")]
 script = ExtResource("3_qsotd")

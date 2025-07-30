@@ -14,6 +14,9 @@ var object_location: GdPAILocationData
 ## Reference to the GdPAI interactable attributes.  This is set when the action is created.
 var interactable_attribs: GdPAIInteractable
 
+var has_done_pre: bool
+var has_done_post: bool
+
 
 # Override
 func _init(object_location: GdPAILocationData, interactable_attribs: GdPAIInteractable):
@@ -27,7 +30,11 @@ func get_action_cost(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackb
 	var agent_location: GdPAILocationData = agent_blackboard.get_first_object_in_group(
 		"GdPAILocationData"
 	)
+	if not is_instance_valid(object_location):
+		return INF
 	var sim_location = world_state.get_object_by_uid(object_location.uid)
+	if not is_instance_valid(sim_location):
+		return INF
 	# NOTE: This is a heuristic using Euclidean distance but not taking navigation obstacles into
 	# 		account.  Using the navigation agent would be more expensive but yield a more accurate
 	# 		cost.
@@ -55,16 +62,15 @@ func get_validity_checks() -> Array[Precondition]:
 
 		# nav_agent could be NavigationAgent2D or NavigationAgent3D depending on the setup.
 		var nav_agent: Node
-		if (
-			agent_location_data.location_node_2d != null
-			and object_location.location_node_2d != null
-		):
-			nav_agent = GdPAIUTILS.get_child_of_type(entity, NavigationAgent2D)
-		if (
-			agent_location_data.location_node_3d != null
-			and object_location.location_node_3d != null
-		):
-			nav_agent = GdPAIUTILS.get_child_of_type(entity, NavigationAgent3D)
+		var nav_agent_2d: Node = GdPAIUTILS.get_child_of_type(entity, NavigationAgent2D)
+		var nav_agent_3d: Node = GdPAIUTILS.get_child_of_type(entity, NavigationAgent3D)
+		# These shouldn't both be assigned.
+		assert(nav_agent_2d == null or nav_agent_3d == null)
+		if nav_agent_2d != null:
+			nav_agent = nav_agent_2d
+		elif nav_agent_3d != null:
+			nav_agent = nav_agent_3d
+
 		if nav_agent == null:
 			# It is possible for objects and agents to be in 2D/3D space separately (I guess?).
 			# But in those cases this particular action is not valid.
@@ -75,7 +81,6 @@ func get_validity_checks() -> Array[Precondition]:
 			return true
 
 		# Override the entity's nav agent to test if it is possible to get to this object.
-		nav_agent = nav_agent as NavigationAgent2D
 		var old_target_position = nav_agent.target_position
 		nav_agent.target_position = object_location.position
 		nav_agent.get_next_path_position()  # Compute the path.
@@ -115,10 +120,15 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 
 	# nav_agent could be NavigationAgent2D or NavigationAgent3D depending on the setup.
 	var nav_agent: Node
-	if agent_location_data.location_node_2d != null and object_location.location_node_2d != null:
-		nav_agent = GdPAIUTILS.get_child_of_type(entity, NavigationAgent2D)
-	if agent_location_data.location_node_3d != null and object_location.location_node_3d != null:
-		nav_agent = GdPAIUTILS.get_child_of_type(entity, NavigationAgent3D)
+	var nav_agent_2d: Node = GdPAIUTILS.get_child_of_type(entity, NavigationAgent2D)
+	var nav_agent_3d: Node = GdPAIUTILS.get_child_of_type(entity, NavigationAgent3D)
+	# These shouldn't both be assigned.
+	assert(nav_agent_2d == null or nav_agent_3d == null)
+	if nav_agent_2d != null:
+		nav_agent = nav_agent_2d
+	elif nav_agent_3d != null:
+		nav_agent = nav_agent_3d
+	assert(nav_agent != null)
 	agent.blackboard.set_property(uid_property("nav_agent"), nav_agent)
 
 	# Set up some flags for movement.
@@ -126,6 +136,8 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	agent.blackboard.set_property(uid_property("target_set"), false)
 	agent.blackboard.set_property(uid_property("target_reached"), false)
 	agent.blackboard.set_property(uid_property("prior_positions"), [agent_location_data.position])
+
+	has_done_pre = true
 	return Action.Status.SUCCESS
 
 
@@ -183,6 +195,10 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 
 # Override
 func post_perform_action(agent: GdPAIAgent) -> Action.Status:
+	# Corresponding failure state to what could skip pre actions.
+	if not is_instance_valid(object_location) or not is_instance_valid(interactable_attribs):
+		return Action.Status.FAILURE
+
 	var nav_agent: Node = agent.blackboard.get_property(uid_property("nav_agent"))
 	var agent_location_data: GdPAILocationData = agent.blackboard.get_property(
 		uid_property("agent_location")
@@ -197,4 +213,5 @@ func post_perform_action(agent: GdPAIAgent) -> Action.Status:
 	agent.blackboard.erase_property(uid_property("time_elapsed"))
 	agent.blackboard.erase_property(uid_property("prior_positions"))
 
+	has_done_post = true
 	return Action.Status.SUCCESS

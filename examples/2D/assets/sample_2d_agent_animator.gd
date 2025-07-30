@@ -4,15 +4,12 @@ extends Node
 
 ## Reference to the agent's entity
 @export var entity: RigidBody2D
-
 ## Reference to the sprite.
 @export var animated_sprite: AnimatedSprite2D
 ## Velocity threshold for sprite animation.
 @export var idle_threshold: float = 1
-
 ## Reference to the GdPAI agent.
 @export var GdPAI_agent: GdPAIAgent
-
 ## Reference to a textual display which shows some attributes of the agent.
 @export var display_text: Label
 

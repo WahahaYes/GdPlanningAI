@@ -72,11 +72,19 @@ func append_other_blackboard(other_blackboard: GdPAIBlackboard):
 ## not effect the original.
 func copy_for_simulation():
 	var duplicate = GdPAIBlackboard.new()
-	duplicate._blackboard = _blackboard.duplicate(true)
+	for _key in _blackboard.keys():
+		if _key == GdPAI_OBJECTS:
+			continue
+		duplicate._blackboard[_key] = _blackboard[_key]
 	var duped_objects: Array[GdPAIObjectData] = []
-	for aod: GdPAIObjectData in duplicate._blackboard[GdPAI_OBJECTS]:
+	# TODO: This can throw a c++ error but continues.  The next if statement protects the code,
+	# 		but it might be nice to revisit this (might need a custom iterator).
+	# NOTE: Before custom iterator try hooking up a signal between object on_destroy and a
+	#		function that pops the element from _blackboard[GdPAI_OBJECTS] automatically.
+	for aod in _blackboard[GdPAI_OBJECTS]:
 		# aod.copy_for_simulation() preserves uids and properties but detaches from the scene graph.
-		duped_objects.append(aod.copy_for_simulation())
+		if aod != null and is_instance_valid(aod):
+			duped_objects.append(aod.copy_for_simulation())
 	duplicate._blackboard[GdPAI_OBJECTS] = duped_objects
 	return duplicate
 

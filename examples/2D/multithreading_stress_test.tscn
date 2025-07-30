@@ -1,0 +1,63 @@
+[gd_scene load_steps=8 format=3 uid="uid://077lxeblh5j0"]
+
+[ext_resource type="Script" uid="uid://cu134mwsik6n5" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_world_node.gd" id="1_rkncr"]
+[ext_resource type="Script" uid="uid://cvie3m6t7c0hd" path="res://addons/GdPlanningAI/scripts/gdpai_blackboard_plan.gd" id="2_0u4pw"]
+[ext_resource type="PackedScene" uid="uid://ccwogpiprdh6r" path="res://addons/GdPlanningAI/examples/2D/assets/huge_scenery.tscn" id="4_ik4h7"]
+[ext_resource type="PackedScene" uid="uid://cpispy78now33" path="res://addons/GdPlanningAI/examples/2D/assets/multithread_agent.tscn" id="4_mbmwo"]
+[ext_resource type="Script" uid="uid://1q8wrd044us6" path="res://addons/GdPlanningAI/examples/2D/assets/sample_fps_counter.gd" id="5_mbmwo"]
+
+[sub_resource type="Resource" id="Resource_mer3k"]
+script = ExtResource("2_0u4pw")
+blackboard_backend = {}
+metadata/_custom_type_script = "uid://dsov73hfryg5g"
+
+[sub_resource type="LabelSettings" id="LabelSettings_rkncr"]
+font_size = 120
+
+[node name="MultithreadingStressTest" type="Node2D"]
+
+[node name="GdPAIWorldNode" type="Node" parent="."]
+script = ExtResource("1_rkncr")
+blackboard_plan = SubResource("Resource_mer3k")
+
+[node name="HugeScenery" parent="." instance=ExtResource("4_ik4h7")]
+
+[node name="MultithreadAgent" parent="." instance=ExtResource("4_mbmwo")]
+
+[node name="MultithreadAgent2" parent="." instance=ExtResource("4_mbmwo")]
+position = Vector2(-1391, 821)
+
+[node name="MultithreadAgent3" parent="." instance=ExtResource("4_mbmwo")]
+position = Vector2(-2619, -126)
+
+[node name="MultithreadAgent4" parent="." instance=ExtResource("4_mbmwo")]
+position = Vector2(-2530, -1088)
+
+[node name="MultithreadAgent5" parent="." instance=ExtResource("4_mbmwo")]
+position = Vector2(-2027, -2250)
+
+[node name="MultithreadAgent6" parent="." instance=ExtResource("4_mbmwo")]
+position = Vector2(-554, -1880)
+
+[node name="MultithreadAgent7" parent="." instance=ExtResource("4_mbmwo")]
+position = Vector2(1007, -2213)
+
+[node name="MultithreadAgent8" parent="." instance=ExtResource("4_mbmwo")]
+position = Vector2(1954, -2095)
+
+[node name="MultithreadAgent9" parent="." instance=ExtResource("4_mbmwo")]
+position = Vector2(1303, -452)
+
+[node name="MultithreadAgent10" parent="." instance=ExtResource("4_mbmwo")]
+position = Vector2(2065, 651)
+
+[node name="FPSDisplay" type="Label" parent="." node_paths=PackedStringArray("display_text")]
+offset_left = -4754.0
+offset_top = -2768.0
+offset_right = -4026.0
+offset_bottom = -2368.0
+text = "FPS average:
+Low spike:"
+label_settings = SubResource("LabelSettings_rkncr")
+script = ExtResource("5_mbmwo")
+display_text = NodePath(".")

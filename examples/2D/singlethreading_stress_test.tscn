@@ -1,0 +1,93 @@
+[gd_scene load_steps=8 format=3 uid="uid://nb0vopk6podd"]
+
+[ext_resource type="Script" uid="uid://cu134mwsik6n5" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_world_node.gd" id="1_tq1kt"]
+[ext_resource type="Script" uid="uid://cvie3m6t7c0hd" path="res://addons/GdPlanningAI/scripts/gdpai_blackboard_plan.gd" id="2_qp6qe"]
+[ext_resource type="PackedScene" uid="uid://ccwogpiprdh6r" path="res://addons/GdPlanningAI/examples/2D/assets/huge_scenery.tscn" id="3_oq8o6"]
+[ext_resource type="PackedScene" uid="uid://b1bmo16x83s1x" path="res://addons/GdPlanningAI/examples/2D/assets/sample_agent.tscn" id="4_tq1kt"]
+[ext_resource type="Script" uid="uid://1q8wrd044us6" path="res://addons/GdPlanningAI/examples/2D/assets/sample_fps_counter.gd" id="5_mwckn"]
+
+[sub_resource type="Resource" id="Resource_mer3k"]
+script = ExtResource("2_qp6qe")
+blackboard_backend = {}
+metadata/_custom_type_script = "uid://dsov73hfryg5g"
+
+[sub_resource type="LabelSettings" id="LabelSettings_rkncr"]
+font_size = 120
+
+[node name="SinglethreadingStressTest" type="Node2D"]
+
+[node name="GdPAIWorldNode" type="Node" parent="."]
+script = ExtResource("1_tq1kt")
+blackboard_plan = SubResource("Resource_mer3k")
+
+[node name="HugeScenery" parent="." instance=ExtResource("3_oq8o6")]
+
+[node name="SampleAgent" parent="." instance=ExtResource("4_tq1kt")]
+
+[node name="SampleAgent2" parent="." instance=ExtResource("4_tq1kt")]
+position = Vector2(-1440, 760)
+
+[node name="SampleAgent3" parent="." instance=ExtResource("4_tq1kt")]
+position = Vector2(-2611, -61)
+
+[node name="SampleAgent4" parent="." instance=ExtResource("4_tq1kt")]
+position = Vector2(-2544, -1151)
+
+[node name="SampleAgent5" parent="." instance=ExtResource("4_tq1kt")]
+position = Vector2(-2255, -2214)
+
+[node name="SampleAgent6" parent="." instance=ExtResource("4_tq1kt")]
+position = Vector2(-1535, -1420)
+
+[node name="SampleAgent7" parent="." instance=ExtResource("4_tq1kt")]
+position = Vector2(-459, -1985)
+
+[node name="SampleAgent8" parent="." instance=ExtResource("4_tq1kt")]
+position = Vector2(247, -1030)
+
+[node name="SampleAgent9" parent="." instance=ExtResource("4_tq1kt")]
+position = Vector2(1283, -1151)
+
+[node name="SampleAgent10" parent="." instance=ExtResource("4_tq1kt")]
+position = Vector2(1882, -2227)
+
+[node name="SampleAgent11" parent="." instance=ExtResource("4_tq1kt")]
+position = Vector2(-237, -22)
+
+[node name="SampleAgent12" parent="." instance=ExtResource("4_tq1kt")]
+position = Vector2(-1677, 738)
+
+[node name="SampleAgent13" parent="." instance=ExtResource("4_tq1kt")]
+position = Vector2(-2848, -83)
+
+[node name="SampleAgent14" parent="." instance=ExtResource("4_tq1kt")]
+position = Vector2(-2781, -1173)
+
+[node name="SampleAgent15" parent="." instance=ExtResource("4_tq1kt")]
+position = Vector2(-2492, -2236)
+
+[node name="SampleAgent16" parent="." instance=ExtResource("4_tq1kt")]
+position = Vector2(-1772, -1442)
+
+[node name="SampleAgent17" parent="." instance=ExtResource("4_tq1kt")]
+position = Vector2(-696, -2007)
+
+[node name="SampleAgent18" parent="." instance=ExtResource("4_tq1kt")]
+position = Vector2(10, -1052)
+
+[node name="SampleAgent19" parent="." instance=ExtResource("4_tq1kt")]
+position = Vector2(1046, -1173)
+
+[node name="SampleAgent20" parent="." instance=ExtResource("4_tq1kt")]
+position = Vector2(1645, -2249)
+
+[node name="FPSDisplay" type="Label" parent="." node_paths=PackedStringArray("display_text")]
+offset_left = -4754.0
+offset_top = -2768.0
+offset_right = -4026.0
+offset_bottom = -2368.0
+text = "FPS average:
+Low spike:"
+label_settings = SubResource("LabelSettings_rkncr")
+script = ExtResource("5_mwckn")
+display_text = NodePath(".")

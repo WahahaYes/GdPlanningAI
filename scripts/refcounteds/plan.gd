@@ -24,7 +24,7 @@ func initialize(agent: GdPAIAgent, goal: Goal, actions: Array[Action], max_recur
 	_available_actions = actions
 	_max_recursion = max_recursion
 
-	_best_plan = _compute_plan()
+	_best_plan = await _compute_plan()
 
 
 ## Returns the list of actions needed to arrive at the goal.
@@ -46,7 +46,7 @@ func _compute_plan() -> Array:
 		"children": [],
 	}
 	# Attempt to create the full tree of possible plans.
-	var success: bool = _build_plan(root_node, [], blackboard, world_state, 0)
+	var success: bool = await _build_plan(root_node, [], blackboard, world_state, 0)
 	# Parse out the actions from the most cost effective plan.
 	if success:
 		var plans: Array = _transform_tree_into_array(root_node)
@@ -76,7 +76,7 @@ func _build_plan(
 	if recursion_level > _max_recursion:
 		return false
 	# Check if the goal has been realized at this point in the simulation.
-	_evaluate_goals(node["desired_state"], blackboard, world_state)
+	await _evaluate_goals(node["desired_state"], blackboard, world_state)
 	if _is_goal_satisfied(node["desired_state"]):
 		return true
 	# Otherwise, continue to look for viable actions.
@@ -88,7 +88,9 @@ func _build_plan(
 		sim_blackboard.is_a_copy = true
 		var sim_world_state: GdPAIBlackboard = world_state.copy_for_simulation()
 		sim_world_state.is_a_copy = true
-		var sim_cost: float = action.get_action_cost(sim_blackboard, sim_world_state)
+		var sim_cost: float = await action.get_action_cost(sim_blackboard, sim_world_state)
+		if sim_cost == INF:
+			continue
 		action.simulate_effect(sim_blackboard, sim_world_state)
 		# Backprop with future actions.
 		for prior_act: Action in prior_actions:
@@ -98,14 +100,16 @@ func _build_plan(
 		var sim_desired_state: Array[Precondition] = []
 		for condition: Precondition in node["desired_state"]:
 			sim_desired_state.append(condition.copy_for_simulation())
-		should_use_action = _evaluate_goals(sim_desired_state, sim_blackboard, sim_world_state)
+		should_use_action = await _evaluate_goals(
+			sim_desired_state, sim_blackboard, sim_world_state
+		)
 
 		# Add this action's preconditions to the simulated world state and continue recursing.
 		if should_use_action:
-			var action_preconditions: Array[Precondition] = action.get_preconditions()
+			var action_preconditions: Array[Precondition] = await action.get_preconditions()
 			# Now check if current state (before the action) satisfies some of the actions'
 			# preconditions that may invert because of the action.
-			_evaluate_goals(action_preconditions, blackboard, world_state)
+			await _evaluate_goals(action_preconditions, blackboard, world_state)
 			sim_desired_state.append_array(action_preconditions)
 			# Create the next recursive node.
 			var next_node = {
@@ -118,7 +122,7 @@ func _build_plan(
 			var prior_actions_appended: Array[Action] = prior_actions.duplicate()
 			prior_actions_appended.append(action)
 
-			if _build_plan(
+			if await _build_plan(
 				next_node,
 				prior_actions_appended,
 				sim_blackboard,
@@ -158,7 +162,7 @@ func _evaluate_goals(
 	for condition: Precondition in preconditions:
 		if condition.is_satisfied:  # We don't want a condition previously satisfied to revert.
 			continue
-		var result: bool = condition.evaluate(blackboard, world_state)
+		var result: bool = await condition.evaluate(blackboard, world_state)
 		if result:
 			is_closer_to_goal = true
 	return is_closer_to_goal
