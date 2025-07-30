@@ -5,6 +5,7 @@ extends Node
 
 ## A reference to utils for the GdPAI addon.
 const GdPAIUTILS: Resource = preload("res://addons/GdPlanningAI/utils.gd")
+## @experimental: To support multithreading, your simulation must not directly change the scene tree!
 ## Whether this agent should do planning on a separate thread.
 @export var use_multithreading: bool
 @export var thread_priority: Thread.Priority = Thread.PRIORITY_LOW

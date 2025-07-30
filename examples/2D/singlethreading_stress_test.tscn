@@ -14,7 +14,7 @@ metadata/_custom_type_script = "uid://dsov73hfryg5g"
 [sub_resource type="LabelSettings" id="LabelSettings_rkncr"]
 font_size = 120
 
-[node name="MultithreadingStressTest" type="Node2D"]
+[node name="SinglethreadingStressTest" type="Node2D"]
 
 [node name="GdPAIWorldNode" type="Node" parent="."]
 script = ExtResource("1_tq1kt")
