@@ -14,7 +14,6 @@ const GdPAIUTILS: Resource = preload("res://addons/GdPlanningAI/utils.gd")
 const GdPAI_OBJECTS = "GDPAI_OBJECTS"
 ## Underlying blackboard data structure.
 var _blackboard: Dictionary = {GdPAI_OBJECTS: []}
-## A mutex is needed when multithreading because multiple
 ## Flag to indicate that this blackboard is a copy.  If so, when it is deleted, all
 ## GdPAIObjectData inside it (which are also copies) are deleted to prevent memory leaks.
 var is_a_copy: bool

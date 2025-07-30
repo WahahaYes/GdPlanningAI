@@ -51,6 +51,36 @@ position = Vector2(1283, -1151)
 [node name="SampleAgent10" parent="." instance=ExtResource("4_tq1kt")]
 position = Vector2(1882, -2227)
 
+[node name="SampleAgent11" parent="." instance=ExtResource("4_tq1kt")]
+position = Vector2(-237, -22)
+
+[node name="SampleAgent12" parent="." instance=ExtResource("4_tq1kt")]
+position = Vector2(-1677, 738)
+
+[node name="SampleAgent13" parent="." instance=ExtResource("4_tq1kt")]
+position = Vector2(-2848, -83)
+
+[node name="SampleAgent14" parent="." instance=ExtResource("4_tq1kt")]
+position = Vector2(-2781, -1173)
+
+[node name="SampleAgent15" parent="." instance=ExtResource("4_tq1kt")]
+position = Vector2(-2492, -2236)
+
+[node name="SampleAgent16" parent="." instance=ExtResource("4_tq1kt")]
+position = Vector2(-1772, -1442)
+
+[node name="SampleAgent17" parent="." instance=ExtResource("4_tq1kt")]
+position = Vector2(-696, -2007)
+
+[node name="SampleAgent18" parent="." instance=ExtResource("4_tq1kt")]
+position = Vector2(10, -1052)
+
+[node name="SampleAgent19" parent="." instance=ExtResource("4_tq1kt")]
+position = Vector2(1046, -1173)
+
+[node name="SampleAgent20" parent="." instance=ExtResource("4_tq1kt")]
+position = Vector2(1645, -2249)
+
 [node name="FPSDisplay" type="Label" parent="." node_paths=PackedStringArray("display_text")]
 offset_left = -4754.0
 offset_top = -2768.0

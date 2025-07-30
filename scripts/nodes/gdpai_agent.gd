@@ -73,7 +73,7 @@ func _process(delta: float):
 
 ## Iterates over all goals in order of reward until a valid plan is found.
 func _select_highest_reward_goal(worldly_actions: Array[Action]) -> Dictionary:
-	if not GdPAIUTILS.am_I_on_main_thread():
+	if use_multithreading:
 		# Removing safety checks usually isn't a good idea.  In our processing we will read from
 		# the scene tree or will await information, but we don't write.  With some checks to
 		# ensure that data exists, and knowing that this thread's processing is constrained to
@@ -108,6 +108,7 @@ func _select_highest_reward_goal(worldly_actions: Array[Action]) -> Dictionary:
 			return return_dict
 		else:
 			rewards[idx] = -1
+		break
 
 	# For multithreading, we need to sync to main thread before exiting.
 	if use_multithreading:
