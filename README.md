@@ -1,10 +1,10 @@
-![GdPlanningAI banner](media/gdpai_banner.png)
+![GdPlanningAI banner](https://raw.githubusercontent.com/WahahaYes/GdPlanningAI/refs/heads/main/media/gdpai_banner.png)
 
 # GdPlanningAI
 
 GdPlanningAI (shortened as **GdPAI**) is an agent planning addon for Godot that allows you to build sophisticated AI agents for your game world.  These agents are able to reason in real-time and plan actions based on their own attributes and nearby interactable objects.
 
-![GIF of the multi_agent_demo.tscn scene running](media/2d_demo.gif)
+![GIF of the multi_agent_demo.tscn scene running](https://raw.githubusercontent.com/WahahaYes/GdPlanningAI/refs/heads/main/media/2d_demo.gif)
 
 This framework is originally based on Goal Oriented Action Planning (GOAP), a planning system developed by Jeff Orkin in the early 2000's.  GOAP has been used in many games since; some popular titles using GOAP systems include F.E.A.R., Fallout 3, and Alien Isolation.  This framework started as a reimplementation of GOAP.  I noticed some areas for improvement and expanded the planning logics and place more emphasis on interactable objects.
 
@@ -43,7 +43,7 @@ In this framework, each `GdPAIAgent` maintains two `GdPAIBlackboard` instances s
 
 Agents are driven by `Goals`.  An agent will balance however many goals it is assigned it tries to maintain based on priority.  Given the agent and world states, a reward function is computed for each goal.  When planning, the agent pursues the most rewarding goal that is currently achieveable.  When designing goals, it is important to create dynamic reward functions so that the agent prioritizes different goals based on its needs (such as making a `hunger_goal` reward equal to `100 - current_hunger`, adding more priority the hungrier the agent gets).
 
-![Goal planning diagram](media/goal_planning_diagram.png)
+![Goal planning diagram](https://raw.githubusercontent.com/WahahaYes/GdPlanningAI/refs/heads/main/media/goal_planning_diagram.png)
 
 **Plan**
 
@@ -51,7 +51,7 @@ When an agent attempts to form a `Plan`, it essentially takes a snapshot of the 
 
 The below image gives a simple visual example for a planning sequence.  The agent's goal is to reduce hunger, which is ultimately resolved by eating food.  A prerequisite to eat food is to pick up the food, so the agent must first move towards the food.  
 
-![A visual example of an agent's planning sequence](media/planning_sequence.png)
+![A visual example of an agent's planning sequence](https://raw.githubusercontent.com/WahahaYes/GdPlanningAI/refs/heads/main/media/planning_sequence.png)
 
 Note that planning actually occurs in reverse based on whether actions are viable for satisfying the plan or following actions.  This constrains the agent's exploration to only consider efficient, relevant actions.  The alternative would be a breadth-first search over a potentially huge state space.  In the above example, the agent first determined that the food on the map could decrease its hunger.  Then, the *pseudo-goal* became to determine how that food could be eaten (-> by going towards it).
 
@@ -79,7 +79,7 @@ The templates in `script_templates` and the demo in `examples/..` are verbosely 
 
 To streamline object interactions, the `SpatialAction` class bundles agent movement to an interactable object with a concrete action.  This is a helper subclass which aims to overcome an issue brought up with the original GOAP implementation - without careful design, actions which are **strongly coupled** might explode the planning complexity.  In GOAP, the issue they ran into was with `readying` and `firing` a weapon.  A weapon **always has to be ready before it can be fired**, so having these as separate actions greatly expanded the search space.  In prototyping, I noticed the same for `goto` and `object interactions`.  The agent must be near the object first, but with the option to *simulate movement anywhere during planning*, it became very slow for the agent to determine where it should be.  `SpatialAction` handles the logic for movement, then the subclass's implementation kicks in when the agent arrives at the object.
 
-![Illustration of Action inheritence.  Spatial Actions are a subclass of action related to object interaction.](media/spatial_actions_hierarchy.png)
+![Illustration of Action inheritence.  Spatial Actions are a subclass of action related to object interaction.](https://raw.githubusercontent.com/WahahaYes/GdPlanningAI/refs/heads/main/media/spatial_actions_hierarchy.png)
 
 The `SpatialAction` class adapts to 2D or 3D depending on the location node specified on the object's `GdPAILocationData`.  `SpatialAction` has its own `script_template` that is expanded for this behavior; it is highly recommended to use the template.
 
@@ -87,7 +87,11 @@ The `SpatialAction` class adapts to 2D or 3D depending on the location node spec
 
 Demos with sample actions and objects are located in `GdPlanningAI/examples`.  Currently, there is a simple setup consisting of food objects and fruit trees.  The agents' main goal is to satisfy hunger.  Eating fruit will grant hunger, and shaking fruit trees will spawn fruit.  There is a delay interval before trees can be shaken again.  When the agent isn't hungry or there isn't food around, a wandering goal takes priority and the agent explores by moving in a random direction.  `examples/2D/single_agent_demo.tscn` shows a single agent and `examples/2D/multi_agent_demo.tscn` has two agents competing for the available food.  As an exercise, consider adding new goals and actions to this starting point!
 
-![GIF of the multi_agent_demo.tscn scene running](media/2d_demo.gif)
+![GIF of the multi_agent_demo.tscn scene running](https://raw.githubusercontent.com/WahahaYes/GdPlanningAI/refs/heads/main/media/2d_demo.gif)
+
+A set of demos showcases the multithreading feature.  By multithreading agents in a complex scene, we see a 2x speedup! (on a laptop with an integrated GPU).  
+
+![GIF of the multitheading_stress_test.tscn scene running](https://raw.githubusercontent.com/WahahaYes/GdPlanningAI/refs/heads/main/media/multithread_demo.gif)
 
 ### License
 
@@ -108,8 +112,7 @@ Here is a running list of todo items *(if anyone wants to claim one, like logo o
 - Making a true project logo!  I quickly threw something together, but welcome a more professional looking logo.
 - Making icons for the custom nodes that have been introduced.  Not that important for functionality, but they'd look nice!
 - Creating a visual debugger similar to Beehave or LimboAI's debuggers for behavior trees.
-- Multithreaded agent planning.  In simple contexts this may not be needed, but longer planning sequences could bottleneck the main thread and lead to stutters.  Single or multithreading will be specifiable per agent.
-- More varied and complex demo scenes.  Because the current demo uses `SpatialActions`, which bundle movement in with eating, the actual planning is very simple, and most plans consist of a single action.
+- More varied and complex demo scenes.  Because the current demo uses `SpatialActions`, which bundle movement in with eating, the actual planning is quite simple, and most plans consist of a single action.
 - Tutorial video.
 
 ### FAQs
