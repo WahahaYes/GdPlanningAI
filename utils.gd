@@ -30,11 +30,6 @@ static func _get_children_of_type(children: Array, node: Node, _class: Variant):
 	return children
 
 
-## Checks if the currently executing code is on the main thread.
-static func am_I_on_main_thread() -> bool:
-	return OS.get_main_thread_id() == OS.get_thread_caller_id()
-
-
 ## Waits for a deferred call to the main thread to return information.
 static func await_callv(obj: Object, method: String, args: Array = []) -> Variant:
 	return await callv_deferred(obj, method, args).finished
