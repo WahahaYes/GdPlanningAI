@@ -27,6 +27,5 @@ func get_provided_actions() -> Array[Action]:
 func copy_for_simulation() -> GdPAIObjectData:
 	# Make sure to replace <GdPAIObjectData> with the subclass name, and to duplicate any new properties.
 	var new_data: GdPAIObjectData = GdPAIObjectData.new()
-	new_data.uid = uid
-	new_data.entity = entity
+	assign_uid_and_entity(new_data)
 	return new_data

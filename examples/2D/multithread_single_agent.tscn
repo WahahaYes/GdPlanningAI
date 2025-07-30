@@ -1,0 +1,43 @@
+[gd_scene load_steps=8 format=3 uid="uid://ddlukorq23l2t"]
+
+[ext_resource type="Script" uid="uid://cu134mwsik6n5" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_world_node.gd" id="1_7a3ta"]
+[ext_resource type="Script" uid="uid://cvie3m6t7c0hd" path="res://addons/GdPlanningAI/scripts/gdpai_blackboard_plan.gd" id="2_mxhmt"]
+[ext_resource type="PackedScene" uid="uid://d2lr7clv3whwy" path="res://addons/GdPlanningAI/examples/2D/assets/scenery.tscn" id="3_lfojo"]
+[ext_resource type="PackedScene" uid="uid://b1bmo16x83s1x" path="res://addons/GdPlanningAI/examples/2D/assets/sample_agent.tscn" id="4_86b3h"]
+[ext_resource type="Script" uid="uid://1q8wrd044us6" path="res://addons/GdPlanningAI/examples/2D/assets/sample_fps_counter.gd" id="5_mxhmt"]
+
+[sub_resource type="Resource" id="Resource_u0rx4"]
+script = ExtResource("2_mxhmt")
+blackboard_backend = {}
+metadata/_custom_type_script = "uid://dsov73hfryg5g"
+
+[sub_resource type="LabelSettings" id="LabelSettings_lfojo"]
+font_size = 40
+
+[node name="SingleAgentDemo" type="Node2D"]
+
+[node name="GdPAIWorldNode" type="Node" parent="."]
+script = ExtResource("1_7a3ta")
+blackboard_plan = SubResource("Resource_u0rx4")
+
+[node name="Scenery" parent="." instance=ExtResource("3_lfojo")]
+
+[node name="SampleAgent" parent="." instance=ExtResource("4_86b3h")]
+position = Vector2(208, 423)
+lock_rotation = true
+
+[node name="GdPAIAgent" parent="SampleAgent" index="6"]
+use_multithreading = true
+
+[node name="FPSDisplay" type="Label" parent="." node_paths=PackedStringArray("display_text")]
+offset_left = -215.0
+offset_top = -274.0
+offset_right = 513.0
+offset_bottom = 126.0
+text = "FPS average:
+Low spike:"
+label_settings = SubResource("LabelSettings_lfojo")
+script = ExtResource("5_mxhmt")
+display_text = NodePath(".")
+
+[editable path="SampleAgent"]
