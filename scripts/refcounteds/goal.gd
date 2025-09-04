@@ -2,9 +2,6 @@
 class_name Goal
 extends RefCounted
 
-## A reference to utils for the GdPAI addon.
-const GdPAIUTILS: Resource = preload("res://addons/GdPlanningAI/utils.gd")
-
 
 ## How rewarding is this goal to complete?  This can depend on dynamic factors (i.e. eating is
 ## more rewarding if an agent is hungry).

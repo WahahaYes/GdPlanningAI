@@ -3,8 +3,6 @@
 class_name Action
 extends RefCounted
 
-## A reference to utils for the GdPAI addon.
-const GdPAIUTILS: Resource = preload("res://addons/GdPlanningAI/utils.gd")
 ## Return states for actions during true simulation.
 enum Status { FAILURE, RUNNING, SUCCESS }
 ## A uid is automatically allocated for actions so that they can put unique properties into the

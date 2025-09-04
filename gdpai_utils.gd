@@ -1,6 +1,6 @@
-@tool
-
-static var mutex: Mutex = Mutex.new()
+## Static utility classes for the GdPlanningAI addon.
+class_name GdPAIUTILS
+extends Object
 
 
 ## Searches a node's tree to find the first instance of _class.
@@ -42,6 +42,9 @@ static func callv_deferred(obj: Object, method: String, args: Array = []) -> Awa
 
 ## Internal class that structures a call_deferred() call and a returning signal to query info from
 ## the main thread (somewhat) safely.
+##[br]
+##[br]
+## NOTE: Using this class too extensively could overload the main thread and lead to stutters.
 class AwaitableCallDeferred:
 	signal finished(result)
 
