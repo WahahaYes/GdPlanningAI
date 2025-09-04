@@ -2,9 +2,6 @@
 ## wanting to eat nearby food.
 extends Node
 
-## A reference to utils for the GdPAI addon.
-const GdPAIUTILS: Resource = preload("res://addons/GdPlanningAI/utils.gd")
-
 ## Reference to the GdPAI agent.
 @export var GdPAI_agent: GdPAIAgent
 ## How much hunger drops per second.

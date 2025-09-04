@@ -8,8 +8,6 @@
 class_name GdPAIBlackboard
 extends RefCounted
 
-## A reference to utils for the GdPAI addon.
-const GdPAIUTILS: Resource = preload("res://addons/GdPlanningAI/utils.gd")
 ## Special property in blackboards to cache object data.
 const GdPAI_OBJECTS = "GDPAI_OBJECTS"
 ## Underlying blackboard data structure.
