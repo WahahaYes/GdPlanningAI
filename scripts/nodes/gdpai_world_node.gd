@@ -3,8 +3,6 @@
 class_name GdPAIWorldNode
 extends Node
 
-## A reference to utils for the GdPAI addon.
-const GdPAIUTILS: Resource = preload("res://addons/GdPlanningAI/utils.gd")
 ## Blackboard plan for the world state.
 @export var blackboard_plan: GdPAIBlackboardPlan
 ## The world state blackboard.

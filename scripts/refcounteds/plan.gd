@@ -2,8 +2,6 @@
 class_name Plan
 extends RefCounted
 
-## A reference to utils for the GdPAI addon.
-const GdPAIUTILS: Resource = preload("res://addons/GdPlanningAI/utils.gd")
 ## A reference to the agent.
 var _agent: GdPAIAgent
 ## A reference to the goal.

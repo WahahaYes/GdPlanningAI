@@ -182,8 +182,7 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 			agent.blackboard.set_property(uid_property("target_reached"), true)
 			return Action.Status.SUCCESS
 		# Else, figure out the final distance and see if valid.
-		var final_dist: float = (object_location.position - nav_agent.get_final_position()).length()
-		if final_dist < interactable_attribs.max_interaction_distance:
+		if nav_agent.distance_to_target() < interactable_attribs.max_interaction_distance:
 			agent.blackboard.set_property(uid_property("target_reached"), true)
 			return Action.Status.SUCCESS
 		else:
