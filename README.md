@@ -1,5 +1,15 @@
 ![GdPlanningAI banner](https://raw.githubusercontent.com/WahahaYes/GdPlanningAI/refs/heads/main/media/gdpai_banner.png)
 
+# Table of Contents
+1. [Intro](#gdplanningai)
+2. [Installation](#installation)
+3. [Usage](#usage)
+4. [Demos](#demos)
+5. [License](#license)
+6. [Frequently Asked Questions (FAQ)](#faq)
+7. [TODOs](#todos)
+
+
 # GdPlanningAI
 
 GdPlanningAI (shortened as **GdPAI**) is an agent planning addon for Godot that allows you to build sophisticated AI agents for your game world.  These agents are able to reason in real-time and plan actions based on their own attributes and nearby interactable objects.
@@ -31,7 +41,7 @@ Release versions are available on the Godot asset library [https://godotengine.o
 
 A number of useful templates are included in the `script_templates` folder.  They guide usage when subclassing `Action`, `Goal`, `GdPAIObjectData`, etc.  The addon **does not automatically copy these over** at the moment, but it is highly recommended to use these templates.  If you'd like to take advantage of these, please copy the folders inside `addons/GdPlanningAI/script_templates` to your project's templates folder (by default this is `res://script_templates`).
 
-## Usage
+### Usage
 
 In this framework, agents form chains of actions at runtime rather than relying on premade state change conditions or behavior trees.  This can greatly reduce the amount of developer overhead when creating AI behaviors, but it is a more complex / less intuitive system.
 
@@ -103,6 +113,23 @@ This work is licensed under the Apache License, Version 2.0.  The license file c
 
 The 2D demo assets belong to the Tiny Swords asset pack by Pixel Frog.  Link to the project page here: [https://pixelfrog-assets.itch.io/tiny-swords](https://pixelfrog-assets.itch.io/tiny-swords).
 
+### FAQ
+
+<details>
+<summary><b>What is the difference between GdPlanningAI and behavior tree frameworks (like Beehave or LimboAI)?</b></summary>
+
+These are all structured frameworks to develop agents / NPCS / enemies inside a game world.  Behavior trees have defined transitions to enable agent actions based on conditionals, but they require a ton of developer oversight (and design hours) as they become more complex.  Planning systems like GOAP and GdPlanningAI are more dynamic and can lead to emergent behaviors.  Even if the developer created every possible action, there may be combinations they didn't anticipate.  Because of this, planning systems can fit better for projects that have large numbers of possible interactions.
+
+Below is a quote from a [blog post](https://zhuanlan.zhihu.com/p/110419210) with a good breakdown of the differences:
+
+> BTs, roughly speaking, are a fancy way to encode complex sequences of rules. A Bt acts as a a sequence of programming statements (e.g., “if … then … else …") and basic loops. It takes as input the current state of the world and additional data (the blackboard) and return an action (or sequence of actions). For instances, rules can be like: “if your life is less than 40% then run away”, or “if do not have a weapon, go to the closest weapon”, and so on. If you want more info on BTs, there is this super-old introduction I did. The main point here is that you are writing all this rules. BTs are “reactive” in the sense that they “react” to the state of the world. There is no search, no thought about the future outcome of specific actions. It is the developer's job to specify which action is right in a certain situation. GOAP (and other plan-based AI technique), instead, works in a different way. You give to the character a goal (expressed as a desired state of the world) and a set of actions (the things that the character can do) and then you say to the character “now find your own rules”. There is no predefined sequence of actions in GOAP. Every time you run the algorithm, depending on the situation, it generates a different sequence of actions. Now, on paper, this is awesome. Why we are still writing all the sequence of actions and rules by hand! Unfortunately, we pay such power with three main drawbacks:
+> 1. Much higher implementation complexity. BTs are quite easy to understand and to implement. Moreover, BTs are already built-in into a lot of game engines! GOAP, on the other hand, is not as simple. It harder to implement and it is harder to debug.
+> 2. In general, plan-based techniques are computationally more expensive than BTs. Implementing GOAP in a way that is good enough for real-time games requires fine-tuning and a good design for the “state representation” and the set of possible actions (and we came back to point 1).
+> 3. By not writing the rules of AI by ourselves, we lose control on the AI. If we say that the character goal is to kill the player, we may have some situation in which the solution to this goal is too effective or, in general, not fun. Because fun is the goal, we need to change this, but we can only act on the goal, not the way the character reaches the goal. For another example, if the character starts doing something strange it will be harder to understand “why”. In BTs, we can follow the tree and find the problem. In GOAP, this is much harder.
+</details>
+
+
+
 ### TODOs
 
 The framework is stable for creating planning agents but is still in an early phase of development.  I plan to make additions as I work on my game projects, and **I am open to feedback or contributions from the community!**  Please raise issues on the Github to discuss any bugs or requested features, and feel free to fork the repo and make pull requests with any additions.
@@ -113,8 +140,5 @@ Here is a running list of todo items *(if anyone wants to claim one, like logo o
 - Making icons for the custom nodes that have been introduced.  Not that important for functionality, but they'd look nice!
 - Creating a visual debugger similar to Beehave or LimboAI's debuggers for behavior trees.
 - More varied and complex demo scenes.  Because the current demo uses `SpatialActions`, which bundle movement in with eating, the actual planning is quite simple, and most plans consist of a single action.
+- Increased number of baseline action templates (like `SpatialAction`, extendable starting points that handle the common functionality of many actions).
 - Tutorial video.
-
-### FAQs
-
-Ask me questions!  If broadly relevant I'll add the Q&A here!
