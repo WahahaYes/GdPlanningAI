@@ -138,6 +138,7 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	agent.blackboard.set_property(uid_property("time_elapsed"), 0)
 	agent.blackboard.set_property(uid_property("target_set"), false)
 	agent.blackboard.set_property(uid_property("target_reached"), false)
+	agent.blackboard.set_property(uid_property("object_orig_position"), object_location.position)
 	agent.blackboard.set_property(uid_property("prior_positions"), [agent_location_data.position])
 
 	has_done_pre = true
@@ -149,6 +150,14 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 	# Failure state in the case the target has been freed.
 	if not is_instance_valid(object_location) or not is_instance_valid(interactable_attribs):
 		return Action.Status.FAILURE
+
+	# Fail if the target object has moved too far from its planning-time position.
+	var orig_position = agent.blackboard.get_property(uid_property("object_orig_position"))
+	var current_position = object_location.position
+	if interactable_attribs.max_drift_from_plan >= 0:
+		if (current_position - orig_position).length() > interactable_attribs.max_drift_from_plan:
+			return Action.Status.FAILURE
+
 
 	var nav_agent: Node = agent.blackboard.get_property(uid_property("nav_agent"))
 	var agent_location_data: GdPAILocationData = agent.blackboard.get_property(
@@ -171,6 +180,9 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 	if not agent.blackboard.get_property(uid_property("target_set")):
 		nav_agent.target_position = object_location.position
 		agent.blackboard.set_property(uid_property("target_set"), true)
+	# Update the nav agent target if the object has moved too far from its planning-time position.
+	elif (nav_agent.target_position - object_location.position).length() > interactable_attribs.max_interaction_distance:
+		nav_agent.target_position = object_location.position
 
 	# Terminating conditions.
 	# Either the navigation agent passes, or the agent has stopped for some other reason.
@@ -216,6 +228,7 @@ func post_perform_action(agent: GdPAIAgent) -> Action.Status:
 	agent.blackboard.erase_property(uid_property("target_reached"))
 	agent.blackboard.erase_property(uid_property("time_elapsed"))
 	agent.blackboard.erase_property(uid_property("prior_positions"))
+	agent.blackboard.erase_property(uid_property("object_orig_position"))
 
 	has_done_post = true
 	return Action.Status.SUCCESS
