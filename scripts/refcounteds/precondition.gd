@@ -55,6 +55,13 @@ static func agent_has_property(prop: String) -> Precondition:
 		return prop in blackboard.get_dict()
 	return precondition
 
+## Instantiate a precondition that checks whether a property in the agent blackboard is not equal to a specified value.
+static func agent_property_not_equal_to(prop: String, value: Variant) -> Precondition:
+	var precondition: Precondition = Precondition.new()
+	precondition.eval_func = func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
+		return blackboard.get_property(prop) != value
+	return precondition
+
 
 ## Instantiate a precondition that checks whether a property in the agent blackboard is greater
 ## than a specified value.
