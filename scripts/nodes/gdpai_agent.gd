@@ -54,6 +54,7 @@ func _process(delta: float):
 	if _current_plan == null or _current_plan_step > _current_plan.get_plan().size():
 		# Query the world state at the start of planning.
 		var worldly_actions: Array[Action] = await _compute_worldly_actions()
+		var self_actions: Array[Action] = await _compute_self_actions()
 		if use_multithreading:
 			# Spin up a thread to call the planning logic.  Variable assignment happens at the
 			# end of planning.
@@ -63,7 +64,7 @@ func _process(delta: float):
 				_current_plan_step = -1
 				thread.start(_select_highest_reward_goal.bind(worldly_actions), thread_priority)
 		else:
-			var goal_and_plan: Dictionary = await _select_highest_reward_goal(worldly_actions)
+			var goal_and_plan: Dictionary = await _select_highest_reward_goal(self_actions, worldly_actions)
 			_current_plan_step = -1
 			_current_goal = goal_and_plan["goal"]
 			_current_plan = goal_and_plan["plan"]
@@ -71,7 +72,7 @@ func _process(delta: float):
 
 
 ## Iterates over all goals in order of reward until a valid plan is found.
-func _select_highest_reward_goal(worldly_actions: Array[Action]) -> Dictionary:
+func _select_highest_reward_goal(self_actions: Array[Action], worldly_actions: Array[Action]) -> Dictionary:
 	if use_multithreading:
 		# Removing safety checks usually isn't a good idea.  In our processing we will read from
 		# the scene tree or will await information, but we don't write.  With some checks to
@@ -157,6 +158,22 @@ func _execute_plan(delta: float):
 		for action: Action in action_chain:
 			var action_status = action.post_perform_action(self)
 		_current_plan_step += 1
+
+
+func _compute_self_actions() -> Array[Action]:
+	var ws_checkpoint: GdPAIBlackboard = world_node.get_world_state()
+	var valid_actions: Array[Action] = []
+	for action in self_actions:
+		var validity_checks: Array[Precondition] = action.get_validity_checks()
+		var is_satisfied: bool = true
+		for check: Precondition in validity_checks:
+			var status: bool = await check.evaluate(blackboard, ws_checkpoint)
+			if not status:
+				is_satisfied = false
+				break
+		if is_satisfied:
+			valid_actions.append(action)
+	return valid_actions
 
 
 ## Polls all GdPAI objects to get their relevant actions on request.
