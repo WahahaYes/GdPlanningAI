@@ -1,3 +1,5 @@
+class_name GdPAIBlackboard
+extends RefCounted
 ## The GdPAIBlackboard uses an underlying dictionary to store key information about an agent's state or
 ## the state of the world.  Duplicated copies of the blackboard are passed through a chain of
 ## events when agents are planning.
@@ -5,16 +7,34 @@
 ##[br]
 ## Has a protected property GdPAI_OBJECTS containing a list of the GdPAI objects associated with the
 ## agent / world.  This is ensured to exist for any given blackboard.
-class_name GdPAIBlackboard
-extends RefCounted
 
 ## Special property in blackboards to cache object data.
 const GdPAI_OBJECTS = "GDPAI_OBJECTS"
-## Underlying blackboard data structure.
-var _blackboard: Dictionary = {GdPAI_OBJECTS: []}
+
 ## Flag to indicate that this blackboard is a copy.  If so, when it is deleted, all
 ## GdPAIObjectData inside it (which are also copies) are deleted to prevent memory leaks.
 var is_a_copy: bool
+## Underlying blackboard data structure.
+var _blackboard: Dictionary = { GdPAI_OBJECTS: [] }
+
+
+# Override
+func _notification(what):
+	if not is_a_copy:
+		return
+	match what:
+		NOTIFICATION_PREDELETE:
+			# When deleting a copied blackboard (in simulation), this frees all its duplicated
+			# GdPAIObjectData nodes.
+			for aod: GdPAIObjectData in _blackboard[GdPAI_OBJECTS]:
+				if is_instance_valid(aod):
+					aod.queue_free()
+
+
+# Override
+func _to_string() -> String:
+	# For better readability when debugging, pass the underlying dict through _to_string().
+	return str(_blackboard)
 
 
 ## Return the value of a requested property.
@@ -90,22 +110,3 @@ func copy_for_simulation():
 ## Return the underlying dictionary when requested.
 func get_dict() -> Dictionary:
 	return _blackboard
-
-
-# Override
-func _to_string() -> String:
-	# For better readability when debugging, pass the underlying dict through _to_string().
-	return str(_blackboard)
-
-
-# Override
-func _notification(what):
-	if not is_a_copy:
-		return
-	match what:
-		NOTIFICATION_PREDELETE:
-			# When deleting a copied blackboard (in simulation), this frees all its duplicated
-			# GdPAIObjectData nodes.
-			for aod: GdPAIObjectData in _blackboard[GdPAI_OBJECTS]:
-				if is_instance_valid(aod):
-					aod.queue_free()

@@ -1,6 +1,6 @@
+extends Node
 ## Sample initialization for an GdPAI agent which gives actions and goals corresponding to the agent
 ## wanting to eat nearby food.
-extends Node
 
 ## Reference to the GdPAI agent.
 @export var GdPAI_agent: GdPAIAgent

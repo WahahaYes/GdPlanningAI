@@ -1,6 +1,5 @@
-## Simple movement from NavigationAgent2D used to power the GdPAI 2D demo.
-
 extends Node
+## Simple movement from NavigationAgent2D used to power the GdPAI 2D demo.
 
 ## The top-level node of the agent to move.
 @export var entity: RigidBody2D

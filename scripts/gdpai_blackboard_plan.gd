@@ -1,6 +1,6 @@
-## Blackboard Plan allows for defining the start point for an agent blackboard or world state.
 class_name GdPAIBlackboardPlan
 extends Resource
+## Blackboard Plan allows for defining the start point for an agent blackboard or world state.
 
 ## The initial blackboard contents to define.
 @export var blackboard_backend: Dictionary
