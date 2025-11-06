@@ -62,7 +62,7 @@ func _process(delta: float):
 				# Spin up a new thread to handle planning.
 				_current_plan = null
 				_current_plan_step = -1
-				thread.start(_select_highest_reward_goal.bind(worldly_actions), thread_priority)
+				thread.start(_select_highest_reward_goal.bind(self_actions, worldly_actions), thread_priority)
 		else:
 			var goal_and_plan: Dictionary = await _select_highest_reward_goal(self_actions, worldly_actions)
 			_current_plan_step = -1
