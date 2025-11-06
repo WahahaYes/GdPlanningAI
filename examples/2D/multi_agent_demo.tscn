@@ -10,7 +10,6 @@
 
 [sub_resource type="Resource" id="Resource_mer3k"]
 script = ExtResource("2_owd6i")
-blackboard_backend = {}
 metadata/_custom_type_script = "uid://dsov73hfryg5g"
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_orlck"]
