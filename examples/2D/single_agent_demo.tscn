@@ -8,7 +8,6 @@
 
 [sub_resource type="Resource" id="Resource_u0rx4"]
 script = ExtResource("2_8r7yq")
-blackboard_backend = {}
 metadata/_custom_type_script = "uid://dsov73hfryg5g"
 
 [sub_resource type="LabelSettings" id="LabelSettings_8r7yq"]
