@@ -1,6 +1,6 @@
-## Static utility classes for the GdPlanningAI addon.
 class_name GdPAIUTILS
 extends Object
+## Static utility classes for the GdPlanningAI addon.
 
 
 ## Searches a node's tree to find the first instance of _class.
@@ -48,8 +48,10 @@ static func callv_deferred(obj: Object, method: String, args: Array = []) -> Awa
 class AwaitableCallDeferred:
 	signal finished(result)
 
+
 	func _init(obj: Object, method: String, args: Array = []) -> void:
 		call_deferred("_call_and_signal", obj, method, args)
+
 
 	func _call_and_signal(obj: Object, method: String, args: Array = []) -> void:
 		var result = obj.callv(method, args)
