@@ -1,6 +1,5 @@
 # meta-description: GdPAI SpatialAction template.
 # meta-default: true
-
 extends SpatialAction
 
 
@@ -35,9 +34,9 @@ func get_preconditions() -> Array[Precondition]:
 # Override
 func simulate_effect(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
 	super(agent_blackboard, world_state)
-	# Add any additional simulation here.
 
 
+# Add any additional simulation here.
 # Override
 func reverse_simulate_effect(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
 	pass

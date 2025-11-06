@@ -1,6 +1,5 @@
 # meta-description: GdPAIObjectData template.
 # meta-default: true
-
 extends GdPAIObjectData
 
 

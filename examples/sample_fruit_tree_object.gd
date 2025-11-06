@@ -1,9 +1,9 @@
+class_name SampleFruitTreeObject
+extends GdPAIObjectData
 ## A GdPAI demo object for a fruit tree.  The fruit tree provides an action to shake the tree,
 ## which drops some fruit nearby.  NOTE: it's better practice to keep the concrete behavior
 ## separate from the AI.  A tree dropping fruit shouldn't depend on being part of the AI framework.
 ## Because this is a simple example, I have it all bundled together.
-class_name SampleFruitTreeObject
-extends GdPAIObjectData
 
 ## Prefab of the fruit to drop.
 @export var fruit_prefab: PackedScene
@@ -13,18 +13,17 @@ extends GdPAIObjectData
 @export var drop_min_amount: int = 1
 ## Maximum amount of fruits to drop.
 @export var drop_max_amount: int = 3
-
 ## How long the tree takes to recover between drops.
 @export var cooldown_window: float = 5
-var is_on_cooldown: bool
-var _cooldown_timer: float
 ## A really simple visual to show the cooldown.
 @export var cooldown_display: Label
-
 ## Reference to GdPAI interactable.
 @export var interactable_attribs: GdPAIInteractable
 ## Reference to GdPAI location data.
 @export var location_data: GdPAILocationData
+
+var is_on_cooldown: bool
+var _cooldown_timer: float
 
 
 func _process(delta: float) -> void:
@@ -55,7 +54,7 @@ func drop_fruit():
 				location_data.position
 				+ Vector2(
 					randf_range(-drop_distance, drop_distance),
-					randf_range(0.5 * drop_distance, drop_distance)  # For top-down effect.
+					randf_range(0.5 * drop_distance, drop_distance), # For top-down effect.
 				)
 			)
 		elif fruit_obj is Node3D:
@@ -64,7 +63,7 @@ func drop_fruit():
 				+ Vector3(
 					randf_range(-drop_distance, drop_distance),
 					1,
-					randf_range(-drop_distance, drop_distance)
+					randf_range(-drop_distance, drop_distance),
 				)
 			)
 
@@ -80,7 +79,9 @@ func get_provided_actions() -> Array[Action]:
 	# Overwrite the get_provided_actions function to serve any actions that become possible because
 	# this object exists out in the world.
 	var shake_tree_action: SampleShakeTreeAction = SampleShakeTreeAction.new(
-		location_data, interactable_attribs, self
+		location_data,
+		interactable_attribs,
+		self,
 	)
 	return [shake_tree_action]
 

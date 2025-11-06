@@ -1,6 +1,6 @@
-## Node to track a relevant object's position in the world and in the agent's simulation.
 class_name GdPAILocationData
 extends GdPAIObjectData
+## Node to track a relevant object's position in the world and in the agent's simulation.
 
 @export_group("Location: only set one!")
 ## Location for 2D objects.
@@ -14,7 +14,7 @@ var position:
 	get:
 		assert(
 			location_node_2d == null or location_node_3d == null,
-			"Only one backend location node should be set!"
+			"Only one backend location node should be set!",
 		)
 		if location_node_2d != null:
 			return location_node_2d.global_position
@@ -24,14 +24,13 @@ var position:
 			return position
 	set(val):
 		position = val
-
 ## Shorthand way to access the entity's rotation (in degrees), which can be altered in simulation.
 ## Returns as either float (2D case) or Vector3.
 var rotation:
 	get:
 		assert(
 			location_node_2d == null or location_node_3d == null,
-			"Only one backend location node should be set!"
+			"Only one backend location node should be set!",
 		)
 		if location_node_2d != null:
 			return location_node_2d.global_rotation_degrees

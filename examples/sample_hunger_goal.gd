@@ -1,6 +1,6 @@
-## Simple GdPAI goal to eat food and keep hunger up.
 class_name SampleHungerGoal
 extends Goal
+## Simple GdPAI goal to eat food and keep hunger up.
 
 
 # Override

@@ -1,20 +1,21 @@
-## GdPlanningAI Agent.  The agent has their own record of the world state and a
-## personal blackboard of attributes.  Agents form plans given their available goals and actions.
 class_name GdPAIAgent
 extends Node
+## GdPlanningAI Agent.  The agent has their own record of the world state and a
+## personal blackboard of attributes.  Agents form plans given their available goals and actions.
 
 ## @experimental: To support multithreading, your simulation must not directly change the scene tree!
 ## Whether this agent should do planning on a separate thread.
 @export var use_multithreading: bool
 @export var thread_priority: Thread.Priority = Thread.PRIORITY_LOW
-## Agent has ownership over one thread during its lifespan.
-var thread: Thread
 ## The maximum recursion depth for the agent when planning.
 @export var max_recursion: int = 4
 ## The top-level node of the agent.
 @export var entity: Node
 ## Reference the plan for this agent's own blackboard.
 @export var blackboard_plan: GdPAIBlackboardPlan
+
+## Agent has ownership over one thread during its lifespan.
+var thread: Thread
 ## Reference to this agent's own blackboard.
 var blackboard: GdPAIBlackboard
 ## Reference to the world node.
@@ -62,7 +63,7 @@ func _process(delta: float):
 				# Spin up a new thread to handle planning.
 				_current_plan = null
 				_current_plan_step = -1
-				thread.start(_select_highest_reward_goal.bind(worldly_actions), thread_priority)
+				thread.start(_select_highest_reward_goal.bind(self_actions, worldly_actions), thread_priority)
 		else:
 			var goal_and_plan: Dictionary = await _select_highest_reward_goal(self_actions, worldly_actions)
 			_current_plan_step = -1
@@ -80,7 +81,7 @@ func _select_highest_reward_goal(self_actions: Array[Action], worldly_actions: A
 		# planning, this is maybe okay to do.
 		thread.set_thread_safety_checks_enabled(false)
 
-	var return_dict: Dictionary = {}
+	var return_dict: Dictionary = { }
 	var rewards: Array[float] = []
 
 	# Poll the world state for valid actions.
@@ -99,7 +100,7 @@ func _select_highest_reward_goal(self_actions: Array[Action], worldly_actions: A
 		var test_plan = Plan.new()
 		test_plan.initialize(self, goals[idx], actions_with_worldly, max_recursion)
 
-		if test_plan.get_plan().size() > 0:  # This means a plan was created.
+		if test_plan.get_plan().size() > 0: # This means a plan was created.
 			return_dict["goal"] = goals[idx]
 			return_dict["plan"] = test_plan
 			# For multithreading, we need to sync to main thread before exiting.
@@ -113,7 +114,7 @@ func _select_highest_reward_goal(self_actions: Array[Action], worldly_actions: A
 	# For multithreading, we need to sync to main thread before exiting.
 	if use_multithreading:
 		call_deferred("_sync_multithreaded_plan")
-	return {"goal": null, "plan": null}
+	return { "goal": null, "plan": null }
 
 
 ## Waits for thread to finish then assigns return values.
@@ -125,7 +126,7 @@ func _sync_multithreaded_plan():
 
 ## Executes the currently selected plan based on the current step.
 func _execute_plan(delta: float):
-	if _current_plan == null:  # No plan formed yet.
+	if _current_plan == null: # No plan formed yet.
 		return
 	var action_chain: Array = _current_plan.get_plan()
 	# Pre actions.
@@ -154,7 +155,7 @@ func _execute_plan(delta: float):
 			_current_plan_step += 1
 
 	# Post actions.
-	if _current_plan_step == action_chain.size():  # We just finished, do post actions.
+	if _current_plan_step == action_chain.size(): # We just finished, do post actions.
 		for action: Action in action_chain:
 			var action_status = action.post_perform_action(self)
 		_current_plan_step += 1
@@ -181,7 +182,7 @@ func _compute_worldly_actions() -> Array[Action]:
 	# Refresh the world state.
 	var ws_checkpoint: GdPAIBlackboard = world_node.get_world_state()
 	var GdPAI_objects: Array[GdPAIObjectData] = ws_checkpoint.get_property(
-		GdPAIBlackboard.GdPAI_OBJECTS
+		GdPAIBlackboard.GdPAI_OBJECTS,
 	)
 	var actions: Array[Action] = []
 	for GdPAI_object: GdPAIObjectData in GdPAI_objects:
