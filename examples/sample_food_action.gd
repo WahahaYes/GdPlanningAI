@@ -1,6 +1,6 @@
-## Simple GdPAI spatial action to eat food for the GdPAI usage demo.
 class_name SampleFoodAction
 extends SpatialAction
+## Simple GdPAI spatial action to eat food for the GdPAI usage demo.
 
 ## Reference to the food item that provided this action.
 var food_item: SampleFoodObject
@@ -8,9 +8,9 @@ var food_item: SampleFoodObject
 
 # Override
 func _init(
-	object_location: GdPAILocationData,
-	interactable_attribs: GdPAIInteractable,
-	food_item: SampleFoodObject
+		object_location: GdPAILocationData,
+		interactable_attribs: GdPAIInteractable,
+		food_item: SampleFoodObject,
 ):
 	# If extending _init(), make sure to call super() so a uid is created and references are
 	# assigned.

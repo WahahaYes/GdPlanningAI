@@ -1,10 +1,11 @@
-## Simple GdPAI spatial action to shake the tree (in 2D) for the GdPAI usage demo.
 class_name SampleShakeTreeAction
 extends SpatialAction
+## Simple GdPAI spatial action to shake the tree (in 2D) for the GdPAI usage demo.
 
 ## While not necessary, I'm encoding a duration into shaking the tree here, just to make the
 ## simulation a little more visually interesting.
 const SHAKE_DURATION: float = 0.5
+
 ## Reference to the food item that provided this action.
 var fruit_tree: SampleFruitTreeObject
 ## An internal param to cache how much food the tree is guaranteed to drop.
@@ -13,9 +14,9 @@ var _fruit_hunger_value: float
 
 # Override
 func _init(
-	object_location: GdPAILocationData,
-	interactable_attribs: GdPAIInteractable,
-	fruit_tree: SampleFruitTreeObject
+		object_location: GdPAILocationData,
+		interactable_attribs: GdPAIInteractable,
+		fruit_tree: SampleFruitTreeObject,
 ):
 	# If extending _init(), make sure to call super() so a uid is created and references are
 	# assigned.

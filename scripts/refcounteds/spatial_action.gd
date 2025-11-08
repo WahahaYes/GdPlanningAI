@@ -1,3 +1,5 @@
+class_name SpatialAction
+extends Action
 ## Spatial actions are related to a physical object and contingent on proximity.  Moving the agent
 ## to the object is bundled into the action.  This class of actions uses Godot's navigation
 ## to test proximity, and relies on the GdPAI agent having a child NavigationAgent(2D/3D).
@@ -5,15 +7,12 @@
 ##[br]
 ## NOTE: The agent still needs to move itself; this action just updates the navigation target of
 ## the agent's NavigationAgent.
-class_name SpatialAction
-extends Action
 
 ## Reference to the GdPAI location data that this action is tied to.  This is set when the action
 ## is created.
 var object_location: GdPAILocationData
 ## Reference to the GdPAI interactable attributes.  This is set when the action is created.
 var interactable_attribs: GdPAIInteractable
-
 var has_done_pre: bool
 var has_done_post: bool
 
@@ -28,7 +27,7 @@ func _init(object_location: GdPAILocationData, interactable_attribs: GdPAIIntera
 # Override
 func get_action_cost(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard) -> float:
 	var agent_location: GdPAILocationData = agent_blackboard.get_first_object_in_group(
-		"GdPAILocationData"
+		"GdPAILocationData",
 	)
 	if not is_instance_valid(object_location):
 		return INF
@@ -57,7 +56,7 @@ func get_validity_checks() -> Array[Precondition]:
 		# The target should be reachable by the agent.
 		var entity: Node = blackboard.get_property("entity")
 		var agent_location_data: GdPAILocationData = blackboard.get_first_object_in_group(
-			"GdPAILocationData"
+			"GdPAILocationData",
 		)
 
 		# nav_agent could be NavigationAgent2D or NavigationAgent3D depending on the setup.
@@ -83,7 +82,7 @@ func get_validity_checks() -> Array[Precondition]:
 		# Override the entity's nav agent to test if it is possible to get to this object.
 		var old_target_position = nav_agent.target_position
 		nav_agent.target_position = object_location.position
-		nav_agent.get_next_path_position()  # Compute the path.
+		nav_agent.get_next_path_position() # Compute the path.
 		var final_dist: float = (object_location.position - nav_agent.get_final_position()).length()
 		# Restore the nav agent's earlier state.
 		nav_agent.target_position = old_target_position
@@ -98,7 +97,7 @@ func get_validity_checks() -> Array[Precondition]:
 func simulate_effect(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
 	# Simulate by teleporting the agent to the object's location.
 	var agent_location: GdPAILocationData = agent_blackboard.get_first_object_in_group(
-		"GdPAILocationData"
+		"GdPAILocationData",
 	)
 	var sim_location = world_state.get_object_by_uid(object_location.uid)
 	agent_location.position = sim_location.position
@@ -114,7 +113,7 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 
 	# Cache the location data.
 	var agent_location_data: GdPAILocationData = agent.blackboard.get_first_object_in_group(
-		"GdPAILocationData"
+		"GdPAILocationData",
 	)
 	agent.blackboard.set_property(uid_property("agent_location"), agent_location_data)
 
@@ -149,7 +148,7 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 
 	var nav_agent: Node = agent.blackboard.get_property(uid_property("nav_agent"))
 	var agent_location_data: GdPAILocationData = agent.blackboard.get_property(
-		uid_property("agent_location")
+		uid_property("agent_location"),
 	)
 
 	# Maintain a list of prior positions to check if the agent isn't moving.
@@ -200,7 +199,7 @@ func post_perform_action(agent: GdPAIAgent) -> Action.Status:
 
 	var nav_agent: Node = agent.blackboard.get_property(uid_property("nav_agent"))
 	var agent_location_data: GdPAILocationData = agent.blackboard.get_property(
-		uid_property("agent_location")
+		uid_property("agent_location"),
 	)
 	# Clear the navigation target.
 	nav_agent.target_position = agent_location_data.position

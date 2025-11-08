@@ -1,6 +1,6 @@
-## Simulates chains of actions recursively to move an agent towards a goal.
 class_name Plan
 extends RefCounted
+## Simulates chains of actions recursively to move an agent towards a goal.
 
 ## A reference to the agent.
 var _agent: GdPAIAgent
@@ -40,7 +40,7 @@ func _compute_plan() -> Array:
 	var root_node: Dictionary = {
 		"action": Action.new(),
 		"cost": 0,
-		"desired_state": _goal.get_desired_state(_agent),  # An array of preconditions.
+		"desired_state": _goal.get_desired_state(_agent), # An array of preconditions.
 		"children": [],
 	}
 	# Attempt to create the full tree of possible plans.
@@ -63,11 +63,11 @@ func _compute_plan() -> Array:
 ## Builds a plan recursively to find cases where the goal is realized.  If there is no valid
 ## plan within the recursion limit, returns false.
 func _build_plan(
-	node: Dictionary,
-	prior_actions: Array[Action],
-	blackboard: GdPAIBlackboard,
-	world_state: GdPAIBlackboard,
-	recursion_level: int
+		node: Dictionary,
+		prior_actions: Array[Action],
+		blackboard: GdPAIBlackboard,
+		world_state: GdPAIBlackboard,
+		recursion_level: int,
 ):
 	var has_solution: bool = false
 	# Early terminate if recursion went too deep.
@@ -99,7 +99,9 @@ func _build_plan(
 		for condition: Precondition in node["desired_state"]:
 			sim_desired_state.append(condition.copy_for_simulation())
 		should_use_action = await _evaluate_goals(
-			sim_desired_state, sim_blackboard, sim_world_state
+			sim_desired_state,
+			sim_blackboard,
+			sim_world_state,
 		)
 
 		# Add this action's preconditions to the simulated world state and continue recursing.
@@ -114,7 +116,7 @@ func _build_plan(
 				"action": action,
 				"cost": sim_cost,
 				"desired_state": sim_desired_state,
-				"children": []
+				"children": [],
 			}
 			# Check if we arrive at our goal eventually by including this action.
 			var prior_actions_appended: Array[Action] = prior_actions.duplicate()
@@ -125,7 +127,7 @@ func _build_plan(
 				prior_actions_appended,
 				sim_blackboard,
 				sim_world_state,
-				recursion_level + 1
+				recursion_level + 1,
 			):
 				# Add this node as a potential solution.
 				node.children.append(next_node)
@@ -140,7 +142,7 @@ func _transform_tree_into_array(node: Dictionary) -> Array:
 	var plans = []
 
 	if node.children.size() == 0:
-		plans.append({"actions": [node.action], "cost": node.cost})
+		plans.append({ "actions": [node.action], "cost": node.cost })
 		return plans
 
 	for child in node.children:
@@ -154,11 +156,13 @@ func _transform_tree_into_array(node: Dictionary) -> Array:
 ## Run the evaluation on any preconditions not previously addressed.  Returns true if any
 ## conditions not previously met are satisfied.
 func _evaluate_goals(
-	preconditions: Array[Precondition], blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard
+		preconditions: Array[Precondition],
+		blackboard: GdPAIBlackboard,
+		world_state: GdPAIBlackboard,
 ) -> bool:
 	var is_closer_to_goal: bool = false
 	for condition: Precondition in preconditions:
-		if condition.is_satisfied:  # We don't want a condition previously satisfied to revert.
+		if condition.is_satisfied: # We don't want a condition previously satisfied to revert.
 			continue
 		var result: bool = await condition.evaluate(blackboard, world_state)
 		if result:

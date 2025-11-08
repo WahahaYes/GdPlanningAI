@@ -1,10 +1,11 @@
-## Provides the world state to GdPAI agents by querying the scene tree in order to compile up all
-## GdPAI objects currently in the scene, and collect their provided actions.
 class_name GdPAIWorldNode
 extends Node
+## Provides the world state to GdPAI agents by querying the scene tree in order to compile up all
+## GdPAI objects currently in the scene, and collect their provided actions.
 
 ## Blackboard plan for the world state.
 @export var blackboard_plan: GdPAIBlackboardPlan
+
 ## The world state blackboard.
 @onready var world_state: GdPAIBlackboard = blackboard_plan.generate_blackboard()
 

@@ -1,13 +1,13 @@
-## Simple FPS counter for monitoring the performance in GdPAI demos.
-
 extends Node
+## Simple FPS counter for monitoring the performance in GdPAI demos.
 
 ## Reference to a label for displaying fps results.
 @export var display_text: Label
-## What frame is running?
-var frame_idx: int
 ## How long to count for a stress test before printing to console.
 @export var frame_idx_to_report: int = 2000
+
+## What frame is running?
+var frame_idx: int
 
 
 func _process(delta: float) -> void:

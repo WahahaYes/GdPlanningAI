@@ -1,6 +1,5 @@
-## Simple animation script used to power the GdPAI 2D demo.
-
 extends Node
+## Simple animation script used to power the GdPAI 2D demo.
 
 ## Reference to the agent's entity
 @export var entity: RigidBody2D
@@ -35,7 +34,8 @@ func _process(delta: float) -> void:
 	var action_text: String
 	if GdPAI_agent._current_plan != null and GdPAI_agent._current_plan.get_plan().size() > 0:
 		var step: int = min(
-			GdPAI_agent._current_plan_step, GdPAI_agent._current_plan.get_plan().size() - 1
+			GdPAI_agent._current_plan_step,
+			GdPAI_agent._current_plan.get_plan().size() - 1,
 		)
 		var action: Action = GdPAI_agent._current_plan.get_plan()[step]
 		action_text = action.get_script().resource_path.split("/")[-1]
