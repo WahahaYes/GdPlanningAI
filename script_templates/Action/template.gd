@@ -1,6 +1,5 @@
 # meta-description: GdPAI Action template.
 # meta-default: true
-
 extends Action
 
 

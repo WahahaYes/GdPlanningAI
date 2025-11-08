@@ -1,6 +1,6 @@
-## Denotes an interactable GdPAI object and maintains common associated attributes.
 class_name GdPAIInteractable
 extends GdPAIObjectData
+## Denotes an interactable GdPAI object and maintains common associated attributes.
 
 ## An object can specify how far away it need be.  Values <=0 disable the check.
 @export var max_interaction_distance: float = 2

@@ -32,7 +32,7 @@ func get_preconditions() -> Array[Precondition]:
 # Override
 func simulate_effect(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
 	var sim_location: GdPAILocationData = agent_blackboard.get_first_object_in_group(
-		"GdPAILocationData"
+		"GdPAILocationData",
 	)
 	sim_location.position.x += wander_distance
 
@@ -46,7 +46,7 @@ func reverse_simulate_effect(agent_blackboard: GdPAIBlackboard, world_state: GdP
 func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	# Cache location data.
 	var location_data: GdPAILocationData = agent.blackboard.get_first_object_in_group(
-		"GdPAILocationData"
+		"GdPAILocationData",
 	)
 	agent.blackboard.set_property(uid_property("agent_location"), location_data)
 
@@ -76,7 +76,7 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 	# Grab needed properties from blackboard.
 	var nav_agent: Node = agent.blackboard.get_property(uid_property("nav_agent"))
 	var agent_location_data: GdPAILocationData = agent.blackboard.get_property(
-		uid_property("agent_location")
+		uid_property("agent_location"),
 	)
 	var target_location = agent.blackboard.get_property(uid_property("target_location"))
 
@@ -108,7 +108,7 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 func post_perform_action(agent: GdPAIAgent) -> Action.Status:
 	var nav_agent: Node = agent.blackboard.get_property(uid_property("nav_agent"))
 	var agent_location_data: GdPAILocationData = agent.blackboard.get_property(
-		uid_property("agent_location")
+		uid_property("agent_location"),
 	)
 	# Clear the navigation target.
 	nav_agent.target_position = agent_location_data.position
