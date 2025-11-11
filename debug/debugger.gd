@@ -12,18 +12,21 @@ func _has_capture(prefix: String) -> bool:
 
 func _capture(message: String, data: Array, session_id: int) -> bool:
 	if message == "gdplanningai:register_agent":
+		# (agent_id, agent_name)
 		debugger_tab.register_agent(data[0], data[1])
 		return true
 	if message == "gdplanningai:unregister_agent":
+		# (agent_id)
 		debugger_tab.unregister_agent(data[0])
 		return true
-	if message == "gdplanningai:update_plan":
-		debugger_tab.update_plan(data[0], data[1])
+	if message == "gdplanningai:update_agent_info":
+		# (agent_id, agent_info { plan_tree, ... })
+		debugger_tab.update_agent_info(data[0], data[1])
 		return true
 	return false
 
 
 func _setup_session(session_id: int) -> void:
 	session = get_session(session_id)
-	debugger_tab.name = "📊 GdPlanningAI"
+	debugger_tab.name = "🧠🤖GdPlanningAI"
 	session.add_session_tab(debugger_tab)

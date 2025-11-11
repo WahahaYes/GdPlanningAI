@@ -46,7 +46,10 @@ func _ready() -> void:
 	# Try to find a world node.
 	world_node = GdPAIUTILS.get_child_of_type(get_tree().root, GdPAIWorldNode)
 	# Notify debugger of agent creation.
-	EngineDebugger.send_message("gdplanningai:register_agent", [get_instance_id(), name])
+	EngineDebugger.send_message(
+		"gdplanningai:register_agent",
+		[get_instance_id(), "%s (%s)" % [name, get_instance_id()]],
+	)
 	tree_exiting.connect(
 		func():
 			EngineDebugger.send_message("gdplanningai:unregister_agent", [get_instance_id()])
@@ -69,7 +72,10 @@ func _process(delta: float):
 				# Spin up a new thread to handle planning.
 				_current_plan = null
 				_current_plan_step = -1
-				thread.start(_select_highest_reward_goal.bind(self_actions, worldly_actions), thread_priority)
+				thread.start(
+					_select_highest_reward_goal.bind(self_actions, worldly_actions),
+					thread_priority,
+				)
 		else:
 			var goal_and_plan: Dictionary = await _select_highest_reward_goal(self_actions, worldly_actions)
 			_current_plan_step = -1
@@ -112,7 +118,7 @@ func _select_highest_reward_goal(self_actions: Array[Action], worldly_actions: A
 			# For multithreading, we need to sync to main thread before exiting.
 			if use_multithreading:
 				call_deferred("_sync_multithreaded_plan")
-			_update_debugger_plan()
+			_update_debugger_info()
 			return return_dict
 		else:
 			rewards[idx] = -1
@@ -129,7 +135,7 @@ func _sync_multithreaded_plan():
 	var goal_and_plan = thread.wait_to_finish()
 	_current_goal = goal_and_plan["goal"]
 	_current_plan = goal_and_plan["plan"]
-	_update_debugger_plan()
+	_update_debugger_info()
 
 
 ## Executes the currently selected plan based on the current step.
@@ -209,12 +215,13 @@ func _compute_worldly_actions() -> Array[Action]:
 	return actions
 
 
-func _update_debugger_plan() -> void:
-	if not is_instance_valid(_current_plan):
-		return
+func _update_debugger_info() -> void:
+	var agent_info: Dictionary = { }
+	# Setup the plan tree if we have a valid plan.
+	if _current_plan != null and is_instance_valid(_current_plan):
+		agent_info["plan_tree"] = _current_plan.get_plan_tree_debug_data()
+	# Setup the current goal if we have one.
+	if _current_goal != null and is_instance_valid(_current_goal):
+		agent_info["current_goal"] = _current_goal.to_string()
 
-	var plan_tree: Dictionary = _current_plan.get_plan_tree_debug_data()
-	if plan_tree.is_empty():
-		return
-
-	EngineDebugger.send_message("gdplanningai:update_plan", [get_instance_id(), plan_tree])
+	EngineDebugger.send_message("gdplanningai:update_agent_info", [get_instance_id(), agent_info])
