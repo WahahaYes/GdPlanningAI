@@ -12,6 +12,9 @@ var _available_actions: Array[Action]
 var _max_recursion: int
 ## After planning, this stores the best valid plan found.
 var _best_plan: Array
+## Cached plan tree for debugging/visualization.
+var _plan_tree_root: Dictionary = {}
+var _debug_node_counter: int = 0
 
 
 ## Initializes the plan with the target agent, goal, available actions, and a limit to the amount
@@ -28,6 +31,19 @@ func initialize(agent: GdPAIAgent, goal: Goal, actions: Array[Action], max_recur
 ## Returns the list of actions needed to arrive at the goal.
 func get_plan() -> Array:
 	return _best_plan
+
+
+## Returns the root dictionary of the cached plan tree for debugging
+func get_plan_tree() -> Dictionary:
+	return _plan_tree_root
+
+
+## Returns the plan tree in a format suitable for visualization/debugging.
+func get_plan_tree_debug_data() -> Dictionary:
+	if _plan_tree_root.is_empty():
+		return {}
+	_debug_node_counter = 0
+	return _serialize_plan_node(_plan_tree_root, 0)
 
 
 ## Computes the plan recursively by simulating outside of the scene tree.
@@ -47,6 +63,7 @@ func _compute_plan() -> Array:
 	var success: bool = await _build_plan(root_node, [], blackboard, world_state, 0)
 	# Parse out the actions from the most cost effective plan.
 	if success:
+		_plan_tree_root = _clone_plan_node(root_node)
 		var plans: Array = _transform_tree_into_array(root_node)
 		var best_plan: Variant = null
 
@@ -57,6 +74,7 @@ func _compute_plan() -> Array:
 			i += 1
 		return best_plan.actions
 	else:
+		_plan_tree_root = {}
 		return []
 
 
@@ -139,18 +157,62 @@ func _build_plan(
 ## Traverses the tree of action plans and builds up an array of all the potential plans and their
 ## scores.
 func _transform_tree_into_array(node: Dictionary) -> Array:
-	var plans = []
+	var plans := []
+	var children: Array = node.get("children", [])
 
-	if node.children.size() == 0:
-		plans.append({ "actions": [node.action], "cost": node.cost })
+	if children.is_empty():
+		plans.append({ "actions": [node.get("action")], "cost": node.get("cost", 0.0) })
 		return plans
 
-	for child in node.children:
+	for child in children:
 		for child_plan in _transform_tree_into_array(child):
-			child_plan.actions.append(node.action)
-			child_plan.cost += node.cost
+			child_plan["actions"].append(node.get("action"))
+			child_plan["cost"] += node.get("cost", 0.0)
 			plans.append(child_plan)
 	return plans
+
+
+func _clone_plan_node(node: Dictionary) -> Dictionary:
+	var clone := {
+		"action": node.get("action"),
+		"cost": node.get("cost", 0.0),
+		"desired_state": node.get("desired_state", []),
+		"children": []
+	}
+	for child in node.get("children", []):
+		clone["children"].append(_clone_plan_node(child))
+	return clone
+
+
+func _serialize_plan_node(node: Dictionary, depth: int) -> Dictionary:
+	var serialized := {}
+	var node_id := "node_%d" % _debug_node_counter
+	_debug_node_counter += 1
+	var action: Action = node.get("action")
+	var node_name := "Action"
+	if depth == 0:
+		node_name = "Root"
+	elif action:
+		node_name = action.get_class()
+
+	serialized["id"] = node_id
+	serialized["name"] = node_name
+	serialized["cost"] = float(node.get("cost", 0.0))
+	serialized["children"] = []
+	if action:
+		serialized["action_class"] = action.get_class()
+		serialized["details"] = "UID: %s" % action.uid
+
+	var desired_state := node.get("desired_state", [])
+	if desired_state.size() > 0:
+		serialized["desired_state_count"] = desired_state.size()
+		var details := serialized.get("details", "")
+		var extra := "Preconditions: %d" % desired_state.size()
+		serialized["details"] = extra if details.is_empty() else "%s\n%s" % [details, extra]
+
+	for child in node.get("children", []):
+		serialized["children"].append(_serialize_plan_node(child, depth + 1))
+	return serialized
 
 
 ## Run the evaluation on any preconditions not previously addressed.  Returns true if any
