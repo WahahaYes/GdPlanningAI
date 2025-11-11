@@ -2,7 +2,6 @@
 class_name GdPlanningAIPlanGraphEdit
 extends GraphEdit
 
-const PlanGraphNode := preload("plan_graph_node.gd")
 const H_SPACING := 260.0
 const V_SPACING := 150.0
 
@@ -20,6 +19,7 @@ var _plan_tree: Dictionary = { }
 func _ready() -> void:
 	show_arrange_button = false
 	minimap_enabled = false
+	grid_pattern = GraphEdit.GRID_PATTERN_DOTS
 
 
 func _update_graph() -> void:
@@ -38,6 +38,7 @@ func _update_graph() -> void:
 	_compute_positions(_plan_tree, 0, positions, leaf_index)
 	_add_nodes(_plan_tree, positions)
 	_connect_nodes(_plan_tree)
+	arrange_nodes()
 
 
 func _compute_positions(node: Dictionary, depth: int, positions: Dictionary, leaf_index: Array) -> float:
@@ -62,11 +63,10 @@ func _compute_positions(node: Dictionary, depth: int, positions: Dictionary, lea
 
 
 func _add_nodes(node: Dictionary, positions: Dictionary) -> void:
-	var node_id: String = str(node.get("id", ""))
-	var graph_node := PlanGraphNode.new()
-	graph_node.name = node_id
+	var graph_node := GdPlanningAIPlanGraphNode.new()
+	graph_node.name = str(node.get("id", ""))
 	add_child(graph_node)
-	graph_node.position_offset = positions.get(node_id, Vector2.ZERO)
+	graph_node.position_offset = positions.get(graph_node.name, Vector2.ZERO)
 	graph_node.set_node_data.call_deferred(node)
 
 	for child in node.get("children", []):
