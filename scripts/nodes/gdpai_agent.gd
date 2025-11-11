@@ -222,6 +222,6 @@ func _update_debugger_info() -> void:
 		agent_info["plan_tree"] = _current_plan.get_plan_tree_debug_data()
 	# Setup the current goal if we have one.
 	if _current_goal != null and is_instance_valid(_current_goal):
-		agent_info["current_goal"] = _current_goal.to_string()
+		agent_info["current_goal"] = _current_goal.get_class()
 
 	EngineDebugger.send_message("gdplanningai:update_agent_info", [get_instance_id(), agent_info])

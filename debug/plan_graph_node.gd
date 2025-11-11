@@ -39,19 +39,17 @@ func _ready() -> void:
 
 
 func set_node_data(node_data: Dictionary) -> void:
-	var title_text: String = node_data.get("name", "Plan Node")
+	var title_text: String = node_data.get("action", "Plan Node")
 	title = title_text
 	title_label.text = title_text
 
-	var cost_text := ""
-	if node_data.has("cost"):
-		cost_text = "Cost: %.2f" % float(node_data["cost"])
-
 	var details := []
-	if not cost_text.is_empty():
-		details.append(cost_text)
-	if node_data.has("details") and node_data["details"] is String and not node_data["details"].is_empty():
+	if node_data.has("cost"):
+		details.append("[b]Cost:[/b] %.2f" % float(node_data["cost"]))
+	if node_data.has("details") and not node_data["details"].is_empty():
 		details.append(node_data["details"])
+	if node_data.has("desired_state_count") and node_data["desired_state_count"] > 0:
+		details.append("[b]Preconditions:[/b] %d" % node_data["desired_state_count"])
 
 	var has_details := not details.is_empty()
 	body_label.visible = has_details

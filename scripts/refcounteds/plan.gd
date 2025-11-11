@@ -13,7 +13,7 @@ var _max_recursion: int
 ## After planning, this stores the best valid plan found.
 var _best_plan: Array
 ## Cached plan tree for debugging/visualization.
-var _plan_tree_root: Dictionary = {}
+var _plan_tree_root: Dictionary = { }
 var _debug_node_counter: int = 0
 
 
@@ -41,7 +41,7 @@ func get_plan_tree() -> Dictionary:
 ## Returns the plan tree in a format suitable for visualization/debugging.
 func get_plan_tree_debug_data() -> Dictionary:
 	if _plan_tree_root.is_empty():
-		return {}
+		return { }
 	_debug_node_counter = 0
 	return _serialize_plan_node(_plan_tree_root, 0)
 
@@ -74,7 +74,7 @@ func _compute_plan() -> Array:
 			i += 1
 		return best_plan.actions
 	else:
-		_plan_tree_root = {}
+		_plan_tree_root = { }
 		return []
 
 
@@ -177,7 +177,7 @@ func _clone_plan_node(node: Dictionary) -> Dictionary:
 		"action": node.get("action"),
 		"cost": node.get("cost", 0.0),
 		"desired_state": node.get("desired_state", []),
-		"children": []
+		"children": [],
 	}
 	for child in node.get("children", []):
 		clone["children"].append(_clone_plan_node(child))
@@ -185,30 +185,30 @@ func _clone_plan_node(node: Dictionary) -> Dictionary:
 
 
 func _serialize_plan_node(node: Dictionary, depth: int) -> Dictionary:
-	var serialized := {}
-	var node_id := "node_%d" % _debug_node_counter
+	var serialized: Dictionary = { }
+	var node_id: String = "node_%d" % _debug_node_counter
 	_debug_node_counter += 1
 	var action: Action = node.get("action")
-	var node_name := "Action"
-	if depth == 0:
-		node_name = "Root"
-	elif action:
-		node_name = action.get_class()
 
 	serialized["id"] = node_id
-	serialized["name"] = node_name
 	serialized["cost"] = float(node.get("cost", 0.0))
 	serialized["children"] = []
 	if action:
-		serialized["action_class"] = action.get_class()
+		serialized["action"] = action.get_class()
 		serialized["details"] = "UID: %s" % action.uid
+	else:
+		serialized["action"] = "Root"
+		serialized["details"] = ""
 
-	var desired_state := node.get("desired_state", [])
+	var desired_state: Array = node.get("desired_state", [])
 	if desired_state.size() > 0:
 		serialized["desired_state_count"] = desired_state.size()
-		var details := serialized.get("details", "")
-		var extra := "Preconditions: %d" % desired_state.size()
+		var details: String = serialized.get("details", "")
+		var extra: String = "Preconditions: %d" % desired_state.size()
 		serialized["details"] = extra if details.is_empty() else "%s\n%s" % [details, extra]
+	else:
+		serialized["desired_state_count"] = 0
+		serialized["details"] = ""
 
 	for child in node.get("children", []):
 		serialized["children"].append(_serialize_plan_node(child, depth + 1))
