@@ -3,8 +3,8 @@ class_name GdPlanningAIDebuggerTab
 extends PanelContainer
 
 # Agent data
-var agents: Dictionary = {}
-var agent_plans: Dictionary = {}
+var agents: Dictionary = { }
+var agents_info: Dictionary = { }
 var current_agent_id := -1
 # UI elements
 var split_container: HSplitContainer
@@ -39,9 +39,15 @@ func unregister_agent(agent_id: int) -> void:
 			break
 
 	agents.erase(agent_id)
-	agent_plans.erase(agent_id)
+	agents_info.erase(agent_id)
 	if current_agent_id == agent_id:
 		current_agent_id = -1
+		_update_agent_view()
+
+
+func update_agent_info(agent_id: int, agent_info: Dictionary) -> void:
+	agents_info[agent_id] = agent_info
+	if current_agent_id == agent_id:
 		_update_agent_view()
 
 
@@ -57,46 +63,44 @@ func _on_item_selected(index: int) -> void:
 func _update_agent_view() -> void:
 	if current_agent_id == -1 or not agents.has(current_agent_id):
 		agent_stats.text = "No agent selected"
-		graph_edit.plan_tree = {}
+		graph_edit.plan_tree = { }
 		return
-
-	agent_stats.text = "[b]%s[/b]\nID: %d" % [agents[current_agent_id], current_agent_id]
-	if agent_plans.has(current_agent_id):
-		graph_edit.plan_tree = agent_plans[current_agent_id]
+	# Format the text box description.
+	agent_stats.text = "[b]%s[/b]" % [agents[current_agent_id]]
+	if not agents_info.has(current_agent_id):
+		agent_stats.text += "\nNo info available"
+		graph_edit.plan_tree = { }
+		return
+	if agents_info[current_agent_id].has("current_goal"):
+		agent_stats.text += "\nCurrent goal: %s" % [agents_info[current_agent_id]["current_goal"]]
+	# Add plan tree.
+	if agents_info[current_agent_id].has("plan_tree"):
+		graph_edit.plan_tree = agents_info[current_agent_id]["plan_tree"]
 	else:
-		graph_edit.plan_tree = {}
-
-
-func update_plan(agent_id: int, plan_tree: Dictionary) -> void:
-	agent_plans[agent_id] = plan_tree
-	if current_agent_id == agent_id:
-		graph_edit.plan_tree = plan_tree
+		graph_edit.plan_tree = { }
 
 
 func _build_ui() -> void:
-	# Main split container (20% left, 80% right)
+	# Main split container
 	split_container = HSplitContainer.new()
 	split_container.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(split_container)
-
 	# Left panel (agent selection + stats)
 	left_panel = VBoxContainer.new()
 	left_panel.custom_minimum_size = Vector2(200, 0) # Minimum width
 	split_container.add_child(left_panel)
-
 	# Agent list
 	agent_list = ItemList.new()
 	agent_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	left_panel.add_child(agent_list)
-
 	# Agent stats
 	agent_stats = RichTextLabel.new()
 	agent_stats.custom_minimum_size = Vector2(0, 100)
+	agent_stats.bbcode_enabled = true
 	left_panel.add_child(agent_stats)
-
 	# Right panel (graph edit)
 	graph_edit = GdPlanningAIPlanGraphEdit.new()
 	graph_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	graph_edit.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	graph_edit.plan_tree = {}
+	graph_edit.plan_tree = { }
 	split_container.add_child(graph_edit)
