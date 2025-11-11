@@ -45,6 +45,12 @@ func _ready() -> void:
 	blackboard.set_property(GdPAIBlackboard.GdPAI_OBJECTS, GdPAI_objects)
 	# Try to find a world node.
 	world_node = GdPAIUTILS.get_child_of_type(get_tree().root, GdPAIWorldNode)
+	# Notify debugger of agent creation.
+	EngineDebugger.send_message("gdplanningai:register_agent", [get_instance_id(), name])
+	tree_exiting.connect(
+		func():
+			EngineDebugger.send_message("gdplanningai:unregister_agent", [get_instance_id()])
+	)
 
 
 func _process(delta: float):
@@ -106,6 +112,7 @@ func _select_highest_reward_goal(self_actions: Array[Action], worldly_actions: A
 			# For multithreading, we need to sync to main thread before exiting.
 			if use_multithreading:
 				call_deferred("_sync_multithreaded_plan")
+			_update_debugger_plan()
 			return return_dict
 		else:
 			rewards[idx] = -1
@@ -122,6 +129,7 @@ func _sync_multithreaded_plan():
 	var goal_and_plan = thread.wait_to_finish()
 	_current_goal = goal_and_plan["goal"]
 	_current_plan = goal_and_plan["plan"]
+	_update_debugger_plan()
 
 
 ## Executes the currently selected plan based on the current step.
@@ -199,3 +207,14 @@ func _compute_worldly_actions() -> Array[Action]:
 			if is_satisfied:
 				actions.append(obj_act)
 	return actions
+
+
+func _update_debugger_plan() -> void:
+	if not is_instance_valid(_current_plan):
+		return
+
+	var plan_tree: Dictionary = _current_plan.get_plan_tree_debug_data()
+	if plan_tree.is_empty():
+		return
+
+	EngineDebugger.send_message("gdplanningai:update_plan", [get_instance_id(), plan_tree])
