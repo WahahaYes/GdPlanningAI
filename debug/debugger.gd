@@ -28,5 +28,5 @@ func _capture(message: String, data: Array, session_id: int) -> bool:
 
 func _setup_session(session_id: int) -> void:
 	session = get_session(session_id)
-	debugger_tab.name = "🧠🤖GdPlanningAI"
+	debugger_tab.name = "🧠GdPlanningAI"
 	session.add_session_tab(debugger_tab)

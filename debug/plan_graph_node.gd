@@ -12,7 +12,7 @@ func _ready() -> void:
 	draggable = false
 	set_slot(0, true, TYPE_INT, PORT_COLOR, true, TYPE_INT, PORT_COLOR)
 
-	var body_container := VBoxContainer.new()
+	var body_container: VBoxContainer = VBoxContainer.new()
 	body_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	body_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	body_container.custom_minimum_size = Vector2(160, 80)
@@ -34,7 +34,7 @@ func _ready() -> void:
 	body_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	# Create custom style for the text box
-	var style_box = StyleBoxFlat.new()
+	var style_box: StyleBoxFlat = StyleBoxFlat.new()
 	style_box.bg_color = Color(1, 1, 1, 0.3) # Semi-transparent white
 	style_box.border_color = Color(1, 1, 1, 0.3)
 
@@ -49,7 +49,7 @@ func set_node_data(node_data: Dictionary) -> void:
 	# title_label.text = title_text
 
 	# Set color based on runtime status
-	var status_color: Color
+	var status_color: Color = Color.NAVAJO_WHITE
 	if node_data.has("runtime_status"):
 		match node_data["runtime_status"]:
 			"...":
@@ -60,14 +60,10 @@ func set_node_data(node_data: Dictionary) -> void:
 				status_color = Color.GREEN
 			Action.Status.FAILURE:
 				status_color = Color.RED
-			_:
-				status_color = Color.NAVY_BLUE
-	else:
-		status_color = Color.NAVY_BLUE
 
 	_update_theme(status_color)
 
-	var details: Array = []
+	var details: Array[String] = []
 	if node_data.has("cost"):
 		details.append("[b]Cost:[/b] %.2f" % float(node_data["cost"]))
 
@@ -87,7 +83,7 @@ func set_node_data(node_data: Dictionary) -> void:
 
 
 func _update_theme(status_color: Color = Color.GRAY) -> void:
-	var style := StyleBoxFlat.new()
+	var style: StyleBoxFlat = StyleBoxFlat.new()
 	style.bg_color = Color(0.13, 0.14, 0.21).lerp(status_color, 0.3)
 	style.border_width_bottom = 2
 	style.border_width_top = 2
