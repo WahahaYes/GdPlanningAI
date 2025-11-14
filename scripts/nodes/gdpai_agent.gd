@@ -30,6 +30,8 @@ var _current_goal: Goal
 var _current_plan: Plan
 ## The current step within a plan.  Also used to control flow for pre/post actions.
 var _current_plan_step: int = -1
+## An array for tracking the runtime status of each node in the plan.
+var _runtime_status: Dictionary = { }
 
 
 func _ready() -> void:
@@ -49,10 +51,6 @@ func _ready() -> void:
 	EngineDebugger.send_message(
 		"gdplanningai:register_agent",
 		[get_instance_id(), "%s (%s)" % [name, get_instance_id()]],
-	)
-	tree_exiting.connect(
-		func():
-			EngineDebugger.send_message("gdplanningai:unregister_agent", [get_instance_id()])
 	)
 
 
@@ -81,6 +79,7 @@ func _process(delta: float):
 			_current_plan_step = -1
 			_current_goal = goal_and_plan["goal"]
 			_current_plan = goal_and_plan["plan"]
+			_reset_runtime_status(_current_plan.get_plan())
 	_execute_plan(delta)
 
 
@@ -135,6 +134,7 @@ func _sync_multithreaded_plan():
 	var goal_and_plan = thread.wait_to_finish()
 	_current_goal = goal_and_plan["goal"]
 	_current_plan = goal_and_plan["plan"]
+	_reset_runtime_status(_current_plan.get_plan())
 	_update_debugger_info()
 
 
@@ -147,6 +147,7 @@ func _execute_plan(delta: float):
 	if _current_plan_step == -1:
 		for action: Action in action_chain:
 			var action_status = action.pre_perform_action(self)
+			_runtime_status[action.uid]["pre_status"] = action_status
 			if action_status == Action.Status.FAILURE:
 				# Abort the plan.
 				_current_plan_step = action_chain.size()
@@ -158,6 +159,7 @@ func _execute_plan(delta: float):
 	if _current_plan_step < action_chain.size():
 		var current_action = action_chain[_current_plan_step]
 		var action_status = current_action.perform_action(self, delta)
+		_runtime_status[current_action.uid]["runtime_status"] = action_status
 		if action_status == Action.Status.FAILURE:
 			# Abort the plan.
 			_current_plan_step = action_chain.size()
@@ -172,7 +174,10 @@ func _execute_plan(delta: float):
 	if _current_plan_step == action_chain.size(): # We just finished, do post actions.
 		for action: Action in action_chain:
 			var action_status = action.post_perform_action(self)
+			_runtime_status[action.uid]["post_status"] = action_status
 		_current_plan_step += 1
+	# Update debugger info.
+	_update_debugger_info()
 
 
 func _compute_self_actions() -> Array[Action]:
@@ -215,11 +220,38 @@ func _compute_worldly_actions() -> Array[Action]:
 	return actions
 
 
+func _reset_runtime_status(plan_actions: Array) -> void:
+	_runtime_status.clear()
+	for action in plan_actions:
+		_runtime_status[action.uid] = {
+			"uid": action.uid,
+			"pre_status": "...",
+			"runtime_status": "...",
+			"post_status": "...",
+		}
+
+
+func _inject_runtime_status(node: Dictionary) -> Dictionary:
+	var uid: String = node.get("id", "")
+	if uid not in _runtime_status:
+		return node
+	node["pre_status"] = _runtime_status[uid]["pre_status"]
+	node["runtime_status"] = _runtime_status[uid]["runtime_status"]
+	node["post_status"] = _runtime_status[uid]["post_status"]
+
+	if node.has("children"):
+		var updated_children: Array = []
+		for child in node.get("children", []):
+			updated_children.append(_inject_runtime_status(child))
+		node["children"] = updated_children
+	return node
+
+
 func _update_debugger_info() -> void:
 	var agent_info: Dictionary = { }
 	# Setup the plan tree if we have a valid plan.
 	if _current_plan != null and is_instance_valid(_current_plan):
-		agent_info["plan_tree"] = _current_plan.get_plan_tree_debug_data()
+		agent_info["plan_tree"] = _inject_runtime_status(_current_plan.get_plan_tree_debug_data())
 	# Setup the current goal if we have one.
 	if _current_goal != null and is_instance_valid(_current_goal):
 		agent_info["current_goal"] = _current_goal.get_class()

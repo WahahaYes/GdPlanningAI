@@ -2,8 +2,8 @@
 class_name GdPlanningAIPlanGraphEdit
 extends GraphEdit
 
-const H_SPACING := 260.0
-const V_SPACING := 150.0
+const H_SPACING := 300.0
+const V_SPACING := 200.0
 
 var plan_tree: Dictionary:
 	set(value):
@@ -33,33 +33,44 @@ func _update_graph() -> void:
 	if _plan_tree.is_empty():
 		return
 
+	# First pass: Collect nodes by depth
+	var levels := { }
+	_collect_nodes_by_depth(_plan_tree, 0, levels)
+
+	# Second pass: Assign positions
 	var positions := { }
-	var leaf_index := [0]
-	_compute_positions(_plan_tree, 0, positions, leaf_index)
+	_assign_positions(levels, positions)
+
 	_add_nodes(_plan_tree, positions)
 	_connect_nodes(_plan_tree)
-	arrange_nodes()
 
 
-func _compute_positions(node: Dictionary, depth: int, positions: Dictionary, leaf_index: Array) -> float:
-	var children: Array = node.get("children", [])
-	var x: float
+func _collect_nodes_by_depth(node: Dictionary, depth: int, levels: Dictionary) -> void:
+	if not levels.has(depth):
+		levels[depth] = []
+	levels[depth].append(node)
 
-	if children.is_empty():
-		x = leaf_index[0] * H_SPACING
-		leaf_index[0] += 1
-	else:
-		var min_x := INF
-		var max_x := -INF
-		for child in children:
-			var child_x := _compute_positions(child, depth + 1, positions, leaf_index)
-			min_x = min(min_x, child_x)
-			max_x = max(max_x, child_x)
-		x = (min_x + max_x) / 2.0
+	for child in node.get("children", []):
+		_collect_nodes_by_depth(child, depth + 1, levels)
 
-	var node_id: String = str(node.get("id", "node_%s" % leaf_index[0]))
-	positions[node_id] = Vector2(x, depth * V_SPACING)
-	return x
+
+func _assign_positions(levels: Dictionary, positions: Dictionary) -> void:
+	# Root node at 0,0
+	if levels.has(0) and levels[0].size() > 0:
+		positions[levels[0][0].get("id")] = Vector2.ZERO
+
+	# Position other levels
+	for depth in levels.keys():
+		if depth == 0:
+			continue
+
+		var nodes_at_level = levels[depth]
+		var level_width: float = (nodes_at_level.size() - 1) * H_SPACING
+		var start_x: float = -level_width / 2
+
+		for i in range(nodes_at_level.size()):
+			var node = nodes_at_level[i]
+			positions[node.get("id")] = Vector2(start_x + i * H_SPACING, depth * V_SPACING)
 
 
 func _add_nodes(node: Dictionary, positions: Dictionary) -> void:
