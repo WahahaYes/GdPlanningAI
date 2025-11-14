@@ -21,6 +21,7 @@ func _ready() -> void:
 
 
 func register_agent(agent_id: int, agent_name: String) -> void:
+	_scrub_agents_list()
 	agents[agent_id] = agent_name
 	var item_index := agent_list.add_item(agent_name)
 	agent_list.set_item_metadata(item_index, agent_id)
@@ -49,6 +50,12 @@ func update_agent_info(agent_id: int, agent_info: Dictionary) -> void:
 	agents_info[agent_id] = agent_info
 	if current_agent_id == agent_id:
 		_update_agent_view()
+
+
+func _scrub_agents_list() -> void:
+	for agent_id in agents.keys():
+		if instance_from_id(agent_id) == null:
+			unregister_agent(agent_id)
 
 
 func _on_item_selected(index: int) -> void:

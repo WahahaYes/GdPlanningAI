@@ -14,7 +14,6 @@ var _max_recursion: int
 var _best_plan: Array
 ## Cached plan tree for debugging/visualization.
 var _plan_tree_root: Dictionary = { }
-var _debug_node_counter: int = 0
 
 
 ## Initializes the plan with the target agent, goal, available actions, and a limit to the amount
@@ -42,8 +41,7 @@ func get_plan_tree() -> Dictionary:
 func get_plan_tree_debug_data() -> Dictionary:
 	if _plan_tree_root.is_empty():
 		return { }
-	_debug_node_counter = 0
-	return _serialize_plan_node(_plan_tree_root, 0)
+	return _serialize_plan_node(_plan_tree_root)
 
 
 ## Computes the plan recursively by simulating outside of the scene tree.
@@ -184,34 +182,26 @@ func _clone_plan_node(node: Dictionary) -> Dictionary:
 	return clone
 
 
-func _serialize_plan_node(node: Dictionary, depth: int) -> Dictionary:
+func _serialize_plan_node(node: Dictionary) -> Dictionary:
 	var serialized: Dictionary = { }
-	var node_id: String = "node_%d" % _debug_node_counter
-	_debug_node_counter += 1
 	var action: Action = node.get("action")
 
-	serialized["id"] = node_id
+	serialized["id"] = action.uid
 	serialized["cost"] = float(node.get("cost", 0.0))
 	serialized["children"] = []
 	if action:
 		serialized["action"] = action.get_class()
-		serialized["details"] = "UID: %s" % action.uid
 	else:
 		serialized["action"] = "Root"
-		serialized["details"] = ""
 
 	var desired_state: Array = node.get("desired_state", [])
 	if desired_state.size() > 0:
 		serialized["desired_state_count"] = desired_state.size()
-		var details: String = serialized.get("details", "")
-		var extra: String = "Preconditions: %d" % desired_state.size()
-		serialized["details"] = extra if details.is_empty() else "%s\n%s" % [details, extra]
 	else:
 		serialized["desired_state_count"] = 0
-		serialized["details"] = ""
 
 	for child in node.get("children", []):
-		serialized["children"].append(_serialize_plan_node(child, depth + 1))
+		serialized["children"].append(_serialize_plan_node(child))
 	return serialized
 
 
