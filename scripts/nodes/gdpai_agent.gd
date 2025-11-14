@@ -79,7 +79,10 @@ func _process(delta: float):
 			_current_plan_step = -1
 			_current_goal = goal_and_plan["goal"]
 			_current_plan = goal_and_plan["plan"]
-			_reset_runtime_status(_current_plan.get_plan())
+			if _current_plan != null:
+				_reset_runtime_status(_current_plan.get_plan())
+				_update_debugger_info()
+
 	_execute_plan(delta)
 
 
@@ -117,7 +120,6 @@ func _select_highest_reward_goal(self_actions: Array[Action], worldly_actions: A
 			# For multithreading, we need to sync to main thread before exiting.
 			if use_multithreading:
 				call_deferred("_sync_multithreaded_plan")
-			_update_debugger_info()
 			return return_dict
 		else:
 			rewards[idx] = -1
@@ -134,8 +136,9 @@ func _sync_multithreaded_plan():
 	var goal_and_plan = thread.wait_to_finish()
 	_current_goal = goal_and_plan["goal"]
 	_current_plan = goal_and_plan["plan"]
-	_reset_runtime_status(_current_plan.get_plan())
-	_update_debugger_info()
+	if _current_plan != null:
+		_reset_runtime_status(_current_plan.get_plan())
+		_update_debugger_info()
 
 
 ## Executes the currently selected plan based on the current step.
