@@ -190,6 +190,8 @@ func _serialize_plan_node(node: Dictionary) -> Dictionary:
 	serialized["cost"] = float(node.get("cost", 0.0))
 	serialized["children"] = []
 	if action:
+		# TODO: Make this a nice string name set in the action class.
+		# TODO: Add a description for tooltip.
 		serialized["action"] = action.get_class()
 	else:
 		serialized["action"] = "Root"

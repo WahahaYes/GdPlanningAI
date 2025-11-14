@@ -3,7 +3,7 @@ class_name GdPlanningAIPlanGraphEdit
 extends GraphEdit
 
 const H_SPACING := 300.0
-const V_SPACING := 200.0
+const V_SPACING := 350.0
 
 var plan_tree: Dictionary:
 	set(value):
