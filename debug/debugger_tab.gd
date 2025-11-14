@@ -5,7 +5,7 @@ extends PanelContainer
 # Agent data
 var agents: Dictionary = { }
 var agents_info: Dictionary = { }
-var current_agent_id := -1
+var current_agent_id: int = -1
 # UI elements
 var split_container: HSplitContainer
 var left_panel: VBoxContainer
@@ -22,7 +22,7 @@ func _ready() -> void:
 
 func register_agent(agent_id: int, agent_name: String) -> void:
 	agents[agent_id] = agent_name
-	var item_index := agent_list.add_item(agent_name)
+	var item_index: int = agent_list.add_item(agent_name)
 	agent_list.set_item_metadata(item_index, agent_id)
 	if current_agent_id == -1:
 		agent_list.select(item_index)

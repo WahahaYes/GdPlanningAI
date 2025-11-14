@@ -54,7 +54,7 @@ func _ready() -> void:
 	)
 
 
-func _process(delta: float):
+func _process(delta: float) -> void:
 	# Until some goals and actions have been provided, this agent is effectively turned off.
 	if goals.size() == 0:
 		return
@@ -132,8 +132,8 @@ func _select_highest_reward_goal(self_actions: Array[Action], worldly_actions: A
 
 
 ## Waits for thread to finish then assigns return values.
-func _sync_multithreaded_plan():
-	var goal_and_plan = thread.wait_to_finish()
+func _sync_multithreaded_plan() -> void:
+	var goal_and_plan: Dictionary = thread.wait_to_finish()
 	_current_goal = goal_and_plan["goal"]
 	_current_plan = goal_and_plan["plan"]
 	if _current_plan != null:
@@ -142,7 +142,7 @@ func _sync_multithreaded_plan():
 
 
 ## Executes the currently selected plan based on the current step.
-func _execute_plan(delta: float):
+func _execute_plan(delta: float) -> void:
 	if _current_plan == null: # No plan formed yet.
 		return
 	var action_chain: Array = _current_plan.get_plan()

@@ -2,8 +2,8 @@
 class_name GdPlanningAIPlanGraphEdit
 extends GraphEdit
 
-const H_SPACING := 300.0
-const V_SPACING := 350.0
+const H_SPACING: float = 300.0
+const V_SPACING: float = 350.0
 
 var plan_tree: Dictionary:
 	set(value):
@@ -23,6 +23,9 @@ func _ready() -> void:
 
 
 func _update_graph() -> void:
+	var levels: Dictionary = { }
+	var positions: Dictionary = { }
+
 	clear_connections()
 
 	for child in get_children():
@@ -34,11 +37,8 @@ func _update_graph() -> void:
 		return
 
 	# First pass: Collect nodes by depth
-	var levels := { }
 	_collect_nodes_by_depth(_plan_tree, 0, levels)
-
 	# Second pass: Assign positions
-	var positions := { }
 	_assign_positions(levels, positions)
 
 	_add_nodes(_plan_tree, positions)
@@ -74,7 +74,7 @@ func _assign_positions(levels: Dictionary, positions: Dictionary) -> void:
 
 
 func _add_nodes(node: Dictionary, positions: Dictionary) -> void:
-	var graph_node := GdPlanningAIPlanGraphNode.new()
+	var graph_node: GdPlanningAIPlanGraphNode = GdPlanningAIPlanGraphNode.new()
 	graph_node.name = str(node.get("id", ""))
 	add_child(graph_node)
 	graph_node.position_offset = positions.get(graph_node.name, Vector2.ZERO)

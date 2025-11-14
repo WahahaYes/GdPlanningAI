@@ -84,7 +84,7 @@ func _build_plan(
 		blackboard: GdPAIBlackboard,
 		world_state: GdPAIBlackboard,
 		recursion_level: int,
-):
+) -> bool:
 	var has_solution: bool = false
 	# Early terminate if recursion went too deep.
 	if recursion_level > _max_recursion:
