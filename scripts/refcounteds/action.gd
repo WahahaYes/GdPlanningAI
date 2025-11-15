@@ -1,15 +1,17 @@
-## This is a base class to extend with actual AI actions.  During planning, actions are simulated
-## instantaneously.  After planning, actions are carried out by the agent in real time.
 class_name Action
 extends RefCounted
+## This is a base class to extend with actual AI actions.  During planning, actions are simulated
+## instantaneously.  After planning, actions are carried out by the agent in real time.
 
 ## Return states for actions during true simulation.
 enum Status { FAILURE, RUNNING, SUCCESS }
+
+## Counter for allocating new uids.
+static var _uid_counter: int = 0
+
 ## A uid is automatically allocated for actions so that they can put unique properties into the
 ## blackboards as needed without risk of collisions with other actions.
 var uid: String
-## Counter for allocating new uids.
-static var _uid_counter: int = 0
 
 
 # Override
@@ -102,3 +104,13 @@ func post_perform_action(agent: GdPAIAgent) -> Status:
 ## Generates a String that appends this action's uid to allow for easier blackboard referencing.
 func uid_property(prop: String) -> String:
 	return "%s_%s" % [uid, prop]
+
+
+## Returns a short title for the action.
+func get_title() -> String:
+	return "Action"
+
+
+## Returns a description of the action.
+func get_description() -> String:
+	return "Base class for Action."

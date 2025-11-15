@@ -109,3 +109,13 @@ func post_perform_action(agent: GdPAIAgent) -> Action.Status:
 	# Add any additional postactions here.
 	agent.blackboard.erase_property(uid_property("eating_duration"))
 	return Action.Status.SUCCESS
+
+
+# Override
+func get_title() -> String:
+	return "Eat Food"
+
+
+# Override
+func get_description() -> String:
+	return "Eat a food item."
