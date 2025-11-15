@@ -1,3 +1,5 @@
+class_name Precondition
+extends RefCounted
 ## Preconditions for planning chains of actions.  This class allows for custom preconditions
 ## to be defined and evaluation at simulation-time.  Stores a check ("is_satisfied") to keep
 ## track if this precondition has been satisfied at some other point in the chain of actions.
@@ -18,8 +20,6 @@
 ##[br]
 ## (The above example would check that a property exists / is true for both the agent and world
 ## states.)
-class_name Precondition
-extends RefCounted
 
 ## Variable to keep track of whether earlier evaluations of this precondition were successful.
 var is_satisfied: bool = false
@@ -28,30 +28,15 @@ var is_satisfied: bool = false
 var eval_func: Callable
 
 
-## Evaluates whether this precondition is satisfied by the given blackboard and world state.
-func evaluate(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard) -> bool:
-	if is_satisfied:
-		return true
-	is_satisfied = eval_func.call(blackboard, world_state)
-	return is_satisfied
-
-
-## Duplicate this object by creating a new instance and copying over all underlying data.
-func copy_for_simulation():
-	var duplicate = Precondition.new()
-	duplicate.is_satisfied = is_satisfied
-	duplicate.eval_func = eval_func
-	return duplicate
-
 #region
 # Agent property value comparsions.
-
 ## Instantiate a precondition that checks whether a property in the agent blackboard exists.
 static func agent_has_property(prop: String) -> Precondition:
 	var precondition: Precondition = Precondition.new()
 	precondition.eval_func = func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
 		return prop in blackboard.get_dict()
 	return precondition
+#endregion
 
 
 ## Instantiate a precondition that checks whether a property in the agent blackboard is not equal to a specified value.
@@ -106,16 +91,16 @@ static func agent_property_equal_to(prop: String, value: Variant) -> Preconditio
 		return blackboard.get_property(prop) == value
 	return precondition
 
-#endregion
+
 #region
 # World state property value comparsions.
-
 ## Instantiate a precondition that checks whether a property in the agent blackboard exists.
 static func world_state_has_property(prop: String) -> Precondition:
 	var precondition: Precondition = Precondition.new()
 	precondition.eval_func = func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
 		return prop in world_state.get_dict()
 	return precondition
+#endregion
 
 
 ## Instantiate a precondition that checks whether a property in the agent blackboard is greater
@@ -162,10 +147,9 @@ static func world_state_property_equal_to(prop: String, value: Variant) -> Preco
 		return world_state.get_property(prop) == value
 	return precondition
 
-#endregion
+
 #region
 # More complicated common checks.
-
 ## Check if any of the agent's object data matches a requested group.
 static func agent_has_object_data_of_group(group: String) -> Precondition:
 	var precondition: Precondition = Precondition.new()
@@ -184,11 +168,25 @@ static func world_state_has_object_data_of_group(group: String) -> Precondition:
 	return precondition
 
 
-## Check if a given object is valid
+## Check if a given object is valid.
 static func check_is_object_valid(object: Variant) -> Precondition:
 	var precondition: Precondition = Precondition.new()
 	precondition.eval_func = func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
 		return is_instance_valid(object)
 	return precondition
 
-#endregion
+
+## Evaluates whether this precondition is satisfied by the given blackboard and world state.
+func evaluate(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard) -> bool:
+	if is_satisfied:
+		return true
+	is_satisfied = eval_func.call(blackboard, world_state)
+	return is_satisfied
+
+
+## Duplicate this object by creating a new instance and copying over all underlying data.
+func copy_for_simulation():
+	var duplicate = Precondition.new()
+	duplicate.is_satisfied = is_satisfied
+	duplicate.eval_func = eval_func
+	return duplicate

@@ -213,3 +213,13 @@ func post_perform_action(agent: GdPAIAgent) -> Action.Status:
 
 	has_done_post = true
 	return Action.Status.SUCCESS
+
+
+# Override
+func get_title() -> String:
+	return "Move To"
+
+
+# Override
+func get_description() -> String:
+	return "Move to a target object."
