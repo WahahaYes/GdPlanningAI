@@ -11,7 +11,9 @@ func _init() -> void:
 func _enter_tree() -> void:
 	debugger = GdPlanningAIDebugger.new()
 	add_debugger_plugin(debugger)
+	add_autoload_singleton("GdPAIAutoload", "gdpai_autoload.gd")
 
 
 func _exit_tree() -> void:
 	remove_debugger_plugin(debugger)
+	remove_autoload_singleton("GdPAIAutoload")

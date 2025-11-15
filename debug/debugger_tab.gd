@@ -51,6 +51,15 @@ func update_agent_info(agent_id: int, agent_info: Dictionary) -> void:
 		_update_agent_view()
 
 
+func clear_state() -> void:
+	print("Clearing debugger state")
+	agents = { }
+	agents_info = { }
+	current_agent_id = -1
+	agent_list.clear()
+	_update_agent_view()
+
+
 func _on_item_selected(index: int) -> void:
 	if index < 0 or index >= agent_list.get_item_count():
 		return

@@ -23,6 +23,9 @@ func _capture(message: String, data: Array, session_id: int) -> bool:
 		# (agent_id, agent_info { plan_tree, ... })
 		debugger_tab.update_agent_info(data[0], data[1])
 		return true
+	if message == "gdplanningai:clear_state":
+		debugger_tab.clear_state()
+		return true
 	return false
 
 
