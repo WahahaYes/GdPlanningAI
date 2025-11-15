@@ -4,6 +4,7 @@ extends Node
 ## initialization to clear up the debugger info between runs.
 
 
+## Clears debugger state when game starts by messaging the debugger.
 func _ready() -> void:
 	print("Clearing debugger state")
 	EngineDebugger.send_message("gdplanningai:clear_state", [])

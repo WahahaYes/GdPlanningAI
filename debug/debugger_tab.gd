@@ -1,25 +1,35 @@
 @tool
-class_name GdPlanningAIDebuggerTab
+class_name GdPAIDebuggerTab
 extends PanelContainer
+## Debugger UI panel for agent/plan visualization.
 
-# Agent data
+## Agent data.
 var agents: Dictionary = { }
+## More detailed agent information.
 var agents_info: Dictionary = { }
+## Currently selected agent ID.
 var current_agent_id: int = -1
-# UI elements
+## UI HSplitContainer.
 var split_container: HSplitContainer
+## UI VBoxContainer.
 var left_panel: VBoxContainer
+## UI ItemList.
 var agent_list: ItemList
+## RichTextLabel.
 var agent_stats: RichTextLabel
-var graph_edit: GdPlanningAIPlanGraphEdit
+## GdPAIPlanGraphEdit.
+var graph_edit: GdPAIPlanGraphEdit
 
 
+# Override
+## Initializes UI components and connections.
 func _ready() -> void:
 	_build_ui()
 	agent_list.item_selected.connect(_on_item_selected)
 	_update_agent_view()
 
 
+## Registers a new agent in the debugger
 func register_agent(agent_id: int, agent_name: String) -> void:
 	agents[agent_id] = agent_name
 	var item_index: int = agent_list.add_item(agent_name)
@@ -29,6 +39,7 @@ func register_agent(agent_id: int, agent_name: String) -> void:
 		_on_item_selected(item_index)
 
 
+## Unregisters an agent from the debugger.
 func unregister_agent(agent_id: int) -> void:
 	if not agents.has(agent_id):
 		return
@@ -45,14 +56,15 @@ func unregister_agent(agent_id: int) -> void:
 		_update_agent_view()
 
 
+## Updates agent information in the debugger.
 func update_agent_info(agent_id: int, agent_info: Dictionary) -> void:
 	agents_info[agent_id] = agent_info
 	if current_agent_id == agent_id:
 		_update_agent_view()
 
 
+## Clears all debugger state and UI
 func clear_state() -> void:
-	print("Clearing debugger state")
 	agents = { }
 	agents_info = { }
 	current_agent_id = -1
@@ -60,6 +72,7 @@ func clear_state() -> void:
 	_update_agent_view()
 
 
+## Handles agent selection in the UI.
 func _on_item_selected(index: int) -> void:
 	if index < 0 or index >= agent_list.get_item_count():
 		return
@@ -69,6 +82,7 @@ func _on_item_selected(index: int) -> void:
 	_update_agent_view()
 
 
+## Updates the agent view in the UI.
 func _update_agent_view() -> void:
 	if current_agent_id == -1 or not agents.has(current_agent_id):
 		agent_stats.text = "No agent selected"
@@ -89,6 +103,7 @@ func _update_agent_view() -> void:
 		graph_edit.plan_tree = { }
 
 
+## Builds the UI components at startup.
 func _build_ui() -> void:
 	# Main split container
 	split_container = HSplitContainer.new()
@@ -108,7 +123,7 @@ func _build_ui() -> void:
 	agent_stats.bbcode_enabled = true
 	left_panel.add_child(agent_stats)
 	# Right panel (graph edit)
-	graph_edit = GdPlanningAIPlanGraphEdit.new()
+	graph_edit = GdPAIPlanGraphEdit.new()
 	graph_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	graph_edit.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	graph_edit.plan_tree = { }

@@ -1,15 +1,20 @@
 @tool
-class_name GdPlanningAIDebugger
+class_name GdPAIDebugger
 extends EditorDebuggerPlugin
+## Debugger plugin for GdPlanningAI system.
 
-var debugger_tab: GdPlanningAIDebuggerTab = GdPlanningAIDebuggerTab.new()
+## Debugger tab reference created at runtime.
+var debugger_tab: GdPAIDebuggerTab = GdPAIDebuggerTab.new()
+## Current debugger session.
 var session: EditorDebuggerSession
 
 
+# Override
 func _has_capture(prefix: String) -> bool:
 	return prefix == "gdplanningai"
 
 
+# Override
 func _capture(message: String, data: Array, session_id: int) -> bool:
 	if message == "gdplanningai:register_agent":
 		# (agent_id, agent_name)
@@ -29,6 +34,7 @@ func _capture(message: String, data: Array, session_id: int) -> bool:
 	return false
 
 
+# Override
 func _setup_session(session_id: int) -> void:
 	session = get_session(session_id)
 	debugger_tab.name = "🧠GdPlanningAI"
