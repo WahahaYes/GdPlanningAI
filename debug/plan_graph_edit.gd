@@ -1,10 +1,14 @@
 @tool
-class_name GdPlanningAIPlanGraphEdit
+class_name GdPAIPlanGraphEdit
 extends GraphEdit
+## Interactive graph editor for plan visualization.
 
+## Horizontal spacing between nodes.
 const H_SPACING: float = 300.0
+## Vertical spacing between nodes.
 const V_SPACING: float = 350.0
 
+## Plan tree data.
 var plan_tree: Dictionary:
 	set(value):
 		if _plan_tree == value:
@@ -13,16 +17,21 @@ var plan_tree: Dictionary:
 		_update_graph()
 	get:
 		return _plan_tree
+## Internal plan tree data.
 var _plan_tree: Dictionary = { }
 
 
+# Override
 func _ready() -> void:
 	show_arrange_button = false
 	minimap_enabled = false
 	grid_pattern = GraphEdit.GRID_PATTERN_DOTS
 
 
+## Rebuilds the entire graph visualization
+## Clears existing nodes and recreates them based on current plan_tree
 func _update_graph() -> void:
+	# TODO: If ever needed could use object pooling instead of a full rebuild every update.
 	var levels: Dictionary = { }
 	var positions: Dictionary = { }
 
@@ -45,6 +54,7 @@ func _update_graph() -> void:
 	_connect_nodes(_plan_tree)
 
 
+## Organizes nodes by their depth in the plan tree.
 func _collect_nodes_by_depth(node: Dictionary, depth: int, levels: Dictionary) -> void:
 	if not levels.has(depth):
 		levels[depth] = []
@@ -54,6 +64,7 @@ func _collect_nodes_by_depth(node: Dictionary, depth: int, levels: Dictionary) -
 		_collect_nodes_by_depth(child, depth + 1, levels)
 
 
+## Calculates and assigns positions to all nodes for graph layout.
 func _assign_positions(levels: Dictionary, positions: Dictionary) -> void:
 	# Root node at 0,0
 	if levels.has(0) and levels[0].size() > 0:
@@ -73,8 +84,9 @@ func _assign_positions(levels: Dictionary, positions: Dictionary) -> void:
 			positions[node.get("id")] = Vector2(start_x + i * H_SPACING, depth * V_SPACING)
 
 
+## Creates and positions graph nodes based on the calculated layout.
 func _add_nodes(node: Dictionary, positions: Dictionary) -> void:
-	var graph_node: GdPlanningAIPlanGraphNode = GdPlanningAIPlanGraphNode.new()
+	var graph_node: GdPAIPlanGraphNode = GdPAIPlanGraphNode.new()
 	graph_node.name = str(node.get("id", ""))
 	add_child(graph_node)
 	graph_node.position_offset = positions.get(graph_node.name, Vector2.ZERO)
@@ -84,6 +96,7 @@ func _add_nodes(node: Dictionary, positions: Dictionary) -> void:
 		_add_nodes(child, positions)
 
 
+## Creates connections between parent and child nodes in the graph.
 func _connect_nodes(node: Dictionary) -> void:
 	var parent_id: String = str(node.get("id", ""))
 	for child in node.get("children", []):

@@ -170,6 +170,7 @@ func _transform_tree_into_array(node: Dictionary) -> Array:
 	return plans
 
 
+## Recursively clones the planning tree to create a new copy.
 func _clone_plan_node(node: Dictionary) -> Dictionary:
 	var clone := {
 		"action": node.get("action"),
@@ -182,6 +183,7 @@ func _clone_plan_node(node: Dictionary) -> Dictionary:
 	return clone
 
 
+## Recursively serializes the planning tree for debugging/visualization.
 func _serialize_plan_node(node: Dictionary) -> Dictionary:
 	var serialized: Dictionary = { }
 	var action: Action = node.get("action")

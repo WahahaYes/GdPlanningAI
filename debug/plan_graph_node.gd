@@ -1,18 +1,24 @@
 @tool
-class_name GdPlanningAIPlanGraphNode
+class_name GdPAIPlanGraphNode
 extends GraphNode
+## Custom GraphNode for visualizing planning actions.
 
-const PORT_COLOR := Color(0.8, 0.8, 0.8)
+## Port color.
+const PORT_COLOR := Color(0.8, 0.8, 0.8, 0.1)
 
+## Title label at top of the GraphNode.
 var title_label: Label
+## Contents displayed in the GraphNode body.
 var body_label: RichTextLabel
 
 
+# Override
+## Initializes node UI components.
 func _ready() -> void:
 	draggable = false
 	set_slot(0, true, TYPE_INT, PORT_COLOR, true, TYPE_INT, PORT_COLOR)
 
-	var body_container: VBoxContainer = VBoxContainer.new()
+	var body_container := VBoxContainer.new()
 	body_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	body_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	body_container.custom_minimum_size = Vector2(160, 80)
@@ -22,7 +28,7 @@ func _ready() -> void:
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	title_label.add_theme_color_override("font_color", Color(0.1, 0.1, 0.1))
+	title_label.add_theme_color_override("font_color", Color(0.1, 0.1, 0.15))
 	body_container.add_child(title_label)
 
 	body_label = RichTextLabel.new()
@@ -32,24 +38,19 @@ func _ready() -> void:
 	body_label.autowrap_mode = TextServer.AUTOWRAP_WORD
 	body_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	body_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
-
-	# Create custom style for the text box
-	var style_box: StyleBoxFlat = StyleBoxFlat.new()
-	style_box.bg_color = Color(1, 1, 1, 0.3) # Semi-transparent white
-	style_box.border_color = Color(1, 1, 1, 0.3)
-
-	body_label.add_theme_stylebox_override("normal", style_box)
-	body_label.add_theme_color_override("default_color", Color(0.1, 0.1, 0.1))
+	body_label.add_theme_color_override("default_color", Color(0.2, 0.2, 0.25))
+	body_label.hide() # Hidden until content provided
 	body_container.add_child(body_label)
 
 
+## Updates the node's data display.
 func set_node_data(node_data: Dictionary) -> void:
 	var title_text: String = node_data.get("action", "Plan Node")
 	title = title_text
-	# title_label.text = title_text
+	title_label.text = title_text
 
 	# Set color based on runtime status
-	var status_color: Color = Color.NAVAJO_WHITE
+	var status_color: Color
 	if node_data.has("runtime_status"):
 		match node_data["runtime_status"]:
 			"...":
@@ -60,10 +61,14 @@ func set_node_data(node_data: Dictionary) -> void:
 				status_color = Color.GREEN
 			Action.Status.FAILURE:
 				status_color = Color.RED
+			_:
+				status_color = Color.NAVY_BLUE
+	else:
+		status_color = Color.NAVY_BLUE
 
 	_update_theme(status_color)
 
-	var details: Array[String] = []
+	var details: Array = []
 	if node_data.has("cost"):
 		details.append("[b]Cost:[/b] %.2f" % float(node_data["cost"]))
 
@@ -80,10 +85,12 @@ func set_node_data(node_data: Dictionary) -> void:
 		details.append("[b]Preconditions:[/b] %d" % node_data["desired_state_count"])
 
 	body_label.bbcode_text = "\n".join(details)
+	body_label.visible = not details.is_empty()
 
 
+## Updates colors based on node status.
 func _update_theme(status_color: Color = Color.GRAY) -> void:
-	var style: StyleBoxFlat = StyleBoxFlat.new()
+	var style := StyleBoxFlat.new()
 	style.bg_color = Color(0.13, 0.14, 0.21).lerp(status_color, 0.3)
 	style.border_width_bottom = 2
 	style.border_width_top = 2
