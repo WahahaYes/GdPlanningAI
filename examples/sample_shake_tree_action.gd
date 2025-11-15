@@ -132,3 +132,13 @@ func post_perform_action(agent: GdPAIAgent) -> Action.Status:
 	# Add any additional postactions here.
 	agent.blackboard.erase_property(uid_property("shake_duration"))
 	return Action.Status.SUCCESS
+
+
+# Override
+func get_title() -> String:
+	return "Shake Tree"
+
+
+# Override
+func get_description() -> String:
+	return "Shake a fruit tree to drop fruit."

@@ -15,3 +15,13 @@ func compute_reward(agent: GdPAIAgent) -> float:
 ## Returns an array of preconditions.
 func get_desired_state(agent: GdPAIAgent) -> Array[Precondition]:
 	return []
+
+
+## Returns a short title for the goal.
+func get_title() -> String:
+	return "Goal"
+
+
+## Returns a description of the goal.
+func get_description() -> String:
+	return "Base class for Goal."

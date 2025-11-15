@@ -96,6 +96,7 @@ func _update_agent_view() -> void:
 		return
 	if agents_info[current_agent_id].has("current_goal"):
 		agent_stats.text += "\nCurrent goal: %s" % [agents_info[current_agent_id]["current_goal"]]
+		agent_stats.text += "\n%s" % [agents_info[current_agent_id]["current_goal_description"]]
 	# Add plan tree.
 	if agents_info[current_agent_id].has("plan_tree"):
 		graph_edit.plan_tree = agents_info[current_agent_id]["plan_tree"]

@@ -136,12 +136,12 @@ label_settings = SubResource("LabelSettings_6mdly")
 script = ExtResource("3_qsotd")
 GdPAI_agent = NodePath("../GdPAIAgent")
 
-[node name="Sample2DAgentAnimator" type="Node" parent="." node_paths=PackedStringArray("entity", "animated_sprite", "GdPAI_agent", "display_text")]
+[node name="Sample2DAgentAnimator" type="Node" parent="." node_paths=PackedStringArray("entity", "animated_sprite", "gdpai_agent", "display_text")]
 script = ExtResource("4_6mdly")
 entity = NodePath("..")
 animated_sprite = NodePath("../AnimatedSprite2D")
 idle_threshold = 16.0
-GdPAI_agent = NodePath("../GdPAIAgent")
+gdpai_agent = NodePath("../GdPAIAgent")
 display_text = NodePath("../Label")
 
 [node name="GdPAIAgent" type="Node" parent="." node_paths=PackedStringArray("entity")]

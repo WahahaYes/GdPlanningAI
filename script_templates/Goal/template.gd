@@ -11,3 +11,13 @@ func compute_reward(agent: GdPAIAgent) -> float:
 # Override
 func get_desired_state(agent: GdPAIAgent) -> Array[Precondition]:
 	return []
+
+
+# Override
+func get_title() -> String:
+	return "Goal"
+
+
+# Override
+func get_description() -> String:
+	return "Base class for Goal."

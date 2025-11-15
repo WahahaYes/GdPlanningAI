@@ -194,9 +194,11 @@ func _serialize_plan_node(node: Dictionary) -> Dictionary:
 	if action:
 		# TODO: Make this a nice string name set in the action class.
 		# TODO: Add a description for tooltip.
-		serialized["action"] = action.get_class()
+		serialized["action"] = action.get_title()
+		serialized["action_description"] = action.get_description()
 	else:
 		serialized["action"] = "Root"
+		serialized["action_description"] = ""
 
 	var desired_state: Array = node.get("desired_state", [])
 	if desired_state.size() > 0:
