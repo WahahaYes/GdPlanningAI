@@ -30,3 +30,13 @@ func get_desired_state(agent: GdPAIAgent) -> Array[Precondition]:
 		return (sim_position - agent_position).length() > req_distance
 
 	return [move_condition]
+
+
+# Overload
+func get_title() -> String:
+	return "Wander around"
+
+
+# Overload
+func get_description() -> String:
+	return "Move around the environment."

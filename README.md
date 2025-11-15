@@ -93,6 +93,16 @@ To streamline object interactions, the `SpatialAction` class bundles agent movem
 
 The `SpatialAction` class adapts to 2D or 3D depending on the location node specified on the object's `GdPAILocationData`.  `SpatialAction` has its own `script_template` that is expanded for this behavior; it is highly recommended to use the template.
 
+### Debugging
+
+There's now a visual debugger!  Located as its own debugger tab in the debugger window, it shows the plan graph and allows you to step through the plan to see which actions are a part of the current plan, their current status, and the traversal throughout the tree.  
+
+![Illustration of the debugger tab](https://raw.githubusercontent.com/WahahaYes/GdPlanningAI/refs/heads/main/media/debugger_screenshot.png)
+
+The debugger still lacks some useful features, like listing preconditions or the ability to step through the plan and see the agent's blackboard state at each step.  But this initial implementation should greatly help to understand the agents' behavior and the planning process.
+
+![Illustration of the debugger tab](https://raw.githubusercontent.com/WahahaYes/GdPlanningAI/refs/heads/main/media/debugger_screenshot2.png)
+
 ### Demos
 
 Demos with sample actions and objects are located in `GdPlanningAI/examples`.  Currently, there is a simple setup consisting of food objects and fruit trees.  The agents' main goal is to satisfy hunger.  Eating fruit will grant hunger, and shaking fruit trees will spawn fruit.  There is a delay interval before trees can be shaken again.  When the agent isn't hungry or there isn't food around, a wandering goal takes priority and the agent explores by moving in a random direction.  `examples/2D/single_agent_demo.tscn` shows a single agent and `examples/2D/multi_agent_demo.tscn` has two agents competing for the available food.  As an exercise, consider adding new goals and actions to this starting point!

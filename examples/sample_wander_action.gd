@@ -120,3 +120,13 @@ func post_perform_action(agent: GdPAIAgent) -> Action.Status:
 	agent.blackboard.erase_property(uid_property("prior_positions"))
 
 	return Action.Status.SUCCESS
+
+
+# Override
+func get_title() -> String:
+	return "Wander"
+
+
+# Override
+func get_description() -> String:
+	return "Wander around the environment."

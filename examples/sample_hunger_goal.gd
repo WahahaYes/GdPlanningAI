@@ -17,3 +17,13 @@ func get_desired_state(agent: GdPAIAgent) -> Array[Precondition]:
 		return blackboard.get_property("hunger") > current_hunger
 
 	return [condition]
+
+
+# Overload
+func get_title() -> String:
+	return "Hunger"
+
+
+# Overload
+func get_description() -> String:
+	return "Eat food and keep hunger up."
