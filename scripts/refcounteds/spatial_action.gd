@@ -121,14 +121,18 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	var nav_agent: Node
 	var nav_agent_2d: Node = GdPAIUTILS.get_child_of_type(entity, NavigationAgent2D)
 	var nav_agent_3d: Node = GdPAIUTILS.get_child_of_type(entity, NavigationAgent3D)
+	var dist_check: float
 	# These shouldn't both be assigned.
 	assert(nav_agent_2d == null or nav_agent_3d == null)
 	if nav_agent_2d != null:
 		nav_agent = nav_agent_2d
+		dist_check = 8 # 8 pixels for 2D
 	elif nav_agent_3d != null:
 		nav_agent = nav_agent_3d
+		dist_check = 0.1 # 0.1 meters for 3D
 	assert(nav_agent != null)
 	agent.blackboard.set_property(uid_property("nav_agent"), nav_agent)
+	agent.blackboard.set_property(uid_property("dist_check"), dist_check)
 
 	# Set up some flags for movement.
 	agent.blackboard.set_property(uid_property("time_elapsed"), 0)
@@ -173,19 +177,21 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 	var dist_traveled: float = (
 		(prior_positions[-1] - prior_positions[0]).length() * delta * prior_positions.size()
 	)
-	# TODO: Parameterize the dist_traveled condition.  It could need different effective values in
-	# 		2D or 3D, and for really slow agents.
-	if nav_agent.is_navigation_finished() or (prior_positions.size() == 60 and dist_traveled < 1):
+	var dist_check: float = agent.blackboard.get_property(uid_property("dist_check"))
+	if (
+		nav_agent.is_navigation_finished() or
+		(prior_positions.size() == 60 and dist_traveled < dist_check)
+	):
 		# Pass if we have no interaction distance constraint.
 		if interactable_attribs.max_interaction_distance <= 0:
 			agent.blackboard.set_property(uid_property("target_reached"), true)
 			return Action.Status.SUCCESS
 		# Else, figure out the final distance and see if valid.
-		if nav_agent.distance_to_target() < interactable_attribs.max_interaction_distance:
+		var final_dist: float = (object_location.position - nav_agent.get_final_position()).length()
+		if final_dist < interactable_attribs.max_interaction_distance:
 			agent.blackboard.set_property(uid_property("target_reached"), true)
 			return Action.Status.SUCCESS
-		else:
-			return Action.Status.FAILURE
+		return Action.Status.FAILURE
 
 	# Continue navigating.
 	return Action.Status.RUNNING
