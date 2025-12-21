@@ -45,7 +45,7 @@ func _ready() -> void:
 	var GdPAI_objects: Array[GdPAIObjectData] = []
 	for obj: GdPAIObjectData in GdPAIUTILS.get_children_of_type(entity, GdPAIObjectData):
 		GdPAI_objects.append(obj)
-	blackboard.set_property(GdPAIBlackboard.GdPAI_OBJECTS, GdPAI_objects)
+	blackboard.set_property(GdPAIBlackboard.GDPAI_OBJECTS, GdPAI_objects)
 	# Try to find a world node.
 	world_node = GdPAIUTILS.get_child_of_type(get_tree().root, GdPAIWorldNode)
 	# Notify debugger of agent creation.
@@ -208,7 +208,7 @@ func _compute_worldly_actions() -> Array[Action]:
 	# Refresh the world state.
 	var ws_checkpoint: GdPAIBlackboard = world_node.get_world_state()
 	var GdPAI_objects: Array[GdPAIObjectData] = ws_checkpoint.get_property(
-		GdPAIBlackboard.GdPAI_OBJECTS,
+		GdPAIBlackboard.GDPAI_OBJECTS,
 	)
 	var actions: Array[Action] = []
 	for GdPAI_object: GdPAIObjectData in GdPAI_objects:

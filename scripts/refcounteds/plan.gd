@@ -237,7 +237,7 @@ func _evaluate_goals(
 
 ## Checks over the list of preconditions to verify if all conditions have been previously
 ## satisfied.  Doesn't attempt to verify any of the conditions.
-func _is_goal_satisfied(preconditions: Array[Precondition]):
+func _is_goal_satisfied(preconditions: Array[Precondition]) -> bool:
 	# Early terminate if any of the target states are not met.
 	for condition: Precondition in preconditions:
 		if not condition.is_satisfied:

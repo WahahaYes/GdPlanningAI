@@ -56,7 +56,7 @@ func get_validity_checks() -> Array[Precondition]:
 	checks.append(Precondition.check_is_object_valid(interactable_attribs))
 
 	var can_get_to_check: Precondition = Precondition.new()
-	can_get_to_check.eval_func = func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
+	can_get_to_check.eval_func = func(blackboard: GdPAIBlackboard, _world_state: GdPAIBlackboard):
 		# The target should be reachable by the agent.
 		var entity: Node = blackboard.get_property("entity")
 		var agent_location_data: GdPAILocationData = blackboard.get_first_object_in_group(
@@ -84,7 +84,7 @@ func get_validity_checks() -> Array[Precondition]:
 			return true
 
 		# Override the entity's nav agent to test if it is possible to get to this object.
-		var old_target_position: Vector3 = nav_agent.target_position
+		var old_target_position = nav_agent.target_position
 		nav_agent.target_position = object_location.position
 		nav_agent.get_next_path_position() # Compute the path.
 		var final_dist: float = (object_location.position - nav_agent.get_final_position()).length()
@@ -161,8 +161,9 @@ func perform_action(
 		return Action.Status.FAILURE
 
 	# Fail if the target object has moved too far from its planning-time position.
-	var orig_position: Vector3 = agent.blackboard.get_property(uid_property("object_orig_position"))
-	var current_position: Vector3 = object_location.position
+	# NOTE: These locations are purposefully not typed to be 2D and 3D compatible.
+	var orig_position = agent.blackboard.get_property(uid_property("object_orig_position"))
+	var current_position = object_location.position
 	if interactable_attribs.max_drift_from_plan >= 0:
 		if (current_position - orig_position).length() > interactable_attribs.max_drift_from_plan:
 			return Action.Status.FAILURE
