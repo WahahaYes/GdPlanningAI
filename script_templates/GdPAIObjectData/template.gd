@@ -10,7 +10,7 @@ func _init() -> void:
 
 
 # Override
-func get_group_labels():
+func get_group_labels() -> Array[String]:
 	# Make sure to add a group label for this class of data.
 	return ["REPLACE ME", "GdPAIObjectData"]
 
@@ -24,7 +24,8 @@ func get_provided_actions() -> Array[Action]:
 
 # Override
 func copy_for_simulation() -> GdPAIObjectData:
-	# Make sure to replace <GdPAIObjectData> with the subclass name, and to duplicate any new properties.
+	# Make sure to replace <GdPAIObjectData> with the subclass name,
+	# and to duplicate any new properties.
 	var new_data: GdPAIObjectData = GdPAIObjectData.new()
 	assign_uid_and_entity(new_data)
 	return new_data

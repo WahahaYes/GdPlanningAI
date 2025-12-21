@@ -4,7 +4,10 @@ extends SpatialAction
 
 
 # Override
-func _init(object_location: GdPAILocationData, interactable_attribs: GdPAIInteractable):
+func _init(
+		object_location: GdPAILocationData,
+		interactable_attribs: GdPAIInteractable,
+) -> void:
 	# If extending _init(), make sure to call super() so a uid is created and references are
 	# assigned.
 	super(object_location, interactable_attribs)
@@ -18,7 +21,10 @@ func get_validity_checks() -> Array[Precondition]:
 
 
 # Override
-func get_action_cost(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard) -> float:
+func get_action_cost(
+		agent_blackboard: GdPAIBlackboard,
+		world_state: GdPAIBlackboard,
+) -> float:
 	var cost: float = super(agent_blackboard, world_state)
 	if cost == INF:
 		return INF
@@ -32,13 +38,19 @@ func get_preconditions() -> Array[Precondition]:
 
 
 # Override
-func simulate_effect(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
+func simulate_effect(
+		agent_blackboard: GdPAIBlackboard,
+		world_state: GdPAIBlackboard,
+) -> void:
 	super(agent_blackboard, world_state)
 
 
 # Add any additional simulation here.
 # Override
-func reverse_simulate_effect(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
+func reverse_simulate_effect(
+		agent_blackboard: GdPAIBlackboard,
+		world_state: GdPAIBlackboard,
+) -> void:
 	pass
 
 
@@ -51,7 +63,10 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 
 
 # Override
-func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
+func perform_action(
+		agent: GdPAIAgent,
+		delta: float,
+) -> Action.Status:
 	var parent_status: Action.Status = super(agent, delta)
 	if parent_status == Action.Status.FAILURE:
 		return Action.Status.FAILURE

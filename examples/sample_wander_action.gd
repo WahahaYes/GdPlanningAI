@@ -5,7 +5,7 @@ var wander_distance: float
 
 
 # This action shows how you can directly inject parameters.
-func _init(wander_distance: float):
+func _init(wander_distance: float) -> void:
 	# If implementing _init(), make sure to call super() so a uid is created.
 	super()
 	self.wander_distance = wander_distance
@@ -20,7 +20,10 @@ func get_validity_checks() -> Array[Precondition]:
 
 
 # Override
-func get_action_cost(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard) -> float:
+func get_action_cost(
+		_agent_blackboard: GdPAIBlackboard,
+		_world_state: GdPAIBlackboard,
+) -> float:
 	return wander_distance
 
 
@@ -30,7 +33,10 @@ func get_preconditions() -> Array[Precondition]:
 
 
 # Override
-func simulate_effect(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
+func simulate_effect(
+		agent_blackboard: GdPAIBlackboard,
+		_world_state: GdPAIBlackboard,
+) -> void:
 	var sim_location: GdPAILocationData = agent_blackboard.get_first_object_in_group(
 		"GdPAILocationData",
 	)
@@ -38,7 +44,10 @@ func simulate_effect(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackb
 
 
 # Override
-func reverse_simulate_effect(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
+func reverse_simulate_effect(
+		_agent_blackboard: GdPAIBlackboard,
+		_world_state: GdPAIBlackboard,
+) -> void:
 	pass
 
 
@@ -72,7 +81,10 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 
 
 # Override
-func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
+func perform_action(
+		agent: GdPAIAgent,
+		delta: float,
+) -> Action.Status:
 	# Grab needed properties from blackboard.
 	var nav_agent: Node = agent.blackboard.get_property(uid_property("nav_agent"))
 	var agent_location_data: GdPAILocationData = agent.blackboard.get_property(
