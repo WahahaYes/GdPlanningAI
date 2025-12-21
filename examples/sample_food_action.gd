@@ -67,8 +67,8 @@ func simulate_effect(
 
 # Override
 func reverse_simulate_effect(
-		agent_blackboard: GdPAIBlackboard,
-		world_state: GdPAIBlackboard,
+		_agent_blackboard: GdPAIBlackboard,
+		_world_state: GdPAIBlackboard,
 ) -> void:
 	pass
 
@@ -91,22 +91,20 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 	if not agent.blackboard.get_property(uid_property("target_reached")):
 		# Can add any actions that occur while navigating here.
 		return Action.Status.RUNNING
-	else:
-		# Add the main action that occurs after the agent navigates to the object here.
+	# Add the main action that occurs after the agent navigates to the object here.
 
-		# Update how long we've been eating the food item.
-		var eating_duration: float = agent.blackboard.get_property(uid_property("eating_duration"))
-		eating_duration += delta
-		agent.blackboard.set_property(uid_property("eating_duration"), eating_duration)
+	# Update how long we've been eating the food item.
+	var eating_duration: float = agent.blackboard.get_property(uid_property("eating_duration"))
+	eating_duration += delta
+	agent.blackboard.set_property(uid_property("eating_duration"), eating_duration)
 
-		if eating_duration > food_item.eating_duration:
-			# Update hunger and destroy the food.
-			var hunger: float = agent.blackboard.get_property("hunger")
-			agent.blackboard.set_property("hunger", hunger + food_item.hunger_value)
-			food_item.entity.queue_free()
-			return Action.Status.SUCCESS
-		else:
-			return Action.Status.RUNNING
+	if eating_duration > food_item.eating_duration:
+		# Update hunger and destroy the food.
+		var hunger: float = agent.blackboard.get_property("hunger")
+		agent.blackboard.set_property("hunger", hunger + food_item.hunger_value)
+		food_item.entity.queue_free()
+		return Action.Status.SUCCESS
+	return Action.Status.RUNNING
 
 
 # Override

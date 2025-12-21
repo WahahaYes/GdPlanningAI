@@ -4,12 +4,12 @@ extends Goal
 
 
 # Override
-func compute_reward(agent: GdPAIAgent) -> float:
+func compute_reward(_agent: GdPAIAgent) -> float:
 	return 0
 
 
 # Override
-func get_desired_state(agent: GdPAIAgent) -> Array[Precondition]:
+func get_desired_state(_agent: GdPAIAgent) -> Array[Precondition]:
 	return []
 
 

@@ -90,6 +90,21 @@ func _process(delta: float) -> void:
 	_execute_plan(delta)
 
 
+## Returns the currently selected goal.
+func get_current_goal() -> Goal:
+	return _current_goal
+
+
+## Returns the current plan being followed.
+func get_current_plan() -> Plan:
+	return _current_plan
+
+
+## Returns the current step within the plan.
+func get_current_plan_step() -> int:
+	return _current_plan_step
+
+
 ## Iterates over all goals in order of reward until a valid plan is found.
 func _select_highest_reward_goal(
 		self_actions: Array[Action],

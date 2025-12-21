@@ -48,8 +48,8 @@ func simulate_effect(
 # Add any additional simulation here.
 # Override
 func reverse_simulate_effect(
-		agent_blackboard: GdPAIBlackboard,
-		world_state: GdPAIBlackboard,
+		_agent_blackboard: GdPAIBlackboard,
+		_world_state: GdPAIBlackboard,
 ) -> void:
 	pass
 
@@ -73,9 +73,8 @@ func perform_action(
 	if not agent.blackboard.get_property(uid_property("target_reached")):
 		# Can add any actions that occur while navigating here.
 		return Action.Status.RUNNING
-	else:
-		# Add the main action that occurs after the agent navigates to the object here.
-		return Action.Status.SUCCESS
+	# Add the main action that occurs after the agent navigates to the object here.
+	return Action.Status.SUCCESS
 
 
 # Override

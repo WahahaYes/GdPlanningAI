@@ -88,7 +88,8 @@ func get_provided_actions() -> Array[Action]:
 
 # Override
 func copy_for_simulation() -> GdPAIObjectData:
-	# Make sure to replace <GdPAIObjectData> with the subclass name, and to duplicate any new properties.
+	# Make sure to replace <GdPAIObjectData> with the subclass name
+	# and to duplicate any new properties.
 	var new_data: SampleFruitTreeObject = SampleFruitTreeObject.new()
 	assign_uid_and_entity(new_data)
 	new_data.is_on_cooldown = is_on_cooldown

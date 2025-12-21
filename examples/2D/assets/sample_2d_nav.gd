@@ -9,7 +9,7 @@ extends Node
 @export var speed: float = 2
 
 
-func _physics_process(delta: float) -> void:
+func _physics_process(_delta: float) -> void:
 	var direction: Vector2 = nav_agent.get_next_path_position() - entity.global_position
 	if direction.length() > 8:
 		var offset: Vector2 = direction.normalized() * speed
