@@ -1,8 +1,8 @@
 class_name GdPAIBlackboard
 extends RefCounted
-## The GdPAIBlackboard uses an underlying dictionary to store key information about an agent's state or
-## the state of the world.  Duplicated copies of the blackboard are passed through a chain of
-## events when agents are planning.
+## The GdPAIBlackboard uses an underlying dictionary to store key information about an agent's
+## state or the state of the world.  Duplicated copies of the blackboard are passed through a
+## chain of events when agents are planning.
 ##[br]
 ##[br]
 ## Has a protected property GdPAI_OBJECTS containing a list of the GdPAI objects associated with the

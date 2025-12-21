@@ -154,7 +154,10 @@ static func world_state_property_less_than(
 
 ## Instantiate a precondition that checks whether a property in the world state is less
 ## than or equal to a specified value.
-static func world_state_property_leq_than(prop: String, value: Variant) -> Precondition:
+static func world_state_property_leq_than(
+		prop: String,
+		value: Variant,
+) -> Precondition:
 	var precondition: Precondition = Precondition.new()
 	precondition.eval_func = func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
 		return world_state.get_property(prop) <= value
@@ -163,7 +166,10 @@ static func world_state_property_leq_than(prop: String, value: Variant) -> Preco
 
 ## Instantiate a precondition that checks whether a property in the agent blackboard is equal to
 ## a specified value.
-static func world_state_property_equal_to(prop: String, value: Variant) -> Precondition:
+static func world_state_property_equal_to(
+		prop: String,
+		value: Variant,
+) -> Precondition:
 	var precondition: Precondition = Precondition.new()
 	precondition.eval_func = func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
 		return world_state.get_property(prop) == value

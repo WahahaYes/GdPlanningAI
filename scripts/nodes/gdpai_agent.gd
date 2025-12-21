@@ -3,7 +3,8 @@ extends Node
 ## GdPlanningAI Agent.  The agent has their own record of the world state and a
 ## personal blackboard of attributes.  Agents form plans given their available goals and actions.
 
-## @experimental: To support multithreading, your simulation must not directly change the scene tree!
+## @experimental: To support multithreading, your simulation must not directly change the scene
+## tree!
 ## Whether this agent should do planning on a separate thread.
 @export var use_multithreading: bool
 @export var thread_priority: Thread.Priority = Thread.PRIORITY_LOW

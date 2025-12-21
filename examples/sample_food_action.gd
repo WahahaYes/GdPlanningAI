@@ -54,7 +54,10 @@ func get_preconditions() -> Array[Precondition]:
 
 
 # Override
-func simulate_effect(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
+func simulate_effect(
+		agent_blackboard: GdPAIBlackboard,
+		world_state: GdPAIBlackboard,
+) -> void:
 	super(agent_blackboard, world_state)
 	# Add any additional simulation here.
 	var hunger: float = agent_blackboard.get_property("hunger")
@@ -63,7 +66,10 @@ func simulate_effect(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackb
 
 
 # Override
-func reverse_simulate_effect(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
+func reverse_simulate_effect(
+		agent_blackboard: GdPAIBlackboard,
+		world_state: GdPAIBlackboard,
+) -> void:
 	pass
 
 

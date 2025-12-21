@@ -32,11 +32,11 @@ func get_desired_state(agent: GdPAIAgent) -> Array[Precondition]:
 	return [move_condition]
 
 
-# Overload
+# Override
 func get_title() -> String:
 	return "Wander around"
 
 
-# Overload
+# Override
 func get_description() -> String:
 	return "Move around the environment."

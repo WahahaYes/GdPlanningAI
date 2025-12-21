@@ -84,7 +84,7 @@ func get_validity_checks() -> Array[Precondition]:
 			return true
 
 		# Override the entity's nav agent to test if it is possible to get to this object.
-		var old_target_position = nav_agent.target_position
+		var old_target_position: Vector3 = nav_agent.target_position
 		nav_agent.target_position = object_location.position
 		nav_agent.get_next_path_position() # Compute the path.
 		var final_dist: float = (object_location.position - nav_agent.get_final_position()).length()
@@ -152,14 +152,17 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 
 
 # Override
-func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
+func perform_action(
+		agent: GdPAIAgent,
+		delta: float,
+) -> Action.Status:
 	# Failure state in the case the target has been freed.
 	if not is_instance_valid(object_location) or not is_instance_valid(interactable_attribs):
 		return Action.Status.FAILURE
 
 	# Fail if the target object has moved too far from its planning-time position.
-	var orig_position = agent.blackboard.get_property(uid_property("object_orig_position"))
-	var current_position = object_location.position
+	var orig_position: Vector3 = agent.blackboard.get_property(uid_property("object_orig_position"))
+	var current_position: Vector3 = object_location.position
 	if interactable_attribs.max_drift_from_plan >= 0:
 		if (current_position - orig_position).length() > interactable_attribs.max_drift_from_plan:
 			return Action.Status.FAILURE
@@ -186,7 +189,10 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 		nav_agent.target_position = object_location.position
 		agent.blackboard.set_property(uid_property("target_set"), true)
 	# Update the nav agent target if the object has moved too far from its planning-time position.
-	elif (nav_agent.target_position - object_location.position).length() > interactable_attribs.max_interaction_distance:
+	elif (
+		(nav_agent.target_position - object_location.position).length() >
+		interactable_attribs.max_interaction_distance
+	):
 		nav_agent.target_position = object_location.position
 
 	# Terminating conditions.

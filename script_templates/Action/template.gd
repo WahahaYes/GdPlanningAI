@@ -4,7 +4,7 @@ extends Action
 
 
 # Override
-func _init():
+func _init() -> void:
 	# If implementing _init(), make sure to call super() so a uid is created.
 	super()
 
@@ -15,7 +15,10 @@ func get_validity_checks() -> Array[Precondition]:
 
 
 # Override
-func get_action_cost(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard) -> float:
+func get_action_cost(
+		agent_blackboard: GdPAIBlackboard,
+		world_state: GdPAIBlackboard,
+) -> float:
 	return 0
 
 
@@ -25,12 +28,18 @@ func get_preconditions() -> Array[Precondition]:
 
 
 # Override
-func simulate_effect(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
+func simulate_effect(
+		agent_blackboard: GdPAIBlackboard,
+		world_state: GdPAIBlackboard,
+) -> void:
 	pass
 
 
 # Override
-func reverse_simulate_effect(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
+func reverse_simulate_effect(
+		agent_blackboard: GdPAIBlackboard,
+		world_state: GdPAIBlackboard,
+) -> void:
 	pass
 
 
@@ -40,7 +49,10 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 
 
 # Override
-func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
+func perform_action(
+		agent: GdPAIAgent,
+		delta: float,
+) -> Action.Status:
 	return Action.Status.SUCCESS
 
 
