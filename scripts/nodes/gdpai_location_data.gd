@@ -18,10 +18,9 @@ var position:
 		)
 		if location_node_2d != null:
 			return location_node_2d.global_position
-		elif location_node_3d != null:
+		if location_node_3d != null:
 			return location_node_3d.global_position
-		else:
-			return position
+		return position
 	set(val):
 		position = val
 ## Shorthand way to access the entity's rotation (in degrees), which can be altered in simulation.
@@ -34,10 +33,9 @@ var rotation:
 		)
 		if location_node_2d != null:
 			return location_node_2d.global_rotation_degrees
-		elif location_node_3d != null:
+		if location_node_3d != null:
 			return location_node_3d.global_rotation_degrees
-		else:
-			return rotation
+		return rotation
 	set(val):
 		rotation = val
 
