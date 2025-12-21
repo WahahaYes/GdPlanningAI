@@ -11,14 +11,19 @@ var _available_actions: Array[Action]
 ## How deep to traverse when forming a plan.
 var _max_recursion: int
 ## After planning, this stores the best valid plan found.
-var _best_plan: Array
+var _best_plan: Array[Action]
 ## Cached plan tree for debugging/visualization.
 var _plan_tree_root: Dictionary = { }
 
 
 ## Initializes the plan with the target agent, goal, available actions, and a limit to the amount
 ## of recursion in actions when formulating the plan.
-func initialize(agent: GdPAIAgent, goal: Goal, actions: Array[Action], max_recursion: int = 8):
+func initialize(
+		agent: GdPAIAgent,
+		goal: Goal,
+		actions: Array[Action],
+		max_recursion: int = 8,
+) -> void:
 	_agent = agent
 	_goal = goal
 	_available_actions = actions
@@ -28,7 +33,7 @@ func initialize(agent: GdPAIAgent, goal: Goal, actions: Array[Action], max_recur
 
 
 ## Returns the list of actions needed to arrive at the goal.
-func get_plan() -> Array:
+func get_plan() -> Array[Action]:
 	return _best_plan
 
 
@@ -45,7 +50,7 @@ func get_plan_tree_debug_data() -> Dictionary:
 
 
 ## Computes the plan recursively by simulating outside of the scene tree.
-func _compute_plan() -> Array:
+func _compute_plan() -> Array[Action]:
 	var blackboard: GdPAIBlackboard = _agent.blackboard.copy_for_simulation()
 	blackboard.is_a_copy = true
 	var world_state: GdPAIBlackboard = _agent.world_node.world_state.copy_for_simulation()
@@ -62,7 +67,7 @@ func _compute_plan() -> Array:
 	# Parse out the actions from the most cost effective plan.
 	if success:
 		_plan_tree_root = _clone_plan_node(root_node)
-		var plans: Array = _transform_tree_into_array(root_node)
+		var plans: Array[Dictionary] = _transform_tree_into_array(root_node)
 		var best_plan: Variant = null
 
 		var i = 0
@@ -71,9 +76,8 @@ func _compute_plan() -> Array:
 				best_plan = p
 			i += 1
 		return best_plan.actions
-	else:
-		_plan_tree_root = { }
-		return []
+	_plan_tree_root = { }
+	return []
 
 
 ## Builds a plan recursively to find cases where the goal is realized.  If there is no valid
@@ -154,12 +158,17 @@ func _build_plan(
 
 ## Traverses the tree of action plans and builds up an array of all the potential plans and their
 ## scores.
-func _transform_tree_into_array(node: Dictionary) -> Array:
-	var plans := []
+func _transform_tree_into_array(node: Dictionary) -> Array[Dictionary]:
+	var plans: Array[Dictionary] = []
 	var children: Array = node.get("children", [])
 
 	if children.is_empty():
-		plans.append({ "actions": [node.get("action")], "cost": node.get("cost", 0.0) })
+		plans.append(
+			{
+				"actions": [node.get("action")] as Array[Action],
+				"cost": node.get("cost", 0.0),
+			},
+		)
 		return plans
 
 	for child in children:
@@ -172,7 +181,7 @@ func _transform_tree_into_array(node: Dictionary) -> Array:
 
 ## Recursively clones the planning tree to create a new copy.
 func _clone_plan_node(node: Dictionary) -> Dictionary:
-	var clone := {
+	var clone: Dictionary = {
 		"action": node.get("action"),
 		"cost": node.get("cost", 0.0),
 		"desired_state": node.get("desired_state", []),
@@ -192,8 +201,6 @@ func _serialize_plan_node(node: Dictionary) -> Dictionary:
 	serialized["cost"] = float(node.get("cost", 0.0))
 	serialized["children"] = []
 	if action:
-		# TODO: Make this a nice string name set in the action class.
-		# TODO: Add a description for tooltip.
 		serialized["action"] = action.get_title()
 		serialized["action_description"] = action.get_description()
 	else:

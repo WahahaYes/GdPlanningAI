@@ -15,7 +15,7 @@ var uid: String
 
 
 # Override
-func _init():
+func _init() -> void:
 	uid = str(_uid_counter)
 	_uid_counter += 1
 
@@ -37,7 +37,10 @@ func get_validity_checks() -> Array[Precondition]:
 ## Can assume that validity checks are true at this point, EXCEPT continued references existing in
 ## the scene tree.  If a reference is invalid, returning INF tells the planner to skip this action.
 ## For multithreaded planning, it is possible to await information with GdPAIUTILS.await_callv(..).
-func get_action_cost(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard) -> float:
+func get_action_cost(
+		agent_blackboard: GdPAIBlackboard,
+		world_state: GdPAIBlackboard,
+) -> float:
 	return 0
 
 
@@ -60,7 +63,10 @@ func get_preconditions() -> Array[Precondition]:
 ##[br]
 ##[br]
 ## Can assume that any validity checks are already true.
-func simulate_effect(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
+func simulate_effect(
+		agent_blackboard: GdPAIBlackboard,
+		world_state: GdPAIBlackboard,
+) -> void:
 	pass
 
 
@@ -71,7 +77,10 @@ func simulate_effect(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackb
 ## being <pickup> -> <eat>.  When <eat> is simulated, the agent isn't holding anything so we don't
 ## know what would've been eaten.  But after <pickup> is simulated, we can refer back to the agent
 ## to figure out the object then determine how many hunger points that food is going to restore.
-func reverse_simulate_effect(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
+func reverse_simulate_effect(
+		agent_blackboard: GdPAIBlackboard,
+		world_state: GdPAIBlackboard,
+) -> void:
 	pass
 
 
@@ -90,7 +99,10 @@ func pre_perform_action(agent: GdPAIAgent) -> Status:
 ##[br]
 ##[br]
 ## Need to monitor any validity checks that could become false after some time.
-func perform_action(agent: GdPAIAgent, delta: float) -> Status:
+func perform_action(
+		agent: GdPAIAgent,
+		delta: float,
+) -> Status:
 	return Status.SUCCESS
 
 
