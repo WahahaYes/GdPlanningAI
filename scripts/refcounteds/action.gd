@@ -38,8 +38,8 @@ func get_validity_checks() -> Array[Precondition]:
 ## the scene tree.  If a reference is invalid, returning INF tells the planner to skip this action.
 ## For multithreaded planning, it is possible to await information with GdPAIUTILS.await_callv(..).
 func get_action_cost(
-		agent_blackboard: GdPAIBlackboard,
-		world_state: GdPAIBlackboard,
+		_agent_blackboard: GdPAIBlackboard,
+		_world_state: GdPAIBlackboard,
 ) -> float:
 	return 0
 
@@ -64,8 +64,8 @@ func get_preconditions() -> Array[Precondition]:
 ##[br]
 ## Can assume that any validity checks are already true.
 func simulate_effect(
-		agent_blackboard: GdPAIBlackboard,
-		world_state: GdPAIBlackboard,
+		_agent_blackboard: GdPAIBlackboard,
+		_world_state: GdPAIBlackboard,
 ) -> void:
 	pass
 
@@ -78,8 +78,8 @@ func simulate_effect(
 ## know what would've been eaten.  But after <pickup> is simulated, we can refer back to the agent
 ## to figure out the object then determine how many hunger points that food is going to restore.
 func reverse_simulate_effect(
-		agent_blackboard: GdPAIBlackboard,
-		world_state: GdPAIBlackboard,
+		_agent_blackboard: GdPAIBlackboard,
+		_world_state: GdPAIBlackboard,
 ) -> void:
 	pass
 
@@ -90,7 +90,7 @@ func reverse_simulate_effect(
 ##[br]
 ##[br]
 ## At this point, validity checks true during planning could be false in the real world.
-func pre_perform_action(agent: GdPAIAgent) -> Status:
+func pre_perform_action(_agent: GdPAIAgent) -> Status:
 	return Status.SUCCESS
 
 
@@ -100,8 +100,8 @@ func pre_perform_action(agent: GdPAIAgent) -> Status:
 ##[br]
 ## Need to monitor any validity checks that could become false after some time.
 func perform_action(
-		agent: GdPAIAgent,
-		delta: float,
+		_agent: GdPAIAgent,
+		_delta: float,
 ) -> Status:
 	return Status.SUCCESS
 
@@ -109,7 +109,7 @@ func perform_action(
 ## Perform any post computations for the action.  Status currently doesn't matter because the plan
 ## is already done.  All actions' post_perform methods are called, regardless of if the plan
 ## succeeded.  These methods should make sure to safely de-allocate anything created for the action.
-func post_perform_action(agent: GdPAIAgent) -> Status:
+func post_perform_action(_agent: GdPAIAgent) -> Status:
 	return Status.SUCCESS
 
 
