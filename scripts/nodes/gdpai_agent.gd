@@ -42,10 +42,10 @@ func _ready() -> void:
 	# Initial blackboard setup common for all agents.
 	blackboard.set_property("entity", entity)
 	# Collect any GdPAI nodes under this agent's entity.
-	var GdPAI_objects: Array[GdPAIObjectData] = []
+	var gdpai_objects: Array[GdPAIObjectData] = []
 	for obj: GdPAIObjectData in GdPAIUTILS.get_children_of_type(entity, GdPAIObjectData):
-		GdPAI_objects.append(obj)
-	blackboard.set_property(GdPAIBlackboard.GDPAI_OBJECTS, GdPAI_objects)
+		gdpai_objects.append(obj)
+	blackboard.set_property(GdPAIBlackboard.GDPAI_OBJECTS, gdpai_objects)
 	# Try to find a world node.
 	world_node = GdPAIUTILS.get_child_of_type(get_tree().root, GdPAIWorldNode)
 	# Notify debugger of agent creation.
@@ -76,7 +76,10 @@ func _process(delta: float) -> void:
 					thread_priority,
 				)
 		else:
-			var goal_and_plan: Dictionary = await _select_highest_reward_goal(self_actions, worldly_actions)
+			var goal_and_plan: Dictionary = await _select_highest_reward_goal(
+				self_actions,
+				worldly_actions,
+			)
 			_current_plan_step = -1
 			_current_goal = goal_and_plan["goal"]
 			_current_plan = goal_and_plan["plan"]
@@ -115,7 +118,7 @@ func _select_highest_reward_goal(
 	while rewards.max() > -1:
 		var max_reward: float = rewards.max()
 		var idx: int = rewards.find(max_reward)
-		var test_plan = Plan.new()
+		var test_plan: Plan = Plan.new()
 		test_plan.initialize(self, goals[idx], actions_with_worldly, max_recursion)
 
 		if test_plan.get_plan().size() > 0: # This means a plan was created.
@@ -125,8 +128,7 @@ func _select_highest_reward_goal(
 			if use_multithreading:
 				call_deferred("_sync_multithreaded_plan")
 			return return_dict
-		else:
-			rewards[idx] = -1
+		rewards[idx] = -1
 		break
 
 	# For multithreading, we need to sync to main thread before exiting.
@@ -207,12 +209,12 @@ func _compute_valid_self_actions() -> Array[Action]:
 func _compute_worldly_actions() -> Array[Action]:
 	# Refresh the world state.
 	var ws_checkpoint: GdPAIBlackboard = world_node.get_world_state()
-	var GdPAI_objects: Array[GdPAIObjectData] = ws_checkpoint.get_property(
+	var gdpai_objects: Array[GdPAIObjectData] = ws_checkpoint.get_property(
 		GdPAIBlackboard.GDPAI_OBJECTS,
 	)
 	var actions: Array[Action] = []
-	for GdPAI_object: GdPAIObjectData in GdPAI_objects:
-		var obj_actions: Array[Action] = GdPAI_object.get_provided_actions()
+	for gdpai_object: GdPAIObjectData in gdpai_objects:
+		var obj_actions: Array[Action] = gdpai_object.get_provided_actions()
 		for obj_act: Action in obj_actions:
 			# Every action has a set of validity checks which must pass.
 			var validity_checks: Array[Precondition] = obj_act.get_validity_checks()
