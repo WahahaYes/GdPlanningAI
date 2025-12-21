@@ -13,25 +13,29 @@ extends Action
 var object_location: GdPAILocationData
 ## Reference to the GdPAI interactable attributes.  This is set when the action is created.
 var interactable_attribs: GdPAIInteractable
-var has_done_pre: bool
-var has_done_post: bool
 
 
 # Override
-func _init(object_location: GdPAILocationData, interactable_attribs: GdPAIInteractable):
+func _init(
+		object_location: GdPAILocationData,
+		interactable_attribs: GdPAIInteractable,
+) -> void:
 	super()
 	self.object_location = object_location
 	self.interactable_attribs = interactable_attribs
 
 
 # Override
-func get_action_cost(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard) -> float:
+func get_action_cost(
+		agent_blackboard: GdPAIBlackboard,
+		world_state: GdPAIBlackboard,
+) -> float:
 	var agent_location: GdPAILocationData = agent_blackboard.get_first_object_in_group(
 		"GdPAILocationData",
 	)
 	if not is_instance_valid(object_location):
 		return INF
-	var sim_location = world_state.get_object_by_uid(object_location.uid)
+	var sim_location: GdPAILocationData = world_state.get_object_by_uid(object_location.uid)
 	if not is_instance_valid(sim_location):
 		return INF
 	# NOTE: This is a heuristic using Euclidean distance but not taking navigation obstacles into
@@ -94,12 +98,15 @@ func get_validity_checks() -> Array[Precondition]:
 
 
 # Override
-func simulate_effect(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
+func simulate_effect(
+		agent_blackboard: GdPAIBlackboard,
+		world_state: GdPAIBlackboard,
+) -> void:
 	# Simulate by teleporting the agent to the object's location.
 	var agent_location: GdPAILocationData = agent_blackboard.get_first_object_in_group(
 		"GdPAILocationData",
 	)
-	var sim_location = world_state.get_object_by_uid(object_location.uid)
+	var sim_location: GdPAILocationData = world_state.get_object_by_uid(object_location.uid)
 	agent_location.position = sim_location.position
 
 
@@ -141,7 +148,6 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	agent.blackboard.set_property(uid_property("object_orig_position"), object_location.position)
 	agent.blackboard.set_property(uid_property("prior_positions"), [agent_location_data.position])
 
-	has_done_pre = true
 	return Action.Status.SUCCESS
 
 
@@ -157,7 +163,6 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 	if interactable_attribs.max_drift_from_plan >= 0:
 		if (current_position - orig_position).length() > interactable_attribs.max_drift_from_plan:
 			return Action.Status.FAILURE
-
 
 	var nav_agent: Node = agent.blackboard.get_property(uid_property("nav_agent"))
 	var agent_location_data: GdPAILocationData = agent.blackboard.get_property(
@@ -230,7 +235,6 @@ func post_perform_action(agent: GdPAIAgent) -> Action.Status:
 	agent.blackboard.erase_property(uid_property("prior_positions"))
 	agent.blackboard.erase_property(uid_property("object_orig_position"))
 
-	has_done_post = true
 	return Action.Status.SUCCESS
 
 
