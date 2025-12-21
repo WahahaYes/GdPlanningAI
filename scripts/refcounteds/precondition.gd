@@ -68,7 +68,7 @@ static func agent_property_geq_than(
 ) -> Precondition:
 	var precondition: Precondition = Precondition.new()
 	precondition.eval_func = func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
-		return blackboard.get_property(prop) > value
+		return blackboard.get_property(prop) >= value
 	return precondition
 
 
@@ -136,7 +136,7 @@ static func world_state_property_geq_than(
 ) -> Precondition:
 	var precondition: Precondition = Precondition.new()
 	precondition.eval_func = func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
-		return world_state.get_property(prop) > value
+		return world_state.get_property(prop) >= value
 	return precondition
 
 
