@@ -10,7 +10,7 @@ extends Node
 var frame_idx: int
 
 
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
 	# Using Time to measure FPS seems more consistent than using delta.
 	var time_current: float = Time.get_ticks_msec() / 1000.0
 

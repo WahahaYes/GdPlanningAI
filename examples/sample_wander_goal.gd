@@ -3,7 +3,7 @@ extends Goal
 
 
 # Override
-func compute_reward(agent: GdPAIAgent) -> float:
+func compute_reward(_agent: GdPAIAgent) -> float:
 	# This goal of 10 is scaled relative to hunger's dynamic goal between 1 - 100.  Essentially,
 	# when the agent hunger is 90+ this goal takes priority.  This goal also kicks in if hunger
 	# can't be increased.
