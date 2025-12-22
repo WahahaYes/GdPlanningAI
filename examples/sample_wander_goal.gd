@@ -18,7 +18,7 @@ func get_desired_state(agent: GdPAIAgent) -> Array[Precondition]:
 	var agent_position = agent_location_data.position
 
 	var move_condition: Precondition = Precondition.new()
-	move_condition.eval_func = func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
+	move_condition.eval_func = func(blackboard: GdPAIBlackboard, _world_state: GdPAIBlackboard):
 		var sim_location_data: GdPAILocationData = blackboard.get_first_object_in_group(
 			"GdPAILocationData",
 		)

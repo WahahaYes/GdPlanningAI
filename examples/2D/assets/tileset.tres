@@ -1,7 +1,7 @@
 [gd_resource type="TileSet" load_steps=5 format=3 uid="uid://d584e3ie52c3"]
 
-[ext_resource type="Texture2D" uid="uid://bve03skwqh6g" path="res://addons/GdPlanningAI/examples/2D/assets/TinySwordsPack/Terrain/Tilemap_color1.png" id="1_cof5d"]
-[ext_resource type="Texture2D" uid="uid://q2fjs1sp167s" path="res://addons/GdPlanningAI/examples/2D/assets/TinySwordsPack/Terrain/Water Background color.png" id="2_t80jw"]
+[ext_resource type="Texture2D" uid="uid://bve03skwqh6g" path="res://examples/2D/assets/TinySwordsPack/Terrain/Tilemap_color1.png" id="1_cof5d"]
+[ext_resource type="Texture2D" uid="uid://q2fjs1sp167s" path="res://examples/2D/assets/TinySwordsPack/Terrain/Water Background color.png" id="2_t80jw"]
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_pnnhh"]
 texture = ExtResource("1_cof5d")

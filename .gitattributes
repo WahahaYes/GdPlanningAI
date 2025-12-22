@@ -1,2 +1,14 @@
 # Normalize EOL for all files that Git considers text files.
 * text=auto eol=lf
+
+# Ignore most files when exporting.
+/**                        export-ignore
+
+# Include this addon's folder when downloading from the Asset Library.
+/addons                   !export-ignore
+/addons/GdPlanningAI      !export-ignore
+/addons/GdPlanningAI/**   !export-ignore
+
+# Also include script templates.
+/script_templates         !export-ignore
+/script_templates/**      !export-ignore

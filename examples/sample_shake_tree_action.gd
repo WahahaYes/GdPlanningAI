@@ -14,14 +14,14 @@ var _fruit_hunger_value: float
 
 # Override
 func _init(
-		object_location: GdPAILocationData,
-		interactable_attribs: GdPAIInteractable,
-		fruit_tree: SampleFruitTreeObject,
+		p_object_location: GdPAILocationData,
+		p_interactable_attribs: GdPAIInteractable,
+		p_fruit_tree: SampleFruitTreeObject,
 ):
 	# If extending _init(), make sure to call super() so a uid is created and references are
 	# assigned.
-	super(object_location, interactable_attribs)
-	self.fruit_tree = fruit_tree
+	super(p_object_location, p_interactable_attribs)
+	self.fruit_tree = p_fruit_tree
 
 	# I am faking that the agent will restore hunger by shaking the tree.  It doesn't
 	# actually do that; it drops fruit.  Faking it makes it easier to hook preconditions, rather
@@ -37,18 +37,12 @@ func _init(
 # Override
 func get_validity_checks() -> Array[Precondition]:
 	var checks: Array[Precondition] = super()
-	# Add any additional checks here.
-
 	checks.append(Precondition.agent_has_property("hunger"))
 	checks.append(Precondition.check_is_object_valid(fruit_tree))
-
-	var is_hungry_check: Precondition = Precondition.new()
-	is_hungry_check.eval_func = func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
-		return blackboard.get_property("hunger") < 100
-	checks.append(is_hungry_check)
+	checks.append(Precondition.agent_property_less_than("hunger", 100))
 
 	var on_cooldown_check: Precondition = Precondition.new()
-	on_cooldown_check.eval_func = func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
+	on_cooldown_check.eval_func = func(_blackboard: GdPAIBlackboard, _world_state: GdPAIBlackboard):
 		# Tree shouldn't have recently been shaken.
 		return not fruit_tree.is_on_cooldown
 	checks.append(on_cooldown_check)
@@ -61,8 +55,6 @@ func get_action_cost(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackb
 	var cost: float = super(agent_blackboard, world_state)
 	if cost == INF:
 		return INF
-	# Add any additional cost computations.
-
 	# This action needs a high cost to discourage shaking the tree when there are alternatives.
 	return 100 + cost
 
@@ -79,8 +71,6 @@ func simulate_effect(
 		world_state: GdPAIBlackboard,
 ) -> void:
 	super(agent_blackboard, world_state)
-	# Add any additional simulation here.
-
 	var hunger: float = agent_blackboard.get_property("hunger")
 	agent_blackboard.set_property("hunger", hunger + _fruit_hunger_value)
 
@@ -97,7 +87,6 @@ func reverse_simulate_effect(
 func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	if super(agent) == Action.Status.FAILURE:
 		return Action.Status.FAILURE
-	# Add any additional preactions here.
 	agent.blackboard.set_property(uid_property("shake_duration"), 0)
 	return Action.Status.SUCCESS
 
@@ -113,10 +102,7 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 		return Action.Status.FAILURE
 
 	if not agent.blackboard.get_property(uid_property("target_reached")):
-		# Can add any actions that occur while navigating here.
-
 		return Action.Status.RUNNING
-	# Add the main action that occurs after the agent navigates to the object here.
 
 	# Update how long we've been eating the food item.
 	var shake_duration: float = agent.blackboard.get_property(uid_property("shake_duration"))
@@ -133,7 +119,6 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 # Override
 func post_perform_action(agent: GdPAIAgent) -> Action.Status:
 	super(agent)
-	# Add any additional postactions here.
 	agent.blackboard.erase_property(uid_property("shake_duration"))
 	return Action.Status.SUCCESS
 
