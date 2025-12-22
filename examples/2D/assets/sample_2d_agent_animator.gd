@@ -13,7 +13,7 @@ extends Node
 @export var display_text: Label
 
 
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
 	# Animations.
 	if entity.linear_velocity.length() > idle_threshold:
 		animated_sprite.play("Run")
@@ -28,16 +28,19 @@ func _process(delta: float) -> void:
 	# Hacky way to display the goal and action being considered at this moment.
 	var hunger: float = gdpai_agent.blackboard.get_property("hunger")
 	var goal_text: String
-	if gdpai_agent._current_goal != null:
-		goal_text = gdpai_agent._current_goal.get_title()
+	if gdpai_agent.get_current_goal() != null:
+		goal_text = gdpai_agent.get_current_goal().get_title()
 
 	var action_text: String
-	if gdpai_agent._current_plan != null and gdpai_agent._current_plan.get_plan().size() > 0:
+	if (
+		gdpai_agent.get_current_plan() != null
+		and gdpai_agent.get_current_plan().get_plan().size() > 0
+	):
 		var step: int = min(
-			gdpai_agent._current_plan_step,
-			gdpai_agent._current_plan.get_plan().size() - 1,
+			gdpai_agent.get_current_plan_step(),
+			gdpai_agent.get_current_plan().get_plan().size() - 1,
 		)
-		var action: Action = gdpai_agent._current_plan.get_plan()[step]
+		var action: Action = gdpai_agent.get_current_plan().get_plan()[step]
 		action_text = action.get_title()
 
 	display_text.text = (

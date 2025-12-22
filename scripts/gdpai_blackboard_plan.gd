@@ -9,7 +9,7 @@ extends Resource
 ## Generates a Blackboard instance using the dictionary specified by the BlackboardPlan
 func generate_blackboard() -> GdPAIBlackboard:
 	var gen_blackboard = GdPAIBlackboard.new()
-	gen_blackboard._blackboard = blackboard_backend.duplicate(true)
-	if GdPAIBlackboard.GdPAI_OBJECTS not in gen_blackboard._blackboard:
-		gen_blackboard._blackboard[GdPAIBlackboard.GdPAI_OBJECTS] = []
+	gen_blackboard.set_dict(blackboard_backend.duplicate(true))
+	if GdPAIBlackboard.GDPAI_OBJECTS not in gen_blackboard.get_dict():
+		gen_blackboard._blackboard[GdPAIBlackboard.GDPAI_OBJECTS] = []
 	return gen_blackboard

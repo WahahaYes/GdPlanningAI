@@ -74,7 +74,10 @@ func get_preconditions() -> Array[Precondition]:
 
 
 # Override
-func simulate_effect(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
+func simulate_effect(
+		agent_blackboard: GdPAIBlackboard,
+		world_state: GdPAIBlackboard,
+) -> void:
 	super(agent_blackboard, world_state)
 	# Add any additional simulation here.
 
@@ -83,7 +86,10 @@ func simulate_effect(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackb
 
 
 # Override
-func reverse_simulate_effect(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
+func reverse_simulate_effect(
+		_agent_blackboard: GdPAIBlackboard,
+		_world_state: GdPAIBlackboard,
+) -> void:
 	pass
 
 
@@ -110,20 +116,18 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 		# Can add any actions that occur while navigating here.
 
 		return Action.Status.RUNNING
-	else:
-		# Add the main action that occurs after the agent navigates to the object here.
+	# Add the main action that occurs after the agent navigates to the object here.
 
-		# Update how long we've been eating the food item.
-		var shake_duration: float = agent.blackboard.get_property(uid_property("shake_duration"))
-		shake_duration += delta
-		agent.blackboard.set_property(uid_property("shake_duration"), shake_duration)
+	# Update how long we've been eating the food item.
+	var shake_duration: float = agent.blackboard.get_property(uid_property("shake_duration"))
+	shake_duration += delta
+	agent.blackboard.set_property(uid_property("shake_duration"), shake_duration)
 
-		if shake_duration > SHAKE_DURATION:
-			# spawn the food.
-			fruit_tree.drop_fruit()
-			return Action.Status.SUCCESS
-		else:
-			return Action.Status.RUNNING
+	if shake_duration > SHAKE_DURATION:
+		# spawn the food.
+		fruit_tree.drop_fruit()
+		return Action.Status.SUCCESS
+	return Action.Status.RUNNING
 
 
 # Override

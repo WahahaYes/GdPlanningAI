@@ -19,11 +19,11 @@ func get_desired_state(agent: GdPAIAgent) -> Array[Precondition]:
 	return [condition]
 
 
-# Overload
+# Override
 func get_title() -> String:
 	return "Hunger"
 
 
-# Overload
+# Override
 func get_description() -> String:
 	return "Eat food and keep hunger up."
