@@ -15,5 +15,5 @@ func get_world_state() -> GdPAIBlackboard:
 	var objects: Array[GdPAIObjectData] = []
 	for obj: GdPAIObjectData in get_tree().get_nodes_in_group("GdPAIObjectData"):
 		objects.append(obj)
-	world_state.set_property(GdPAIBlackboard.GdPAI_OBJECTS, objects)
+	world_state.set_property(GdPAIBlackboard.GDPAI_OBJECTS, objects)
 	return world_state

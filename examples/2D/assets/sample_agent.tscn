@@ -132,9 +132,9 @@ Current
 Action: [Value]"
 label_settings = SubResource("LabelSettings_6mdly")
 
-[node name="SampleHungryAgent" type="Node" parent="." node_paths=PackedStringArray("GdPAI_agent")]
+[node name="SampleHungryAgent" type="Node" parent="." node_paths=PackedStringArray("gdpai_agent")]
 script = ExtResource("3_qsotd")
-GdPAI_agent = NodePath("../GdPAIAgent")
+gdpai_agent = NodePath("../GdPAIAgent")
 
 [node name="Sample2DAgentAnimator" type="Node" parent="." node_paths=PackedStringArray("entity", "animated_sprite", "gdpai_agent", "display_text")]
 script = ExtResource("4_6mdly")
