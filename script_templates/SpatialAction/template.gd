@@ -5,12 +5,12 @@ extends SpatialAction
 
 # Override
 func _init(
-		object_location: GdPAILocationData,
-		interactable_attribs: GdPAIInteractable,
+		p_object_location: GdPAILocationData,
+		p_interactable_attribs: GdPAIInteractable,
 ) -> void:
 	# If extending _init(), make sure to call super() so a uid is created and references are
 	# assigned.
-	super(object_location, interactable_attribs)
+	super(p_object_location, p_interactable_attribs)
 
 
 # Override

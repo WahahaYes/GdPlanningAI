@@ -8,14 +8,14 @@ var food_item: SampleFoodObject
 
 # Override
 func _init(
-		object_location: GdPAILocationData,
-		interactable_attribs: GdPAIInteractable,
-		food_item: SampleFoodObject,
+		p_object_location: GdPAILocationData,
+		p_interactable_attribs: GdPAIInteractable,
+		p_food_item: SampleFoodObject,
 ):
 	# If extending _init(), make sure to call super() so a uid is created and references are
 	# assigned.
-	super(object_location, interactable_attribs)
-	self.food_item = food_item
+	super(p_object_location, p_interactable_attribs)
+	self.food_item = p_food_item
 
 
 # Override
@@ -27,7 +27,7 @@ func get_validity_checks() -> Array[Precondition]:
 	checks.append(Precondition.check_is_object_valid(food_item))
 
 	var is_hungry_check: Precondition = Precondition.new()
-	is_hungry_check.eval_func = func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
+	is_hungry_check.eval_func = func(blackboard: GdPAIBlackboard, _world_state: GdPAIBlackboard):
 		return blackboard.get_property("hunger") < 100
 	checks.append(is_hungry_check)
 
