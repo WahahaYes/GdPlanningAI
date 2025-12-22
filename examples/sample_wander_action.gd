@@ -5,10 +5,10 @@ var wander_distance: float
 
 
 # This action shows how you can directly inject parameters.
-func _init(wander_distance: float) -> void:
+func _init(p_wander_distance: float) -> void:
 	# If implementing _init(), make sure to call super() so a uid is created.
 	super()
-	self.wander_distance = wander_distance
+	self.wander_distance = p_wander_distance
 
 
 # Override

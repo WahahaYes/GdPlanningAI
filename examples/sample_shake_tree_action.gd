@@ -14,14 +14,14 @@ var _fruit_hunger_value: float
 
 # Override
 func _init(
-		object_location: GdPAILocationData,
-		interactable_attribs: GdPAIInteractable,
-		fruit_tree: SampleFruitTreeObject,
+		p_object_location: GdPAILocationData,
+		p_interactable_attribs: GdPAIInteractable,
+		p_fruit_tree: SampleFruitTreeObject,
 ):
 	# If extending _init(), make sure to call super() so a uid is created and references are
 	# assigned.
-	super(object_location, interactable_attribs)
-	self.fruit_tree = fruit_tree
+	super(p_object_location, p_interactable_attribs)
+	self.fruit_tree = p_fruit_tree
 
 	# I am faking that the agent will restore hunger by shaking the tree.  It doesn't
 	# actually do that; it drops fruit.  Faking it makes it easier to hook preconditions, rather
@@ -42,13 +42,10 @@ func get_validity_checks() -> Array[Precondition]:
 	checks.append(Precondition.agent_has_property("hunger"))
 	checks.append(Precondition.check_is_object_valid(fruit_tree))
 
-	var is_hungry_check: Precondition = Precondition.new()
-	is_hungry_check.eval_func = func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
-		return blackboard.get_property("hunger") < 100
-	checks.append(is_hungry_check)
+	checks.append(Precondition.agent_property_less_than("hunger", 100))
 
 	var on_cooldown_check: Precondition = Precondition.new()
-	on_cooldown_check.eval_func = func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
+	on_cooldown_check.eval_func = func(_blackboard: GdPAIBlackboard, _world_state: GdPAIBlackboard):
 		# Tree shouldn't have recently been shaken.
 		return not fruit_tree.is_on_cooldown
 	checks.append(on_cooldown_check)
