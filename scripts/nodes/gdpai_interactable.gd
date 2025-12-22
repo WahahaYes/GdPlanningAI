@@ -9,11 +9,6 @@ extends GdPAIObjectData
 ## Values less than 0 (n<0) never trigger failure.
 @export var max_drift_from_plan: float = -1
 
-## The maximum distance an object can move from its planning-time position before
-## an associated spatial action is failed.
-## Values less than 0 (n<0) never trigger failure.
-@export var max_drift_from_plan: float = -1
-
 
 # Override
 func get_group_labels() -> Array[String]:
