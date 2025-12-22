@@ -2,9 +2,9 @@
 
 [ext_resource type="Script" uid="uid://cu134mwsik6n5" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_world_node.gd" id="1_tq1kt"]
 [ext_resource type="Script" uid="uid://cvie3m6t7c0hd" path="res://addons/GdPlanningAI/scripts/gdpai_blackboard_plan.gd" id="2_qp6qe"]
-[ext_resource type="PackedScene" uid="uid://ccwogpiprdh6r" path="res://addons/GdPlanningAI/examples/2D/assets/huge_scenery.tscn" id="3_oq8o6"]
-[ext_resource type="PackedScene" uid="uid://b1bmo16x83s1x" path="res://addons/GdPlanningAI/examples/2D/assets/sample_agent.tscn" id="4_tq1kt"]
-[ext_resource type="Script" uid="uid://1q8wrd044us6" path="res://addons/GdPlanningAI/examples/2D/assets/sample_fps_counter.gd" id="5_mwckn"]
+[ext_resource type="PackedScene" uid="uid://ccwogpiprdh6r" path="res://examples/2D/assets/huge_scenery.tscn" id="3_oq8o6"]
+[ext_resource type="PackedScene" uid="uid://b1bmo16x83s1x" path="res://examples/2D/assets/sample_agent.tscn" id="4_tq1kt"]
+[ext_resource type="Script" uid="uid://1q8wrd044us6" path="res://examples/2D/assets/sample_fps_counter.gd" id="5_mwckn"]
 
 [sub_resource type="Resource" id="Resource_mer3k"]
 script = ExtResource("2_qp6qe")

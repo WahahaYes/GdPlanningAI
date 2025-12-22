@@ -3,15 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cbeuhru62fq5x"
-path="res://.godot/imported/Sheep_Grass.png-5b272ce9b5e5fcaacb80258ec04516ee.ctex"
+path="res://.godot/imported/Sheep_Grass.png-8e8d14e49685ae0fa0869db0f224088c.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://addons/GdPlanningAI/examples/2D/assets/TinySwordsPack/Decorations/Sheep/Sheep_Grass.png"
-dest_files=["res://.godot/imported/Sheep_Grass.png-5b272ce9b5e5fcaacb80258ec04516ee.ctex"]
+source_file="res://examples/2D/assets/TinySwordsPack/Decorations/Sheep/Sheep_Grass.png"
+dest_files=["res://.godot/imported/Sheep_Grass.png-8e8d14e49685ae0fa0869db0f224088c.ctex"]
 
 [params]
 

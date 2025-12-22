@@ -17,12 +17,12 @@ var interactable_attribs: GdPAIInteractable
 
 # Override
 func _init(
-		object_location: GdPAILocationData,
-		interactable_attribs: GdPAIInteractable,
+		p_object_location: GdPAILocationData,
+		p_interactable_attribs: GdPAIInteractable,
 ) -> void:
 	super()
-	self.object_location = object_location
-	self.interactable_attribs = interactable_attribs
+	self.object_location = p_object_location
+	self.interactable_attribs = p_interactable_attribs
 
 
 # Override

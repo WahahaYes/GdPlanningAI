@@ -3,15 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://q2fjs1sp167s"
-path="res://.godot/imported/Water Background color.png-29d6678aeb1a01e2ba9d88f107e7b5d4.ctex"
+path="res://.godot/imported/Water Background color.png-e9df25897f65380700edc171812e4937.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://addons/GdPlanningAI/examples/2D/assets/TinySwordsPack/Terrain/Water Background color.png"
-dest_files=["res://.godot/imported/Water Background color.png-29d6678aeb1a01e2ba9d88f107e7b5d4.ctex"]
+source_file="res://examples/2D/assets/TinySwordsPack/Terrain/Water Background color.png"
+dest_files=["res://.godot/imported/Water Background color.png-e9df25897f65380700edc171812e4937.ctex"]
 
 [params]
 

@@ -1,9 +1,9 @@
 [gd_scene load_steps=6 format=3 uid="uid://l6cmjpqel81b"]
 
 [ext_resource type="Script" uid="uid://b4nu0eehv0waq" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_location_data.gd" id="2_ju0i4"]
-[ext_resource type="Texture2D" uid="uid://txqc5xqcp8jr" path="res://addons/GdPlanningAI/examples/2D/assets/banana.png" id="3_ethwo"]
+[ext_resource type="Texture2D" uid="uid://txqc5xqcp8jr" path="res://examples/2D/assets/banana.png" id="3_ethwo"]
 [ext_resource type="Script" uid="uid://buur1dj8yvfc1" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_interactable.gd" id="3_tlk72"]
-[ext_resource type="Script" uid="uid://womn3ofb7q50" path="res://addons/GdPlanningAI/examples/sample_food_object.gd" id="4_iet1d"]
+[ext_resource type="Script" uid="uid://womn3ofb7q50" path="res://examples/sample_food_object.gd" id="4_iet1d"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_kuita"]
 size = Vector2(32, 32)
