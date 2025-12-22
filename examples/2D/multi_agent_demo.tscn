@@ -2,11 +2,11 @@
 
 [ext_resource type="Script" uid="uid://cu134mwsik6n5" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_world_node.gd" id="1_u572v"]
 [ext_resource type="Script" uid="uid://cvie3m6t7c0hd" path="res://addons/GdPlanningAI/scripts/gdpai_blackboard_plan.gd" id="2_owd6i"]
-[ext_resource type="PackedScene" uid="uid://d2lr7clv3whwy" path="res://addons/GdPlanningAI/examples/2D/assets/scenery.tscn" id="3_owd6i"]
-[ext_resource type="PackedScene" uid="uid://b1bmo16x83s1x" path="res://addons/GdPlanningAI/examples/2D/assets/sample_agent.tscn" id="5_mer3k"]
-[ext_resource type="Texture2D" uid="uid://b22ckbemud140" path="res://addons/GdPlanningAI/examples/2D/assets/TinySwordsPack/Units/Red Units/Monk/Idle.png" id="5_vkohr"]
-[ext_resource type="Texture2D" uid="uid://c42c4gc6885ib" path="res://addons/GdPlanningAI/examples/2D/assets/TinySwordsPack/Units/Red Units/Monk/Run.png" id="6_m5nv4"]
-[ext_resource type="Script" uid="uid://1q8wrd044us6" path="res://addons/GdPlanningAI/examples/2D/assets/sample_fps_counter.gd" id="7_vkohr"]
+[ext_resource type="PackedScene" uid="uid://d2lr7clv3whwy" path="res://examples/2D/assets/scenery.tscn" id="3_owd6i"]
+[ext_resource type="PackedScene" uid="uid://b1bmo16x83s1x" path="res://examples/2D/assets/sample_agent.tscn" id="5_mer3k"]
+[ext_resource type="Texture2D" uid="uid://b22ckbemud140" path="res://examples/2D/assets/TinySwordsPack/Units/Red Units/Monk/Idle.png" id="5_vkohr"]
+[ext_resource type="Texture2D" uid="uid://c42c4gc6885ib" path="res://examples/2D/assets/TinySwordsPack/Units/Red Units/Monk/Run.png" id="6_m5nv4"]
+[ext_resource type="Script" uid="uid://1q8wrd044us6" path="res://examples/2D/assets/sample_fps_counter.gd" id="7_vkohr"]
 
 [sub_resource type="Resource" id="Resource_mer3k"]
 script = ExtResource("2_owd6i")
