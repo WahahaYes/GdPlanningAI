@@ -3,15 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://05slhr6k4wdg"
-path="res://.godot/imported/Bushe1.png-8760a08fc82e44148a5ac01028f32945.ctex"
+path="res://.godot/imported/Bushe1.png-e7977af0374e53011cf6371b21b9dffe.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://addons/GdPlanningAI/examples/2D/assets/TinySwordsPack/Decorations/Bushes/Bushe1.png"
-dest_files=["res://.godot/imported/Bushe1.png-8760a08fc82e44148a5ac01028f32945.ctex"]
+source_file="res://examples/2D/assets/TinySwordsPack/Decorations/Bushes/Bushe1.png"
+dest_files=["res://.godot/imported/Bushe1.png-e7977af0374e53011cf6371b21b9dffe.ctex"]
 
 [params]
 
