@@ -23,3 +23,5 @@ enum PlanningStrategy {
 @export var planning_interval: float = 0.5
 ## Blackboard plan for the agent.
 @export var blackboard_plan: GdPAIBlackboardPlan = GdPAIBlackboardPlan.new()
+## Behavior configurations that provide goals, actions, and property updaters.
+@export var behavior_configs: Array[GdPAIBehaviorConfig] = []

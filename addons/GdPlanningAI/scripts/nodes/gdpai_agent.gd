@@ -47,6 +47,9 @@ func _ready() -> void:
 	for obj: GdPAIObjectData in GdPAIUTILS.get_children_of_type(entity, GdPAIObjectData):
 		gdpai_objects.append(obj)
 	blackboard.set_property(GdPAIBlackboard.GDPAI_OBJECTS, gdpai_objects)
+	# Apply behavior configurations.
+	for behavior_config in config.behavior_configs:
+		behavior_config.apply_to_agent(self)
 	# Try to find a world node.
 	world_node = GdPAIUTILS.get_child_of_type(get_tree().root, GdPAIWorldNode)
 	# Notify debugger of agent creation.
@@ -57,6 +60,10 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	# Update behavior configurations (property updaters).
+	for behavior_config in config.behavior_configs:
+		behavior_config.update_properties(self, delta)
+
 	# Until some goals and actions have been provided, this agent is effectively turned off.
 	if goals.size() == 0:
 		return
