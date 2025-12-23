@@ -7,6 +7,7 @@ enum PlanningStrategy {
 	CONTINUOUS, ## Plan every frame (current behavior).
 	ON_INTERVAL, ## Plan at fixed time intervals.
 	ON_DEMAND, ## Plan only when explicitly requested.
+	ON_INTERVAL_FORCED, ## Force planning at intervals, even if plan is active.
 }
 
 ## How the agent should approach planning.

@@ -11,6 +11,6 @@ metadata/_custom_type_script = "uid://bwf3mdm5fplln"
 [resource]
 script = ExtResource("2_ocgr8")
 planning_strategy = 1
-planning_interval = 5.0
+planning_interval = 1.0
 behavior_configs = Array[ExtResource("1_fwxxt")]([SubResource("Resource_5j5rs")])
 metadata/_custom_type_script = "uid://b8bjqnbsl1gr7"
