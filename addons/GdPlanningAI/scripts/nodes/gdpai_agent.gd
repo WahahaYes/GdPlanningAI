@@ -74,10 +74,13 @@ func _process(delta: float) -> void:
 			if _current_plan == null or _current_plan_step > _current_plan.get_plan().size():
 				await _query_world_state_and_plan()
 		GdPAIAgentConfig.PlanningStrategy.ON_INTERVAL:
-			# Timer will handle planning.
+			# Timer will handle planning only if current plan is finished.
 			pass
 		GdPAIAgentConfig.PlanningStrategy.ON_DEMAND:
 			# Only plan when explicitly requested.
+			pass
+		GdPAIAgentConfig.PlanningStrategy.ON_INTERVAL_FORCED:
+			# Timer will handle planning regardless of current plan status.
 			pass
 
 	_execute_plan(delta)
@@ -109,7 +112,12 @@ func set_planning_strategy(
 		_planning_timer.queue_free()
 		_planning_timer = null
 
-	if strategy == GdPAIAgentConfig.PlanningStrategy.ON_INTERVAL:
+	if (
+		strategy in [
+			GdPAIAgentConfig.PlanningStrategy.ON_INTERVAL,
+			GdPAIAgentConfig.PlanningStrategy.ON_INTERVAL_FORCED,
+		]
+	):
 		_planning_timer = Timer.new()
 		_planning_timer.autostart = true
 		_planning_timer.wait_time = interval
@@ -130,8 +138,11 @@ func manually_start_plan() -> void:
 func _on_planning_timer_timeout() -> void:
 	if goals.size() == 0:
 		return
-
-	_query_world_state_and_plan()
+	if _planning_strategy == GdPAIAgentConfig.PlanningStrategy.ON_INTERVAL_FORCED:
+		_query_world_state_and_plan()
+	elif _planning_strategy == GdPAIAgentConfig.PlanningStrategy.ON_INTERVAL:
+		if _current_plan == null or _current_plan_step > _current_plan.get_plan().size():
+			_query_world_state_and_plan()
 	_planning_timer.start()
 
 
