@@ -2,8 +2,12 @@ class_name HungerPropertyUpdater
 extends PropertyUpdater
 ## Property updater that decreases hunger over time.
 
-## How much hunger decreases per second.
-@export var hunger_decay: float = 5.0
+## How much hunger drops per second.
+var hunger_decay: float = 5.0
+
+
+func _init(p_hunger_decay: float = 5.0) -> void:
+	hunger_decay = p_hunger_decay
 
 
 ## Override to update hunger property over time.
