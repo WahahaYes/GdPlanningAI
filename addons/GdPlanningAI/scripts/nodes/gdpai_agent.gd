@@ -3,17 +3,10 @@ extends Node
 ## GdPlanningAI Agent.  The agent has their own record of the world state and a
 ## personal blackboard of attributes.  Agents form plans given their available goals and actions.
 
-## @experimental: To support multithreading, your simulation must not directly change the scene
-## tree!
-## Whether this agent should do planning on a separate thread.
-@export var use_multithreading: bool
-@export var thread_priority: Thread.Priority = Thread.PRIORITY_LOW
-## The maximum recursion depth for the agent when planning.
-@export var max_recursion: int = 4
 ## The top-level node of the agent.
 @export var entity: Node
-## Reference the plan for this agent's own blackboard.
-@export var blackboard_plan: GdPAIBlackboardPlan
+## Configuration resource for agent setup.
+@export var config: GdPAIAgentConfig = GdPAIAgentConfig.new()
 
 ## Agent has ownership over one thread during its lifespan.
 var thread: Thread = null
@@ -33,12 +26,20 @@ var _current_plan: Plan = null
 var _current_plan_step: int = -1
 ## An array for tracking the runtime status of each node in the plan.
 var _runtime_status: Dictionary = { }
+## Planning strategy for this agent.
+var _planning_strategy: GdPAIAgentConfig.PlanningStrategy = \
+GdPAIAgentConfig.PlanningStrategy.CONTINUOUS
+## Timer for interval-based planning.
+var _planning_timer: Timer = null
 
 
 func _ready() -> void:
-	if use_multithreading:
+	# Set planning strategy.
+	set_planning_strategy(config.planning_strategy, config.planning_interval)
+
+	if config.use_multithreading:
 		thread = Thread.new()
-	blackboard = blackboard_plan.generate_blackboard()
+	blackboard = config.blackboard_plan.generate_blackboard()
 	# Initial blackboard setup common for all agents.
 	blackboard.set_property("entity", entity)
 	# Collect any GdPAI nodes under this agent's entity.
@@ -59,33 +60,18 @@ func _process(delta: float) -> void:
 	# Until some goals and actions have been provided, this agent is effectively turned off.
 	if goals.size() == 0:
 		return
-	# Check if a new plan is needed.
-	if _current_plan == null or _current_plan_step > _current_plan.get_plan().size():
-		# Query the world state at the start of planning.
-		var worldly_actions: Array[Action] = await _compute_worldly_actions()
-		var self_actions: Array[Action] = await _compute_valid_self_actions()
-		if use_multithreading:
-			# Spin up a thread to call the planning logic.  Variable assignment happens at the
-			# end of planning.
-			if not thread.is_started():
-				# Spin up a new thread to handle planning.
-				_current_plan = null
-				_current_plan_step = -1
-				thread.start(
-					_select_highest_reward_goal.bind(self_actions, worldly_actions),
-					thread_priority,
-				)
-		else:
-			var goal_and_plan: Dictionary = await _select_highest_reward_goal(
-				self_actions,
-				worldly_actions,
-			)
-			_current_plan_step = -1
-			_current_goal = goal_and_plan["goal"]
-			_current_plan = goal_and_plan["plan"]
-			if _current_plan != null:
-				_reset_runtime_status(_current_plan.get_plan())
-				_update_debugger_info()
+
+	match _planning_strategy:
+		GdPAIAgentConfig.PlanningStrategy.CONTINUOUS:
+			# Check if a new plan is needed.
+			if _current_plan == null or _current_plan_step > _current_plan.get_plan().size():
+				await _query_world_state_and_plan()
+		GdPAIAgentConfig.PlanningStrategy.ON_INTERVAL:
+			# Timer will handle planning.
+			pass
+		GdPAIAgentConfig.PlanningStrategy.ON_DEMAND:
+			# Only plan when explicitly requested.
+			pass
 
 	_execute_plan(delta)
 
@@ -105,12 +91,76 @@ func get_current_plan_step() -> int:
 	return _current_plan_step
 
 
+## Set the planning strategy for this agent.
+func set_planning_strategy(
+		strategy: GdPAIAgentConfig.PlanningStrategy,
+		interval: float = 0.5,
+) -> void:
+	_planning_strategy = strategy
+
+	if _planning_timer:
+		_planning_timer.queue_free()
+		_planning_timer = null
+
+	if strategy == GdPAIAgentConfig.PlanningStrategy.ON_INTERVAL:
+		_planning_timer = Timer.new()
+		_planning_timer.wait_time = interval
+		_planning_timer.timeout.connect(_on_planning_timer_timeout)
+		add_child(_planning_timer)
+		_planning_timer.autostart = true
+
+
+## Trigger planning on demand.
+func manually_start_plan() -> void:
+	if goals.size() == 0:
+		return
+
+	_query_world_state_and_plan()
+
+
+## Timer callback for interval planning.
+func _on_planning_timer_timeout() -> void:
+	if goals.size() == 0:
+		return
+
+	_query_world_state_and_plan()
+
+
+## Query world state and initiate planning.
+func _query_world_state_and_plan() -> void:
+	# Query the world state at the start of planning.
+	var worldly_actions: Array[Action] = await _compute_worldly_actions()
+	var self_actions: Array[Action] = await _compute_valid_self_actions()
+	if config.use_multithreading:
+		# Spin up a thread to call the planning logic.  Variable assignment happens at the
+		# end of planning.
+		if not thread.is_started():
+			# Spin up a new thread to handle planning.
+			_current_plan = null
+			_current_plan_step = -1
+			thread.start(
+				_select_highest_reward_goal.bind(self_actions, worldly_actions),
+				config.thread_priority,
+			)
+	else:
+		var goal_and_plan: Dictionary = await _select_highest_reward_goal(
+			self_actions,
+			worldly_actions,
+		)
+		_current_plan_step = -1
+		_current_goal = goal_and_plan["goal"]
+		_current_plan = goal_and_plan["plan"]
+		if _current_plan != null:
+			_reset_runtime_status(_current_plan.get_plan())
+			_update_debugger_info()
+
+
 ## Iterates over all goals in order of reward until a valid plan is found.
 func _select_highest_reward_goal(
 		self_actions: Array[Action],
 		worldly_actions: Array[Action],
 ) -> Dictionary:
-	if use_multithreading:
+	if config.use_multithreading:
 		# Removing safety checks usually isn't a good idea.  In our processing we will read from
 		# the scene tree or will await information, but we don't write.  With some checks to
 		# ensure that data exists, and knowing that this thread's processing is constrained to
@@ -134,20 +184,20 @@ func _select_highest_reward_goal(
 		var max_reward: float = rewards.max()
 		var idx: int = rewards.find(max_reward)
 		var test_plan: Plan = Plan.new()
-		test_plan.initialize(self, goals[idx], actions_with_worldly, max_recursion)
+		test_plan.initialize(self, goals[idx], actions_with_worldly, config.max_recursion)
 
 		if test_plan.get_plan().size() > 0: # This means a plan was created.
 			return_dict["goal"] = goals[idx]
 			return_dict["plan"] = test_plan
 			# For multithreading, we need to sync to main thread before exiting.
-			if use_multithreading:
+			if config.use_multithreading:
 				call_deferred("_sync_multithreaded_plan")
 			return return_dict
 		rewards[idx] = -1
 		break
 
 	# For multithreading, we need to sync to main thread before exiting.
-	if use_multithreading:
+	if config.use_multithreading:
 		call_deferred("_sync_multithreaded_plan")
 	return { "goal": null, "plan": null }
 
