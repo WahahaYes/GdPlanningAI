@@ -111,10 +111,11 @@ func set_planning_strategy(
 
 	if strategy == GdPAIAgentConfig.PlanningStrategy.ON_INTERVAL:
 		_planning_timer = Timer.new()
+		_planning_timer.autostart = true
 		_planning_timer.wait_time = interval
 		_planning_timer.timeout.connect(_on_planning_timer_timeout)
 		add_child(_planning_timer)
-		_planning_timer.autostart = true
+		_planning_timer.start()
 
 
 ## Trigger planning on demand.
@@ -131,6 +132,7 @@ func _on_planning_timer_timeout() -> void:
 		return
 
 	_query_world_state_and_plan()
+	_planning_timer.start()
 
 
 ## Query world state and initiate planning.
