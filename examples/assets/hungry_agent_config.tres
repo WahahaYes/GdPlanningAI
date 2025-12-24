@@ -6,6 +6,7 @@
 
 [sub_resource type="Resource" id="Resource_5j5rs"]
 script = ExtResource("2_jl3ll")
+hunger_decay = 2.5
 metadata/_custom_type_script = "uid://bwf3mdm5fplln"
 
 [resource]

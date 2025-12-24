@@ -4,12 +4,10 @@ extends GdPAIBehaviorConfig
 
 ## How much hunger drops per second.
 @export var hunger_decay: float = 5.0
+## The starting hunger value.
+@export var initial_hunger: float = 100.0
 
 
-## Override to automatically set up hunger-related configuration.
 func _init():
 	goals.append(SampleHungerGoal.new())
-	goals.append(SampleWanderGoal.new())
-	self_actions.append(SampleWanderAction.new(256))
-	property_updaters.append(HungerPropertyUpdater.new(hunger_decay))
-	initial_properties = { "hunger": 100.0 }
+	property_updaters.append(HungerPropertyUpdater.new(hunger_decay, initial_hunger))

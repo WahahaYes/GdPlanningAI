@@ -9,8 +9,6 @@ var goals: Array[Goal] = []
 var self_actions: Array[Action] = []
 ## Property updaters that modify blackboard properties over time.
 var property_updaters: Array[PropertyUpdater] = []
-## Initial blackboard properties to set when this behavior is applied.
-var initial_properties: Dictionary = { }
 
 
 ## Apply this behavior configuration to an agent.
@@ -20,9 +18,6 @@ func apply_to_agent(agent: GdPAIAgent) -> void:
 
 	for action in self_actions:
 		agent.self_actions.append(action)
-
-	for property in initial_properties:
-		agent.blackboard.set_property(property, initial_properties[property])
 
 	for updater in property_updaters:
 		updater.initialize(agent)
