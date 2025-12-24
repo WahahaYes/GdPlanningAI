@@ -6,7 +6,6 @@ var wander_distance: float
 
 # This action shows how you can directly inject parameters.
 func _init(p_wander_distance: float) -> void:
-	super()
 	self.wander_distance = p_wander_distance
 
 
