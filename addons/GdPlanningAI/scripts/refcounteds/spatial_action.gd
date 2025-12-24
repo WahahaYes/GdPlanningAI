@@ -20,7 +20,6 @@ func _init(
 		p_object_location: GdPAILocationData,
 		p_interactable_attribs: GdPAIInteractable,
 ) -> void:
-	super()
 	self.object_location = p_object_location
 	self.interactable_attribs = p_interactable_attribs
 
