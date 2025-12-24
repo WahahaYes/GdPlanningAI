@@ -5,7 +5,7 @@
 [ext_resource type="Texture2D" uid="uid://txqc5xqcp8jr" path="res://examples/2D/assets/banana.png" id="2_pcod6"]
 [ext_resource type="Script" uid="uid://buur1dj8yvfc1" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_interactable.gd" id="3_bvj2h"]
 [ext_resource type="PackedScene" uid="uid://l6cmjpqel81b" path="res://examples/2D/assets/banana.tscn" id="4_13ry2"]
-[ext_resource type="Script" uid="uid://d03hyt0jr43ba" path="res://examples/sample_fruit_tree_object.gd" id="4_d15qn"]
+[ext_resource type="Script" uid="uid://d03hyt0jr43ba" path="res://examples/fruit_tree/sample_fruit_tree_object.gd" id="4_d15qn"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_teil7"]
 size = Vector2(20, 35)

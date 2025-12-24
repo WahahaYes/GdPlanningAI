@@ -1,9 +1,9 @@
 [gd_scene load_steps=30 format=4 uid="uid://ccwogpiprdh6r"]
 
-[ext_resource type="TileSet" uid="uid://d584e3ie52c3" path="res://addons/GdPlanningAI/examples/2D/assets/tileset.tres" id="1_3co7k"]
-[ext_resource type="Texture2D" uid="uid://05slhr6k4wdg" path="res://addons/GdPlanningAI/examples/2D/assets/TinySwordsPack/Decorations/Bushes/Bushe1.png" id="2_48ykj"]
-[ext_resource type="Texture2D" uid="uid://cbeuhru62fq5x" path="res://addons/GdPlanningAI/examples/2D/assets/TinySwordsPack/Decorations/Sheep/Sheep_Grass.png" id="3_m3e2p"]
-[ext_resource type="PackedScene" uid="uid://h4yk5sl17vo0" path="res://addons/GdPlanningAI/examples/2D/assets/banana_tree.tscn" id="4_n22lt"]
+[ext_resource type="TileSet" uid="uid://d584e3ie52c3" path="res://examples/2D/assets/tileset.tres" id="1_3co7k"]
+[ext_resource type="Texture2D" uid="uid://05slhr6k4wdg" path="res://examples/2D/assets/TinySwordsPack/Decorations/Bushes/Bushe1.png" id="2_48ykj"]
+[ext_resource type="Texture2D" uid="uid://cbeuhru62fq5x" path="res://examples/2D/assets/TinySwordsPack/Decorations/Sheep/Sheep_Grass.png" id="3_m3e2p"]
+[ext_resource type="PackedScene" uid="uid://h4yk5sl17vo0" path="res://examples/2D/assets/banana_tree.tscn" id="4_n22lt"]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_hgenf"]
 atlas = ExtResource("2_48ykj")
