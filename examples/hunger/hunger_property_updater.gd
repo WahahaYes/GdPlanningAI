@@ -13,13 +13,13 @@ func _init(p_hunger_decay: float = 5.0, p_initial_hunger: float = 100.0) -> void
 	initial_hunger = p_initial_hunger
 
 
-## Override to update hunger property over time.
+# Override
 func update_properties(agent: GdPAIAgent, delta: float) -> void:
 	var current_hunger: float = agent.blackboard.get_property("hunger")
 	var new_hunger: float = max(0.0, current_hunger - hunger_decay * delta)
 	agent.blackboard.set_property("hunger", new_hunger)
 
 
-## Override to set initial hunger value.
+# Override
 func initialize(agent: GdPAIAgent) -> void:
 	agent.blackboard.set_property("hunger", initial_hunger)

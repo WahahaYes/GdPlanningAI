@@ -5,7 +5,7 @@ extends Goal
 
 # Override
 func compute_reward(agent: GdPAIAgent) -> float:
-	return 100 - agent.blackboard.get_property("hunger")
+	return 100.0 - agent.blackboard.get_property("hunger", 100.0)
 
 
 # Override
