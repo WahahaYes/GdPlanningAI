@@ -2,11 +2,11 @@
 
 [ext_resource type="Texture2D" uid="uid://cqi0wac4ge1bd" path="res://examples/2D/assets/TinySwordsPack/Units/Blue Units/Monk/Idle.png" id="1_15dhw"]
 [ext_resource type="Script" uid="uid://kfoja1kvby1g" path="res://examples/2D/assets/sample_2d_nav.gd" id="2_4rrwl"]
-[ext_resource type="Texture2D" uid="uid://c2m2dh28u207a" path="res://examples/2D/assets/TinySwordsPack/Units/Blue Units/Monk/Run.png" id="2_6mdly"]
+[ext_resource type="Texture2D" uid="uid://cs23a6arviecd" path="res://examples/2D/assets/TinySwordsPack/Units/Blue Units/Monk/Run.png" id="2_6mdly"]
 [ext_resource type="Script" uid="uid://c83g2wdh6tqsp" path="res://examples/2D/assets/sample_2d_agent_animator.gd" id="4_6mdly"]
 [ext_resource type="Script" uid="uid://dadt3s5cpl0e5" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_agent.gd" id="4_7hb32"]
 [ext_resource type="Script" uid="uid://b4nu0eehv0waq" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_location_data.gd" id="5_2s6wp"]
-[ext_resource type="Resource" uid="uid://cge6j4ryeb3ea" path="res://examples/hunger/hungry_agent_config.tres" id="6_pb48w"]
+[ext_resource type="Resource" uid="uid://cge6j4ryeb3ea" path="res://examples/agent_configs/base_agent_config.tres" id="6_pb48w"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_b137p"]
 size = Vector2(64, 64)
