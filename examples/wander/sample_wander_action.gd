@@ -8,6 +8,7 @@ var wander_distance: float
 func _init(p_wander_distance: float) -> void:
 	super()
 	self.wander_distance = p_wander_distance
+	print("SampleWanderAction initialized with wander_distance: ", wander_distance)
 
 
 # Override

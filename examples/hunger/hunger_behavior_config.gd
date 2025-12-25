@@ -8,6 +8,8 @@ extends GdPAIBehaviorConfig
 @export var initial_hunger: float = 100.0
 
 
-func _init():
+# Override
+func _self_init():
+	super()
 	goals.append(SampleHungerGoal.new())
 	property_updaters.append(HungerPropertyUpdater.new(hunger_decay, initial_hunger))
