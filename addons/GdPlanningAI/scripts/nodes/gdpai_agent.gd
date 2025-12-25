@@ -119,11 +119,13 @@ func set_planning_strategy(
 		]
 	):
 		_planning_timer = Timer.new()
-		_planning_timer.autostart = true
-		_planning_timer.wait_time = interval
 		_planning_timer.timeout.connect(_on_planning_timer_timeout)
 		add_child(_planning_timer)
-		_planning_timer.start()
+
+		# Add randomized delay before starting planning
+		var random_delay: float = randf_range(0.0, interval)
+		_planning_timer.start(random_delay)
+		_planning_timer.wait_time = interval
 
 
 ## Trigger planning on demand.
