@@ -37,6 +37,11 @@ func _to_string() -> String:
 	return str(_blackboard)
 
 
+## Check if a property exists in the blackboard.
+func has_property(prop: String) -> bool:
+	return prop in _blackboard
+
+
 ## Return the value of a requested property.
 func get_property(prop: String) -> Variant:
 	if prop in _blackboard:
