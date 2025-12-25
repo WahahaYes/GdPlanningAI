@@ -26,9 +26,7 @@ func _process(_delta: float) -> void:
 		animated_sprite.scale.x = 1
 
 	# Hacky way to display the goal and action being considered at this moment.
-	if not gdpai_agent.blackboard.has_property("hunger"):
-		return
-	var hunger: float = gdpai_agent.blackboard.get_property("hunger")
+	var hunger: float = gdpai_agent.blackboard.get_property("hunger", 100.0)
 
 	var goal_text: String
 	if gdpai_agent.get_current_goal() != null:

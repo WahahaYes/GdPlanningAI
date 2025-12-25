@@ -42,11 +42,11 @@ func has_property(prop: String) -> bool:
 	return prop in _blackboard
 
 
-## Return the value of a requested property.
-func get_property(prop: String) -> Variant:
+## Return the value of a requested property, with an optional default value.
+func get_property(prop: String, default_value: Variant = null) -> Variant:
 	if prop in _blackboard:
 		return _blackboard[prop]
-	return null
+	return default_value
 
 
 ## Iterate over the list of GdPAI objects in the blackboard and return any in the requested group.
