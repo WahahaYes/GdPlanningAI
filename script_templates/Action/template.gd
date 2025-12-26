@@ -4,12 +4,6 @@ extends Action
 
 
 # Override
-func _init() -> void:
-	# If implementing _init(), make sure to call super() so a uid is created.
-	super()
-
-
-# Override
 func get_validity_checks() -> Array[Precondition]:
 	return []
 
