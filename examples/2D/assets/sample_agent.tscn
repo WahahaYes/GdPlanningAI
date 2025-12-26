@@ -1,8 +1,9 @@
-[gd_scene load_steps=21 format=3 uid="uid://b1bmo16x83s1x"]
+[gd_scene load_steps=22 format=3 uid="uid://b1bmo16x83s1x"]
 
 [ext_resource type="Texture2D" uid="uid://cqi0wac4ge1bd" path="res://examples/2D/assets/TinySwordsPack/Units/Blue Units/Monk/Idle.png" id="1_15dhw"]
 [ext_resource type="Script" uid="uid://kfoja1kvby1g" path="res://examples/2D/assets/sample_2d_nav.gd" id="2_4rrwl"]
 [ext_resource type="Texture2D" uid="uid://cs23a6arviecd" path="res://examples/2D/assets/TinySwordsPack/Units/Blue Units/Monk/Run.png" id="2_6mdly"]
+[ext_resource type="Script" uid="uid://d27ok3vvag4ck" path="res://examples/2D/assets/debug_label.gd" id="3_3tmg3"]
 [ext_resource type="Script" uid="uid://c83g2wdh6tqsp" path="res://examples/2D/assets/sample_2d_agent_animator.gd" id="4_6mdly"]
 [ext_resource type="Script" uid="uid://dadt3s5cpl0e5" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_agent.gd" id="4_7hb32"]
 [ext_resource type="Script" uid="uid://b4nu0eehv0waq" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_location_data.gd" id="5_2s6wp"]
@@ -113,7 +114,7 @@ frame_progress = 0.959604
 
 [node name="NavigationAgent2D" type="NavigationAgent2D" parent="."]
 
-[node name="Label" type="Label" parent="."]
+[node name="DebugLabel" type="Label" parent="." node_paths=PackedStringArray("gdpai_agent")]
 offset_left = -40.0
 offset_top = -157.0
 offset_right = 160.0
@@ -123,14 +124,14 @@ Goal: [Value]
 Current
 Action: [Value]"
 label_settings = SubResource("LabelSettings_6mdly")
+script = ExtResource("3_3tmg3")
+gdpai_agent = NodePath("../GdPAIAgent")
 
-[node name="Sample2DAgentAnimator" type="Node" parent="." node_paths=PackedStringArray("entity", "animated_sprite", "gdpai_agent", "display_text")]
+[node name="Sample2DAgentAnimator" type="Node" parent="." node_paths=PackedStringArray("entity", "animated_sprite")]
 script = ExtResource("4_6mdly")
 entity = NodePath("..")
 animated_sprite = NodePath("../AnimatedSprite2D")
 idle_threshold = 16.0
-gdpai_agent = NodePath("../GdPAIAgent")
-display_text = NodePath("../Label")
 
 [node name="GdPAIAgent" type="Node" parent="." node_paths=PackedStringArray("entity")]
 script = ExtResource("4_7hb32")
