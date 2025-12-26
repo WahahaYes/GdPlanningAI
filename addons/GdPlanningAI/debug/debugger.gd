@@ -15,7 +15,11 @@ func _has_capture(prefix: String) -> bool:
 
 
 # Override
-func _capture(message: String, data: Array, _session_id: int) -> bool:
+func _capture(
+		message: String,
+		data: Array,
+		_session_id: int,
+) -> bool:
 	if message == "gdplanningai:register_agent":
 		# (agent_id, agent_name)
 		debugger_tab.register_agent(data[0], data[1])

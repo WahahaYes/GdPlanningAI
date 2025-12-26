@@ -22,8 +22,8 @@ extends GdPAIObjectData
 ## Reference to GdPAI location data.
 @export var location_data: GdPAILocationData
 
-var is_on_cooldown: bool
-var _cooldown_timer: float
+var is_on_cooldown: bool = false
+var _cooldown_timer: float = 0.0
 
 
 func _process(delta: float) -> void:
@@ -32,7 +32,7 @@ func _process(delta: float) -> void:
 		_cooldown_timer += delta
 		if _cooldown_timer >= cooldown_window:
 			is_on_cooldown = false
-			_cooldown_timer = 0
+			_cooldown_timer = 0.0
 
 	# Simple logic for cooldown display.
 	if is_on_cooldown:
@@ -42,7 +42,7 @@ func _process(delta: float) -> void:
 
 
 ## Spawns a randomized number of fruit in a radius around the tree.
-func drop_fruit():
+func drop_fruit() -> void:
 	is_on_cooldown = true
 	var amt_to_drop: int = randi_range(drop_min_amount, drop_max_amount)
 	for i in range(amt_to_drop):
@@ -69,7 +69,7 @@ func drop_fruit():
 
 
 # Override
-func get_group_labels():
+func get_group_labels() -> Array[String]:
 	return ["SampleFruitTreeObject", "GdPAIObjectData"]
 
 

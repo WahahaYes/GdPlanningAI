@@ -90,9 +90,10 @@ func perform_action(
 	var agent_location_data: GdPAILocationData = agent.blackboard.get_property(
 		uid_property("agent_location"),
 	)
+	# NOTE: These locations are purposefully not typed to be 2D and 3D compatible.
 	var target_location = agent.blackboard.get_property(uid_property("target_location"))
 
-	# Maintain a list of 10 prior positions.
+	# Maintain a list of 60 prior positions.
 	var prior_positions: Array = agent.blackboard.get_property(uid_property("prior_positions"))
 	prior_positions.append(agent_location_data.position)
 	if prior_positions.size() > 60:

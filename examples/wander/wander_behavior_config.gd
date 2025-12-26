@@ -6,8 +6,8 @@ extends GdPAIBehaviorConfig
 @export var wander_distance: float = 20.0
 
 
-# Override 
-func _self_init():
+# Override
+func _self_init() -> void:
 	super()
 	goals.append(SampleWanderGoal.new())
 	self_actions.append(SampleWanderAction.new(wander_distance))

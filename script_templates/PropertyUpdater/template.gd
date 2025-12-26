@@ -20,7 +20,10 @@ func initialize(agent: GdPAIAgent) -> void:
 
 
 # Override
-func update_properties(agent: GdPAIAgent, delta: float) -> void:
+func update_properties(
+		agent: GdPAIAgent,
+		delta: float,
+) -> void:
 	# Update agent properties that need to be maintained as part of this behavior.
 	var runtime_value: float = agent.blackboard.get_property("example_parameter")
 	agent.blackboard.set_property("example_parameter", runtime_value + delta)

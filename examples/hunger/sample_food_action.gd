@@ -11,7 +11,7 @@ func _init(
 		p_object_location: GdPAILocationData,
 		p_interactable_attribs: GdPAIInteractable,
 		p_food_item: SampleFoodObject,
-):
+) -> void:
 	super(p_object_location, p_interactable_attribs)
 	self.food_item = p_food_item
 
@@ -26,7 +26,10 @@ func get_validity_checks() -> Array[Precondition]:
 
 
 # Override
-func get_action_cost(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard) -> float:
+func get_action_cost(
+		agent_blackboard: GdPAIBlackboard,
+		world_state: GdPAIBlackboard,
+) -> float:
 	var cost: float = super(agent_blackboard, world_state)
 	if cost == INF:
 		return INF
@@ -71,7 +74,10 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 
 
 # Override
-func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
+func perform_action(
+		agent: GdPAIAgent,
+		delta: float,
+) -> Action.Status:
 	var parent_status: Action.Status = super(agent, delta)
 	if parent_status == Action.Status.FAILURE:
 		return Action.Status.FAILURE

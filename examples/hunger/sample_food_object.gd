@@ -14,7 +14,7 @@ extends GdPAIObjectData
 
 
 # Override
-func get_group_labels():
+func get_group_labels() -> Array[String]:
 	return ["SampleFoodObject", "GdPAIObjectData"]
 
 

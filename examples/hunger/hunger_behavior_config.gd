@@ -9,7 +9,7 @@ extends GdPAIBehaviorConfig
 
 
 # Override
-func _self_init():
+func _self_init() -> void:
 	super()
 	goals.append(SampleHungerGoal.new())
 	property_updaters.append(HungerPropertyUpdater.new(hunger_decay, initial_hunger))
