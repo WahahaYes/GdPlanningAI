@@ -1,0 +1,131 @@
+[gd_scene load_steps=17 format=3 uid="uid://h4yk5sl17vo0"]
+
+[ext_resource type="Texture2D" uid="uid://d3ipxyc0fyapi" path="res://addons/GdPlanningAI/examples/2D/assets/TinySwordsPack/Decorations/Trees/Tree3.png" id="1_kebes"]
+[ext_resource type="Script" uid="uid://b4nu0eehv0waq" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_location_data.gd" id="2_gjm7u"]
+[ext_resource type="Texture2D" uid="uid://txqc5xqcp8jr" path="res://addons/GdPlanningAI/examples/2D/assets/banana.png" id="2_pcod6"]
+[ext_resource type="Script" uid="uid://buur1dj8yvfc1" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_interactable.gd" id="3_bvj2h"]
+[ext_resource type="PackedScene" uid="uid://l6cmjpqel81b" path="res://addons/GdPlanningAI/examples/2D/assets/banana.tscn" id="4_13ry2"]
+[ext_resource type="Script" uid="uid://d03hyt0jr43ba" path="res://addons/GdPlanningAI/examples/fruit_tree/sample_fruit_tree_object.gd" id="4_d15qn"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_teil7"]
+size = Vector2(20, 35)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_o216h"]
+atlas = ExtResource("1_kebes")
+region = Rect2(0, 0, 192, 192)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_ihnau"]
+atlas = ExtResource("1_kebes")
+region = Rect2(192, 0, 192, 192)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_xph2i"]
+atlas = ExtResource("1_kebes")
+region = Rect2(384, 0, 192, 192)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_q8u1y"]
+atlas = ExtResource("1_kebes")
+region = Rect2(576, 0, 192, 192)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_8mewg"]
+atlas = ExtResource("1_kebes")
+region = Rect2(768, 0, 192, 192)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_6eb1o"]
+atlas = ExtResource("1_kebes")
+region = Rect2(960, 0, 192, 192)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_xcvw7"]
+atlas = ExtResource("1_kebes")
+region = Rect2(1152, 0, 192, 192)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_0vdl4"]
+atlas = ExtResource("1_kebes")
+region = Rect2(1344, 0, 192, 192)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_p3w1j"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_o216h")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_ihnau")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_xph2i")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_q8u1y")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_8mewg")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_6eb1o")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_xcvw7")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_0vdl4")
+}],
+"loop": true,
+"name": &"default",
+"speed": 5.0
+}]
+
+[node name="BananaTree" type="StaticBody2D"]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, 9.5)
+shape = SubResource("RectangleShape2D_teil7")
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
+position = Vector2(-1, -41)
+sprite_frames = SubResource("SpriteFrames_p3w1j")
+autoplay = "default"
+frame = 5
+frame_progress = 0.818951
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+position = Vector2(-23, -36)
+texture = ExtResource("2_pcod6")
+
+[node name="Sprite2D2" type="Sprite2D" parent="."]
+position = Vector2(-22, -76)
+rotation = 0.1446
+texture = ExtResource("2_pcod6")
+
+[node name="Sprite2D3" type="Sprite2D" parent="."]
+position = Vector2(24, -59)
+rotation = -0.513016
+scale = Vector2(-1, 1)
+texture = ExtResource("2_pcod6")
+
+[node name="Label" type="Label" parent="."]
+offset_left = -49.0
+offset_top = -131.0
+offset_right = 51.0
+offset_bottom = -106.0
+text = "COOLDOWN"
+horizontal_alignment = 1
+
+[node name="GdPAILocationData" type="Node" parent="." node_paths=PackedStringArray("location_node_2d", "entity")]
+script = ExtResource("2_gjm7u")
+location_node_2d = NodePath("..")
+entity = NodePath("..")
+
+[node name="GdPAIInteractable" type="Node" parent="." node_paths=PackedStringArray("entity")]
+script = ExtResource("3_bvj2h")
+max_interaction_distance = -1.0
+entity = NodePath("..")
+
+[node name="SampleFruitTreeObject" type="Node" parent="." node_paths=PackedStringArray("cooldown_display", "interactable_attribs", "location_data", "entity")]
+script = ExtResource("4_d15qn")
+fruit_prefab = ExtResource("4_13ry2")
+drop_distance = 128.0
+cooldown_window = 30.0
+cooldown_display = NodePath("../Label")
+interactable_attribs = NodePath("../GdPAIInteractable")
+location_data = NodePath("../GdPAILocationData")
+entity = NodePath("..")
