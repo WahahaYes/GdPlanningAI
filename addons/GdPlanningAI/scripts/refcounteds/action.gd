@@ -120,9 +120,9 @@ func uid_property(prop: String) -> String:
 
 ## Returns a short title for the action.
 func get_title() -> String:
-	return "Action"
+	return ""
 
 
 ## Returns a description of the action.
 func get_description() -> String:
-	return "Base class for Action."
+	return "Root action."
