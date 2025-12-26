@@ -24,7 +24,8 @@ func get_action_cost(
 		_agent_blackboard: GdPAIBlackboard,
 		_world_state: GdPAIBlackboard,
 ) -> float:
-	return wander_distance
+	# Wandering doesn't have a cost, so that it's preferable to eating when full.
+	return 0.0
 
 
 # Override
