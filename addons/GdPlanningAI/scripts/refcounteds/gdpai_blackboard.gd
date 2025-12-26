@@ -37,11 +37,19 @@ func _to_string() -> String:
 	return str(_blackboard)
 
 
-## Return the value of a requested property.
-func get_property(prop: String) -> Variant:
+## Check if a property exists in the blackboard.
+func has_property(prop: String) -> bool:
+	return prop in _blackboard
+
+
+## Return the value of a requested property, with an optional default value.
+func get_property(
+		prop: String,
+		default_value: Variant = null,
+) -> Variant:
 	if prop in _blackboard:
 		return _blackboard[prop]
-	return null
+	return default_value
 
 
 ## Iterate over the list of GdPAI objects in the blackboard and return any in the requested group.
@@ -70,7 +78,10 @@ func get_object_by_uid(uid: String) -> GdPAIObjectData:
 
 
 ## Set the value of a specified property.
-func set_property(prop: String, value: Variant) -> void:
+func set_property(
+		prop: String,
+		value: Variant,
+) -> void:
 	_blackboard[prop] = value
 
 
