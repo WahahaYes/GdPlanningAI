@@ -11,13 +11,15 @@ static var _uid_counter: int = 0
 
 ## A uid is automatically allocated for actions so that they can put unique properties into the
 ## blackboards as needed without risk of collisions with other actions.
-var uid: String
+var uid: String = _next_uid()
 
 
-# Override
-func _init() -> void:
-	uid = str(_uid_counter)
-	_uid_counter += 1
+## Generates the next available uid
+func _next_uid() -> String:
+		uid = str(_uid_counter)
+		_uid_counter += 1
+		return uid
+
 
 
 ## List of static preconditions needed for the action to be considered.  This is

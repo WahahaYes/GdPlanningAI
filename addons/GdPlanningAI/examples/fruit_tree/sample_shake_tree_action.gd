@@ -18,8 +18,7 @@ func _init(
 		p_interactable_attribs: GdPAIInteractable,
 		p_fruit_tree: SampleFruitTreeObject,
 ) -> void:
-	# If extending _init(), make sure to call super() so a uid is created and references are
-	# assigned.
+	# If extending _init(), make sure to call super() so references are assigned.
 	super(p_object_location, p_interactable_attribs)
 	self.fruit_tree = p_fruit_tree
 
