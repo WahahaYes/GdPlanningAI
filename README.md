@@ -37,6 +37,16 @@ A number of useful templates are included in the `script_templates` folder.  The
 
 In this framework, agents form chains of actions at runtime rather than relying on premade state change conditions or behavior trees.  This can greatly reduce the amount of developer overhead when creating AI behaviors, but it is a more complex / less intuitive system.
 
+**Behavior System Architecture**
+
+The framework now uses a modular behavior system that allows you to semantically group actions, goals, and properties. This system consists of:
+
+- **GdPAIBehaviorConfig**: Base class for behavior configurations that group related goals, actions, and property updaters.
+- **GdPAIAgentConfig**: Configuration resource that defines planning strategies and combines multiple behavior configs.
+- **PropertyUpdater**: Components that modify agent blackboard properties over time (e.g., hunger decay, stamina regeneration).
+
+This approach allows you to create reusable behavior modules (like "HungerBehavior" or "WanderBehavior") and combine them in different ways for different agent types.
+
 **GdPAIAgent**
 
 In this framework, each `GdPAIAgent` maintains two `GdPAIBlackboard` instances storing relevant information about their self and the broader world state.  An agent's own blackboard is used to maintain their internal attributes.  Possible attributes include *health*, *hunger*, *thirst*, *inventory*, etc.  The world state maintains common information, like *time of day* and information about interactable objects in-world (see `GdPAIObjectData` description below).
@@ -85,6 +95,45 @@ To streamline object interactions, the `SpatialAction` class bundles agent movem
 
 The `SpatialAction` class adapts to 2D or 3D depending on the location node specified on the object's `GdPAILocationData`.  `SpatialAction` has its own `script_template` that is expanded for this behavior; it is highly recommended to use the template.
 
+### Agent Configuration
+
+The new configuration system makes it easy to set up agents without writing code. Here's how to configure an agent:
+
+1. **Create Behavior Configurations**: Extend `GdPAIBehaviorConfig` to create semantic behavior modules. For example:
+   ```gdscript
+   # HungerBehaviorConfig.gd
+   class_name HungerBehaviorConfig
+   extends GdPAIBehaviorConfig
+   
+   @export var hunger_decay: float = 5.0
+   @export var initial_hunger: float = 100.0
+   
+   func _self_init() -> void:
+       super()
+       goals.append(SampleHungerGoal.new())
+       property_updaters.append(HungerPropertyUpdater.new(hunger_decay, initial_hunger))
+   ```
+
+2. **Create Agent Configuration**: Create a `GdPAIAgentConfig` resource and assign behavior configs:
+   - Choose planning strategy (continuous, interval-based, on-demand)
+   - Configure multithreading settings if needed
+   - Add multiple behavior configs to create complex agent personalities
+   - Set up the blackboard plan with required properties
+
+3. **Apply to Agent**: Assign the agent config to your `GdPAIAgent` node in the inspector
+
+The system supports multiple planning strategies:
+- **CONTINUOUS**: Plan every frame (default behavior).
+- **ON_INTERVAL**: Plan at fixed time intervals (better for performance).
+- **ON_DEMAND**: Plan only when explicitly requested.
+- **ON_INTERVAL_FORCED**: Force planning at intervals, even if plan is active.
+
+This modular approach allows you to:
+- Mix and match behaviors (e.g., HungerBehavior + WanderBehavior + CombatBehavior).
+- Create different agent types from the same building blocks.
+- Easily tweak behavior parameters through the inspector.
+- Share behavior configurations between different agent types.
+
 ### Debugging
 
 There's now a visual debugger!  Located as its own debugger tab in the debugger window, it shows the plan graph and allows you to step through the plan to see which actions are a part of the current plan, their current status, and the traversal throughout the tree.  
@@ -97,7 +146,21 @@ The debugger still lacks some useful features, like listing preconditions or the
 
 ### Demos
 
-Demos with sample actions and objects are located in `examples/`.  You can download the whole project to play around with the demos.  Currently, there is a simple setup consisting of food objects and fruit trees.  The agents' main goal is to satisfy hunger.  Eating fruit will grant hunger, and shaking fruit trees will spawn fruit.  There is a delay interval before trees can be shaken again.  When the agent isn't hungry or there isn't food around, a wandering goal takes priority and the agent explores by moving in a random direction.  `examples/2D/single_agent_demo.tscn` shows a single agent and `examples/2D/multi_agent_demo.tscn` has two agents competing for the available food.  As an exercise, consider adding new goals and actions to this starting point!
+Demos with sample actions and objects are located in `examples/`.  You can download the whole project to play around with the demos.  The examples now demonstrate the new behavior system:
+
+**Behavior System Examples**
+- `examples/hunger/`: Complete hunger system with goals, actions, and property updaters.
+- `examples/wander/`: Wandering behavior with configurable distance parameters.
+- `examples/fruit_tree/`: Object interaction example with shakeable fruit trees.
+
+**Demo Scenes**
+- `examples/2D/single_agent_demo.tscn`: Shows a single agent using the behavior system.
+- `examples/2D/multi_agent_demo.tscn`: Multiple agents competing for resources using different configurations.
+- `examples/2D/multithread_single_agent.tscn`: Demonstrates multithreaded planning.
+- `examples/2D/singlethreading_stress_test.tscn`: Performance testing with many single-threaded agents.
+- `examples/2D/multithreading_stress_test.tscn`: Performance testing with many multithreaded agents.
+
+The hunger system demonstrates how agents balance multiple goals - when hungry, they prioritize finding food, but when satisfied, they wander to explore.  The fruit tree example shows object interactions where agents can shake trees to spawn fruit, then eat the fruit to satisfy hunger.  As an exercise, consider creating new behavior configurations (like a combat behavior) and combining them with existing ones!
 
 ![GIF of the multi_agent_demo.tscn scene running](https://raw.githubusercontent.com/WahahaYes/GdPlanningAI/refs/heads/main/media/2d_demo.gif)
 

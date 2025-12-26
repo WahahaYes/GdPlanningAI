@@ -204,8 +204,8 @@ func _serialize_plan_node(node: Dictionary) -> Dictionary:
 		serialized["action"] = action.get_title()
 		serialized["action_description"] = action.get_description()
 	else:
-		serialized["action"] = "Root"
-		serialized["action_description"] = ""
+		serialized["action"] = "Planning Failed"
+		serialized["action_description"] = "No valid plan could be found"
 
 	var desired_state: Array = node.get("desired_state", [])
 	if desired_state.size() > 0:

@@ -30,7 +30,10 @@ func _ready() -> void:
 
 
 ## Registers a new agent in the debugger
-func register_agent(agent_id: int, agent_name: String) -> void:
+func register_agent(
+		agent_id: int,
+		agent_name: String,
+) -> void:
 	agents[agent_id] = agent_name
 	var item_index: int = agent_list.add_item(agent_name)
 	agent_list.set_item_metadata(item_index, agent_id)
@@ -57,7 +60,10 @@ func unregister_agent(agent_id: int) -> void:
 
 
 ## Updates agent information in the debugger.
-func update_agent_info(agent_id: int, agent_info: Dictionary) -> void:
+func update_agent_info(
+		agent_id: int,
+		agent_info: Dictionary,
+) -> void:
 	agents_info[agent_id] = agent_info
 	if current_agent_id == agent_id:
 		_update_agent_view()
