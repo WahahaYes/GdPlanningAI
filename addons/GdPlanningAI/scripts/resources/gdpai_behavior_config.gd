@@ -9,7 +9,7 @@ var goals: Array[Goal] = []
 var self_actions: Array[Action] = []
 ## Property updaters that modify blackboard properties over time.
 var property_updaters: Array[PropertyUpdater] = []
-## Whether or not this Resource has initialized its own 
+## Whether or not this Resource has initialized its own
 ## goals, self_actions, and property_updaters.
 var _is_initialized: bool = false
 
@@ -31,12 +31,15 @@ func apply_to_agent(agent: GdPAIAgent) -> void:
 
 
 ## Update all property updaters for this behavior.
-func update_properties(agent: GdPAIAgent, delta: float) -> void:
+func update_properties(
+		agent: GdPAIAgent,
+		delta: float,
+) -> void:
 	for updater in property_updaters:
 		updater.update_properties(agent, delta)
 
 
 ## Called after @export values are applied.
 ## Override this method to set up goals, actions, and property updaters.
-func _self_init():
+func _self_init() -> void:
 	_is_initialized = true

@@ -43,7 +43,10 @@ func has_property(prop: String) -> bool:
 
 
 ## Return the value of a requested property, with an optional default value.
-func get_property(prop: String, default_value: Variant = null) -> Variant:
+func get_property(
+		prop: String,
+		default_value: Variant = null,
+) -> Variant:
 	if prop in _blackboard:
 		return _blackboard[prop]
 	return default_value
@@ -75,7 +78,10 @@ func get_object_by_uid(uid: String) -> GdPAIObjectData:
 
 
 ## Set the value of a specified property.
-func set_property(prop: String, value: Variant) -> void:
+func set_property(
+		prop: String,
+		value: Variant,
+) -> void:
 	_blackboard[prop] = value
 
 

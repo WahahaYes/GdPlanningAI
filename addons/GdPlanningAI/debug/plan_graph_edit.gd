@@ -55,7 +55,11 @@ func _update_graph() -> void:
 
 
 ## Organizes nodes by their depth in the plan tree.
-func _collect_nodes_by_depth(node: Dictionary, depth: int, levels: Dictionary) -> void:
+func _collect_nodes_by_depth(
+		node: Dictionary,
+		depth: int,
+		levels: Dictionary,
+) -> void:
 	if not levels.has(depth):
 		levels[depth] = []
 	levels[depth].append(node)
@@ -65,7 +69,10 @@ func _collect_nodes_by_depth(node: Dictionary, depth: int, levels: Dictionary) -
 
 
 ## Calculates and assigns positions to all nodes for graph layout.
-func _assign_positions(levels: Dictionary, positions: Dictionary) -> void:
+func _assign_positions(
+		levels: Dictionary,
+		positions: Dictionary,
+) -> void:
 	# Root node at 0,0
 	if levels.has(0) and levels[0].size() > 0:
 		positions[levels[0][0].get("id")] = Vector2.ZERO
@@ -85,7 +92,10 @@ func _assign_positions(levels: Dictionary, positions: Dictionary) -> void:
 
 
 ## Creates and positions graph nodes based on the calculated layout.
-func _add_nodes(node: Dictionary, positions: Dictionary) -> void:
+func _add_nodes(
+		node: Dictionary,
+		positions: Dictionary,
+) -> void:
 	var graph_node: GdPAIPlanGraphNode = GdPAIPlanGraphNode.new()
 	graph_node.name = str(node.get("id", ""))
 	add_child(graph_node)

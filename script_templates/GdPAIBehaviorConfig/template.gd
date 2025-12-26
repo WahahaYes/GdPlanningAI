@@ -7,7 +7,7 @@ extends GdPAIBehaviorConfig
 
 
 # Override _self_init to set up goals and actions after @export values are applied.
-func _self_init():
+func _self_init() -> void:
 	super()
 	# Configure goals, self_actions, and property_updaters here.
 	# You can pass @export properties to your custom classes.

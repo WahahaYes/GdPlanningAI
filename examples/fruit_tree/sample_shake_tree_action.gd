@@ -17,7 +17,7 @@ func _init(
 		p_object_location: GdPAILocationData,
 		p_interactable_attribs: GdPAIInteractable,
 		p_fruit_tree: SampleFruitTreeObject,
-):
+) -> void:
 	# If extending _init(), make sure to call super() so a uid is created and references are
 	# assigned.
 	super(p_object_location, p_interactable_attribs)
@@ -28,7 +28,7 @@ func _init(
 	# than trying to simulate the creation of new objects.
 
 	# Create a temporary instance for the tree's fruit to determine hunger restored.
-	var fruit = fruit_tree.fruit_prefab.instantiate()
+	var fruit: Node = fruit_tree.fruit_prefab.instantiate()
 	fruit.queue_free()
 	var food_item: SampleFoodObject = GdPAIUTILS.get_child_of_type(fruit, SampleFoodObject)
 	_fruit_hunger_value = food_item.hunger_value * fruit_tree.drop_min_amount
@@ -42,7 +42,10 @@ func get_validity_checks() -> Array[Precondition]:
 	checks.append(Precondition.agent_property_less_than("hunger", 100))
 
 	var on_cooldown_check: Precondition = Precondition.new()
-	on_cooldown_check.eval_func = func(_blackboard: GdPAIBlackboard, _world_state: GdPAIBlackboard):
+	on_cooldown_check.eval_func = func(
+			_blackboard: GdPAIBlackboard,
+			_world_state: GdPAIBlackboard,
+	) -> bool:
 		# Tree shouldn't have recently been shaken.
 		return not fruit_tree.is_on_cooldown
 	checks.append(on_cooldown_check)
@@ -51,11 +54,15 @@ func get_validity_checks() -> Array[Precondition]:
 
 
 # Override
-func get_action_cost(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard) -> float:
+func get_action_cost(
+		agent_blackboard: GdPAIBlackboard,
+		world_state: GdPAIBlackboard,
+) -> float:
 	var cost: float = super(agent_blackboard, world_state)
 	if cost == INF:
 		return INF
-	# This action needs a high cost to discourage shaking the tree when there are alternatives.
+	# This action needs a high cost to discourage shaking the tree
+	# when there are alternatives.
 	return 100 + cost
 
 
@@ -92,7 +99,10 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 
 
 # Override
-func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
+func perform_action(
+		agent: GdPAIAgent,
+		delta: float,
+) -> Action.Status:
 	var parent_status: Action.Status = super(agent, delta)
 	if parent_status == Action.Status.FAILURE:
 		return Action.Status.FAILURE
