@@ -16,19 +16,23 @@ func get_desired_state(agent: GdPAIAgent) -> Array[Precondition]:
 		"GdPAILocationData",
 	)
 	var agent_position = agent_location_data.position
-
-	var move_condition: Precondition = Precondition.new()
-	move_condition.eval_func = func(blackboard: GdPAIBlackboard, _world_state: GdPAIBlackboard):
+	
+	var move_condition: Precondition = Precondition.new(
+		func(
+			blackboard: GdPAIBlackboard,
+			_world_state: GdPAIBlackboard
+		):
 		var sim_location_data: GdPAILocationData = blackboard.get_first_object_in_group(
 			"GdPAILocationData",
 		)
 		var sim_position = sim_location_data.position
-
+		
 		# Because this example works for 2D or 3D, just specify that the moved distance should be
 		# meaningful.
 		var req_distance: float = 16 if sim_location_data.position is Vector2 else 1
 		return (sim_position - agent_position).length() > req_distance
-
+	)
+	
 	return [move_condition]
 
 
