@@ -52,7 +52,7 @@ func _init(_eval_func: Callable) -> void:
 	# WARNING currently can't achieve type-safety on the passed _eval_func
 	# If such a feature gets added, need to assert a signature of:
 	# func(a: GdPAIBlackboard, b: GdPAIBlackboard) -> bool
-	# See issue github.com/godotengine/godot-proposals/issues/8137
+	# See issue https://github.com/godotengine/godot-proposals/issues/10807
 	
 	eval_func = _eval_func
 
