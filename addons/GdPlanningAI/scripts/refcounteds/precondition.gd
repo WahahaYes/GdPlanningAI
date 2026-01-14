@@ -46,15 +46,16 @@ var eval_func: Callable
 
 ## Instanciating a Precondition with a custom check. Must match function signature:
 ## [param func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard)->bool]
-func _init(_eval_func: Callable) -> void:
-	assert(_eval_func.is_valid(), "Evaluation function is not valid")
+func _init(p_eval_func: Callable = Callable()) -> void:
+	if not p_eval_func.is_valid():
+		push_error("Evaluation function is not valid")
 	
 	# WARNING currently can't achieve type-safety on the passed _eval_func
 	# If such a feature gets added, need to assert a signature of:
 	# func(a: GdPAIBlackboard, b: GdPAIBlackboard) -> bool
 	# See issue https://github.com/godotengine/godot-proposals/issues/10807
 	
-	eval_func = _eval_func
+	eval_func = p_eval_func
 
 
 ## Generic function to create property comparison preconditions, eliminating code duplication.
