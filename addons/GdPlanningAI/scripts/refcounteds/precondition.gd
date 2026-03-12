@@ -44,6 +44,18 @@ var is_satisfied: bool = false
 var eval_func: Callable
 
 
+## Instanciating a Precondition with a custom check. Must match function signature:
+## [param func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard)->bool]
+func _init(p_eval_func: Callable = Callable()) -> void:
+	
+	# WARNING currently can't achieve type-safety on the passed _eval_func
+	# If such a feature gets added, need to assert a signature of:
+	# func(a: GdPAIBlackboard, b: GdPAIBlackboard) -> bool
+	# See issue https://github.com/godotengine/godot-proposals/issues/10807
+	
+	eval_func = p_eval_func
+
+
 ## Generic function to create property comparison preconditions, eliminating code duplication.
 static func _create_property_precondition(
 		target: Target,
@@ -51,8 +63,11 @@ static func _create_property_precondition(
 		operation: Operation,
 		value: Variant = null,
 ) -> Precondition:
-	var precondition: Precondition = Precondition.new()
-	precondition.eval_func = func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
+	return Precondition.new(
+		func(
+			blackboard: GdPAIBlackboard, 
+			world_state: GdPAIBlackboard
+		):
 		var source: GdPAIBlackboard
 		match target:
 			Target.AGENT:
@@ -62,7 +77,7 @@ static func _create_property_precondition(
 			_:
 				push_error("Unknown target: %s" % target)
 				return null
-
+		
 		match operation:
 			Operation.HAS_PROPERTY:
 				return prop in source.get_dict()
@@ -81,7 +96,7 @@ static func _create_property_precondition(
 			_:
 				push_error("Unknown operation: %s" % operation)
 				return null
-	return precondition
+	)
 
 
 ## Instantiate a precondition that checks whether a property in the agent blackboard exists.
@@ -205,28 +220,37 @@ static func world_state_property_equal_to(
 
 ## Check if any of the agent's object data matches a requested group.
 static func agent_has_object_data_of_group(group: String) -> Precondition:
-	var precondition: Precondition = Precondition.new()
-	precondition.eval_func = func(blackboard: GdPAIBlackboard, _world_state: GdPAIBlackboard):
+	return Precondition.new(
+		func(
+			blackboard: GdPAIBlackboard,
+			_world_state: GdPAIBlackboard
+		):
 		var objs: Array[GdPAIObjectData] = blackboard.get_objects_in_group(group)
 		return objs.size() > 0
-	return precondition
+	)
 
 
 ## Check if any of the world state's object data matches a requested group.
 static func world_state_has_object_data_of_group(group: String) -> Precondition:
-	var precondition: Precondition = Precondition.new()
-	precondition.eval_func = func(_blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
+	return Precondition.new(
+		func(
+			_blackboard: GdPAIBlackboard,
+			world_state: GdPAIBlackboard
+		):
 		var objs: Array[GdPAIObjectData] = world_state.get_objects_in_group(group)
 		return objs.size() > 0
-	return precondition
+	)
 
 
 ## Check if a given object is valid.
 static func check_is_object_valid(object: Variant) -> Precondition:
-	var precondition: Precondition = Precondition.new()
-	precondition.eval_func = func(_blackboard: GdPAIBlackboard, _world_state: GdPAIBlackboard):
+	return Precondition.new(
+		func(
+			_blackboard: GdPAIBlackboard,
+			_world_state: GdPAIBlackboard
+		):
 		return is_instance_valid(object)
-	return precondition
+	)
 
 
 ## Evaluates whether this precondition is satisfied by the given blackboard and world state.
@@ -242,7 +266,6 @@ func evaluate(
 
 ## Duplicate this object by creating a new instance and copying over all underlying data.
 func copy_for_simulation() -> Precondition:
-	var duplicate: Precondition = Precondition.new()
+	var duplicate: Precondition = Precondition.new(eval_func)
 	duplicate.is_satisfied = is_satisfied
-	duplicate.eval_func = eval_func
 	return duplicate
