@@ -39,16 +39,16 @@ func get_validity_checks() -> Array[Precondition]:
 	checks.append(Precondition.agent_has_property("hunger"))
 	checks.append(Precondition.check_is_object_valid(fruit_tree))
 	checks.append(Precondition.agent_property_less_than("hunger", 100))
-
-	var on_cooldown_check: Precondition = Precondition.new()
-	on_cooldown_check.eval_func = func(
+	
+	checks.append(Precondition.new(
+		func(
 			_blackboard: GdPAIBlackboard,
 			_world_state: GdPAIBlackboard,
-	) -> bool:
+		) -> bool:
 		# Tree shouldn't have recently been shaken.
 		return not fruit_tree.is_on_cooldown
-	checks.append(on_cooldown_check)
-
+	))
+	
 	return checks
 
 
