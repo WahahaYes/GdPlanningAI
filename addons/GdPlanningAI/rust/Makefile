@@ -129,7 +129,6 @@ help:
 	@echo ""
 	@echo "Development Commands:"
 	@echo "  test                 Run unit tests"
-	@echo "  test-all             Run all tests"
 	@echo "  format               Format code"
 	@echo "  lint                 Run linter"
 	@echo "  lint-fix             Run linter with autofix"

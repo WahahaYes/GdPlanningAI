@@ -4,17 +4,27 @@ extends SpatialAction
 
 
 # Override
+func get_title() -> String:
+	return ""
+
+
+# Override
+func get_description() -> String:
+	return ""
+
+
+# Override
 func _init(
 		p_object_location: GdPAILocationData,
 		p_interactable_attribs: GdPAIInteractable,
 ) -> void:
 	# If extending _init(), make sure to call super() so references are assigned.
-	super(p_object_location, p_interactable_attribs)
+	super (p_object_location, p_interactable_attribs)
 
 
 # Override
 func get_validity_checks() -> Array[Precondition]:
-	var checks: Array[Precondition] = super()
+	var checks: Array[Precondition] = super ()
 	# Add any additional checks here.
 	return checks
 
@@ -24,7 +34,7 @@ func get_action_cost(
 		agent_blackboard: GdPAIBlackboard,
 		world_state: GdPAIBlackboard,
 ) -> float:
-	var cost: float = super(agent_blackboard, world_state)
+	var cost: float = super (agent_blackboard, world_state)
 	if cost == INF:
 		return INF
 	# Add any additional cost computations.
@@ -41,12 +51,12 @@ func simulate_effect(
 		agent_blackboard: GdPAIBlackboard,
 		world_state: GdPAIBlackboard,
 ) -> void:
-	super(agent_blackboard, world_state)
+	super (agent_blackboard, world_state)
 
 
 # Override
 func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
-	if super(agent) == Action.Status.FAILURE:
+	if super (agent) == Action.Status.FAILURE:
 		return Action.Status.FAILURE
 	# Add any additional preactions here.
 	return Action.Status.SUCCESS
@@ -57,10 +67,10 @@ func perform_action(
 		agent: GdPAIAgent,
 		delta: float,
 ) -> Action.Status:
-	var parent_status: Action.Status = super(agent, delta)
+	var parent_status: Action.Status = super (agent, delta)
 	if parent_status == Action.Status.FAILURE:
 		return Action.Status.FAILURE
-	if not agent.blackboard.get_property(uid_property("target_reached")):
+	if not get_state(agent, "target_reached"):
 		# Can add any actions that occur while navigating here.
 		return Action.Status.RUNNING
 	# Add the main action that occurs after the agent navigates to the object here.
@@ -69,6 +79,6 @@ func perform_action(
 
 # Override
 func post_perform_action(agent: GdPAIAgent) -> Action.Status:
-	super(agent)
+	super (agent)
 	# Add any additional postactions here.
 	return Action.Status.SUCCESS

@@ -4,8 +4,7 @@ extends RefCounted
 ## instantaneously.  After planning, actions are carried out by the agent in real time.
 
 ## Return states for actions during true simulation.
-enum Status { FAILURE, RUNNING, SUCCESS }
-
+enum Status {FAILURE, RUNNING, SUCCESS}
 
 
 ## List of static preconditions needed for the action to be considered.  This is
@@ -95,18 +94,23 @@ func post_perform_action(_agent: GdPAIAgent) -> Status:
 	return Status.SUCCESS
 
 
+## Sets a state variable for the action.  The key is internally prefixed with the action's
+## instance id to avoid collisions.
 func set_state(agent: GdPAIAgent, key: String, value: Variant) -> void:
 	agent.blackboard.set_property(str(get_instance_id()) + "_" + key, value)
 
 
+## Gets a state variable for the action.
 func get_state(agent: GdPAIAgent, key: String) -> Variant:
 	return agent.blackboard.get_property(str(get_instance_id()) + "_" + key)
 
 
+## Erases a state variable for the action.
 func erase_state(agent: GdPAIAgent, key: String) -> void:
 	agent.blackboard.erase_property(str(get_instance_id()) + "_" + key)
 
 
+## Checks if a state variable exists for the action.
 func has_state(agent: GdPAIAgent, key: String) -> bool:
 	return agent.blackboard.has_property(str(get_instance_id()) + "_" + key)
 
