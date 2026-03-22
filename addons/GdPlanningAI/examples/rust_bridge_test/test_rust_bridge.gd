@@ -34,12 +34,18 @@ func _run_integration_test() -> void:
 	var bridge: GdPAIRustBridge = GdPAIRustBridge.new()
 	var goals_array: Array[Goal] = [goal]
 	print("[Test] Created bridge, passing %d goals" % goals_array.size())
-	
+
 	print("[Test] Agent blackboard has properties: ", agent.blackboard.get_dict())
 	print("[Test] World state has properties: ", agent.world_node.world_state.get_dict())
-	
+
 	print("[Test] Calling bridge.build_plan...")
-	var result: Dictionary = bridge.build_plan(agent, actions, goals_array)
+	var result: Dictionary = bridge.build_plan(
+		agent.blackboard,
+		agent.world_node.get_world_state(),
+		actions,
+		goals_array,
+		agent,
+	)
 	print("[Test] bridge.build_plan returned: ", result)
 	
 	# Verify results
@@ -98,9 +104,9 @@ func _setup_food_object() -> void:
 	# Create location data for the food (required by SampleFoodAction)
 	var location_data: GdPAILocationData = GdPAILocationData.new()
 	location_data.name = "FoodLocation"
-	location_data.location_node_2d = self  # Use test scene root as location
+	location_data.location_node_2d = self # Use test scene root as location
 	add_child(location_data)
-	
+
 	# Create interactable attributes
 	var interactable: GdPAIInteractable = GdPAIInteractable.new()
 	interactable.name = "FoodInteractable"

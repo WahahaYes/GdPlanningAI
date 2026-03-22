@@ -8,6 +8,11 @@ extends Action
 ## NOTE: The agent still needs to move itself; this action just updates the navigation target of
 ## the agent's NavigationAgent.
 
+## Arrival distance threshold for 2D navigation (pixels).
+const ARRIVAL_THRESHOLD_2D: float = 8.0
+## Arrival distance threshold for 3D navigation (meters).
+const ARRIVAL_THRESHOLD_3D: float = 0.1
+
 ## Reference to the GdPAI location data that this action is tied to.  This is set when the action
 ## is created.
 var object_location: GdPAILocationData
@@ -53,49 +58,38 @@ func get_validity_checks() -> Array[Precondition]:
 	checks.append(Precondition.agent_has_object_data_of_group("GdPAILocationData"))
 	checks.append(Precondition.check_is_object_valid(object_location))
 	checks.append(Precondition.check_is_object_valid(interactable_attribs))
-	
+
 	# Can agent get to the target check
 	checks.append(Precondition.custom(
 		func(
 			blackboard: GdPAIBlackboard,
 			_world_state: GdPAIBlackboard
 		) -> bool:
-		# The target should be reachable by the agent.
 		var entity: Node = blackboard.get_property("entity")
 		if entity == null:
 			return false
-		
-		# nav_agent could be NavigationAgent2D or NavigationAgent3D depending on the setup.
-		var nav_agent: Node
-		var nav_agent_2d: Node = GdPAIUTILS.get_child_of_type(entity, NavigationAgent2D)
-		var nav_agent_3d: Node = GdPAIUTILS.get_child_of_type(entity, NavigationAgent3D)
-		# These shouldn't both be assigned.
-		assert(nav_agent_2d == null or nav_agent_3d == null)
-		if nav_agent_2d != null:
-			nav_agent = nav_agent_2d
-		elif nav_agent_3d != null:
-			nav_agent = nav_agent_3d
-		
+
+		var nav_agent: Node = _find_nav_agent(entity)
 		if nav_agent == null:
-			# It is possible for objects and agents to be in 2D/3D space separately (I guess?).
-			# But in those cases this particular action is not valid.
 			return false
-		
+
 		# Optionally setting the interaction distance <= 0 bypasses the can_get_to constraint.
 		if interactable_attribs.max_interaction_distance <= 0:
 			return true
-		
+
 		# Override the entity's nav agent to test if it is possible to get to this object.
 		var old_target_position = nav_agent.target_position
 		nav_agent.target_position = object_location.position
 		nav_agent.get_next_path_position() # Compute the path.
-		var final_dist: float = (object_location.position - nav_agent.get_final_position()).length()
+		var final_dist: float = (
+			(object_location.position - nav_agent.get_final_position()).length()
+		)
 		# Restore the nav agent's earlier state.
 		nav_agent.target_position = old_target_position
 		nav_agent.get_next_path_position()
 		return final_dist < interactable_attribs.max_interaction_distance
 	))
-	
+
 	return checks
 
 
@@ -126,20 +120,11 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	)
 	set_state(agent, "agent_location", agent_location_data)
 
-	# nav_agent could be NavigationAgent2D or NavigationAgent3D depending on the setup.
-	var nav_agent: Node
-	var nav_agent_2d: Node = GdPAIUTILS.get_child_of_type(entity, NavigationAgent2D)
-	var nav_agent_3d: Node = GdPAIUTILS.get_child_of_type(entity, NavigationAgent3D)
-	var dist_check: float
-	# These shouldn't both be assigned.
-	assert(nav_agent_2d == null or nav_agent_3d == null)
-	if nav_agent_2d != null:
-		nav_agent = nav_agent_2d
-		dist_check = 8 # 8 pixels for 2D
-	elif nav_agent_3d != null:
-		nav_agent = nav_agent_3d
-		dist_check = 0.1 # 0.1 meters for 3D
+	var nav_agent: Node = _find_nav_agent(entity)
 	assert(nav_agent != null)
+	var dist_check: float = (
+		ARRIVAL_THRESHOLD_2D if nav_agent is NavigationAgent2D else ARRIVAL_THRESHOLD_3D
+	)
 	set_state(agent, "nav_agent", nav_agent)
 	set_state(agent, "dist_check", dist_check)
 
@@ -251,3 +236,17 @@ func get_title() -> String:
 # Override
 func get_description() -> String:
 	return "Move to a target object."
+
+
+## Returns the [NavigationAgent2D] or [NavigationAgent3D] child of [param entity],
+## or [code]null[/code] if neither is present.
+static func _find_nav_agent(entity: Node) -> Node:
+	var nav_2d: Node = GdPAIUTILS.get_child_of_type(entity, NavigationAgent2D)
+	var nav_3d: Node = GdPAIUTILS.get_child_of_type(entity, NavigationAgent3D)
+	assert(
+		nav_2d == null or nav_3d == null,
+		"Entity should not have both a NavigationAgent2D and a NavigationAgent3D."
+	)
+	if nav_2d != null:
+		return nav_2d
+	return nav_3d

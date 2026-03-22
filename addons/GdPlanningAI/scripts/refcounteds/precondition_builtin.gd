@@ -1,13 +1,14 @@
 class_name PreconditionBuiltin
 extends Precondition
 
-enum Target { AGENT, WORLD_STATE }
-enum Op { HAS_PROPERTY, EQUAL, NOT_EQUAL, GT, GTE, LT, LTE }
+enum Target {AGENT, WORLD_STATE}
+enum Op {HAS_PROPERTY, EQUAL, NOT_EQUAL, GT, GTE, LT, LTE}
 
 var target: Target
 var operation: Op
 var property: String
 var value: Variant
+
 
 func _init(t: Target, op: Op, prop: String, val: Variant = null) -> void:
 	target = t
@@ -15,22 +16,42 @@ func _init(t: Target, op: Op, prop: String, val: Variant = null) -> void:
 	property = prop
 	value = val
 
-func _do_evaluate(agent: GdPAIBlackboard, world: GdPAIBlackboard) -> bool:
-	var source = agent if target == Target.AGENT else world
-	match operation:
-		Op.HAS_PROPERTY:
-			return property in source.get_dict()
-		Op.EQUAL:
-			return source.get_property(property) == value
-		Op.NOT_EQUAL:
-			return source.get_property(property) != value
-		Op.GT:
-			return source.get_property(property) > value
-		Op.GTE:
-			return source.get_property(property) >= value
-		Op.LT:
-			return source.get_property(property) < value
-		Op.LTE:
-			return source.get_property(property) <= value
-	return false
 
+## Serializes this precondition into the dictionary format expected by the Rust bridge.
+func to_bridge_dict() -> Dictionary:
+	return {
+		"target": _target_to_string(target),
+		"operation": _operation_to_string(operation),
+		"property_name": property,
+		"value": value,
+	}
+
+
+static func _target_to_string(t: Target) -> String:
+	match t:
+		Target.AGENT:
+			return "agent"
+		Target.WORLD_STATE:
+			return "world_state"
+		_:
+			return "agent"
+
+
+static func _operation_to_string(op: Op) -> String:
+	match op:
+		Op.HAS_PROPERTY:
+			return "has_property"
+		Op.EQUAL:
+			return "equal"
+		Op.NOT_EQUAL:
+			return "not_equal"
+		Op.GT:
+			return "greater_than"
+		Op.GTE:
+			return "greater_than_or_equal"
+		Op.LT:
+			return "less_than"
+		Op.LTE:
+			return "less_than_or_equal"
+		_:
+			return "has_property"

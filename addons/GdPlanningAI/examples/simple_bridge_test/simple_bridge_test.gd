@@ -52,7 +52,13 @@ func _run_test() -> void:
 	var bridge := GdPAIRustBridge.new()
 	var actions: Array[Action] = [action]
 	var goals: Array[Goal] = [goal]
-	var result: Dictionary = bridge.build_plan(agent, actions, goals)
+	var result: Dictionary = bridge.build_plan(
+		agent.blackboard,
+		world_node.world_state,
+		actions,
+		goals,
+		agent,
+	)
 
 	print("[SimpleTest] Result: ", result)
 	_verify_result(result, action)

@@ -14,26 +14,30 @@ extends RefCounted
 ## The Rust planning engine instance.
 var planning_engine: RustPlanningEngine
 
-# Override.
+
 func _init() -> void:
 	planning_engine = RustPlanningEngine.new()
 
 
 ## Runs the planner and returns the raw result dictionary from Rust.
 ##
-## [param agent] supplies the agent blackboard and world state reference.[br]
+## [param agent_blackboard] is the agent's own [GdPAIBlackboard].[br]
+## [param world_state] is the current world [GdPAIBlackboard].[br]
 ## [param actions] is the full set of candidate [Action] objects.[br]
 ## [param goals] is the full set of candidate [Goal] objects.[br]
+## [param agent] is required for goal reward and desired-state evaluation.[br]
 ## Returns a [Dictionary] with keys [code]success[/code], [code]action_chain[/code],
 ## [code]total_cost[/code], and [code]goal_index[/code].
 func build_plan(
-	agent: GdPAIAgent,
+	agent_blackboard: GdPAIBlackboard,
+	world_state: GdPAIBlackboard,
 	actions: Array[Action],
-	goals: Array[Goal]
+	goals: Array[Goal],
+	agent: GdPAIAgent,
 ) -> Dictionary:
 	return planning_engine.build_plan(
-		agent.blackboard,
-		agent.world_node.get_world_state(),
+		agent_blackboard,
+		world_state,
 		_extract_actions(actions),
 		_extract_goals(goals, agent),
 	)
@@ -67,61 +71,13 @@ func _extract_actions(actions: Array[Action]) -> Array[Dictionary]:
 
 
 ## Serialises each [Precondition] in [param preconditions] into the dictionary
-## format expected by the Rust layer.
-##
-## [PreconditionBuiltin] entries are encoded as property + operation strings.
-## [PreconditionCustom] entries embed a [code]eval_callable[/code] for direct
-## invocation from Rust.
+## format expected by the Rust layer by calling [method Precondition._to_bridge_dict]
+## on each precondition.
 func _extract_preconditions(preconditions: Array[Precondition]) -> Array[Dictionary]:
 	var extracted: Array[Dictionary] = []
 	for precond in preconditions:
-		if precond is PreconditionBuiltin:
-			extracted.append({
-				"target": _target_to_string(precond.target),
-				"operation": _operation_to_string(precond.operation),
-				"property_name": precond.property,
-				"value": precond.value,
-			})
-		else:
-			extracted.append({
-				"operation": "custom_callback",
-				"eval_callable": Callable(precond, "evaluate"),
-			})
+		extracted.append(precond.to_bridge_dict())
 	return extracted
-
-
-## Converts a [PreconditionBuiltin.Target] enum value to the lowercase string
-## token recognised by the Rust [code]parse_operation[/code] parser.
-func _target_to_string(target: PreconditionBuiltin.Target) -> String:
-	match target:
-		PreconditionBuiltin.Target.AGENT:
-			return "agent"
-		PreconditionBuiltin.Target.WORLD_STATE:
-			return "world_state"
-		_:
-			return "agent"
-
-
-## Converts a [PreconditionBuiltin.Op] enum value to the lowercase string
-## token recognised by the Rust [code]parse_operation[/code] parser.
-func _operation_to_string(operation: PreconditionBuiltin.Op) -> String:
-	match operation:
-		PreconditionBuiltin.Op.HAS_PROPERTY:
-			return "has_property"
-		PreconditionBuiltin.Op.EQUAL:
-			return "equal"
-		PreconditionBuiltin.Op.NOT_EQUAL:
-			return "not_equal"
-		PreconditionBuiltin.Op.GT:
-			return "greater_than"
-		PreconditionBuiltin.Op.GTE:
-			return "greater_than_or_equal"
-		PreconditionBuiltin.Op.LT:
-			return "less_than"
-		PreconditionBuiltin.Op.LTE:
-			return "less_than_or_equal"
-		_:
-			return "has_property"
 
 
 ## Serialises each [Goal] in [param goals] into the dictionary format expected

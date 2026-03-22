@@ -14,6 +14,8 @@ enum PlanningStrategy {
 @export var planning_strategy: PlanningStrategy = PlanningStrategy.CONTINUOUS
 ## Planning interval in seconds (only used for ON_INTERVAL strategy).
 @export var planning_interval: float = 0.5
+## Maximum planning search depth. Branches deeper than this are pruned.
+@export var max_recursion: int = 100
 ## Blackboard plan for the agent.
 @export var blackboard_plan: GdPAIBlackboardPlan = GdPAIBlackboardPlan.new()
 ## Behavior configurations that provide goals, actions, and property updaters.

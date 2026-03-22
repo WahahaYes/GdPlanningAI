@@ -16,6 +16,8 @@ var world_node: GdPAIWorldNode = null
 var goals: Array[Goal]
 ## List of this agent's available actions.
 var self_actions: Array[Action]
+## Property updaters registered by behavior configs. Updated every frame.
+var property_updaters: Array[PropertyUpdater]
 ## The currently selected goal.
 var _current_goal: Goal = null
 ## The Rust planning bridge.
@@ -45,35 +47,29 @@ func _ready() -> void:
 	blackboard.set_property("GDPAI_OBJECTS", gdpai_objects)
 	# Apply behavior configurations.
 	for behavior_config in config.behavior_configs:
-		behavior_config.apply_to_agent(self)
+		behavior_config.apply_to_agent(self )
 	# Try to find a world node.
 	world_node = GdPAIUTILS.get_child_of_type(get_tree().root, GdPAIWorldNode)
 	_bridge = GdPAIRustBridge.new()
+	_bridge.planning_engine.set_max_recursion(config.max_recursion)
 
 
 func _process(delta: float) -> void:
-	# Update behavior configurations (property updaters).
-	for behavior_config in config.behavior_configs:
-		behavior_config.update_properties(self, delta)
+	for updater in property_updaters:
+		updater.update_properties(self , delta)
 
 	# Until some goals and actions have been provided, this agent is effectively turned off.
 	if goals.size() == 0:
 		return
 
-	match _planning_strategy:
-		GdPAIAgentConfig.PlanningStrategy.CONTINUOUS:
-			# Check if a new plan is needed.
-			if _current_action_chain.is_empty() or _current_plan_step > _current_action_chain.size():
-				await _query_world_state_and_plan()
-		GdPAIAgentConfig.PlanningStrategy.ON_INTERVAL:
-			# Timer will handle planning only if current plan is finished.
-			pass
-		GdPAIAgentConfig.PlanningStrategy.ON_DEMAND:
-			# Only plan when explicitly requested.
-			pass
-		GdPAIAgentConfig.PlanningStrategy.ON_INTERVAL_FORCED:
-			# Timer will handle planning regardless of current plan status.
-			pass
+	if _planning_strategy == GdPAIAgentConfig.PlanningStrategy.CONTINUOUS:
+		# Check if a new plan is needed.
+		var plan_done: bool = (
+			_current_action_chain.is_empty()
+			or _current_plan_step > _current_action_chain.size()
+		)
+		if plan_done:
+			_start_plan()
 
 	_execute_plan(delta)
 
@@ -125,7 +121,7 @@ func manually_start_plan() -> void:
 	if goals.size() == 0:
 		return
 
-	_query_world_state_and_plan()
+	_start_plan()
 
 
 ## Timer callback for interval planning.
@@ -133,22 +129,31 @@ func _on_planning_timer_timeout() -> void:
 	if goals.size() == 0:
 		return
 	if _planning_strategy == GdPAIAgentConfig.PlanningStrategy.ON_INTERVAL_FORCED:
-		_query_world_state_and_plan()
+		_start_plan()
 	elif _planning_strategy == GdPAIAgentConfig.PlanningStrategy.ON_INTERVAL:
-		if _current_action_chain.is_empty() or _current_plan_step > _current_action_chain.size():
-			_query_world_state_and_plan()
+		var plan_done: bool = (
+			_current_action_chain.is_empty()
+			or _current_plan_step > _current_action_chain.size()
+		)
+		if plan_done:
+			_start_plan()
 	_planning_timer.start()
 
 
-## Query world state and initiate planning.
-func _query_world_state_and_plan() -> void:
-	var worldly_actions: Array[Action] = await _compute_worldly_actions()
-	var valid_self_actions: Array[Action] = await _compute_valid_self_actions()
+## Collects all candidate actions and asks the Rust engine for a plan.
+## Fully synchronous — no await.
+func _start_plan() -> void:
 	var all_actions: Array[Action] = []
-	all_actions.append_array(valid_self_actions)
-	all_actions.append_array(worldly_actions)
+	all_actions.append_array(self_actions)
+	all_actions.append_array(_collect_worldly_actions())
 
-	var result: Dictionary = _bridge.build_plan(self, all_actions, goals)
+	var result: Dictionary = _bridge.build_plan(
+		blackboard,
+		world_node.get_world_state(),
+		all_actions,
+		goals,
+		self ,
+	)
 	_current_plan_step = -1
 	if result.get("success", false):
 		_current_action_chain = _bridge.deserialize_plan_result(result, all_actions)
@@ -166,7 +171,7 @@ func _execute_plan(delta: float) -> void:
 	# Pre actions.
 	if _current_plan_step == -1:
 		for action: Action in action_chain:
-			var action_status: Action.Status = action.pre_perform_action(self)
+			var action_status: Action.Status = action.pre_perform_action(self )
 			if action_status == Action.Status.FAILURE:
 				# Abort the plan.
 				_current_plan_step = action_chain.size()
@@ -177,7 +182,7 @@ func _execute_plan(delta: float) -> void:
 	# Actions.
 	if _current_plan_step < action_chain.size():
 		var current_action: Action = action_chain[_current_plan_step]
-		var action_status: Action.Status = current_action.perform_action(self, delta)
+		var action_status: Action.Status = current_action.perform_action(self , delta)
 		if action_status == Action.Status.FAILURE:
 			# Abort the plan.
 			_current_plan_step = action_chain.size()
@@ -191,49 +196,18 @@ func _execute_plan(delta: float) -> void:
 	# Post actions.
 	if _current_plan_step == action_chain.size(): # We just finished, do post actions.
 		for action: Action in action_chain:
-			action.post_perform_action(self)
+			action.post_perform_action(self )
 		_current_plan_step += 1
 
 
-func _compute_valid_self_actions() -> Array[Action]:
-	var ws_checkpoint: GdPAIBlackboard = world_node.get_world_state()
-	var valid_actions: Array[Action] = []
-	for action in self_actions:
-		var validity_checks: Array[Precondition] = action.get_validity_checks()
-		var is_satisfied: bool = true
-		for check: Precondition in validity_checks:
-			var status: bool = await check.evaluate(blackboard, ws_checkpoint)
-			if not status:
-				is_satisfied = false
-				break
-		if is_satisfied:
-			valid_actions.append(action)
-	return valid_actions
-
-
-## Polls all GdPAI objects to get their relevant actions on request.
-func _compute_worldly_actions() -> Array[Action]:
-	# Refresh the world state.
-	var ws_checkpoint: GdPAIBlackboard = world_node.get_world_state()
-	var gdpai_objects: Array[GdPAIObjectData] = []
-	var raw_objects = ws_checkpoint.get_property("GDPAI_OBJECTS")
-	if raw_objects != null:
-		gdpai_objects.assign(raw_objects)
-		
+## Collects actions provided by world objects. Validity filtering is handled
+## by the Rust engine during planning search.
+func _collect_worldly_actions() -> Array[Action]:
+	var ws: GdPAIBlackboard = world_node.get_world_state()
 	var actions: Array[Action] = []
-	for gdpai_object: GdPAIObjectData in gdpai_objects:
-		var obj_actions: Array[Action] = gdpai_object.get_provided_actions()
-		for obj_act: Action in obj_actions:
-			# Every action has a set of validity checks which must pass.
-			var validity_checks: Array[Precondition] = obj_act.get_validity_checks()
-			var is_satisfied: bool = true
-			for check: Precondition in validity_checks:
-				var status: bool = await check.evaluate(blackboard, ws_checkpoint)
-				if not status:
-					is_satisfied = false
-					break
-			if is_satisfied:
-				actions.append(obj_act)
+	var raw_objects = ws.get_property("GDPAI_OBJECTS")
+	if raw_objects == null:
+		return actions
+	for gdpai_object: GdPAIObjectData in raw_objects:
+		actions.append_array(gdpai_object.get_provided_actions())
 	return actions
-
-

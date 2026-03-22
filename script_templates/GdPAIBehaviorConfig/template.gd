@@ -6,11 +6,13 @@ extends GdPAIBehaviorConfig
 @export var example_parameter: float = 1.0
 
 
-# Override _self_init to set up goals and actions after @export values are applied.
-func _self_init() -> void:
-	super()
-	# Configure goals, self_actions, and property_updaters here.
-	# You can pass @export properties to your custom classes.
+# Override _populate to add goals, actions, and property updaters.
+func _populate(
+		goals: Array[Goal],
+		actions: Array[Action],
+		updaters: Array[PropertyUpdater],
+) -> void:
+	# Append to the provided arrays. You can use the @export properties you defined here.
 	goals.append(Goal.new())
-	self_actions.append(Action.new())
-	property_updaters.append(TemplatePropertyUpdater.new(example_parameter))
+	actions.append(Action.new())
+	updaters.append(PropertyUpdater.new())

@@ -9,7 +9,8 @@ extends RefCounted
 ## preconditions can be defined like so:
 ##[br]
 ##[br]
-## var precondition = Precondition.custom(func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):[br]
+## var precondition = Precondition.custom(
+##         func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):[br]
 ##     if blackboard.get_property(<prop>) and world_state.get_property(<prop>):[br]
 ##         return true[br]
 ##     return false[br]
@@ -19,20 +20,14 @@ extends RefCounted
 ## (The above example would check that a property exists / is true for both the agent and world
 ## states.)
 
-## Evaluates whether this precondition is satisfied by the given blackboard and world state.
-func evaluate(
-		agent: GdPAIBlackboard,
-		world: GdPAIBlackboard,
-) -> bool:
-	return _do_evaluate(agent, world)
+## Returns the dictionary representation of this precondition for the Rust bridge.
+## Implemented by [PreconditionBuiltin] and [PreconditionCustom].
+func to_bridge_dict() -> Dictionary:
+	push_error("Precondition.to_bridge_dict must be overridden")
+	return {}
 
 
-func _do_evaluate(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> bool:
-	push_error("Precondition._do_evaluate must be overridden")
-	return false
-
-
-static func custom(fn: Callable) -> PreconditionCustom:
+static func custom(fn: Callable) -> Precondition:
 	return PreconditionCustom.new(fn)
 
 
@@ -42,13 +37,14 @@ static func _create_property_precondition(
 		prop: String,
 		operation: PreconditionBuiltin.Op,
 		value: Variant = null,
-) -> PreconditionBuiltin:
+) -> Precondition:
 	return PreconditionBuiltin.new(target, operation, prop, value)
 
 
 ## Instantiate a precondition that checks whether a property in the agent blackboard exists.
-static func agent_has_property(prop: String) -> PreconditionBuiltin:
-	return _create_property_precondition(PreconditionBuiltin.Target.AGENT, prop, PreconditionBuiltin.Op.HAS_PROPERTY)
+static func agent_has_property(prop: String) -> Precondition:
+	return _create_property_precondition(
+		PreconditionBuiltin.Target.AGENT, prop, PreconditionBuiltin.Op.HAS_PROPERTY)
 
 
 ## Instantiate a precondition that checks whether a property in the agent blackboard is not
@@ -56,8 +52,9 @@ static func agent_has_property(prop: String) -> PreconditionBuiltin:
 static func agent_property_not_equal_to(
 		prop: String,
 		value: Variant,
-) -> PreconditionBuiltin:
-	return _create_property_precondition(PreconditionBuiltin.Target.AGENT, prop, PreconditionBuiltin.Op.NOT_EQUAL, value)
+) -> Precondition:
+	return _create_property_precondition(
+		PreconditionBuiltin.Target.AGENT, prop, PreconditionBuiltin.Op.NOT_EQUAL, value)
 
 
 ## Instantiate a precondition that checks whether a property in the agent blackboard is greater
@@ -65,8 +62,9 @@ static func agent_property_not_equal_to(
 static func agent_property_greater_than(
 		prop: String,
 		value: Variant,
-) -> PreconditionBuiltin:
-	return _create_property_precondition(PreconditionBuiltin.Target.AGENT, prop, PreconditionBuiltin.Op.GT, value)
+) -> Precondition:
+	return _create_property_precondition(
+		PreconditionBuiltin.Target.AGENT, prop, PreconditionBuiltin.Op.GT, value)
 
 
 ## Instantiate a precondition that checks whether a property in the agent blackboard is greater
@@ -74,8 +72,9 @@ static func agent_property_greater_than(
 static func agent_property_geq_than(
 		prop: String,
 		value: Variant,
-) -> PreconditionBuiltin:
-	return _create_property_precondition(PreconditionBuiltin.Target.AGENT, prop, PreconditionBuiltin.Op.GTE, value)
+) -> Precondition:
+	return _create_property_precondition(
+		PreconditionBuiltin.Target.AGENT, prop, PreconditionBuiltin.Op.GTE, value)
 
 
 ## Instantiate a precondition that checks whether a property in the agent blackboard is less
@@ -83,8 +82,9 @@ static func agent_property_geq_than(
 static func agent_property_less_than(
 		prop: String,
 		value: Variant,
-) -> PreconditionBuiltin:
-	return _create_property_precondition(PreconditionBuiltin.Target.AGENT, prop, PreconditionBuiltin.Op.LT, value)
+) -> Precondition:
+	return _create_property_precondition(
+		PreconditionBuiltin.Target.AGENT, prop, PreconditionBuiltin.Op.LT, value)
 
 
 ## Instantiate a precondition that checks whether a property in the agent blackboard is less
@@ -92,8 +92,9 @@ static func agent_property_less_than(
 static func agent_property_leq_than(
 		prop: String,
 		value: Variant,
-) -> PreconditionBuiltin:
-	return _create_property_precondition(PreconditionBuiltin.Target.AGENT, prop, PreconditionBuiltin.Op.LTE, value)
+) -> Precondition:
+	return _create_property_precondition(
+		PreconditionBuiltin.Target.AGENT, prop, PreconditionBuiltin.Op.LTE, value)
 
 
 ## Instantiate a precondition that checks whether a property in the agent blackboard is equal to
@@ -101,13 +102,15 @@ static func agent_property_leq_than(
 static func agent_property_equal_to(
 		prop: String,
 		value: Variant,
-) -> PreconditionBuiltin:
-	return _create_property_precondition(PreconditionBuiltin.Target.AGENT, prop, PreconditionBuiltin.Op.EQUAL, value)
+) -> Precondition:
+	return _create_property_precondition(
+		PreconditionBuiltin.Target.AGENT, prop, PreconditionBuiltin.Op.EQUAL, value)
 
 
 ## Instantiate a precondition that checks whether a property in the agent blackboard exists.
-static func world_state_has_property(prop: String) -> PreconditionBuiltin:
-	return _create_property_precondition(PreconditionBuiltin.Target.WORLD_STATE, prop, PreconditionBuiltin.Op.HAS_PROPERTY)
+static func world_state_has_property(prop: String) -> Precondition:
+	return _create_property_precondition(
+		PreconditionBuiltin.Target.WORLD_STATE, prop, PreconditionBuiltin.Op.HAS_PROPERTY)
 
 
 ## Instantiate a precondition that checks whether a property in the world state is greater
@@ -115,8 +118,9 @@ static func world_state_has_property(prop: String) -> PreconditionBuiltin:
 static func world_state_property_greater_than(
 		prop: String,
 		value: Variant,
-) -> PreconditionBuiltin:
-	return _create_property_precondition(PreconditionBuiltin.Target.WORLD_STATE, prop, PreconditionBuiltin.Op.GT, value)
+) -> Precondition:
+	return _create_property_precondition(
+		PreconditionBuiltin.Target.WORLD_STATE, prop, PreconditionBuiltin.Op.GT, value)
 
 
 ## Instantiate a precondition that checks whether a property in the world state is greater
@@ -124,13 +128,9 @@ static func world_state_property_greater_than(
 static func world_state_property_geq_than(
 		prop: String,
 		value: Variant,
-) -> PreconditionBuiltin:
+) -> Precondition:
 	return _create_property_precondition(
-		PreconditionBuiltin.Target.WORLD_STATE,
-		prop,
-		PreconditionBuiltin.Op.GTE,
-		value,
-	)
+		PreconditionBuiltin.Target.WORLD_STATE, prop, PreconditionBuiltin.Op.GTE, value)
 
 
 ## Instantiate a precondition that checks whether a property in the world state is less
@@ -138,8 +138,9 @@ static func world_state_property_geq_than(
 static func world_state_property_less_than(
 		prop: String,
 		value: Variant,
-) -> PreconditionBuiltin:
-	return _create_property_precondition(PreconditionBuiltin.Target.WORLD_STATE, prop, PreconditionBuiltin.Op.LT, value)
+) -> Precondition:
+	return _create_property_precondition(
+		PreconditionBuiltin.Target.WORLD_STATE, prop, PreconditionBuiltin.Op.LT, value)
 
 
 ## Instantiate a precondition that checks whether a property in the world state is less
@@ -147,13 +148,9 @@ static func world_state_property_less_than(
 static func world_state_property_leq_than(
 		prop: String,
 		value: Variant,
-) -> PreconditionBuiltin:
+) -> Precondition:
 	return _create_property_precondition(
-		PreconditionBuiltin.Target.WORLD_STATE,
-		prop,
-		PreconditionBuiltin.Op.LTE,
-		value,
-	)
+		PreconditionBuiltin.Target.WORLD_STATE, prop, PreconditionBuiltin.Op.LTE, value)
 
 
 ## Instantiate a precondition that checks whether a property in the world state is equal to
@@ -161,12 +158,13 @@ static func world_state_property_leq_than(
 static func world_state_property_equal_to(
 		prop: String,
 		value: Variant,
-) -> PreconditionBuiltin:
-	return _create_property_precondition(PreconditionBuiltin.Target.WORLD_STATE, prop, PreconditionBuiltin.Op.EQUAL, value)
+) -> Precondition:
+	return _create_property_precondition(
+		PreconditionBuiltin.Target.WORLD_STATE, prop, PreconditionBuiltin.Op.EQUAL, value)
 
 
 ## Check if any of the agent's object data matches a requested group.
-static func agent_has_object_data_of_group(group: String) -> PreconditionCustom:
+static func agent_has_object_data_of_group(group: String) -> Precondition:
 	return PreconditionCustom.new(
 		func(
 			blackboard: GdPAIBlackboard,
@@ -178,7 +176,7 @@ static func agent_has_object_data_of_group(group: String) -> PreconditionCustom:
 
 
 ## Check if any of the world state's object data matches a requested group.
-static func world_state_has_object_data_of_group(group: String) -> PreconditionCustom:
+static func world_state_has_object_data_of_group(group: String) -> Precondition:
 	return PreconditionCustom.new(
 		func(
 			_blackboard: GdPAIBlackboard,
@@ -190,7 +188,7 @@ static func world_state_has_object_data_of_group(group: String) -> PreconditionC
 
 
 ## Check if a given object is valid.
-static func check_is_object_valid(object: Variant) -> PreconditionCustom:
+static func check_is_object_valid(object: Variant) -> Precondition:
 	return PreconditionCustom.new(
 		func(
 			_blackboard: GdPAIBlackboard,

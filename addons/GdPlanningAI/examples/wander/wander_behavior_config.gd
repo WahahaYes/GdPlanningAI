@@ -7,7 +7,10 @@ extends GdPAIBehaviorConfig
 
 
 # Override
-func _self_init() -> void:
-	super()
+func _populate(
+		goals: Array[Goal],
+		actions: Array[Action],
+		_updaters: Array[PropertyUpdater],
+) -> void:
 	goals.append(SampleWanderGoal.new())
-	self_actions.append(SampleWanderAction.new(wander_distance))
+	actions.append(SampleWanderAction.new(wander_distance))
