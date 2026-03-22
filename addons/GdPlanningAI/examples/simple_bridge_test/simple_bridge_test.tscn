@@ -1,6 +1,0 @@
-[gd_scene format=3 uid="uid://bhnkl4272v65y"]
-
-[ext_resource type="Script" uid="uid://bhnkl4272v64i" path="res://addons/GdPlanningAI/examples/simple_bridge_test/simple_bridge_test.gd" id="test_script"]
-
-[node name="SimpleBridgeTest" type="Node" unique_id=1607338183]
-script = ExtResource("test_script")

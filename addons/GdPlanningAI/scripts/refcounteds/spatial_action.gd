@@ -1,5 +1,5 @@
 class_name SpatialAction
-extends Action
+extends NavigatingAction
 ## Spatial actions are related to a physical object and contingent on proximity.  Moving the agent
 ## to the object is bundled into the action.  This class of actions uses Godot's navigation
 ## to test proximity, and relies on the GdPAI agent having a child NavigationAgent(2D/3D).
@@ -7,11 +7,6 @@ extends Action
 ##[br]
 ## NOTE: The agent still needs to move itself; this action just updates the navigation target of
 ## the agent's NavigationAgent.
-
-## Arrival distance threshold for 2D navigation (pixels).
-const ARRIVAL_THRESHOLD_2D: float = 8.0
-## Arrival distance threshold for 3D navigation (meters).
-const ARRIVAL_THRESHOLD_3D: float = 0.1
 
 ## Reference to the GdPAI location data that this action is tied to.  This is set when the action
 ## is created.
@@ -236,17 +231,3 @@ func get_title() -> String:
 # Override
 func get_description() -> String:
 	return "Move to a target object."
-
-
-## Returns the [NavigationAgent2D] or [NavigationAgent3D] child of [param entity],
-## or [code]null[/code] if neither is present.
-static func _find_nav_agent(entity: Node) -> Node:
-	var nav_2d: Node = GdPAIUTILS.get_child_of_type(entity, NavigationAgent2D)
-	var nav_3d: Node = GdPAIUTILS.get_child_of_type(entity, NavigationAgent3D)
-	assert(
-		nav_2d == null or nav_3d == null,
-		"Entity should not have both a NavigationAgent2D and a NavigationAgent3D."
-	)
-	if nav_2d != null:
-		return nav_2d
-	return nav_3d
