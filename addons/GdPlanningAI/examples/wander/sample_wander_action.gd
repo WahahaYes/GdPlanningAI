@@ -45,20 +45,12 @@ func simulate_effect(
 
 
 # Override
-func reverse_simulate_effect(
-		_agent_blackboard: GdPAIBlackboard,
-		_world_state: GdPAIBlackboard,
-) -> void:
-	pass
-
-
-# Override
 func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	# Cache location data.
 	var location_data: GdPAILocationData = agent.blackboard.get_first_object_in_group(
 		"GdPAILocationData",
 	)
-	agent.blackboard.set_property(uid_property("agent_location"), location_data)
+	set_state(agent, "agent_location", location_data)
 
 	var entity: Node = agent.blackboard.get_property("entity")
 	# Parse through 2D and 3D case to determine nav_agent and target_location.
@@ -67,17 +59,17 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	if location_data.location_node_2d != null:
 		nav_agent = GdPAIUTILS.get_child_of_type(entity, NavigationAgent2D)
 		var target_location: Vector2 = location_data.position + random_dir * wander_distance
-		agent.blackboard.set_property(uid_property("target_location"), target_location)
+		set_state(agent, "target_location", target_location)
 	elif location_data.location_node_3d != null:
 		nav_agent = GdPAIUTILS.get_child_of_type(entity, NavigationAgent3D)
 		var random_dir_3d: Vector3 = Vector3(random_dir.x, 0, random_dir.y)
 		var target_location: Vector3 = location_data.position + random_dir_3d * wander_distance
-		agent.blackboard.set_property(uid_property("target_location"), target_location)
+		set_state(agent, "target_location", target_location)
 
 	# Set up movement flags.
-	agent.blackboard.set_property(uid_property("nav_agent"), nav_agent)
-	agent.blackboard.set_property(uid_property("target_set"), false)
-	agent.blackboard.set_property(uid_property("prior_positions"), [location_data.position])
+	set_state(agent, "nav_agent", nav_agent)
+	set_state(agent, "target_set", false)
+	set_state(agent, "prior_positions", [location_data.position])
 	return Action.Status.SUCCESS
 
 
@@ -87,24 +79,22 @@ func perform_action(
 		delta: float,
 ) -> Action.Status:
 	# Grab needed properties from blackboard.
-	var nav_agent: Node = agent.blackboard.get_property(uid_property("nav_agent"))
-	var agent_location_data: GdPAILocationData = agent.blackboard.get_property(
-		uid_property("agent_location"),
-	)
+	var nav_agent: Node = get_state(agent, "nav_agent")
+	var agent_location_data: GdPAILocationData = get_state(agent, "agent_location")
 	# NOTE: These locations are purposefully not typed to be 2D and 3D compatible.
-	var target_location = agent.blackboard.get_property(uid_property("target_location"))
+	var target_location = get_state(agent, "target_location")
 
 	# Maintain a list of 60 prior positions.
-	var prior_positions: Array = agent.blackboard.get_property(uid_property("prior_positions"))
+	var prior_positions: Array = get_state(agent, "prior_positions")
 	prior_positions.append(agent_location_data.position)
 	if prior_positions.size() > 60:
 		prior_positions.pop_front()
-	agent.blackboard.set_property(uid_property("prior_positions"), prior_positions)
+	set_state(agent, "prior_positions", prior_positions)
 
 	# Begin walking to the target on the first action frame.
-	if not agent.blackboard.get_property(uid_property("target_set")):
+	if not get_state(agent, "target_set"):
 		nav_agent.target_position = target_location
-		agent.blackboard.set_property(uid_property("target_set"), true)
+		set_state(agent, "target_set", true)
 
 	# Terminating conditions.
 	# Either the navigation agent passes, or the agent has stopped for some other reason.
@@ -120,18 +110,16 @@ func perform_action(
 
 # Override
 func post_perform_action(agent: GdPAIAgent) -> Action.Status:
-	var nav_agent: Node = agent.blackboard.get_property(uid_property("nav_agent"))
-	var agent_location_data: GdPAILocationData = agent.blackboard.get_property(
-		uid_property("agent_location"),
-	)
+	var nav_agent: Node = get_state(agent, "nav_agent")
+	var agent_location_data: GdPAILocationData = get_state(agent, "agent_location")
 	# Clear the navigation target.
 	nav_agent.target_position = agent_location_data.position
 
-	agent.blackboard.erase_property(uid_property("nav_agent"))
-	agent.blackboard.erase_property(uid_property("agent_location"))
-	agent.blackboard.erase_property(uid_property("target_location"))
-	agent.blackboard.erase_property(uid_property("target_set"))
-	agent.blackboard.erase_property(uid_property("prior_positions"))
+	erase_state(agent, "nav_agent")
+	erase_state(agent, "agent_location")
+	erase_state(agent, "target_location")
+	erase_state(agent, "target_set")
+	erase_state(agent, "prior_positions")
 
 	return Action.Status.SUCCESS
 

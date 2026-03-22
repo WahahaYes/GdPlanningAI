@@ -18,8 +18,6 @@ metadata/_custom_type_script = "uid://cf4uji05kijy4"
 [resource]
 script = ExtResource("4_84jjs")
 planning_strategy = 1
-use_multithreading = true
-thread_priority = 1
 planning_interval = 1.0
 behavior_configs = Array[ExtResource("1_ua0bu")]([SubResource("Resource_ctvl8"), SubResource("Resource_cfkli")])
 metadata/_custom_type_script = "uid://b8bjqnbsl1gr7"

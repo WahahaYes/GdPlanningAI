@@ -82,10 +82,3 @@ func get_provided_actions() -> Array[Action]:
 	)
 	return [shake_tree_action]
 
-
-# Override
-func copy_for_simulation() -> GdPAIObjectData:
-	var new_data: SampleFruitTreeObject = SampleFruitTreeObject.new()
-	assign_uid_and_entity(new_data)
-	new_data.is_on_cooldown = is_on_cooldown
-	return new_data

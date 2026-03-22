@@ -58,18 +58,10 @@ func simulate_effect(
 
 
 # Override
-func reverse_simulate_effect(
-		_agent_blackboard: GdPAIBlackboard,
-		_world_state: GdPAIBlackboard,
-) -> void:
-	pass
-
-
-# Override
 func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	if super(agent) == Action.Status.FAILURE:
 		return Action.Status.FAILURE
-	agent.blackboard.set_property(uid_property("eating_duration"), 0)
+	set_state(agent, "eating_duration", 0)
 	return Action.Status.SUCCESS
 
 
@@ -82,13 +74,13 @@ func perform_action(
 	if parent_status == Action.Status.FAILURE:
 		return Action.Status.FAILURE
 
-	if not agent.blackboard.get_property(uid_property("target_reached")):
+	if not get_state(agent, "target_reached"):
 		return Action.Status.RUNNING
 
 	# Update how long we've been eating the food item.
-	var eating_duration: float = agent.blackboard.get_property(uid_property("eating_duration"))
+	var eating_duration: float = get_state(agent, "eating_duration")
 	eating_duration += delta
-	agent.blackboard.set_property(uid_property("eating_duration"), eating_duration)
+	set_state(agent, "eating_duration", eating_duration)
 
 	if eating_duration > food_item.eating_duration:
 		# Update hunger and destroy the food.
@@ -102,7 +94,7 @@ func perform_action(
 # Override
 func post_perform_action(agent: GdPAIAgent) -> Action.Status:
 	super(agent)
-	agent.blackboard.erase_property(uid_property("eating_duration"))
+	erase_state(agent, "eating_duration")
 	return Action.Status.SUCCESS
 
 

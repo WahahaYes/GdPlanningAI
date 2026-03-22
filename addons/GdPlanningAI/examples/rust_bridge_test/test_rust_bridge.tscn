@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://b561eqlita2in"]
+
+[ext_resource type="Script" uid="uid://brchn7nuvrmoj" path="res://addons/GdPlanningAI/examples/rust_bridge_test/test_rust_bridge.gd" id="test_script"]
+
+[node name="TestRustBridge" type="Node2D" unique_id=725208374]
+script = ExtResource("test_script")

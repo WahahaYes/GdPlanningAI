@@ -22,10 +22,3 @@ func get_provided_actions() -> Array[Action]:
 	return []
 
 
-# Override
-func copy_for_simulation() -> GdPAIObjectData:
-	# Make sure to replace <GdPAIObjectData> with the subclass name,
-	# and to duplicate any new properties.
-	var new_data: GdPAIObjectData = GdPAIObjectData.new()
-	assign_uid_and_entity(new_data)
-	return new_data

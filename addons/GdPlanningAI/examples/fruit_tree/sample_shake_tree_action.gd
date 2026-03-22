@@ -40,7 +40,7 @@ func get_validity_checks() -> Array[Precondition]:
 	checks.append(Precondition.check_is_object_valid(fruit_tree))
 	checks.append(Precondition.agent_property_less_than("hunger", 100))
 	
-	checks.append(Precondition.new(
+	checks.append(Precondition.custom(
 		func(
 			_blackboard: GdPAIBlackboard,
 			_world_state: GdPAIBlackboard,
@@ -82,18 +82,10 @@ func simulate_effect(
 
 
 # Override
-func reverse_simulate_effect(
-		_agent_blackboard: GdPAIBlackboard,
-		_world_state: GdPAIBlackboard,
-) -> void:
-	pass
-
-
-# Override
 func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	if super(agent) == Action.Status.FAILURE:
 		return Action.Status.FAILURE
-	agent.blackboard.set_property(uid_property("shake_duration"), 0)
+	set_state(agent, "shake_duration", 0)
 	return Action.Status.SUCCESS
 
 
@@ -110,13 +102,13 @@ func perform_action(
 	if fruit_tree.is_on_cooldown:
 		return Action.Status.FAILURE
 
-	if not agent.blackboard.get_property(uid_property("target_reached")):
+	if not get_state(agent, "target_reached"):
 		return Action.Status.RUNNING
 
 	# Update how long we've been eating the food item.
-	var shake_duration: float = agent.blackboard.get_property(uid_property("shake_duration"))
+	var shake_duration: float = get_state(agent, "shake_duration")
 	shake_duration += delta
-	agent.blackboard.set_property(uid_property("shake_duration"), shake_duration)
+	set_state(agent, "shake_duration", shake_duration)
 
 	if shake_duration > SHAKE_DURATION:
 		# spawn the food.
@@ -128,7 +120,7 @@ func perform_action(
 # Override
 func post_perform_action(agent: GdPAIAgent) -> Action.Status:
 	super(agent)
-	agent.blackboard.erase_property(uid_property("shake_duration"))
+	erase_state(agent, "shake_duration")
 	return Action.Status.SUCCESS
 
 

@@ -17,3 +17,7 @@ mono_crash.*.json
 
 # General ignores
 .DS_Store
+
+# IDE ignores
+.vscode/
+

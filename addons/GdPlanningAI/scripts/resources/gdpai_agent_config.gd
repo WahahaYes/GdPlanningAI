@@ -12,14 +12,6 @@ enum PlanningStrategy {
 
 ## How the agent should approach planning.
 @export var planning_strategy: PlanningStrategy = PlanningStrategy.CONTINUOUS
-## @experimental: To support multithreading, your simulation must not directly change the scene
-## tree!
-## Whether this agent should do planning on a separate thread.
-@export var use_multithreading: bool = false
-## Thread priority when using multithreading.
-@export var thread_priority: Thread.Priority = Thread.PRIORITY_LOW
-## Maximum recursion depth for planning.
-@export var max_recursion: int = 4
 ## Planning interval in seconds (only used for ON_INTERVAL strategy).
 @export var planning_interval: float = 0.5
 ## Blackboard plan for the agent.

@@ -46,11 +46,9 @@ func get_group_labels() -> Array[String]:
 
 
 # Override
-func copy_for_simulation() -> GdPAIObjectData:
-	var new_data: GdPAIObjectData = GdPAILocationData.new()
-	assign_uid_and_entity(new_data)
-	# NOTE: Location node is not being copied over.  At simulation time, we are essentially taking
-	# 		a snapshot of position and rotation that can then be changed safely during simulation.
-	new_data.position = position
-	new_data.rotation = rotation
-	return new_data
+func get_sim_properties() -> Dictionary:
+	return {
+		"position": position,
+		"rotation": rotation
+	}
+

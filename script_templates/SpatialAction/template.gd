@@ -44,15 +44,6 @@ func simulate_effect(
 	super(agent_blackboard, world_state)
 
 
-# Add any additional simulation here.
-# Override
-func reverse_simulate_effect(
-		_agent_blackboard: GdPAIBlackboard,
-		_world_state: GdPAIBlackboard,
-) -> void:
-	pass
-
-
 # Override
 func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	if super(agent) == Action.Status.FAILURE:

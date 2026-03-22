@@ -29,20 +29,20 @@ func get_action_cost(
 		agent_blackboard: GdPAIBlackboard,
 		world_state: GdPAIBlackboard,
 ) -> float:
-	var agent_location: GdPAILocationData = agent_blackboard.get_first_object_in_group(
+	var agent_location: SimObjectProxy = agent_blackboard.get_first_object_in_group(
 		"GdPAILocationData",
 	)
 	if not is_instance_valid(object_location):
 		return INF
-	var sim_location: GdPAILocationData = world_state.get_object_by_uid(object_location.uid)
-	if not is_instance_valid(sim_location):
+	var sim_location: SimObjectProxy = world_state.get_object_for(object_location)
+	if sim_location == null:
 		return INF
 	# NOTE: This is a heuristic using Euclidean distance but not taking navigation obstacles into
 	# 		account.  Using the navigation agent would be more expensive but yield a more accurate
 	# 		cost.
 	# TODO: Make navigation agent-based cost an option.  Maybe could configure in plugin.cfg?
 	# 		Alternative would be to parameterize within the agent, but that could be tricky.
-	var dist: float = (agent_location.position - sim_location.position).length()
+	var dist: float = (agent_location.get_property("position") - sim_location.get_property("position")).length()
 	return dist
 
 
@@ -55,16 +55,15 @@ func get_validity_checks() -> Array[Precondition]:
 	checks.append(Precondition.check_is_object_valid(interactable_attribs))
 	
 	# Can agent get to the target check
-	checks.append(Precondition.new(
+	checks.append(Precondition.custom(
 		func(
 			blackboard: GdPAIBlackboard,
 			_world_state: GdPAIBlackboard
 		) -> bool:
 		# The target should be reachable by the agent.
 		var entity: Node = blackboard.get_property("entity")
-		var agent_location_data: GdPAILocationData = blackboard.get_first_object_in_group(
-			"GdPAILocationData",
-		)
+		if entity == null:
+			return false
 		
 		# nav_agent could be NavigationAgent2D or NavigationAgent3D depending on the setup.
 		var nav_agent: Node
@@ -106,11 +105,11 @@ func simulate_effect(
 		world_state: GdPAIBlackboard,
 ) -> void:
 	# Simulate by teleporting the agent to the object's location.
-	var agent_location: GdPAILocationData = agent_blackboard.get_first_object_in_group(
+	var agent_location: SimObjectProxy = agent_blackboard.get_first_object_in_group(
 		"GdPAILocationData",
 	)
-	var sim_location: GdPAILocationData = world_state.get_object_by_uid(object_location.uid)
-	agent_location.position = sim_location.position
+	var sim_location: SimObjectProxy = world_state.get_object_for(object_location)
+	agent_location.set_property("position", sim_location.get_property("position"))
 
 
 # Override
@@ -125,7 +124,7 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	var agent_location_data: GdPAILocationData = agent.blackboard.get_first_object_in_group(
 		"GdPAILocationData",
 	)
-	agent.blackboard.set_property(uid_property("agent_location"), agent_location_data)
+	set_state(agent, "agent_location", agent_location_data)
 
 	# nav_agent could be NavigationAgent2D or NavigationAgent3D depending on the setup.
 	var nav_agent: Node
@@ -141,15 +140,15 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 		nav_agent = nav_agent_3d
 		dist_check = 0.1 # 0.1 meters for 3D
 	assert(nav_agent != null)
-	agent.blackboard.set_property(uid_property("nav_agent"), nav_agent)
-	agent.blackboard.set_property(uid_property("dist_check"), dist_check)
+	set_state(agent, "nav_agent", nav_agent)
+	set_state(agent, "dist_check", dist_check)
 
 	# Set up some flags for movement.
-	agent.blackboard.set_property(uid_property("time_elapsed"), 0)
-	agent.blackboard.set_property(uid_property("target_set"), false)
-	agent.blackboard.set_property(uid_property("target_reached"), false)
-	agent.blackboard.set_property(uid_property("object_orig_position"), object_location.position)
-	agent.blackboard.set_property(uid_property("prior_positions"), [agent_location_data.position])
+	set_state(agent, "time_elapsed", 0)
+	set_state(agent, "target_set", false)
+	set_state(agent, "target_reached", false)
+	set_state(agent, "object_orig_position", object_location.position)
+	set_state(agent, "prior_positions", [agent_location_data.position])
 
 	return Action.Status.SUCCESS
 
@@ -165,33 +164,31 @@ func perform_action(
 
 	# Fail if the target object has moved too far from its planning-time position.
 	# NOTE: These locations are purposefully not typed to be 2D and 3D compatible.
-	var orig_position = agent.blackboard.get_property(uid_property("object_orig_position"))
+	var orig_position = get_state(agent, "object_orig_position")
 	var current_position = object_location.position
 	if interactable_attribs.max_drift_from_plan >= 0:
 		if (current_position - orig_position).length() > interactable_attribs.max_drift_from_plan:
 			return Action.Status.FAILURE
 
-	var nav_agent: Node = agent.blackboard.get_property(uid_property("nav_agent"))
-	var agent_location_data: GdPAILocationData = agent.blackboard.get_property(
-		uid_property("agent_location"),
-	)
+	var nav_agent: Node = get_state(agent, "nav_agent")
+	var agent_location_data: GdPAILocationData = get_state(agent, "agent_location")
 
 	# Maintain a list of prior positions to check if the agent isn't moving.
-	var prior_positions: Array = agent.blackboard.get_property(uid_property("prior_positions"))
+	var prior_positions: Array = get_state(agent, "prior_positions")
 	prior_positions.append(agent_location_data.position)
 	if prior_positions.size() > 60:
 		prior_positions.pop_front()
-	agent.blackboard.set_property(uid_property("prior_positions"), prior_positions)
+	set_state(agent, "prior_positions", prior_positions)
 
 	# Keep track of how long we've been actively pursuing this object.
-	var time_elapsed: float = agent.blackboard.get_property(uid_property("time_elapsed"))
+	var time_elapsed: float = get_state(agent, "time_elapsed")
 	time_elapsed += delta
-	agent.blackboard.set_property(uid_property("time_elapsed"), time_elapsed)
+	set_state(agent, "time_elapsed", time_elapsed)
 
 	# Begin walking to the target on the first action frame.
-	if not agent.blackboard.get_property(uid_property("target_set")):
+	if not get_state(agent, "target_set"):
 		nav_agent.target_position = object_location.position
-		agent.blackboard.set_property(uid_property("target_set"), true)
+		set_state(agent, "target_set", true)
 	# Update the nav agent target if the object has moved too far from its planning-time position.
 	elif (
 		(nav_agent.target_position - object_location.position).length() >
@@ -204,19 +201,19 @@ func perform_action(
 	var dist_traveled: float = (
 		(prior_positions[-1] - prior_positions[0]).length() * delta * prior_positions.size()
 	)
-	var dist_check: float = agent.blackboard.get_property(uid_property("dist_check"))
+	var dist_check: float = get_state(agent, "dist_check")
 	if (
 		nav_agent.is_navigation_finished() or
 		(prior_positions.size() == 60 and dist_traveled < dist_check)
 	):
 		# Pass if we have no interaction distance constraint.
 		if interactable_attribs.max_interaction_distance <= 0:
-			agent.blackboard.set_property(uid_property("target_reached"), true)
+			set_state(agent, "target_reached", true)
 			return Action.Status.SUCCESS
 		# Else, figure out the final distance and see if valid.
 		var final_dist: float = (object_location.position - nav_agent.get_final_position()).length()
 		if final_dist < interactable_attribs.max_interaction_distance:
-			agent.blackboard.set_property(uid_property("target_reached"), true)
+			set_state(agent, "target_reached", true)
 			return Action.Status.SUCCESS
 		return Action.Status.FAILURE
 
@@ -230,20 +227,18 @@ func post_perform_action(agent: GdPAIAgent) -> Action.Status:
 	if not is_instance_valid(object_location) or not is_instance_valid(interactable_attribs):
 		return Action.Status.FAILURE
 
-	var nav_agent: Node = agent.blackboard.get_property(uid_property("nav_agent"))
-	var agent_location_data: GdPAILocationData = agent.blackboard.get_property(
-		uid_property("agent_location"),
-	)
+	var nav_agent: Node = get_state(agent, "nav_agent")
+	var agent_location_data: GdPAILocationData = get_state(agent, "agent_location")
 	# Clear the navigation target.
 	nav_agent.target_position = agent_location_data.position
 
-	agent.blackboard.erase_property(uid_property("nav_agent"))
-	agent.blackboard.erase_property(uid_property("agent_location"))
-	agent.blackboard.erase_property(uid_property("target_set"))
-	agent.blackboard.erase_property(uid_property("target_reached"))
-	agent.blackboard.erase_property(uid_property("time_elapsed"))
-	agent.blackboard.erase_property(uid_property("prior_positions"))
-	agent.blackboard.erase_property(uid_property("object_orig_position"))
+	erase_state(agent, "nav_agent")
+	erase_state(agent, "agent_location")
+	erase_state(agent, "target_set")
+	erase_state(agent, "target_reached")
+	erase_state(agent, "time_elapsed")
+	erase_state(agent, "prior_positions")
+	erase_state(agent, "object_orig_position")
 
 	return Action.Status.SUCCESS
 

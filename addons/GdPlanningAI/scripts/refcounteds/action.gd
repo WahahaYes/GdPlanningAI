@@ -6,20 +6,6 @@ extends RefCounted
 ## Return states for actions during true simulation.
 enum Status { FAILURE, RUNNING, SUCCESS }
 
-## Counter for allocating new uids.
-static var _uid_counter: int = 0
-
-## A uid is automatically allocated for actions so that they can put unique properties into the
-## blackboards as needed without risk of collisions with other actions.
-var uid: String = _next_uid()
-
-
-## Generates the next available uid
-func _next_uid() -> String:
-		uid = str(_uid_counter)
-		_uid_counter += 1
-		return uid
-
 
 
 ## List of static preconditions needed for the action to be considered.  This is
@@ -31,14 +17,20 @@ func get_validity_checks() -> Array[Precondition]:
 	return []
 
 
-## Computes the cost to complete this action.  This is done at simulation time, so if
-## referencing any object tied to the action make sure to first get the simulated version
-## with world_state.get_object_by_uid(<object>.uid).
+## Computes the cost to complete this action.  Called during Rust planning simulation; both
+## [param _agent_blackboard] and [param _world_state] are [GdPAIBlackboard] objects backed by Rust.
 ##[br]
 ##[br]
-## Can assume that validity checks are true at this point, EXCEPT continued references existing in
-## the scene tree.  If a reference is invalid, returning INF tells the planner to skip this action.
-## For multithreaded planning, it is possible to await information with GdPAIUTILS.await_callv(..).
+## To access a simulated object, call [code]world_state.get_object_for(my_object_data_node)[/code],
+## which returns a [SimObjectProxy] snapshot.  Read and write its state with
+## [code]get_property[/code] / [code]set_property[/code], or the [code]position[/code] shorthand.
+##[br]
+##[br]
+## Validity checks are guaranteed true at this point, EXCEPT live scene-tree references which may
+## have been freed.  If a reference is invalid, return [code]INF[/code] to skip this action.
+##[br]
+##[br]
+## [b]Do not use [code]await[/code] and do not access the scene tree from this method.[/b]
 func get_action_cost(
 		_agent_blackboard: GdPAIBlackboard,
 		_world_state: GdPAIBlackboard,
@@ -46,40 +38,28 @@ func get_action_cost(
 	return 0
 
 
-## Lists the preconditions necessary for this action to be carried out.  This is evaluated
-## during the simulation, so if referencing an object tied to the action make sure to first
-## get the simulated version with world_state.get_object_by_uid(<object>.uid).
+## Lists the preconditions necessary for this action to be carried out.  Evaluated during Rust
+## planning simulation against simulated [GdPAIBlackboard] state.
 ##[br]
 ##[br]
-## Can assume that validity checks are true at this point, EXCEPT continued references existing in
-## the scene tree.  If a reference is invalid, returning INF tells the planner to skip this action.
-## For multithreaded planning, it is possible to await information with GdPAIUTILS.await_callv(..).
+## Preconditions are checked against the simulated blackboards, not the live scene tree.
 func get_preconditions() -> Array[Precondition]:
 	return []
 
 
-## Simulates onto the agent's blackboards the change that would occur if this action is taken out.
-## Does not return a value; this modifies the blackboards in-place.  If referencing an object
-## make sure to first get the simulated version with world_state.get_object_by_uid(<object>.uid).
-## This method SHOULD NOT make any changes inside the scene tree.
+## Simulates the effect of this action onto the agent and world blackboards.  Modifies both
+## in-place; does not return a value.
 ##[br]
 ##[br]
-## Can assume that any validity checks are already true.
+## Both [param _agent_blackboard] and [param _world_state] are Rust-backed [GdPAIBlackboard]
+## instances.  To access a simulated object, call
+## [code]world_state.get_object_for(my_object_data_node)[/code], which returns a [SimObjectProxy]
+## snapshot.  Writes to [code]set_property[/code] or [code]position[/code] on the proxy are
+## reflected back into the simulation state immediately.
+##[br]
+##[br]
+## [b]Do not use [code]await[/code] and do not access the scene tree from this method.[/b]
 func simulate_effect(
-		_agent_blackboard: GdPAIBlackboard,
-		_world_state: GdPAIBlackboard,
-) -> void:
-	pass
-
-
-## In case any attribute is reliant on an earlier step (like knowing WHAT an agent picks up, for
-## example), this function is called on earlier traversals.  This can be useful because the
-## action plan is being decided in reverse order, so at times it is impossible to know exactly
-## what is going to occur from a later action until we simulate earlier actions.  A prime example
-## being <pickup> -> <eat>.  When <eat> is simulated, the agent isn't holding anything so we don't
-## know what would've been eaten.  But after <pickup> is simulated, we can refer back to the agent
-## to figure out the object then determine how many hunger points that food is going to restore.
-func reverse_simulate_effect(
 		_agent_blackboard: GdPAIBlackboard,
 		_world_state: GdPAIBlackboard,
 ) -> void:
@@ -115,9 +95,20 @@ func post_perform_action(_agent: GdPAIAgent) -> Status:
 	return Status.SUCCESS
 
 
-## Generates a String that appends this action's uid to allow for easier blackboard referencing.
-func uid_property(prop: String) -> String:
-	return "%s_%s" % [uid, prop]
+func set_state(agent: GdPAIAgent, key: String, value: Variant) -> void:
+	agent.blackboard.set_property(str(get_instance_id()) + "_" + key, value)
+
+
+func get_state(agent: GdPAIAgent, key: String) -> Variant:
+	return agent.blackboard.get_property(str(get_instance_id()) + "_" + key)
+
+
+func erase_state(agent: GdPAIAgent, key: String) -> void:
+	agent.blackboard.erase_property(str(get_instance_id()) + "_" + key)
+
+
+func has_state(agent: GdPAIAgent, key: String) -> bool:
+	return agent.blackboard.has_property(str(get_instance_id()) + "_" + key)
 
 
 ## Returns a short title for the action.

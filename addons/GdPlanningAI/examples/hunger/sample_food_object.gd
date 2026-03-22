@@ -29,9 +29,8 @@ func get_provided_actions() -> Array[Action]:
 
 
 # Override
-func copy_for_simulation() -> GdPAIObjectData:
-	var new_data: SampleFoodObject = SampleFoodObject.new()
-	assign_uid_and_entity(new_data)
-	new_data.hunger_value = hunger_value
-	new_data.eating_duration = eating_duration
-	return new_data
+func get_sim_properties() -> Dictionary:
+	return {
+		"hunger_value": hunger_value,
+		"eating_duration": eating_duration,
+	}

@@ -1,0 +1,5 @@
+# Cross image configuration
+
+[target.x86_64-pc-windows-gnu]
+# Use custom image with updated mingw-w64
+image = "ghcr.io/raniz85/cross/x86_64-pc-windows-gnu:24.04"

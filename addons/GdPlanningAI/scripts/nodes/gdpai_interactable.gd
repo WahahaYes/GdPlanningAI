@@ -16,9 +16,8 @@ func get_group_labels() -> Array[String]:
 
 
 # Override
-func copy_for_simulation() -> GdPAIObjectData:
-	var new_data: GdPAIInteractable = GdPAIInteractable.new()
-	assign_uid_and_entity(new_data)
-	new_data.max_interaction_distance = max_interaction_distance
-	new_data.max_drift_from_plan = max_drift_from_plan
-	return new_data
+func get_sim_properties() -> Dictionary:
+	return {
+		"max_interaction_distance": max_interaction_distance,
+		"max_drift_from_plan": max_drift_from_plan,
+	}
