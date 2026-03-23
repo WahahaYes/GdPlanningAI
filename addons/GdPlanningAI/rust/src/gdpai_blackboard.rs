@@ -12,14 +12,18 @@ use std::collections::HashMap;
 ///
 /// A blackboard holds two kinds of data:
 /// [br]- Named scalar [b]properties[/b] (booleans, numbers, strings, etc.) accessed via [method get_property] and [method set_property].
-/// [br]- Named world [b]objects[/b] ([SimObjectProxy] snapshots) stored under the reserved key [code]GDPAI_OBJECTS[/code] and queried by group.
+/// [br]- Named world [b]objects[/b] stored under the reserved key [code]GDPAI_OBJECTS[/code] and queried by group.
+///   During planning, use [method get_proxy_in_group] / [method get_proxies_in_group] to access [SimObjectProxy] snapshots.
+///   During action execution, use [method get_node_in_group] / [method get_nodes_in_group] to access the live source nodes.
 ///
 /// At planning time the engine calls [method clone_for_simulation] to create an isolated copy for each search branch.
+/// Simulation clones carry proxy data only; [method get_node_in_group] returns [code]null[/code] on them.
 #[derive(GodotClass)]
 #[class(base=RefCounted)]
 pub struct GdPAIBlackboard {
     pub properties: HashMap<String, Variant>,
     pub objects: HashMap<String, Gd<SimObjectProxy>>,
+    pub source_objects: HashMap<String, Gd<Node>>,
     base: Base<RefCounted>,
 }
 
@@ -29,6 +33,7 @@ impl IRefCounted for GdPAIBlackboard {
         Self {
             properties: HashMap::new(),
             objects: HashMap::new(),
+            source_objects: HashMap::new(),
             base,
         }
     }
@@ -54,26 +59,29 @@ impl GdPAIBlackboard {
         let key_str = key.to_string();
         if key_str == "GDPAI_OBJECTS" {
             self.objects.clear();
+            self.source_objects.clear();
             if let Ok(objects_array) = value.clone().try_to::<Array<Variant>>() {
                 for obj_var in objects_array.iter_shared() {
-                    match obj_var.try_to::<Gd<Object>>() {
-                        Ok(obj_gd) => {
+                    match obj_var.try_to::<Gd<Node>>() {
+                        Ok(node_gd) => {
                             if let Some(sim_obj) =
-                                crate::sim_object_proxy::SimObjectProxy::from_object_data(obj_gd)
+                                crate::sim_object_proxy::SimObjectProxy::from_object_data(
+                                    node_gd.clone(),
+                                )
                             {
                                 let uid = sim_obj.bind().uid.clone();
+                                self.source_objects.insert(uid.clone(), node_gd);
                                 self.objects.insert(uid, sim_obj);
                             }
                         }
                         Err(_) => {
                             log_debug!(
-                                "GDPAI_OBJECTS: skipping item that is not a RefCounted object"
+                                "GDPAI_OBJECTS: skipping item that is not a Node"
                             );
                         }
                     }
                 }
             }
-            log_debug!("GDPAI_OBJECTS: registered {} object(s)", self.objects.len());
         }
         self.properties.insert(key_str, value);
     }
@@ -92,6 +100,7 @@ impl GdPAIBlackboard {
         let key_str = key.to_string();
         if key_str == "GDPAI_OBJECTS" {
             self.objects.clear();
+            self.source_objects.clear();
         }
         self.properties.remove(&key_str);
     }
@@ -113,6 +122,7 @@ impl GdPAIBlackboard {
     pub fn set_dict(&mut self, dict: VarDictionary) {
         self.properties.clear();
         self.objects.clear();
+        self.source_objects.clear();
         for (k, v) in dict.iter_shared() {
             if let Ok(key) = k.try_to::<GString>() {
                 self.set_property(key, v);
@@ -120,9 +130,10 @@ impl GdPAIBlackboard {
         }
     }
 
-    /// Returns all [SimObjectProxy] objects that belong to [param group].
+    /// Returns all [SimObjectProxy] planning snapshots that belong to [param group].
+    /// Use during planning (cost calculation, effect simulation, precondition checks).
     #[func]
-    pub fn get_objects_in_group(&self, group: GString) -> Array<Gd<SimObjectProxy>> {
+    pub fn get_proxies_in_group(&self, group: GString) -> Array<Gd<SimObjectProxy>> {
         let mut arr = Array::new();
         for obj in self.objects.values() {
             if obj.bind().is_in_group(group.clone()) {
@@ -132,15 +143,49 @@ impl GdPAIBlackboard {
         arr
     }
 
-    /// Returns the first [SimObjectProxy] belonging to [param group], or [code]null[/code] if none exists.
+    /// Returns the first [SimObjectProxy] planning snapshot belonging to [param group],
+    /// or [code]null[/code] if none exists.
+    /// Use during planning (cost calculation, effect simulation, precondition checks).
     #[func]
-    pub fn get_first_object_in_group(&self, group: GString) -> Variant {
+    pub fn get_proxy_in_group(&self, group: GString) -> Variant {
         for obj in self.objects.values() {
             if obj.bind().is_in_group(group.clone()) {
                 return obj.clone().to_variant();
             }
         }
         Variant::nil()
+    }
+
+    /// Returns the live source node belonging to [param group], or [code]null[/code] if none.
+    /// Use during action execution when you need the real, mutable node — not a planning snapshot.
+    /// Returns [code]null[/code] on simulation-cloned blackboards.
+    #[func]
+    pub fn get_node_in_group(&self, group: GString) -> Variant {
+        for (uid, obj) in &self.objects {
+            if obj.bind().is_in_group(group.clone()) {
+                return self
+                    .source_objects
+                    .get(uid)
+                    .map(|n| n.clone().to_variant())
+                    .unwrap_or(Variant::nil());
+            }
+        }
+        Variant::nil()
+    }
+
+    /// Returns all live source nodes belonging to [param group].
+    /// Use during action execution. Returns an empty array on simulation-cloned blackboards.
+    #[func]
+    pub fn get_nodes_in_group(&self, group: GString) -> Array<Variant> {
+        let mut arr = Array::new();
+        for (uid, obj) in &self.objects {
+            if obj.bind().is_in_group(group.clone()) {
+                if let Some(node) = self.source_objects.get(uid) {
+                    arr.push(&node.clone().to_variant());
+                }
+            }
+        }
+        arr
     }
 
     /// Returns the [SimObjectProxy] whose UID matches the instance ID of [param node], or [code]null[/code] if not found.

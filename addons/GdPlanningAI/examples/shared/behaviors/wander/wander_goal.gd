@@ -24,9 +24,7 @@ func get_desired_state(agent: GdPAIAgent) -> Array[Precondition]:
 			blackboard: GdPAIBlackboard,
 			_world_state: GdPAIBlackboard,
 		) -> bool:
-		var sim_location: SimObjectProxy = blackboard.get_first_object_in_group(
-			"GdPAILocationData",
-		)
+		var sim_location: SimObjectProxy = blackboard.get_proxy_in_group("GdPAILocationData")
 		if sim_location == null:
 			return false
 		var sim_position = sim_location.get_property("position")

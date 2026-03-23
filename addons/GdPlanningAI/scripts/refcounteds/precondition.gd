@@ -170,7 +170,7 @@ static func agent_has_object_data_of_group(group: String) -> Precondition:
 			blackboard: GdPAIBlackboard,
 			_world_state: GdPAIBlackboard
 		):
-		var objs: Array[SimObjectProxy] = blackboard.get_objects_in_group(group)
+		var objs: Array[SimObjectProxy] = blackboard.get_proxies_in_group(group)
 		return objs.size() > 0
 	)
 
@@ -182,7 +182,7 @@ static func world_state_has_object_data_of_group(group: String) -> Precondition:
 			_blackboard: GdPAIBlackboard,
 			world_state: GdPAIBlackboard
 		):
-		var objs: Array[SimObjectProxy] = world_state.get_objects_in_group(group)
+		var objs: Array[SimObjectProxy] = world_state.get_proxies_in_group(group)
 		return objs.size() > 0
 	)
 

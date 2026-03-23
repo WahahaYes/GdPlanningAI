@@ -29,9 +29,7 @@ func get_action_cost(
 		agent_blackboard: GdPAIBlackboard,
 		world_state: GdPAIBlackboard,
 ) -> float:
-	var agent_location: SimObjectProxy = agent_blackboard.get_first_object_in_group(
-		"GdPAILocationData",
-	)
+	var agent_location: SimObjectProxy = agent_blackboard.get_proxy_in_group("GdPAILocationData")
 	if not is_instance_valid(object_location):
 		return INF
 	var sim_location: SimObjectProxy = world_state.get_object_for(object_location)
@@ -94,9 +92,7 @@ func simulate_effect(
 		world_state: GdPAIBlackboard,
 ) -> void:
 	# Simulate by teleporting the agent to the object's location.
-	var agent_location: SimObjectProxy = agent_blackboard.get_first_object_in_group(
-		"GdPAILocationData",
-	)
+	var agent_location: SimObjectProxy = agent_blackboard.get_proxy_in_group("GdPAILocationData")
 	var sim_location: SimObjectProxy = world_state.get_object_for(object_location)
 	agent_location.set_property("position", sim_location.get_property("position"))
 
@@ -110,7 +106,7 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	var entity: Node = agent.entity
 
 	# Cache the location data.
-	var agent_location_data: GdPAILocationData = agent.blackboard.get_first_object_in_group(
+	var agent_location_data: GdPAILocationData = agent.blackboard.get_node_in_group(
 		"GdPAILocationData",
 	)
 	set_state(agent, "agent_location", agent_location_data)

@@ -80,8 +80,9 @@ impl SimObjectProxy {
     /// Calls `get_groups()` and `get_sim_properties()` on `obj` via dynamic
     /// dispatch to snapshot group membership and simulation-relevant properties.
     /// The resulting proxy is fully independent of the source node.
-    pub fn from_object_data(mut obj: Gd<Object>) -> Option<Gd<SimObjectProxy>> {
+    pub fn from_object_data(mut obj: Gd<Node>) -> Option<Gd<SimObjectProxy>> {
         let uid = obj.instance_id().to_i64().to_string();
+        let name = obj.get_name().to_string();
 
         let mut groups = Vec::new();
         match obj.call("get_groups", &[]).try_to::<Array<StringName>>() {
@@ -93,7 +94,7 @@ impl SimObjectProxy {
             Err(_) => {
                 log_warn!(
                     "SimObjectProxy: get_groups() call failed for object {}",
-                    uid
+                    name
                 );
             }
         }
@@ -110,17 +111,10 @@ impl SimObjectProxy {
             Err(_) => {
                 log_warn!(
                     "SimObjectProxy: get_sim_properties() call failed for object {}",
-                    uid
+                    name
                 );
             }
         }
-
-        log_debug!(
-            "SimObjectProxy: snapshotted object {} — {} group(s), {} property(-ies)",
-            uid,
-            groups.len(),
-            properties.len()
-        );
 
         let mut proxy = SimObjectProxy::new_gd();
         {

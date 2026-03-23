@@ -144,6 +144,13 @@ func _on_planning_timer_timeout() -> void:
 ## Collects all candidate actions and asks the Rust engine for a plan.
 ## Fully synchronous — no await.
 func _start_plan() -> void:
+	# Refresh the agent's own object snapshots so proxy positions are current.
+	var gdpai_objects: Array = []
+	for obj in get_tree().get_nodes_in_group("GdPAIObjectData"):
+		if entity != null and (obj == entity or entity.is_ancestor_of(obj)):
+			gdpai_objects.append(obj)
+	blackboard.set_property("GDPAI_OBJECTS", gdpai_objects)
+
 	var all_actions: Array[Action] = []
 	all_actions.append_array(self_actions)
 	all_actions.append_array(_collect_worldly_actions())

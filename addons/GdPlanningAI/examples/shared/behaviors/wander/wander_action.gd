@@ -41,9 +41,7 @@ func simulate_effect(
 		agent_blackboard: GdPAIBlackboard,
 		_world_state: GdPAIBlackboard,
 ) -> void:
-	var sim_location: SimObjectProxy = agent_blackboard.get_first_object_in_group(
-		"GdPAILocationData",
-	)
+	var sim_location: SimObjectProxy = agent_blackboard.get_proxy_in_group("GdPAILocationData")
 	var current_pos = sim_location.get_property("position")
 	if current_pos is Vector2:
 		sim_location.set_property("position", current_pos + Vector2(wander_distance, 0))
@@ -53,8 +51,8 @@ func simulate_effect(
 
 # Override
 func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
-	var location_data: GdPAILocationData = GdPAIUTILS.get_child_of_type(
-		agent.entity, GdPAILocationData
+	var location_data: GdPAILocationData = agent.blackboard.get_node_in_group(
+		"GdPAILocationData",
 	)
 	set_state(agent, "agent_location", location_data)
 
