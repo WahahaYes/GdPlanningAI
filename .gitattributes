@@ -2,5 +2,7 @@
 * text=auto eol=lf
 
 # Track Rust binary files with Git LFS
-addons/GdPlanningAI/bin/** filter=lfs diff=lfs merge=lfs -text
+addons/GdPlanningAI/bin/**/*.dll filter=lfs diff=lfs merge=lfs -text
+addons/GdPlanningAI/bin/**/*.so filter=lfs diff=lfs merge=lfs -text
+addons/GdPlanningAI/bin/**/*.dylib filter=lfs diff=lfs merge=lfs -text
 addons/GdPlanningAI/bin/.gitignore !text !filter !merge !diff
