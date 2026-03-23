@@ -1,9 +1,9 @@
 class_name WanderAction
-extends NavigatingAction
+extends Action
 ## Navigates the agent to a random nearby point.
 ##[br]
 ##[br]
-## Demonstrates a [NavigatingAction] that has no specific world target — the
+## Demonstrates a [SpatialAction] sibling that has no specific world target — the
 ## destination is computed at execution time from the agent's current position.
 
 
@@ -57,7 +57,7 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	set_state(agent, "agent_location", location_data)
 
 	var entity: Node = agent.entity
-	var nav_agent: Node = _find_nav_agent(entity)
+	var nav_agent: Node = SpatialAction.find_nav_agent(entity)
 
 	var random_dir: Vector2 = Vector2.from_angle(deg_to_rad(randf_range(-180, 180)))
 	if nav_agent is NavigationAgent2D:
@@ -94,7 +94,9 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 		(prior_positions[-1] - prior_positions[0]).length() * delta * prior_positions.size()
 	)
 	var dist_check: float = (
-		ARRIVAL_THRESHOLD_2D if nav_agent is NavigationAgent2D else ARRIVAL_THRESHOLD_3D
+		SpatialAction.ARRIVAL_THRESHOLD_2D
+		if nav_agent is NavigationAgent2D
+		else SpatialAction.ARRIVAL_THRESHOLD_3D
 	)
 	if (nav_agent.is_navigation_finished()
 			or (prior_positions.size() == 60 and dist_traveled < dist_check)):

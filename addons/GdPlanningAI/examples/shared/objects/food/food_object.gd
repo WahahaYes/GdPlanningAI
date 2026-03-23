@@ -24,7 +24,7 @@ func get_group_labels() -> Array[String]:
 
 # Override
 func get_provided_actions() -> Array[Action]:
-	return [FoodAction.new(location_data, interactable_attribs, self)]
+	return [FoodAction.new(location_data, interactable_attribs, self )]
 
 
 # Override

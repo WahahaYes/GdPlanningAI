@@ -2,11 +2,11 @@
 
 [ext_resource type="Script" uid="uid://cu134mwsik6n5" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_world_node.gd" id="1_56wuj"]
 [ext_resource type="Script" uid="uid://cvie3m6t7c0hd" path="res://addons/GdPlanningAI/scripts/gdpai_blackboard_plan.gd" id="2_ke3pc"]
-[ext_resource type="PackedScene" path="res://addons/GdPlanningAI/examples/demo_2d/assets/world/scenery.tscn" id="3_44q8r"]
+[ext_resource type="PackedScene" uid="uid://d2lr7clv3whwy" path="res://addons/GdPlanningAI/examples/demo_2d/assets/world/scenery.tscn" id="3_44q8r"]
 [ext_resource type="PackedScene" uid="uid://b1bmo16x83s1x" path="res://addons/GdPlanningAI/examples/demo_2d/assets/agent/agent.tscn" id="4_7hegv"]
 [ext_resource type="Texture2D" uid="uid://b22ckbemud140" path="res://addons/GdPlanningAI/examples/demo_2d/assets/world/TinySwordsPack/Units/Red Units/Monk/Idle.png" id="5_pks2p"]
 [ext_resource type="Texture2D" uid="uid://c42c4gc6885ib" path="res://addons/GdPlanningAI/examples/demo_2d/assets/world/TinySwordsPack/Units/Red Units/Monk/Run.png" id="6_ap5rn"]
-[ext_resource type="Script" path="res://addons/GdPlanningAI/examples/demo_2d/assets/ui/fps_counter.gd" id="7_qcwyv"]
+[ext_resource type="Script" uid="uid://cqk6cr8e5xkto" path="res://addons/GdPlanningAI/examples/demo_2d/assets/ui/fps_counter.gd" id="7_qcwyv"]
 
 [sub_resource type="Resource" id="Resource_mer3k"]
 script = ExtResource("2_ke3pc")
@@ -98,19 +98,19 @@ animations = [{
 [sub_resource type="LabelSettings" id="LabelSettings_m5nv4"]
 font_size = 40
 
-[node name="MultiAgentDemo" type="Node2D"]
+[node name="MultiAgentDemo" type="Node2D" unique_id=1021103696]
 
-[node name="GdPAIWorldNode" type="Node" parent="."]
+[node name="GdPAIWorldNode" type="Node" parent="." unique_id=1530776984]
 script = ExtResource("1_56wuj")
 blackboard_plan = SubResource("Resource_mer3k")
 
-[node name="Scenery" parent="." instance=ExtResource("3_44q8r")]
+[node name="Scenery" parent="." unique_id=567314874 instance=ExtResource("3_44q8r")]
 
-[node name="Agent" parent="." instance=ExtResource("4_7hegv")]
+[node name="Agent" parent="." unique_id=19925031 instance=ExtResource("4_7hegv")]
 position = Vector2(208, 423)
 lock_rotation = true
 
-[node name="Agent2" parent="." instance=ExtResource("4_7hegv")]
+[node name="Agent2" parent="." unique_id=1748611418 instance=ExtResource("4_7hegv")]
 position = Vector2(947, 209)
 lock_rotation = true
 
@@ -118,7 +118,7 @@ lock_rotation = true
 sprite_frames = SubResource("SpriteFrames_guyou")
 frame_progress = 0.0
 
-[node name="FPSDisplay" type="Label" parent="." node_paths=PackedStringArray("display_text")]
+[node name="FPSDisplay" type="Label" parent="." unique_id=648697694 node_paths=PackedStringArray("display_text")]
 offset_left = -215.0
 offset_top = -274.0
 offset_right = 513.0

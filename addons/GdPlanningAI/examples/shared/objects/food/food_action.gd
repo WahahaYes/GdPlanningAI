@@ -17,13 +17,13 @@ func _init(
 		p_interactable_attribs: GdPAIInteractable,
 		p_food_item: FoodObject,
 ) -> void:
-	super(p_object_location, p_interactable_attribs)
+	super (p_object_location, p_interactable_attribs)
 	food_item = p_food_item
 
 
 # Override
 func get_validity_checks() -> Array[Precondition]:
-	var checks: Array[Precondition] = super()
+	var checks: Array[Precondition] = super ()
 	checks.append(Precondition.agent_has_property("hunger"))
 	checks.append(Precondition.check_is_object_valid(food_item))
 	checks.append(Precondition.agent_property_less_than("hunger", 100.0))
@@ -35,7 +35,7 @@ func get_action_cost(
 		agent_blackboard: GdPAIBlackboard,
 		world_state: GdPAIBlackboard,
 ) -> float:
-	var cost: float = super(agent_blackboard, world_state)
+	var cost: float = super (agent_blackboard, world_state)
 	if cost == INF:
 		return INF
 	if not is_instance_valid(food_item):
@@ -53,14 +53,14 @@ func simulate_effect(
 		agent_blackboard: GdPAIBlackboard,
 		world_state: GdPAIBlackboard,
 ) -> void:
-	super(agent_blackboard, world_state)
+	super (agent_blackboard, world_state)
 	var hunger: float = agent_blackboard.get_property("hunger")
 	agent_blackboard.set_property("hunger", hunger + food_item.hunger_value)
 
 
 # Override
 func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
-	if super(agent) == Action.Status.FAILURE:
+	if super (agent) == Action.Status.FAILURE:
 		return Action.Status.FAILURE
 	set_state(agent, "eating_elapsed", 0.0)
 	return Action.Status.SUCCESS
@@ -68,7 +68,7 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 
 # Override
 func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
-	var parent_status: Action.Status = super(agent, delta)
+	var parent_status: Action.Status = super (agent, delta)
 	if parent_status == Action.Status.FAILURE:
 		return Action.Status.FAILURE
 
@@ -89,7 +89,7 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 
 # Override
 func post_perform_action(agent: GdPAIAgent) -> Action.Status:
-	super(agent)
+	super (agent)
 	erase_state(agent, "eating_elapsed")
 	return Action.Status.SUCCESS
 
