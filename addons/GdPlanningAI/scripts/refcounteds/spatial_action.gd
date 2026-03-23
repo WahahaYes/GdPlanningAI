@@ -107,7 +107,7 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	if not is_instance_valid(object_location) or not is_instance_valid(interactable_attribs):
 		return Action.Status.FAILURE
 
-	var entity: Node = agent.blackboard.get_property("entity")
+	var entity: Node = agent.entity
 
 	# Cache the location data.
 	var agent_location_data: GdPAILocationData = agent.blackboard.get_first_object_in_group(

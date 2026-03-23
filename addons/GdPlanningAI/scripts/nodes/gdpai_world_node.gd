@@ -12,8 +12,8 @@ extends Node
 
 ## When called, the scene tree is parsed to collect the active GdPAI object data.
 func get_world_state() -> GdPAIBlackboard:
-	var objects: Array[GdPAIObjectData] = []
-	for obj: GdPAIObjectData in get_tree().get_nodes_in_group("GdPAIObjectData"):
+	var objects: Array = []
+	for obj in get_tree().get_nodes_in_group("GdPAIObjectData"):
 		objects.append(obj)
 	world_state.set_property("GDPAI_OBJECTS", objects)
 	return world_state

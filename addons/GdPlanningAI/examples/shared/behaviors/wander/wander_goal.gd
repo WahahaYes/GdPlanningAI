@@ -14,8 +14,8 @@ func compute_reward(_agent: GdPAIAgent) -> float:
 
 # Override
 func get_desired_state(agent: GdPAIAgent) -> Array[Precondition]:
-	var agent_location_data: GdPAILocationData = agent.blackboard.get_first_object_in_group(
-		"GdPAILocationData",
+	var agent_location_data: GdPAILocationData = GdPAIUTILS.get_child_of_type(
+		agent.entity, GdPAILocationData
 	)
 	var agent_position = agent_location_data.position
 
@@ -27,6 +27,8 @@ func get_desired_state(agent: GdPAIAgent) -> Array[Precondition]:
 		var sim_location: SimObjectProxy = blackboard.get_first_object_in_group(
 			"GdPAILocationData",
 		)
+		if sim_location == null:
+			return false
 		var sim_position = sim_location.get_property("position")
 		var req_distance: float = 16.0 if sim_position is Vector2 else 1.0
 		return (sim_position - agent_position).length() > req_distance

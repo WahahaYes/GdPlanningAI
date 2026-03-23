@@ -41,9 +41,10 @@ func _ready() -> void:
 	# Initial blackboard setup common for all agents.
 	blackboard.set_property("entity", entity)
 	# Collect any GdPAI nodes under this agent's entity.
-	var gdpai_objects: Array[GdPAIObjectData] = []
-	for obj: GdPAIObjectData in GdPAIUTILS.get_children_of_type(entity, GdPAIObjectData):
-		gdpai_objects.append(obj)
+	var gdpai_objects: Array = []
+	for obj in get_tree().get_nodes_in_group("GdPAIObjectData"):
+		if entity != null and (obj == entity or entity.is_ancestor_of(obj)):
+			gdpai_objects.append(obj)
 	blackboard.set_property("GDPAI_OBJECTS", gdpai_objects)
 	# Apply behavior configurations.
 	for behavior_config in config.behavior_configs:

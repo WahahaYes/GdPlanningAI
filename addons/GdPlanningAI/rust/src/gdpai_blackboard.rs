@@ -56,7 +56,7 @@ impl GdPAIBlackboard {
             self.objects.clear();
             if let Ok(objects_array) = value.clone().try_to::<Array<Variant>>() {
                 for obj_var in objects_array.iter_shared() {
-                    match obj_var.try_to::<Gd<RefCounted>>() {
+                    match obj_var.try_to::<Gd<Object>>() {
                         Ok(obj_gd) => {
                             if let Some(sim_obj) =
                                 crate::sim_object_proxy::SimObjectProxy::from_object_data(obj_gd)

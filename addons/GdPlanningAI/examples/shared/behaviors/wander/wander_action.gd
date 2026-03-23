@@ -53,12 +53,12 @@ func simulate_effect(
 
 # Override
 func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
-	var location_data: GdPAILocationData = agent.blackboard.get_first_object_in_group(
-		"GdPAILocationData",
+	var location_data: GdPAILocationData = GdPAIUTILS.get_child_of_type(
+		agent.entity, GdPAILocationData
 	)
 	set_state(agent, "agent_location", location_data)
 
-	var entity: Node = agent.blackboard.get_property("entity")
+	var entity: Node = agent.entity
 	var nav_agent: Node = _find_nav_agent(entity)
 
 	var random_dir: Vector2 = Vector2.from_angle(deg_to_rad(randf_range(-180, 180)))
