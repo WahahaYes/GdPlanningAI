@@ -9,9 +9,6 @@ enum Status {FAILURE, RUNNING, SUCCESS}
 
 ## List of static preconditions needed for the action to be considered.  This is
 ## evaluated at the time of assigning wordly actions (so, there is no need to grab sim data).
-##[br]
-##[br]
-## For multithreaded planning, it is possible to await information with GdPAIUTILS.await_callv(..).
 func get_validity_checks() -> Array[Precondition]:
 	return []
 

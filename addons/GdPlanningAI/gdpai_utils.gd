@@ -19,66 +19,10 @@ static func get_child_of_type(
 	return null
 
 
-## Searches a node's tree to find all children of type _class.
-static func get_children_of_type(
-		node: Node,
-		_class: Variant,
-) -> Array[Variant]:
-	var children: Array = []
-	return _get_children_of_type(children, node, _class)
-
-
-static func _get_children_of_type(
-		children: Array,
-		node: Node,
-		_class: Variant,
-) -> Array[Variant]:
-	if is_instance_of(node, _class):
-		children.append(node)
-	for child in node.get_children():
-		_get_children_of_type(children, child, _class)
-	return children
-
-
-## Waits for a deferred call to the main thread to return information.
-static func await_callv(
-		obj: Object,
-		method: String,
-		args: Array = [],
-) -> Variant:
-	return await callv_deferred(obj, method, args).finished
-
-
-## Makes a deferred call with the option to listen for a finished signal.
-static func callv_deferred(
-		obj: Object,
-		method: String,
-		args: Array = [],
-) -> AwaitableCallDeferred:
-	return AwaitableCallDeferred.new(obj, method, args)
-
-
-## Internal class that structures a call_deferred() call and a returning signal to query info from
-## the main thread (somewhat) safely.
-##[br]
-##[br]
-## NOTE: Using this class too extensively could overload the main thread and lead to stutters.
-class AwaitableCallDeferred:
-	signal finished(result)
-
-
-	func _init(
-			obj: Object,
-			method: String,
-			args: Array = [],
-	) -> void:
-		call_deferred("_call_and_signal", obj, method, args)
-
-
-	func _call_and_signal(
-			obj: Object,
-			method: String,
-			args: Array = [],
-	) -> void:
-		var result = obj.callv(method, args)
-		emit_signal("finished", result)
+## Returns all nodes belonging to [param group] that are [param node] itself or a descendant of it.
+static func get_children_in_group(node: Node, group: String) -> Array:
+	var result: Array = []
+	for child in node.get_tree().get_nodes_in_group(group):
+		if child == node or node.is_ancestor_of(child):
+			result.append(child)
+	return result

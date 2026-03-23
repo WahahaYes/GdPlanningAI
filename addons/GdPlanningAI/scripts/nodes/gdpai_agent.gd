@@ -41,11 +41,8 @@ func _ready() -> void:
 	# Initial blackboard setup common for all agents.
 	blackboard.set_property("entity", entity)
 	# Collect any GdPAI nodes under this agent's entity.
-	var gdpai_objects: Array = []
-	for obj in get_tree().get_nodes_in_group("GdPAIObjectData"):
-		if entity != null and (obj == entity or entity.is_ancestor_of(obj)):
-			gdpai_objects.append(obj)
-	blackboard.set_property("GDPAI_OBJECTS", gdpai_objects)
+	var agent_objects: Array = GdPAIUTILS.get_children_in_group(entity, "GdPAIObjectData")
+	blackboard.set_property("GDPAI_OBJECTS", agent_objects)
 	# Apply behavior configurations.
 	for behavior_config in config.behavior_configs:
 		behavior_config.apply_to_agent(self )
@@ -145,11 +142,8 @@ func _on_planning_timer_timeout() -> void:
 ## Fully synchronous — no await.
 func _start_plan() -> void:
 	# Refresh the agent's own object snapshots so proxy positions are current.
-	var gdpai_objects: Array = []
-	for obj in get_tree().get_nodes_in_group("GdPAIObjectData"):
-		if entity != null and (obj == entity or entity.is_ancestor_of(obj)):
-			gdpai_objects.append(obj)
-	blackboard.set_property("GDPAI_OBJECTS", gdpai_objects)
+	var agent_objects: Array = GdPAIUTILS.get_children_in_group(entity, "GdPAIObjectData")
+	blackboard.set_property("GDPAI_OBJECTS", agent_objects)
 
 	var all_actions: Array[Action] = []
 	all_actions.append_array(self_actions)

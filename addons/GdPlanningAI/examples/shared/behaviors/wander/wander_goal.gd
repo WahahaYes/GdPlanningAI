@@ -14,8 +14,8 @@ func compute_reward(_agent: GdPAIAgent) -> float:
 
 # Override
 func get_desired_state(agent: GdPAIAgent) -> Array[Precondition]:
-	var agent_location_data: GdPAILocationData = GdPAIUTILS.get_child_of_type(
-		agent.entity, GdPAILocationData
+	var agent_location_data: GdPAILocationData = agent.blackboard.get_node_in_group(
+		"GdPAILocationData",
 	)
 	var agent_position = agent_location_data.position
 
