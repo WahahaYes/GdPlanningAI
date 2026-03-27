@@ -177,11 +177,10 @@ impl GdPAIBlackboard {
     pub fn get_nodes_in_group(&self, group: GString) -> Array<Variant> {
         let mut arr = Array::new();
         for (uid, obj) in &self.objects {
-            if obj.bind().is_in_group(group.clone()) {
-                if let Some(node) = self.source_objects.get(uid) {
+            if obj.bind().is_in_group(group.clone())
+                && let Some(node) = self.source_objects.get(uid) {
                     arr.push(&node.clone().to_variant());
                 }
-            }
         }
         arr
     }
