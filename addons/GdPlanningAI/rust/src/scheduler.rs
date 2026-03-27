@@ -7,7 +7,7 @@
 
 use crate::background_types::*;
 use crate::plan_tree::PlanResult;
-use crate::precondition::{PreconditionOp, PreconditionTarget};
+use crate::precondition::{PreconditionHandler, PreconditionOp};
 use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use godot::prelude::*;
 use std::sync::mpsc::Receiver;
@@ -223,11 +223,7 @@ impl GdPAIPlanScheduler {
             .collect()
     }
 
-    fn extract_precond_specs(
-        &mut self,
-        dict: &VarDictionary,
-        key: &str,
-    ) -> Vec<PreconditionSpec> {
+    fn extract_precond_specs(&mut self, dict: &VarDictionary, key: &str) -> Vec<PreconditionSpec> {
         dict.get(key)
             .and_then(|v| v.try_to::<Array<VarDictionary>>().ok())
             .map(|arr| {
@@ -238,50 +234,24 @@ impl GdPAIPlanScheduler {
             .unwrap_or_default()
     }
 
+    /// Converts a bridge dictionary into a [`PreconditionSpec`] by delegating
+    /// parsing to [`PreconditionHandler::from_dict`], then converting the
+    /// result into a Send-safe spec. Custom callables are registered in the
+    /// callable registry and replaced with an ID.
     fn precond_spec_from_dict(&mut self, dict: &VarDictionary) -> Option<PreconditionSpec> {
-        let op_str = dict
-            .get("operation")
-            .and_then(|v| v.try_to::<String>().ok())
-            .unwrap_or_else(|| "has_property".to_string());
+        let handler = PreconditionHandler::from_dict(dict)?;
 
-        if op_str.to_lowercase() == "custom_callback" {
-            let callable = dict.get("eval_callable")?.try_to::<Callable>().ok()?;
+        if handler.operation == PreconditionOp::CustomCallback {
+            let callable = handler.eval_callable?;
             let id = self.register_callable(callable);
             return Some(PreconditionSpec::Custom { callable_id: id });
         }
 
-        let target = dict
-            .get("target")
-            .and_then(|v| v.try_to::<String>().ok())
-            .map(|s| match s.to_lowercase().as_str() {
-                "world_state" => PreconditionTarget::WorldState,
-                _ => PreconditionTarget::Agent,
-            })
-            .unwrap_or(PreconditionTarget::Agent);
-
-        let operation = match op_str.to_lowercase().as_str() {
-            "has_property" => PreconditionOp::HasProperty,
-            "equal" => PreconditionOp::Equal,
-            "not_equal" => PreconditionOp::NotEqual,
-            "greater_than" => PreconditionOp::GreaterThan,
-            "greater_than_or_equal" => PreconditionOp::GreaterThanOrEqual,
-            "less_than" => PreconditionOp::LessThan,
-            "less_than_or_equal" => PreconditionOp::LessThanOrEqual,
-            _ => PreconditionOp::HasProperty,
-        };
-
-        let property_name = dict
-            .get("property_name")
-            .and_then(|v| v.try_to::<String>().ok())
-            .unwrap_or_default();
-
-        let value = dict.get("value").map(|v| VariantSnapshot::from_variant(&v));
-
         Some(PreconditionSpec::Builtin {
-            target,
-            operation,
-            property_name,
-            value,
+            target: handler.target,
+            operation: handler.operation,
+            property_name: handler.property_name,
+            value: handler.value.map(|v| VariantSnapshot::from_variant(&v)),
         })
     }
 }

@@ -92,7 +92,11 @@ mod tests {
             make_goal("High Value", 100.0, 1),
             make_goal("Mid Value", 50.0, 2),
         ];
-        goals.sort_by(|a, b| b.reward.partial_cmp(&a.reward).unwrap_or(std::cmp::Ordering::Equal));
+        goals.sort_by(|a, b| {
+            b.reward
+                .partial_cmp(&a.reward)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         assert_eq!(goals[0].name, "High Value");
         assert_eq!(goals[1].name, "Mid Value");
         assert_eq!(goals[2].name, "Low Value");
@@ -105,7 +109,11 @@ mod tests {
             make_goal("Second", 80.0, 1),
             make_goal("Third", 10.0, 2),
         ];
-        goals.sort_by(|a, b| b.reward.partial_cmp(&a.reward).unwrap_or(std::cmp::Ordering::Equal));
+        goals.sort_by(|a, b| {
+            b.reward
+                .partial_cmp(&a.reward)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         assert_eq!(goals[0].original_index, 1); // "Second" was at GDScript index 1
         assert_eq!(goals[1].original_index, 0); // "First" was at GDScript index 0
         assert_eq!(goals[2].original_index, 2); // "Third" was at GDScript index 2

@@ -194,8 +194,14 @@ impl RustPlanningEngine {
         };
 
         log_debug!("Starting recursive search for goal '{}'", goal.name);
-        let success =
-            self.build_plan_recursive(&mut root_node, &goal.desired_state, agent_state, world_state, actions, 0);
+        let success = self.build_plan_recursive(
+            &mut root_node,
+            &goal.desired_state,
+            agent_state,
+            world_state,
+            actions,
+            0,
+        );
 
         if success {
             log_debug!(
@@ -413,4 +419,3 @@ impl IRefCounted for RustPlanningEngine {
         }
     }
 }
-

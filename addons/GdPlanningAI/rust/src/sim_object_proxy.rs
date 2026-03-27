@@ -100,7 +100,10 @@ impl SimObjectProxy {
         }
 
         let mut properties = HashMap::new();
-        match obj.call("get_sim_properties", &[]).try_to::<VarDictionary>() {
+        match obj
+            .call("get_sim_properties", &[])
+            .try_to::<VarDictionary>()
+        {
             Ok(sim_props) => {
                 for (k, v) in sim_props.iter_shared() {
                     if let Ok(key_str) = k.try_to::<String>() {

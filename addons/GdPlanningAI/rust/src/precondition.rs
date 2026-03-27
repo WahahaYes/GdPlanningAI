@@ -84,7 +84,7 @@ impl PreconditionHandler {
 
     /// Maps an operation name string from the GDScript bridge to a [`PreconditionOp`] variant.
     /// Unrecognised strings fall back to [`PreconditionOp::HasProperty`].
-    fn parse_operation(s: &str) -> PreconditionOp {
+    pub fn parse_operation(s: &str) -> PreconditionOp {
         match s.to_lowercase().as_str() {
             "has_property" => PreconditionOp::HasProperty,
             "equal" => PreconditionOp::Equal,
@@ -237,28 +237,73 @@ mod tests {
 
     #[test]
     fn parse_all_known_operations() {
-        assert_eq!(PreconditionHandler::parse_operation("has_property"), PreconditionOp::HasProperty);
-        assert_eq!(PreconditionHandler::parse_operation("equal"), PreconditionOp::Equal);
-        assert_eq!(PreconditionHandler::parse_operation("not_equal"), PreconditionOp::NotEqual);
-        assert_eq!(PreconditionHandler::parse_operation("greater_than"), PreconditionOp::GreaterThan);
-        assert_eq!(PreconditionHandler::parse_operation("greater_than_or_equal"), PreconditionOp::GreaterThanOrEqual);
-        assert_eq!(PreconditionHandler::parse_operation("less_than"), PreconditionOp::LessThan);
-        assert_eq!(PreconditionHandler::parse_operation("less_than_or_equal"), PreconditionOp::LessThanOrEqual);
-        assert_eq!(PreconditionHandler::parse_operation("custom_callback"), PreconditionOp::CustomCallback);
+        assert_eq!(
+            PreconditionHandler::parse_operation("has_property"),
+            PreconditionOp::HasProperty
+        );
+        assert_eq!(
+            PreconditionHandler::parse_operation("equal"),
+            PreconditionOp::Equal
+        );
+        assert_eq!(
+            PreconditionHandler::parse_operation("not_equal"),
+            PreconditionOp::NotEqual
+        );
+        assert_eq!(
+            PreconditionHandler::parse_operation("greater_than"),
+            PreconditionOp::GreaterThan
+        );
+        assert_eq!(
+            PreconditionHandler::parse_operation("greater_than_or_equal"),
+            PreconditionOp::GreaterThanOrEqual
+        );
+        assert_eq!(
+            PreconditionHandler::parse_operation("less_than"),
+            PreconditionOp::LessThan
+        );
+        assert_eq!(
+            PreconditionHandler::parse_operation("less_than_or_equal"),
+            PreconditionOp::LessThanOrEqual
+        );
+        assert_eq!(
+            PreconditionHandler::parse_operation("custom_callback"),
+            PreconditionOp::CustomCallback
+        );
     }
 
     #[test]
     fn parse_operation_is_case_insensitive() {
-        assert_eq!(PreconditionHandler::parse_operation("EQUAL"), PreconditionOp::Equal);
-        assert_eq!(PreconditionHandler::parse_operation("Greater_Than"), PreconditionOp::GreaterThan);
-        assert_eq!(PreconditionHandler::parse_operation("HAS_PROPERTY"), PreconditionOp::HasProperty);
-        assert_eq!(PreconditionHandler::parse_operation("CUSTOM_CALLBACK"), PreconditionOp::CustomCallback);
+        assert_eq!(
+            PreconditionHandler::parse_operation("EQUAL"),
+            PreconditionOp::Equal
+        );
+        assert_eq!(
+            PreconditionHandler::parse_operation("Greater_Than"),
+            PreconditionOp::GreaterThan
+        );
+        assert_eq!(
+            PreconditionHandler::parse_operation("HAS_PROPERTY"),
+            PreconditionOp::HasProperty
+        );
+        assert_eq!(
+            PreconditionHandler::parse_operation("CUSTOM_CALLBACK"),
+            PreconditionOp::CustomCallback
+        );
     }
 
     #[test]
     fn parse_unknown_operation_defaults_to_has_property() {
-        assert_eq!(PreconditionHandler::parse_operation("nonexistent"), PreconditionOp::HasProperty);
-        assert_eq!(PreconditionHandler::parse_operation(""), PreconditionOp::HasProperty);
-        assert_eq!(PreconditionHandler::parse_operation("gt"), PreconditionOp::HasProperty);
+        assert_eq!(
+            PreconditionHandler::parse_operation("nonexistent"),
+            PreconditionOp::HasProperty
+        );
+        assert_eq!(
+            PreconditionHandler::parse_operation(""),
+            PreconditionOp::HasProperty
+        );
+        assert_eq!(
+            PreconditionHandler::parse_operation("gt"),
+            PreconditionOp::HasProperty
+        );
     }
 }

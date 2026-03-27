@@ -75,9 +75,7 @@ impl GdPAIBlackboard {
                             }
                         }
                         Err(_) => {
-                            log_debug!(
-                                "GDPAI_OBJECTS: skipping item that is not a Node"
-                            );
+                            log_debug!("GDPAI_OBJECTS: skipping item that is not a Node");
                         }
                     }
                 }
