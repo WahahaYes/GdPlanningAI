@@ -31,6 +31,14 @@ var _planning_strategy: GdPAIAgentConfig.PlanningStrategy = \
 GdPAIAgentConfig.PlanningStrategy.CONTINUOUS
 ## Timer for interval-based planning.
 var _planning_timer: Timer = null
+## True while a background plan is in flight.
+var _waiting_for_plan: bool = false
+## Actions submitted with the last async plan request (needed for deserialization).
+var _last_submitted_actions: Array[Action] = []
+## Incremented on each async submit; checked in _on_plan_ready to discard stale results.
+var _plan_generation: int = 0
+## The generation that the in-flight plan was submitted under.
+var _inflight_generation: int = 0
 
 
 func _ready() -> void:
@@ -66,8 +74,8 @@ func _process(delta: float) -> void:
 			_current_action_chain.is_empty()
 			or _current_plan_step > _current_action_chain.size()
 		)
-		if plan_done:
-			_start_plan()
+		if plan_done and not _waiting_for_plan:
+			_start_plan_async()
 
 	_execute_plan(delta)
 
@@ -122,19 +130,64 @@ func manually_start_plan() -> void:
 	_start_plan()
 
 
+## Submit a planning job to the background scheduler.
+func _start_plan_async() -> void:
+	var agent_objects: Array = GdPAIUTILS.get_children_in_group(entity, "GdPAIObjectData")
+	blackboard.set_property("GDPAI_OBJECTS", agent_objects)
+
+	var all_actions: Array[Action] = []
+	all_actions.append_array(self_actions)
+	all_actions.append_array(_collect_worldly_actions())
+
+	_last_submitted_actions = all_actions
+	_plan_generation += 1
+	_inflight_generation = _plan_generation
+	_waiting_for_plan = true
+
+	var scheduler: GdPAIPlanScheduler = GdPAIAutoload.get_scheduler()
+	if scheduler == null:
+		push_warning("GdPAIAgent: scheduler not available, falling back to sync plan")
+		_waiting_for_plan = false
+		_start_plan()
+		return
+
+	scheduler.submit_plan(
+		self ,
+		blackboard,
+		world_node.get_world_state(),
+		_bridge.serialize_actions(all_actions),
+		_bridge.serialize_goals(goals, self ),
+	)
+
+
+## Called by the scheduler when a background plan completes.
+func _on_plan_ready(result: Dictionary) -> void:
+	_waiting_for_plan = false
+	# Discard stale results if goals changed since submission.
+	if _inflight_generation != _plan_generation:
+		return
+	_current_plan_step = -1
+	if result.get("success", false):
+		_current_action_chain = _bridge.deserialize_plan_result(result, _last_submitted_actions)
+		_current_goal = goals[result.get("goal_index", 0)]
+	else:
+		_current_action_chain = []
+		_current_goal = null
+
+
 ## Timer callback for interval planning.
 func _on_planning_timer_timeout() -> void:
 	if goals.size() == 0:
 		return
 	if _planning_strategy == GdPAIAgentConfig.PlanningStrategy.ON_INTERVAL_FORCED:
-		_start_plan()
+		_start_plan_async()
 	elif _planning_strategy == GdPAIAgentConfig.PlanningStrategy.ON_INTERVAL:
 		var plan_done: bool = (
 			_current_action_chain.is_empty()
 			or _current_plan_step > _current_action_chain.size()
 		)
-		if plan_done:
-			_start_plan()
+		if plan_done and not _waiting_for_plan:
+			_start_plan_async()
 	_planning_timer.start()
 
 

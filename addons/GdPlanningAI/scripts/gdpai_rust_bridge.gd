@@ -54,6 +54,16 @@ func deserialize_plan_result(result: Dictionary, actions: Array[Action]) -> Arra
 	return action_chain
 
 
+## Public accessor for action serialisation — used by the async planning path.
+func serialize_actions(actions: Array[Action]) -> Array[Dictionary]:
+	return _extract_actions(actions)
+
+
+## Public accessor for goal serialisation — used by the async planning path.
+func serialize_goals(goals: Array[Goal], agent: GdPAIAgent) -> Array[Dictionary]:
+	return _extract_goals(goals, agent)
+
+
 ## Serialises each [Action] in [param actions] into the dictionary format
 ## expected by the Rust layer, embedding [Callable] references for cost and
 ## effect evaluation.

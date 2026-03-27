@@ -7,6 +7,7 @@ use super::action::ActionData;
 use super::gdpai_blackboard::GdPAIBlackboard;
 use super::goal::GoalData;
 use super::precondition::PreconditionHandler;
+use crate::plan_tree::{self, PlanResult, PlanTreeNode};
 use godot::prelude::*;
 
 /// Forward-chaining GOAP planning engine exposed to GDScript.
@@ -189,20 +190,19 @@ impl RustPlanningEngine {
         let mut root_node = PlanTreeNode {
             action_index: -1,
             cost: 0.0,
-            desired_state: goal.desired_state.clone(),
             children: vec![],
         };
 
         log_debug!("Starting recursive search for goal '{}'", goal.name);
         let success =
-            self.build_plan_recursive(&mut root_node, agent_state, world_state, actions, 0);
+            self.build_plan_recursive(&mut root_node, &goal.desired_state, agent_state, world_state, actions, 0);
 
         if success {
             log_debug!(
                 "Solution found for goal '{}', extracting best path",
                 goal.name
             );
-            let plan = Self::extract_best_plan(&root_node);
+            let plan = plan_tree::extract_best_plan(&root_node);
             PlanResult {
                 success: true,
                 action_chain: plan.actions,
@@ -224,6 +224,7 @@ impl RustPlanningEngine {
     fn build_plan_recursive(
         &mut self,
         node: &mut PlanTreeNode,
+        desired_state: &[PreconditionHandler],
         agent_state: Gd<GdPAIBlackboard>,
         world_state: Gd<GdPAIBlackboard>,
         actions: &[ActionData],
@@ -288,7 +289,7 @@ impl RustPlanningEngine {
             action.apply_effect(&mut sim_agent, &mut sim_world);
 
             let should_use_action =
-                self.check_progress_toward_goal(&node.desired_state, &sim_agent, &sim_world);
+                self.check_progress_toward_goal(desired_state, &sim_agent, &sim_world);
 
             if should_use_action {
                 log_debug!(
@@ -298,7 +299,7 @@ impl RustPlanningEngine {
                     action.name
                 );
 
-                if self.is_goal_satisfied(&node.desired_state, &sim_agent, &sim_world) {
+                if self.is_goal_satisfied(desired_state, &sim_agent, &sim_world) {
                     log_debug!(
                         "Level {}: action [{}] '{}' fully satisfies goal — leaf added",
                         recursion_level,
@@ -309,7 +310,6 @@ impl RustPlanningEngine {
                     let next_node = PlanTreeNode {
                         action_index: idx as i64,
                         cost,
-                        desired_state: node.desired_state.clone(),
                         children: vec![],
                     };
                     node.children.push(next_node);
@@ -320,16 +320,17 @@ impl RustPlanningEngine {
                 let mut next_node = PlanTreeNode {
                     action_index: idx as i64,
                     cost,
-                    desired_state: node.desired_state.clone(),
                     children: vec![],
                 };
 
                 // Propagate the action's preconditions as additional constraints
                 // the sub-plan must satisfy before this action can be used.
-                next_node.desired_state.extend(action.preconditions.clone());
+                let mut child_desired = desired_state.to_vec();
+                child_desired.extend(action.preconditions.clone());
 
                 if self.build_plan_recursive(
                     &mut next_node,
+                    &child_desired,
                     sim_agent,
                     sim_world,
                     actions,
@@ -385,48 +386,6 @@ impl RustPlanningEngine {
             .all(|p| p.evaluate(agent_state, world_state))
     }
 
-    /// Traverses the completed plan tree and returns the path with the lowest total cost.
-    fn extract_best_plan(root: &PlanTreeNode) -> ExtractedPlan {
-        let mut best_path: Vec<i64> = vec![];
-        let mut best_cost = f64::INFINITY;
-
-        Self::find_lowest_cost_path(root, 0.0, vec![], &mut best_path, &mut best_cost);
-
-        ExtractedPlan {
-            actions: best_path,
-            cost: best_cost,
-        }
-    }
-
-    /// Recursive depth-first traversal that updates `best_path` and `best_cost`
-    /// whenever a leaf is reached with a lower cumulative cost.
-    fn find_lowest_cost_path(
-        node: &PlanTreeNode,
-        current_cost: f64,
-        current_path: Vec<i64>,
-        best_path: &mut Vec<i64>,
-        best_cost: &mut f64,
-    ) {
-        let new_cost = current_cost + node.cost;
-        let mut new_path = current_path.clone();
-
-        if node.action_index >= 0 {
-            new_path.push(node.action_index);
-        }
-
-        if node.children.is_empty() {
-            if new_cost < *best_cost {
-                *best_path = new_path;
-                *best_cost = new_cost;
-            }
-            return;
-        }
-
-        for child in &node.children {
-            Self::find_lowest_cost_path(child, new_cost, new_path.clone(), best_path, best_cost);
-        }
-    }
-
     /// Serialises a [`PlanResult`] into the [`Dictionary`] format returned by [`build_plan`](Self::build_plan).
     fn result_to_dict(&self, result: &PlanResult) -> VarDictionary {
         let mut dict = VarDictionary::new();
@@ -455,99 +414,3 @@ impl IRefCounted for RustPlanningEngine {
     }
 }
 
-/// Internal plan tree node for tracking search paths.
-#[derive(Clone, Debug)]
-pub struct PlanTreeNode {
-    pub action_index: i64,
-    pub cost: f64,
-    pub desired_state: Vec<PreconditionHandler>,
-    pub children: Vec<PlanTreeNode>,
-}
-
-/// Result of the planning algorithm.
-#[derive(Clone, Debug)]
-pub struct PlanResult {
-    pub success: bool,
-    pub action_chain: Vec<i64>,
-    pub total_cost: f64,
-    /// Index into the original goals array passed from GDScript; -1 on failure
-    pub goal_index: i64,
-}
-
-impl PlanResult {
-    pub fn failure() -> Self {
-        Self {
-            success: false,
-            action_chain: vec![],
-            total_cost: f64::INFINITY,
-            goal_index: -1,
-        }
-    }
-}
-
-struct ExtractedPlan {
-    actions: Vec<i64>,
-    cost: f64,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn leaf(action_index: i64, cost: f64) -> PlanTreeNode {
-        PlanTreeNode { action_index, cost, desired_state: vec![], children: vec![] }
-    }
-
-    fn node(action_index: i64, cost: f64, children: Vec<PlanTreeNode>) -> PlanTreeNode {
-        PlanTreeNode { action_index, cost, desired_state: vec![], children }
-    }
-
-    fn root(children: Vec<PlanTreeNode>) -> PlanTreeNode {
-        PlanTreeNode { action_index: -1, cost: 0.0, desired_state: vec![], children }
-    }
-
-    #[test]
-    fn single_action_plan_returned() {
-        let tree = root(vec![leaf(0, 5.0)]);
-        let plan = RustPlanningEngine::extract_best_plan(&tree);
-        assert_eq!(plan.actions, vec![0]);
-        assert_eq!(plan.cost, 5.0);
-    }
-
-    #[test]
-    fn picks_lowest_cost_single_step_branch() {
-        let tree = root(vec![leaf(0, 20.0), leaf(1, 8.0)]);
-        let plan = RustPlanningEngine::extract_best_plan(&tree);
-        assert_eq!(plan.actions, vec![1]);
-        assert_eq!(plan.cost, 8.0);
-    }
-
-    #[test]
-    fn multi_step_chain_cumulates_cost() {
-        let tree = root(vec![node(0, 3.0, vec![leaf(1, 7.0)])]);
-        let plan = RustPlanningEngine::extract_best_plan(&tree);
-        assert_eq!(plan.actions, vec![0, 1]);
-        assert_eq!(plan.cost, 10.0);
-    }
-
-    #[test]
-    fn picks_cheapest_multi_step_path() {
-        // path A: action 0 (5.0) → action 1 (10.0) = 15.0 total
-        // path B: action 2 (4.0) → action 3 (3.0)  =  7.0 total  ← cheaper
-        let tree = root(vec![
-            node(0, 5.0, vec![leaf(1, 10.0)]),
-            node(2, 4.0, vec![leaf(3, 3.0)]),
-        ]);
-        let plan = RustPlanningEngine::extract_best_plan(&tree);
-        assert_eq!(plan.actions, vec![2, 3]);
-        assert_eq!(plan.cost, 7.0);
-    }
-
-    #[test]
-    fn empty_root_returns_zero_cost_empty_plan() {
-        let tree = root(vec![]);
-        let plan = RustPlanningEngine::extract_best_plan(&tree);
-        assert_eq!(plan.actions, Vec::<i64>::new());
-        assert_eq!(plan.cost, 0.0);
-    }
-}

@@ -18,11 +18,16 @@ use godot::prelude::*;
 #[macro_use]
 pub mod logger;
 pub mod action;
+pub mod background_plan;
+pub mod background_types;
 pub mod gdpai_blackboard;
 pub mod goal;
+pub mod plan_tree;
 pub mod planning_engine;
 pub mod precondition;
+pub mod scheduler;
 pub mod sim_object_proxy;
+pub mod snapshot;
 
 struct GdPlanningAIExt;
 
