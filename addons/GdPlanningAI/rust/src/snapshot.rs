@@ -51,15 +51,16 @@ impl VariantSnapshot {
             return Self::Str(s);
         }
 
-        // Tier 2: Godot binary serialiser
+        // Tier 3: live Object — store instance ID BEFORE attempting var_to_bytes
+        // (var_to_bytes succeeds on Objects but encodes them as EncodedObjectAsID)
+        if let Ok(obj) = v.try_to::<Gd<Object>>() {
+            return Self::ObjectRef(obj.instance_id().to_i64());
+        }
+
+        // Tier 2: Godot binary serialiser (for Vector2/3, Color, Array, Dictionary, Resources, etc.)
         let bytes: PackedByteArray = godot::global::var_to_bytes(&v.clone());
         if !bytes.is_empty() {
             return Self::Bytes(bytes.to_vec());
-        }
-
-        // Tier 3: live Object — store instance ID
-        if let Ok(obj) = v.try_to::<Gd<Object>>() {
-            return Self::ObjectRef(obj.instance_id().to_i64());
         }
 
         log_warn!(

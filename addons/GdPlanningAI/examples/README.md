@@ -12,20 +12,20 @@ in the Godot editor and press **Play Scene**.
 ```
 examples/
   shared/                 ← reusable building blocks (read these to learn the API)
-    behaviors/
-      hunger/             ← Goal, PropertyUpdater, BehaviorConfig
-      wander/             ← Goal, Action, BehaviorConfig
-    objects/
-      food/               ← GdPAIObjectData + SpatialAction
-      fruit_tree/         ← GdPAIObjectData + SpatialAction with cooldown state
+	behaviors/
+	  hunger/             ← Goal, PropertyUpdater, BehaviorConfig
+	  wander/             ← Goal, Action, BehaviorConfig
+	objects/
+	  food/               ← GdPAIObjectData + SpatialAction
+	  fruit_tree/         ← GdPAIObjectData + SpatialAction with cooldown state
 
   demo_2d/                ← everything needed to run the 2D demo
-    scenes/               ← open these in Godot
-    assets/
-      agent/              ← reusable agent prefab + nav/animation scripts
-      world/              ← tileset, scenery, interactable object prefabs
-      ui/                 ← HUD scripts (FPS counter, agent debug label)
-    configs/              ← GdPAIAgentConfig .tres resources
+	scenes/               ← open these in Godot
+	assets/
+	  agent/              ← reusable agent prefab + nav/animation scripts
+	  world/              ← tileset, scenery, interactable object prefabs
+	  ui/                 ← HUD scripts (FPS counter, agent debug label)
+	configs/              ← GdPAIAgentConfig .tres resources
 ```
 
 ---

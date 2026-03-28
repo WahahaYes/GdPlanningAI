@@ -18,6 +18,7 @@ use std::sync::mpsc::Receiver;
 
 struct ActiveJobHandle {
     agent: Gd<Object>,
+    callable_registry: Vec<Callable>,
     request_rx: Receiver<CallbackRequest>,
     result_rx: Receiver<PlanResult>,
     done: bool,
@@ -41,7 +42,6 @@ pub struct GdPAIPlanScheduler {
     /// Maximum search depth forwarded to the background planner.
     #[export]
     max_recursion: i64,
-    callable_registry: Vec<Callable>,
     active_jobs: Vec<ActiveJobHandle>,
     thread_pool: Option<rayon::ThreadPool>,
     base: Base<Node>,
@@ -53,7 +53,6 @@ impl INode for GdPAIPlanScheduler {
         Self {
             max_threads: 0,
             max_recursion: 100,
-            callable_registry: Vec::new(),
             active_jobs: Vec::new(),
             thread_pool: None,
             base,
@@ -83,13 +82,12 @@ impl GdPAIPlanScheduler {
     /// Call this once per frame from GDScript `_process`.
     #[func]
     fn process_callbacks(&mut self) {
-        // We need to borrow `callable_registry` while iterating `active_jobs`.
-        // Process each job's pending callbacks.
+        // Process each job's pending callbacks using its own callable registry.
         for job in self.active_jobs.iter_mut().filter(|j| !j.done) {
             loop {
                 match job.request_rx.try_recv() {
                     Ok(req) => {
-                        let callable = &self.callable_registry[req.callable_id];
+                        let callable = &job.callable_registry[req.callable_id];
                         let response = dispatch_callback(callable, req.kind);
                         let _ = req.response_tx.send(response);
                     }
@@ -100,10 +98,18 @@ impl GdPAIPlanScheduler {
             if let Ok(result) = job.result_rx.try_recv() {
                 job.done = true;
                 if job.agent.is_instance_valid() {
+                    log_info!(
+                        "Plan complete: success={}, actions={}, cost={:.1}",
+                        result.success,
+                        result.action_chain.len(),
+                        result.total_cost
+                    );
                     let dict = result_to_dict(&result);
                     job.agent
                         .clone()
                         .call("_on_plan_ready", &[dict.to_variant()]);
+                } else {
+                    log_warn!("Plan completed but agent was freed");
                 }
             }
         }
@@ -129,9 +135,17 @@ impl GdPAIPlanScheduler {
         let snap_agent = BlackboardSnapshot::from_blackboard(&agent_bb.bind());
         let snap_world = BlackboardSnapshot::from_blackboard(&world_bb.bind());
 
-        // 2. Register callables and build specs
-        let action_specs = self.build_action_specs(&actions);
-        let goal_specs = self.build_goal_specs(&goals);
+        // 2. Register callables and build specs (per-job registry)
+        let mut job_registry = Vec::new();
+        let action_specs = build_action_specs(&actions, &mut job_registry);
+        let goal_specs = build_goal_specs(&goals, &mut job_registry);
+
+        log_info!(
+            "Submitting plan: {} actions, {} goals, {} callables",
+            action_specs.len(),
+            goal_specs.len(),
+            job_registry.len()
+        );
 
         // 3. Create channels
         let (req_tx, req_rx) = std::sync::mpsc::channel::<CallbackRequest>();
@@ -156,6 +170,7 @@ impl GdPAIPlanScheduler {
 
         self.active_jobs.push(ActiveJobHandle {
             agent,
+            callable_registry: job_registry,
             request_rx: req_rx,
             result_rx: res_rx,
             done: false,
@@ -170,90 +185,97 @@ impl GdPAIPlanScheduler {
 }
 
 // ---------------------------------------------------------------------------
-// Private helpers
+// Private helpers (standalone functions with per-job registry)
 // ---------------------------------------------------------------------------
 
-impl GdPAIPlanScheduler {
-    fn register_callable(&mut self, callable: Callable) -> usize {
-        let id = self.callable_registry.len();
-        self.callable_registry.push(callable);
-        id
-    }
+fn register_callable(registry: &mut Vec<Callable>, callable: Callable) -> usize {
+    let id = registry.len();
+    registry.push(callable);
+    id
+}
 
-    fn build_action_specs(&mut self, actions: &Array<VarDictionary>) -> Vec<ActionSpec> {
-        actions
-            .iter_shared()
-            .filter_map(|dict| {
-                let name = dict.get("name")?.try_to::<String>().ok()?;
-                let cost_callable = dict.get("cost_callable")?.try_to::<Callable>().ok()?;
-                let effect_callable = dict.get("effect_callable")?.try_to::<Callable>().ok()?;
+fn build_action_specs(
+    actions: &Array<VarDictionary>,
+    registry: &mut Vec<Callable>,
+) -> Vec<ActionSpec> {
+    actions
+        .iter_shared()
+        .filter_map(|dict| {
+            let name = dict.get("name")?.try_to::<String>().ok()?;
+            let cost_callable = dict.get("cost_callable")?.try_to::<Callable>().ok()?;
+            let effect_callable = dict.get("effect_callable")?.try_to::<Callable>().ok()?;
 
-                let cost_id = self.register_callable(cost_callable);
-                let effect_id = self.register_callable(effect_callable);
+            let cost_id = register_callable(registry, cost_callable);
+            let effect_id = register_callable(registry, effect_callable);
 
-                let preconditions = self.extract_precond_specs(&dict, "preconditions");
-                let validity_checks = self.extract_precond_specs(&dict, "validity_checks");
+            let preconditions = extract_precond_specs(&dict, "preconditions", registry);
+            let validity_checks = extract_precond_specs(&dict, "validity_checks", registry);
 
-                Some(ActionSpec {
-                    name,
-                    cost_callable_id: cost_id,
-                    effect_callable_id: effect_id,
-                    preconditions,
-                    validity_checks,
-                })
+            Some(ActionSpec {
+                name,
+                cost_callable_id: cost_id,
+                effect_callable_id: effect_id,
+                preconditions,
+                validity_checks,
             })
-            .collect()
-    }
-
-    fn build_goal_specs(&mut self, goals: &Array<VarDictionary>) -> Vec<GoalSpec> {
-        goals
-            .iter_shared()
-            .enumerate()
-            .filter_map(|(idx, dict)| {
-                let name = dict.get("name")?.try_to::<String>().ok()?;
-                let reward = dict.get("reward")?.try_to::<f64>().ok()?;
-                let desired_state = self.extract_precond_specs(&dict, "desired_state");
-                Some(GoalSpec {
-                    name,
-                    reward,
-                    desired_state,
-                    original_index: idx,
-                })
-            })
-            .collect()
-    }
-
-    fn extract_precond_specs(&mut self, dict: &VarDictionary, key: &str) -> Vec<PreconditionSpec> {
-        dict.get(key)
-            .and_then(|v| v.try_to::<Array<VarDictionary>>().ok())
-            .map(|arr| {
-                arr.iter_shared()
-                    .filter_map(|d| self.precond_spec_from_dict(&d))
-                    .collect()
-            })
-            .unwrap_or_default()
-    }
-
-    /// Converts a bridge dictionary into a [`PreconditionSpec`] by delegating
-    /// parsing to [`PreconditionHandler::from_dict`], then converting the
-    /// result into a Send-safe spec. Custom callables are registered in the
-    /// callable registry and replaced with an ID.
-    fn precond_spec_from_dict(&mut self, dict: &VarDictionary) -> Option<PreconditionSpec> {
-        let handler = PreconditionHandler::from_dict(dict)?;
-
-        if handler.operation == PreconditionOp::CustomCallback {
-            let callable = handler.eval_callable?;
-            let id = self.register_callable(callable);
-            return Some(PreconditionSpec::Custom { callable_id: id });
-        }
-
-        Some(PreconditionSpec::Builtin {
-            target: handler.target,
-            operation: handler.operation,
-            property_name: handler.property_name,
-            value: handler.value.map(|v| VariantSnapshot::from_variant(&v)),
         })
+        .collect()
+}
+
+fn build_goal_specs(
+    goals: &Array<VarDictionary>,
+    registry: &mut Vec<Callable>,
+) -> Vec<GoalSpec> {
+    goals
+        .iter_shared()
+        .enumerate()
+        .filter_map(|(idx, dict)| {
+            let name = dict.get("name")?.try_to::<String>().ok()?;
+            let reward = dict.get("reward")?.try_to::<f64>().ok()?;
+            let desired_state = extract_precond_specs(&dict, "desired_state", registry);
+            Some(GoalSpec {
+                name,
+                reward,
+                desired_state,
+                original_index: idx,
+            })
+        })
+        .collect()
+}
+
+fn extract_precond_specs(
+    dict: &VarDictionary,
+    key: &str,
+    registry: &mut Vec<Callable>,
+) -> Vec<PreconditionSpec> {
+    dict.get(key)
+        .and_then(|v| v.try_to::<Array<VarDictionary>>().ok())
+        .map(|arr| {
+            arr.iter_shared()
+                .filter_map(|d| precond_spec_from_dict(&d, registry))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn precond_spec_from_dict(
+    dict: &VarDictionary,
+    registry: &mut Vec<Callable>,
+) -> Option<PreconditionSpec> {
+    let handler = PreconditionHandler::from_dict(dict)?;
+
+    if handler.operation == PreconditionOp::CustomCallback {
+        let callable = handler.eval_callable?;
+        let id = register_callable(registry, callable);
+        return Some(PreconditionSpec::Custom { callable_id: id });
     }
+
+    Some(PreconditionSpec::Builtin {
+        target: handler.target,
+        operation: handler.operation,
+        property_name: handler.property_name,
+        value: handler.value.map(|v| VariantSnapshot::from_variant(&v)),
+    })
 }
 
 // ---------------------------------------------------------------------------

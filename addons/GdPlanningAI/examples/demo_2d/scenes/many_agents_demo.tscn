@@ -4,33 +4,35 @@
 [ext_resource type="Script" uid="uid://cvie3m6t7c0hd" path="res://addons/GdPlanningAI/scripts/gdpai_blackboard_plan.gd" id="2_8a4b1"]
 [ext_resource type="PackedScene" uid="uid://ccwogpiprdh6r" path="res://addons/GdPlanningAI/examples/demo_2d/assets/world/huge_scenery.tscn" id="3_p5m7n"]
 [ext_resource type="PackedScene" uid="uid://b1bmo16x83s1x" path="res://addons/GdPlanningAI/examples/demo_2d/assets/agent/agent.tscn" id="4_t2x8y"]
-[ext_resource type="Script" path="res://addons/GdPlanningAI/examples/demo_2d/scenes/many_agents_spawner.gd" id="5_qr9z1"]
+[ext_resource type="Script" uid="uid://dhxvel6hm2dnk" path="res://addons/GdPlanningAI/examples/demo_2d/scenes/many_agents_spawner.gd" id="5_qr9z1"]
 [ext_resource type="Script" uid="uid://cqk6cr8e5xkto" path="res://addons/GdPlanningAI/examples/demo_2d/assets/ui/fps_counter.gd" id="6_s4w2v"]
 
 [sub_resource type="Resource" id="Resource_k7n3p"]
 script = ExtResource("2_8a4b1")
-metadata/_custom_type_script = "uid://dsov73hfryg5g"
 
 [sub_resource type="LabelSettings" id="LabelSettings_m9p2q"]
 font_size = 24
 
-[node name="ManyAgentsDemo" type="Node2D"]
+[node name="ManyAgentsDemo" type="Node2D" unique_id=1915024149]
 
-[node name="GdPAIWorldNode" type="Node" parent="."]
+[node name="GdPAIWorldNode" type="Node" parent="." unique_id=239928383]
 script = ExtResource("1_wn3k2")
 blackboard_plan = SubResource("Resource_k7n3p")
 
-[node name="HugeScenery" parent="." instance=ExtResource("3_p5m7n")]
+[node name="HugeScenery" parent="." unique_id=2139623596 instance=ExtResource("3_p5m7n")]
 
-[node name="AgentSpawner" type="Node" parent="."]
+[node name="AgentSpawner" type="Node" parent="." unique_id=520503235]
 script = ExtResource("5_qr9z1")
 agent_scene = ExtResource("4_t2x8y")
-agent_count = 20
+agent_count = 5
 
-[node name="HUD" type="CanvasLayer" parent="."]
+[node name="HUD" type="CanvasLayer" parent="." unique_id=1108879343]
 
-[node name="FPSDisplay" type="Label" parent="HUD" node_paths=PackedStringArray("display_text")]
-position = Vector2(10, 10)
+[node name="FPSDisplay" type="Label" parent="HUD" unique_id=1998127127 node_paths=PackedStringArray("display_text")]
+offset_left = 10.0
+offset_top = 10.0
+offset_right = 10.0
+offset_bottom = 10.0
 text = "FPS: 0
 Avg: 0.0"
 label_settings = SubResource("LabelSettings_m9p2q")

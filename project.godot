@@ -22,6 +22,10 @@ config/icon="res://icon.svg"
 
 GdPAIAutoload="*uid://ol4q4tu0vtwo"
 
+[dotnet]
+
+project/assembly_name="GdPlanningAI"
+
 [editor_plugins]
 
 enabled=PackedStringArray("res://addons/GdPlanningAI/plugin.cfg")
