@@ -33,14 +33,14 @@ build-debug:
 .PHONY: build-all
 build-all:
 	@echo "Building for all cross-platform targets..."
-	$(MAKE) build-linux
-	$(MAKE) build-windows
+	"$(MAKE)" build-linux
+	"$(MAKE)" build-windows
 	@echo "Cross-platform builds completed. Binaries copied to $(BIN_DIR)"
 
 # Build for Linux (x86_64) using cross for cross-compilation
 .PHONY: build-linux
 build-linux:
-	$(MAKE) clean
+	"$(MAKE)" clean
 	@echo "Building for Linux x86_64..."
 	cross build --release --target x86_64-unknown-linux-gnu
 	mkdir -p $(BIN_DIR)/linux
@@ -49,7 +49,7 @@ build-linux:
 # Build for Windows (x86_64) using cross with GNU target
 .PHONY: build-windows
 build-windows:
-	$(MAKE) clean
+	"$(MAKE)" clean
 	@echo "Building for Windows x86_64..."
 	cross build --release --target x86_64-pc-windows-gnu
 	mkdir -p $(BIN_DIR)/windows
