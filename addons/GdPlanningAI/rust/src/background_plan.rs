@@ -44,16 +44,14 @@ pub fn run_plan(
             children: vec![],
         };
 
-        let success = build_plan_recursive(
-            &mut root_node,
-            &goal.desired_state,
-            &agent,
-            &world,
-            &actions,
-            0,
+        let ctx = PlanContext {
+            desired_state: &goal.desired_state,
+            actions: &actions,
             max_recursion,
-            &request_tx,
-        );
+            request_tx: &request_tx,
+        };
+
+        let success = build_plan_recursive(&mut root_node, &agent, &world, 0, &ctx);
 
         if success {
             let plan = plan_tree::extract_best_plan(&root_node);
@@ -74,25 +72,29 @@ pub fn run_plan(
 // Recursive search (mirrors planning_engine::build_plan_recursive)
 // ---------------------------------------------------------------------------
 
+struct PlanContext<'a> {
+    desired_state: &'a [PreconditionSpec],
+    actions: &'a [ActionSpec],
+    max_recursion: usize,
+    request_tx: &'a Sender<CallbackRequest>,
+}
+
 fn build_plan_recursive(
     node: &mut PlanTreeNode,
-    desired_state: &[PreconditionSpec],
     agent_state: &BlackboardSnapshot,
     world_state: &BlackboardSnapshot,
-    actions: &[ActionSpec],
     recursion_level: usize,
-    max_recursion: usize,
-    request_tx: &Sender<CallbackRequest>,
+    ctx: &PlanContext,
 ) -> bool {
-    if recursion_level > max_recursion {
+    if recursion_level > ctx.max_recursion {
         return false;
     }
 
     let mut has_solution = false;
 
-    for (idx, action) in actions.iter().enumerate() {
+    for (idx, action) in ctx.actions.iter().enumerate() {
         // Validity checks
-        if !action_is_valid(action, agent_state, world_state, request_tx) {
+        if !action_is_valid(action, agent_state, world_state, ctx.request_tx) {
             continue;
         }
 
@@ -101,23 +103,23 @@ fn build_plan_recursive(
         let mut sim_world = world_state.clone();
 
         // Get cost via callback channel
-        let cost = call_get_cost(action.cost_callable_id, &sim_agent, &sim_world, request_tx);
+        let cost = call_get_cost(action.cost_callable_id, &sim_agent, &sim_world, ctx.request_tx);
         if cost == f64::INFINITY {
             continue;
         }
 
         // Apply effect via callback channel — returns updated snapshots
         let (new_agent, new_world) =
-            call_apply_effect(action.effect_callable_id, sim_agent, sim_world, request_tx);
+            call_apply_effect(action.effect_callable_id, sim_agent, sim_world, ctx.request_tx);
         sim_agent = new_agent;
         sim_world = new_world;
 
         // Check if this action makes progress toward the goal
         let makes_progress =
-            check_progress_toward_goal(desired_state, &sim_agent, &sim_world, request_tx);
+            check_progress_toward_goal(ctx.desired_state, &sim_agent, &sim_world, ctx.request_tx);
 
         if makes_progress {
-            if is_goal_satisfied(desired_state, &sim_agent, &sim_world, request_tx) {
+            if is_goal_satisfied(ctx.desired_state, &sim_agent, &sim_world, ctx.request_tx) {
                 let next_node = PlanTreeNode {
                     action_index: idx as i64,
                     cost,
@@ -135,18 +137,22 @@ fn build_plan_recursive(
             };
 
             // Propagate action preconditions as additional constraints
-            let mut child_desired = desired_state.to_vec();
+            let mut child_desired = ctx.desired_state.to_vec();
             child_desired.extend(action.preconditions.clone());
+
+            let child_ctx = PlanContext {
+                desired_state: &child_desired,
+                actions: ctx.actions,
+                max_recursion: ctx.max_recursion,
+                request_tx: ctx.request_tx,
+            };
 
             if build_plan_recursive(
                 &mut next_node,
-                &child_desired,
                 &sim_agent,
                 &sim_world,
-                actions,
                 recursion_level + 1,
-                max_recursion,
-                request_tx,
+                &child_ctx,
             ) {
                 node.children.push(next_node);
                 has_solution = true;

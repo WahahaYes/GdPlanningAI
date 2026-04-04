@@ -84,15 +84,10 @@ impl GdPAIPlanScheduler {
     fn process_callbacks(&mut self) {
         // Process each job's pending callbacks using its own callable registry.
         for job in self.active_jobs.iter_mut().filter(|j| !j.done) {
-            loop {
-                match job.request_rx.try_recv() {
-                    Ok(req) => {
-                        let callable = &job.callable_registry[req.callable_id];
-                        let response = dispatch_callback(callable, req.kind);
-                        let _ = req.response_tx.send(response);
-                    }
-                    Err(_) => break,
-                }
+            while let Ok(req) = job.request_rx.try_recv() {
+                let callable = &job.callable_registry[req.callable_id];
+                let response = dispatch_callback(callable, req.kind);
+                let _ = req.response_tx.send(response);
             }
             // Check for completed plan
             if let Ok(result) = job.result_rx.try_recv() {
