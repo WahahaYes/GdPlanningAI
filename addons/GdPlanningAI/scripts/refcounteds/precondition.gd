@@ -194,11 +194,17 @@ static func world_state_has_object_data_of_group(group: String) -> Precondition:
 
 
 ## Check if a given object is valid.
+## Uses dependency tracking to validate the object exists before planning.
 static func check_is_object_valid(object: Variant) -> Precondition:
-	return PreconditionCustom.new(
+	var deps: Array[Object] = []
+	if object is Object:
+		deps.append(object)
+	
+	return PreconditionCustomWithDeps.new(
 		func(
 			_blackboard: GdPAIBlackboard,
 			_world_state: GdPAIBlackboard
-		):
-		return is_instance_valid(object)
+		) -> bool:
+			return is_instance_valid(object),
+		deps
 	)

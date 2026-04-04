@@ -38,9 +38,10 @@ func get_validity_checks() -> Array[Precondition]:
 	checks.append(Precondition.agent_has_property("hunger"))
 	checks.append(Precondition.check_is_object_valid(fruit_tree))
 	checks.append(Precondition.agent_property_less_than("hunger", 100.0))
-	checks.append(Precondition.custom(
+	checks.append(Precondition.custom_with_deps(
 		func(_bb: GdPAIBlackboard, _ws: GdPAIBlackboard) -> bool:
-		return not fruit_tree.is_on_cooldown
+			return not fruit_tree.is_on_cooldown,
+		[fruit_tree]
 	))
 	return checks
 

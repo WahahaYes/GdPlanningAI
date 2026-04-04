@@ -17,7 +17,13 @@ func _init(fn: Callable, deps: Array[Object] = []) -> void:
 ## Evaluates the custom callable against the given blackboard states.
 ## This method is bound as the [code]eval_callable[/code] when serializing
 ## to the Rust bridge via [method to_bridge_dict].
+## Validates dependent objects before invoking to prevent lambda capture errors.
 func _do_evaluate(agent: GdPAIBlackboard, world: GdPAIBlackboard) -> bool:
+	# Validate all dependent objects still exist before invoking
+	for obj in dependent_objects:
+		if not is_instance_valid(obj):
+			return false
+	
 	return eval_func.call(agent, world)
 
 
