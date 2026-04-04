@@ -26,9 +26,15 @@ func to_bridge_dict() -> Dictionary:
 	push_error("Precondition.to_bridge_dict must be overridden")
 	return {}
 
-
+## Create a custom precondition that invokes a callable with the agent and world blackboards.
 static func custom(fn: Callable) -> Precondition:
 	return PreconditionCustom.new(fn)
+
+
+## Create a custom precondition with explicit object dependencies.
+## The planner will validate these objects exist before invoking the precondition.
+static func custom_with_deps(fn: Callable, deps: Array[Object]) -> Precondition:
+	return PreconditionCustomWithDeps.new(fn, deps)
 
 
 ## Generic function to create property comparison preconditions, eliminating code duplication.

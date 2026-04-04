@@ -24,6 +24,8 @@ pub enum PreconditionSpec {
     },
     Custom {
         callable_id: usize,
+        /// Object instance IDs this precondition depends on for validity checking.
+        dependent_object_ids: Vec<i64>,
     },
 }
 
@@ -62,8 +64,16 @@ impl PreconditionSpec {
     /// Returns the callable ID if this is a `Custom` variant.
     pub fn callable_id(&self) -> Option<usize> {
         match self {
-            Self::Custom { callable_id } => Some(*callable_id),
+            Self::Custom { callable_id, .. } => Some(*callable_id),
             _ => None,
+        }
+    }
+
+    /// Returns the dependent object IDs if this is a `Custom` variant.
+    pub fn dependent_object_ids(&self) -> &[i64] {
+        match self {
+            Self::Custom { dependent_object_ids, .. } => dependent_object_ids.as_slice(),
+            _ => &[],
         }
     }
 }
@@ -153,6 +163,9 @@ pub struct ActionSpec {
     pub effect_callable_id: usize,
     pub preconditions: Vec<PreconditionSpec>,
     pub validity_checks: Vec<PreconditionSpec>,
+    /// Object instance IDs this action depends on.
+    /// Collected from action callables and all preconditions.
+    pub dependent_object_ids: Vec<i64>,
 }
 
 /// Send-safe mirror of [`crate::goal::GoalData`].

@@ -192,10 +192,28 @@ fn action_is_valid(
     world: &BlackboardSnapshot,
     request_tx: &Sender<CallbackRequest>,
 ) -> bool {
+    // First check if all dependent objects still exist
+    if !check_dependencies_valid(&action.dependent_object_ids) {
+        return false;
+    }
+
+    // Then check validity preconditions
     action
         .validity_checks
         .iter()
         .all(|check| eval_precondition(check, agent, world, request_tx))
+}
+
+/// Validate that all dependent object IDs still refer to live objects.
+/// This prevents attempting to invoke callables whose target objects have been freed.
+fn check_dependencies_valid(dependent_ids: &[i64]) -> bool {
+    use godot::obj::InstanceId;
+    use godot::prelude::Gd;
+
+    dependent_ids.iter().all(|id| {
+        let instance_id = InstanceId::from_i64(*id);
+        Gd::<godot::prelude::Object>::try_from_instance_id(instance_id).is_ok()
+    })
 }
 
 fn eval_precondition(
@@ -207,7 +225,11 @@ fn eval_precondition(
     match spec.evaluate_builtin(agent, world) {
         Some(result) => result,
         None => {
-            // Custom callback — proxy to main thread
+            // Custom callback — check dependencies first
+            if !check_dependencies_valid(spec.dependent_object_ids()) {
+                return false;
+            }
+
             let callable_id = spec.callable_id().unwrap();
             call_eval_custom_precond(callable_id, agent, world, request_tx)
         }

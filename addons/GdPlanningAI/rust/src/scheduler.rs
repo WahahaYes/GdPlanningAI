@@ -211,12 +211,36 @@ fn build_action_specs(
             let preconditions = extract_precond_specs(&dict, "preconditions", registry);
             let validity_checks = extract_precond_specs(&dict, "validity_checks", registry);
 
+            // Collect all dependent object IDs from preconditions and action-level deps
+            let mut dependent_object_ids: Vec<i64> = Vec::new();
+            
+            // Collect from preconditions
+            for precond in &preconditions {
+                dependent_object_ids.extend_from_slice(precond.dependent_object_ids());
+            }
+            for check in &validity_checks {
+                dependent_object_ids.extend_from_slice(check.dependent_object_ids());
+            }
+            
+            // Extract action-level dependent objects if present
+            if let Some(action_deps) = dict
+                .get("dependent_object_ids")
+                .and_then(|v| v.try_to::<Array<Variant>>().ok())
+            {
+                dependent_object_ids.extend(
+                    action_deps
+                        .iter_shared()
+                        .filter_map(|v| v.try_to::<i64>().ok()),
+                );
+            }
+
             Some(ActionSpec {
                 name,
                 cost_callable_id: cost_id,
                 effect_callable_id: effect_id,
                 preconditions,
                 validity_checks,
+                dependent_object_ids,
             })
         })
         .collect()
@@ -267,7 +291,22 @@ fn precond_spec_from_dict(
     if handler.operation == PreconditionOp::CustomCallback {
         let callable = handler.eval_callable?;
         let id = register_callable(registry, callable);
-        return Some(PreconditionSpec::Custom { callable_id: id });
+
+        // Extract dependent object IDs if present (for validity checking)
+        let dependent_object_ids = dict
+            .get("dependent_object_ids")
+            .and_then(|v| v.try_to::<Array<Variant>>().ok())
+            .map(|arr| {
+                arr.iter_shared()
+                    .filter_map(|v| v.try_to::<i64>().ok())
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        return Some(PreconditionSpec::Custom {
+            callable_id: id,
+            dependent_object_ids,
+        });
     }
 
     Some(PreconditionSpec::Builtin {
@@ -283,6 +322,21 @@ fn precond_spec_from_dict(
 // ---------------------------------------------------------------------------
 
 fn dispatch_callback(callable: &Callable, kind: CallbackKind) -> CallbackResponse {
+    // Check if callable is still valid (target object may have been freed)
+    if !callable.is_valid() {
+        log_warn!(
+            "Callable is no longer valid (target object freed); returning safe default"
+        );
+        return match kind {
+            CallbackKind::GetCost { .. } => CallbackResponse::Float(f64::INFINITY),
+            CallbackKind::ApplyEffect { agent, world } => {
+                // Return unchanged snapshots
+                CallbackResponse::UpdatedSnapshots(agent, world)
+            }
+            CallbackKind::EvalCustomPrecond { .. } => CallbackResponse::Bool(false),
+        };
+    }
+
     match kind {
         CallbackKind::GetCost { agent, world } => {
             let bb_agent = agent.into_blackboard();
