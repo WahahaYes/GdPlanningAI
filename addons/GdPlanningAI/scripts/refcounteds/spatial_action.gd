@@ -74,34 +74,35 @@ func get_validity_checks() -> Array[Precondition]:
 	checks.append(Precondition.check_is_object_valid(interactable_attribs))
 
 	# Can agent get to the target check
-	checks.append(Precondition.custom(
+	checks.append(Precondition.custom_with_deps(
 		func(
 			blackboard: GdPAIBlackboard,
 			_world_state: GdPAIBlackboard
 		) -> bool:
-		var entity: Node = blackboard.get_property("entity")
-		if entity == null:
-			return false
+			var entity: Node = blackboard.get_property("entity")
+			if entity == null:
+				return false
 
-		var nav_agent: Node = find_nav_agent(entity)
-		if nav_agent == null:
-			return false
+			var nav_agent: Node = find_nav_agent(entity)
+			if nav_agent == null:
+				return false
 
-		# Optionally setting the interaction distance <= 0 bypasses the can_get_to constraint.
-		if interactable_attribs.max_interaction_distance <= 0:
-			return true
+			# Optionally setting the interaction distance <= 0 bypasses the can_get_to constraint.
+			if interactable_attribs.max_interaction_distance <= 0:
+				return true
 
-		# Override the entity's nav agent to test if it is possible to get to this object.
-		var old_target_position = nav_agent.target_position
-		nav_agent.target_position = object_location.position
-		nav_agent.get_next_path_position() # Compute the path.
-		var final_dist: float = (
-			(object_location.position - nav_agent.get_final_position()).length()
-		)
-		# Restore the nav agent's earlier state.
-		nav_agent.target_position = old_target_position
-		nav_agent.get_next_path_position()
-		return final_dist < interactable_attribs.max_interaction_distance
+			# Override the entity's nav agent to test if it is possible to get to this object.
+			var old_target_position = nav_agent.target_position
+			nav_agent.target_position = object_location.position
+			nav_agent.get_next_path_position() # Compute the path.
+			var final_dist: float = (
+				(object_location.position - nav_agent.get_final_position()).length()
+			)
+			# Restore the nav agent's earlier state.
+			nav_agent.target_position = old_target_position
+			nav_agent.get_next_path_position()
+			return final_dist < interactable_attribs.max_interaction_distance,
+		[object_location, interactable_attribs]
 	))
 
 	return checks
@@ -112,9 +113,16 @@ func simulate_effect(
 		agent_blackboard: GdPAIBlackboard,
 		world_state: GdPAIBlackboard,
 ) -> void:
+	# Validate object_location still exists before simulating
+	if not is_instance_valid(object_location):
+		return
+	
 	# Simulate by teleporting the agent to the object's location.
 	var agent_location: SimObjectProxy = agent_blackboard.get_proxy_in_group("GdPAILocationData")
 	var sim_location: SimObjectProxy = world_state.get_object_for(object_location)
+	if sim_location == null:
+		return
+	
 	agent_location.set_property("position", sim_location.get_property("position"))
 
 
