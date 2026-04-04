@@ -1,15 +1,44 @@
 class_name PreconditionBuiltin
 extends Precondition
+## Built-in precondition that evaluates property comparisons on blackboard states.
+##
+## This precondition type performs common operations like property existence checks,
+## equality comparisons, and numeric comparisons. These operations are optimized
+## and can be evaluated directly on the background thread without callbacks.
 
-enum Target {AGENT, WORLD_STATE}
-enum Op {HAS_PROPERTY, EQUAL, NOT_EQUAL, GT, GTE, LT, LTE}
+## Specifies which blackboard to evaluate the precondition against.
+enum Target {
+	AGENT, ## The agent's blackboard
+	WORLD_STATE ## The world state blackboard
+}
 
+## Comparison operations supported by builtin preconditions.
+enum Op {
+	HAS_PROPERTY, ## Check if a property exists
+	EQUAL, ## Check if a property equals a value
+	NOT_EQUAL, ## Check if a property does not equal a value
+	GT, ## Check if a property is greater than a value
+	GTE, ## Check if a property is greater than or equal to a value
+	LT, ## Check if a property is less than a value
+	LTE ## Check if a property is less than or equal to a value
+}
+
+## Which blackboard to target (agent or world state).
 var target: Target
+## The comparison operation to perform.
 var operation: Op
+## The name of the property to check.
 var property: String
+## The value to compare against (not used for HAS_PROPERTY operation).
 var value: Variant
 
 
+## Creates a new builtin precondition with the specified parameters.
+##
+## @param t The target blackboard (AGENT or WORLD_STATE)
+## @param op The comparison operation to perform
+## @param prop The property name to check
+## @param val The value to compare against (optional, not used for HAS_PROPERTY)
 func _init(t: Target, op: Op, prop: String, val: Variant = null) -> void:
 	target = t
 	operation = op
@@ -27,6 +56,7 @@ func to_bridge_dict() -> Dictionary:
 	}
 
 
+## Converts a Target enum value to its string representation for the Rust bridge.
 static func _target_to_string(t: Target) -> String:
 	match t:
 		Target.AGENT:
@@ -37,6 +67,7 @@ static func _target_to_string(t: Target) -> String:
 			return "agent"
 
 
+## Converts an Op enum value to its string representation for the Rust bridge.
 static func _operation_to_string(op: Op) -> String:
 	match op:
 		Op.HAS_PROPERTY:
