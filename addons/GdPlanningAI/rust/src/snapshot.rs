@@ -189,3 +189,99 @@ impl BlackboardSnapshot {
         bb
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    fn make_test_snapshot() -> BlackboardSnapshot {
+        let mut properties = HashMap::new();
+        properties.insert("health".to_string(), VariantSnapshot::Int(100));
+        properties.insert("stamina".to_string(), VariantSnapshot::Float(75.5));
+        properties.insert(
+            "name".to_string(),
+            VariantSnapshot::Str("TestAgent".to_string()),
+        );
+        properties.insert("is_alive".to_string(), VariantSnapshot::Bool(true));
+
+        BlackboardSnapshot {
+            properties,
+            objects: HashMap::new(),
+        }
+    }
+
+    #[test]
+    fn variant_snapshot_nil_preserves_type() {
+        let snap = VariantSnapshot::Nil;
+        assert!(matches!(snap, VariantSnapshot::Nil));
+    }
+
+    #[test]
+    fn variant_snapshot_int_preserves_value() {
+        let snap = VariantSnapshot::Int(42);
+        match snap {
+            VariantSnapshot::Int(v) => assert_eq!(v, 42),
+            _ => panic!("Expected Int variant"),
+        }
+    }
+
+    #[test]
+    fn variant_snapshot_float_preserves_value() {
+        let snap = VariantSnapshot::Float(3.14159);
+        match snap {
+            VariantSnapshot::Float(v) => assert!((v - 3.14159).abs() < f64::EPSILON),
+            _ => panic!("Expected Float variant"),
+        }
+    }
+
+    #[test]
+    fn blackboard_snapshot_retrieves_stored_values() {
+        let snapshot = make_test_snapshot();
+
+        // Test integer retrieval
+        match snapshot.properties.get("health").unwrap() {
+            VariantSnapshot::Int(v) => assert_eq!(*v, 100),
+            _ => panic!("Expected Int"),
+        }
+
+        // Test float retrieval
+        match snapshot.properties.get("stamina").unwrap() {
+            VariantSnapshot::Float(v) => assert!((*v - 75.5).abs() < f64::EPSILON),
+            _ => panic!("Expected Float"),
+        }
+
+        // Test string retrieval
+        match snapshot.properties.get("name").unwrap() {
+            VariantSnapshot::Str(s) => assert_eq!(s, "TestAgent"),
+            _ => panic!("Expected Str"),
+        }
+
+        // Test bool retrieval
+        match snapshot.properties.get("is_alive").unwrap() {
+            VariantSnapshot::Bool(b) => assert!(*b),
+            _ => panic!("Expected Bool"),
+        }
+    }
+
+    #[test]
+    fn blackboard_snapshot_missing_property_returns_none() {
+        let snapshot = make_test_snapshot();
+        assert!(snapshot.properties.get("nonexistent").is_none());
+    }
+
+    #[test]
+    fn blackboard_snapshot_clone_creates_independent_copy() {
+        let original = make_test_snapshot();
+        let mut cloned = original.clone();
+
+        // Modify clone
+        cloned
+            .properties
+            .insert("new_prop".to_string(), VariantSnapshot::Int(42));
+
+        // Original should be unchanged
+        assert!(original.properties.get("new_prop").is_none());
+        assert!(cloned.properties.get("new_prop").is_some());
+    }
+}

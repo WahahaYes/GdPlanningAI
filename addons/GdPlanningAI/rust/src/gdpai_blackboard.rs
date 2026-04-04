@@ -178,9 +178,10 @@ impl GdPAIBlackboard {
         let mut arr = Array::new();
         for (uid, obj) in &self.objects {
             if obj.bind().is_in_group(group.clone())
-                && let Some(node) = self.source_objects.get(uid) {
-                    arr.push(&node.clone().to_variant());
-                }
+                && let Some(node) = self.source_objects.get(uid)
+            {
+                arr.push(&node.clone().to_variant());
+            }
         }
         arr
     }

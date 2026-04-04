@@ -213,7 +213,7 @@ fn build_action_specs(
 
             // Collect all dependent object IDs from preconditions and action-level deps
             let mut dependent_object_ids: Vec<i64> = Vec::new();
-            
+
             // Collect from preconditions
             for precond in &preconditions {
                 dependent_object_ids.extend_from_slice(precond.dependent_object_ids());
@@ -221,7 +221,7 @@ fn build_action_specs(
             for check in &validity_checks {
                 dependent_object_ids.extend_from_slice(check.dependent_object_ids());
             }
-            
+
             // Extract action-level dependent objects if present
             if let Some(action_deps) = dict
                 .get("dependent_object_ids")
@@ -246,10 +246,7 @@ fn build_action_specs(
         .collect()
 }
 
-fn build_goal_specs(
-    goals: &Array<VarDictionary>,
-    registry: &mut Vec<Callable>,
-) -> Vec<GoalSpec> {
+fn build_goal_specs(goals: &Array<VarDictionary>, registry: &mut Vec<Callable>) -> Vec<GoalSpec> {
     goals
         .iter_shared()
         .enumerate()
@@ -324,9 +321,7 @@ fn precond_spec_from_dict(
 fn dispatch_callback(callable: &Callable, kind: CallbackKind) -> CallbackResponse {
     // Check if callable is still valid (target object may have been freed)
     if !callable.is_valid() {
-        log_warn!(
-            "Callable is no longer valid (target object freed); returning safe default"
-        );
+        log_warn!("Callable is no longer valid (target object freed); returning safe default");
         return match kind {
             CallbackKind::GetCost { .. } => CallbackResponse::Float(f64::INFINITY),
             CallbackKind::ApplyEffect { agent, world } => {

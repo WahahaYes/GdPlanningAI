@@ -67,8 +67,8 @@ To use the build system, navigate to the rust directory:
 
 ```bash
 cd addons/GdPlanningAI/rust
-make help              # Show available commands
-make build-rust-debug  # Build debug binary
+make help          # Show available commands
+make build-debug   # Build debug binary
 ```
 
 ## Architecture
@@ -118,8 +118,7 @@ make clean-binaries
 
 ```bash
 # Run tests
-make test               # Unit tests only
-make test-all          # All tests
+make test              # Run unit tests
 
 # Code quality
 make format            # Format code with rustfmt
@@ -233,7 +232,7 @@ macos.debug = "res://addons/GdPlanningAI/bin/macos/libgdplanningai_rust.dylib"
 
 1. Run full test suite:
    ```bash
-   make test-all
+   make test
    make lint
    ```
 2. Build release binaries:

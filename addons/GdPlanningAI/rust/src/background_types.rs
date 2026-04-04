@@ -72,7 +72,10 @@ impl PreconditionSpec {
     /// Returns the dependent object IDs if this is a `Custom` variant.
     pub fn dependent_object_ids(&self) -> &[i64] {
         match self {
-            Self::Custom { dependent_object_ids, .. } => dependent_object_ids.as_slice(),
+            Self::Custom {
+                dependent_object_ids,
+                ..
+            } => dependent_object_ids.as_slice(),
             _ => &[],
         }
     }
@@ -213,4 +216,202 @@ pub enum CallbackResponse {
     Bool(bool),
     /// Mutated snapshots after `ApplyEffect`.
     UpdatedSnapshots(BlackboardSnapshot, BlackboardSnapshot),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::precondition::{PreconditionOp, PreconditionTarget};
+    use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
+    use std::collections::HashMap;
+
+    fn make_agent_snapshot() -> BlackboardSnapshot {
+        let mut properties = HashMap::new();
+        properties.insert("health".to_string(), VariantSnapshot::Int(80));
+        properties.insert("stamina".to_string(), VariantSnapshot::Float(65.5));
+        properties.insert("name".to_string(), VariantSnapshot::Str("Hero".to_string()));
+        properties.insert("alive".to_string(), VariantSnapshot::Bool(true));
+
+        BlackboardSnapshot {
+            properties,
+            objects: HashMap::new(),
+        }
+    }
+
+    fn make_world_snapshot() -> BlackboardSnapshot {
+        let mut properties = HashMap::new();
+        properties.insert("time".to_string(), VariantSnapshot::Float(123.45));
+        properties.insert("enemy_count".to_string(), VariantSnapshot::Int(5));
+
+        BlackboardSnapshot {
+            properties,
+            objects: HashMap::new(),
+        }
+    }
+
+    #[test]
+    fn has_property_true_when_exists() {
+        let spec = PreconditionSpec::Builtin {
+            target: PreconditionTarget::Agent,
+            operation: PreconditionOp::HasProperty,
+            property_name: "health".to_string(),
+            value: None,
+        };
+
+        let agent = make_agent_snapshot();
+        let world = make_world_snapshot();
+
+        assert_eq!(spec.evaluate_builtin(&agent, &world), Some(true));
+    }
+
+    #[test]
+    fn has_property_false_when_missing() {
+        let spec = PreconditionSpec::Builtin {
+            target: PreconditionTarget::Agent,
+            operation: PreconditionOp::HasProperty,
+            property_name: "nonexistent".to_string(),
+            value: None,
+        };
+
+        let agent = make_agent_snapshot();
+        let world = make_world_snapshot();
+
+        assert_eq!(spec.evaluate_builtin(&agent, &world), Some(false));
+    }
+
+    #[test]
+    fn equal_integer_matches() {
+        let spec = PreconditionSpec::Builtin {
+            target: PreconditionTarget::Agent,
+            operation: PreconditionOp::Equal,
+            property_name: "health".to_string(),
+            value: Some(VariantSnapshot::Int(80)),
+        };
+
+        let agent = make_agent_snapshot();
+        let world = make_world_snapshot();
+
+        assert_eq!(spec.evaluate_builtin(&agent, &world), Some(true));
+    }
+
+    #[test]
+    fn equal_integer_fails_on_mismatch() {
+        let spec = PreconditionSpec::Builtin {
+            target: PreconditionTarget::Agent,
+            operation: PreconditionOp::Equal,
+            property_name: "health".to_string(),
+            value: Some(VariantSnapshot::Int(100)),
+        };
+
+        let agent = make_agent_snapshot();
+        let world = make_world_snapshot();
+
+        assert_eq!(spec.evaluate_builtin(&agent, &world), Some(false));
+    }
+
+    #[test]
+    fn greater_than_comparison_works() {
+        let spec = PreconditionSpec::Builtin {
+            target: PreconditionTarget::Agent,
+            operation: PreconditionOp::GreaterThan,
+            property_name: "health".to_string(),
+            value: Some(VariantSnapshot::Int(50)),
+        };
+
+        let agent = make_agent_snapshot();
+        let world = make_world_snapshot();
+
+        assert_eq!(spec.evaluate_builtin(&agent, &world), Some(true));
+    }
+
+    #[test]
+    fn less_than_comparison_works() {
+        let spec = PreconditionSpec::Builtin {
+            target: PreconditionTarget::Agent,
+            operation: PreconditionOp::LessThan,
+            property_name: "health".to_string(),
+            value: Some(VariantSnapshot::Int(100)),
+        };
+
+        let agent = make_agent_snapshot();
+        let world = make_world_snapshot();
+
+        assert_eq!(spec.evaluate_builtin(&agent, &world), Some(true));
+    }
+
+    #[test]
+    fn cross_type_int_float_comparison() {
+        let spec = PreconditionSpec::Builtin {
+            target: PreconditionTarget::Agent,
+            operation: PreconditionOp::GreaterThan,
+            property_name: "health".to_string(),
+            value: Some(VariantSnapshot::Float(79.5)),
+        };
+
+        let agent = make_agent_snapshot();
+        let world = make_world_snapshot();
+
+        assert_eq!(spec.evaluate_builtin(&agent, &world), Some(true));
+    }
+
+    #[test]
+    fn targets_world_state_correctly() {
+        let spec = PreconditionSpec::Builtin {
+            target: PreconditionTarget::WorldState,
+            operation: PreconditionOp::Equal,
+            property_name: "enemy_count".to_string(),
+            value: Some(VariantSnapshot::Int(5)),
+        };
+
+        let agent = make_agent_snapshot();
+        let world = make_world_snapshot();
+
+        assert_eq!(spec.evaluate_builtin(&agent, &world), Some(true));
+    }
+
+    #[test]
+    fn custom_callback_returns_none() {
+        let spec = PreconditionSpec::Custom {
+            callable_id: 0,
+            dependent_object_ids: vec![],
+        };
+
+        let agent = make_agent_snapshot();
+        let world = make_world_snapshot();
+
+        assert_eq!(spec.evaluate_builtin(&agent, &world), None);
+    }
+
+    #[test]
+    fn callable_id_accessor() {
+        let spec = PreconditionSpec::Custom {
+            callable_id: 42,
+            dependent_object_ids: vec![],
+        };
+
+        assert_eq!(spec.callable_id(), Some(42));
+    }
+
+    #[test]
+    fn dependent_object_ids_accessor() {
+        let spec = PreconditionSpec::Custom {
+            callable_id: 0,
+            dependent_object_ids: vec![123, 456, 789],
+        };
+
+        let deps = spec.dependent_object_ids();
+        assert_eq!(deps, &[123, 456, 789]);
+    }
+
+    #[test]
+    fn builtin_has_empty_dependencies() {
+        let spec = PreconditionSpec::Builtin {
+            target: PreconditionTarget::Agent,
+            operation: PreconditionOp::HasProperty,
+            property_name: "test".to_string(),
+            value: None,
+        };
+
+        assert_eq!(spec.dependent_object_ids().len(), 0);
+    }
 }
