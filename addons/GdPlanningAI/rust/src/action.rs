@@ -157,7 +157,7 @@ mod tests {
         // We can't fully test without Godot runtime, but we verify the Vec is empty.
         let preconditions: Vec<PreconditionHandler> = Vec::new();
         let validity_checks: Vec<PreconditionHandler> = Vec::new();
-        
+
         assert_eq!(validity_checks.len(), 0);
         assert_eq!(preconditions.len(), 0);
     }

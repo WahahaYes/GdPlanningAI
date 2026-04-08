@@ -233,7 +233,7 @@ mod tests {
         let mut properties: HashMap<String, String> = HashMap::new();
         properties.insert("health".to_string(), "100".to_string());
         properties.insert("stamina".to_string(), "75".to_string());
-        
+
         assert_eq!(properties.len(), 2);
         assert!(properties.contains_key("health"));
         assert!(properties.contains_key("stamina"));
@@ -244,7 +244,7 @@ mod tests {
         // Test HashMap operations used by erase_property (using String as placeholder)
         let mut properties: HashMap<String, String> = HashMap::new();
         properties.insert("temp_key".to_string(), "value".to_string());
-        
+
         assert!(properties.contains_key("temp_key"));
         properties.remove("temp_key");
         assert!(!properties.contains_key("temp_key"));
@@ -256,7 +256,7 @@ mod tests {
         let mut properties: HashMap<String, String> = HashMap::new();
         properties.insert("key1".to_string(), "val1".to_string());
         properties.insert("key2".to_string(), "val2".to_string());
-        
+
         assert_eq!(properties.len(), 2);
         properties.clear();
         assert_eq!(properties.len(), 0);
@@ -268,7 +268,7 @@ mod tests {
         // Test HashMap cloning used by clone_for_simulation (using String as placeholder)
         let mut original: HashMap<String, String> = HashMap::new();
         original.insert("health".to_string(), "100".to_string());
-        
+
         let cloned = original.clone();
         assert_eq!(cloned.len(), original.len());
         assert!(cloned.contains_key("health"));
@@ -279,10 +279,10 @@ mod tests {
         // Test that HashMap clone creates independent copy (critical for simulation)
         let mut original: HashMap<String, String> = HashMap::new();
         original.insert("original_key".to_string(), "val".to_string());
-        
+
         let mut cloned = original.clone();
         cloned.insert("clone_key".to_string(), "val2".to_string());
-        
+
         assert!(original.contains_key("original_key"));
         assert!(!original.contains_key("clone_key"));
         assert!(cloned.contains_key("original_key"));
@@ -294,7 +294,7 @@ mod tests {
         // Test operations used for object storage
         let mut objects: HashMap<String, Gd<SimObjectProxy>> = HashMap::new();
         let uid = "12345".to_string();
-        
+
         // Can't create Gd<SimObjectProxy> without Godot runtime,
         // but we verify the HashMap type is correct
         assert!(objects.is_empty());
@@ -332,10 +332,10 @@ mod tests {
         let mut properties: HashMap<String, String> = HashMap::new();
         properties.insert("health".to_string(), "100".to_string());
         properties.insert("position".to_string(), "0,0".to_string());
-        
+
         // Simulate what clone_for_simulation does
         let cloned_properties = properties.clone();
-        
+
         assert_eq!(properties.len(), cloned_properties.len());
         assert!(cloned_properties.contains_key("health"));
         assert!(cloned_properties.contains_key("position"));
@@ -345,7 +345,7 @@ mod tests {
     fn objects_iter_supports_cloning_pattern() {
         // Test iteration pattern used in clone_for_simulation
         let objects: HashMap<String, Gd<SimObjectProxy>> = HashMap::new();
-        
+
         // The clone_for_simulation method iterates: for (uid, obj) in &self.objects
         let mut clone_count = 0;
         for (_uid, _obj) in &objects {

@@ -19,7 +19,7 @@ use std::collections::HashMap;
 /// - **Tier 1** — primitives stored as plain Rust values (fast, comparable).
 /// - **Tier 2** — everything else Godot can serialise via `var_to_bytes`.
 /// - **Tier 3** — live `Object` references stored as instance-ID handles.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum VariantSnapshot {
     Nil,
     Bool(bool),

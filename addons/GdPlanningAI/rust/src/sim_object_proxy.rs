@@ -149,7 +149,7 @@ mod tests {
         let mut groups: Vec<String> = Vec::new();
         groups.push("enemy".to_string());
         groups.push("mobile".to_string());
-        
+
         assert!(groups.contains(&"enemy".to_string()));
         assert!(groups.contains(&"mobile".to_string()));
         assert!(!groups.contains(&"ally".to_string()));
@@ -159,14 +159,14 @@ mod tests {
     fn properties_hashmap_supports_insertion_and_lookup() {
         // Test the HashMap operations used by set_property/get_property/has_property (using String as placeholder)
         let mut properties: HashMap<String, String> = HashMap::new();
-        
+
         // Simulate set_property behavior
         properties.insert("health".to_string(), "100".to_string());
-        
+
         // Simulate has_property behavior
         assert!(properties.contains_key(&"health".to_string()));
         assert!(!properties.contains_key(&"missing_key".to_string()));
-        
+
         // Simulate get_property behavior
         assert!(properties.get(&"health".to_string()).is_some());
         assert!(properties.get(&"missing_key".to_string()).is_none());
@@ -188,7 +188,7 @@ mod tests {
         groups.push("group1".to_string());
         groups.push("group2".to_string());
         groups.push("group3".to_string());
-        
+
         let mut count = 0;
         for g in &groups {
             assert!(!g.is_empty());
@@ -203,7 +203,7 @@ mod tests {
         let mut properties: HashMap<String, String> = HashMap::new();
         properties.insert("key1".to_string(), "val1".to_string());
         properties.insert("key2".to_string(), "val2".to_string());
-        
+
         let mut key_count = 0;
         for (k, _v) in properties.iter() {
             assert!(!k.is_empty());

@@ -103,14 +103,23 @@ fn build_plan_recursive(
         let mut sim_world = world_state.clone();
 
         // Get cost via callback channel
-        let cost = call_get_cost(action.cost_callable_id, &sim_agent, &sim_world, ctx.request_tx);
+        let cost = call_get_cost(
+            action.cost_callable_id,
+            &sim_agent,
+            &sim_world,
+            ctx.request_tx,
+        );
         if cost == f64::INFINITY {
             continue;
         }
 
         // Apply effect via callback channel — returns updated snapshots
-        let (new_agent, new_world) =
-            call_apply_effect(action.effect_callable_id, sim_agent, sim_world, ctx.request_tx);
+        let (new_agent, new_world) = call_apply_effect(
+            action.effect_callable_id,
+            sim_agent,
+            sim_world,
+            ctx.request_tx,
+        );
         sim_agent = new_agent;
         sim_world = new_world;
 
