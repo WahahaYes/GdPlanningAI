@@ -33,7 +33,8 @@ func test_trivial_goal_already_satisfied():
 	
 	assert_true(result["success"], "Already satisfied goal should succeed")
 	assert_eq(result["total_cost"], 0.0, "Already satisfied goal should have zero cost")
-	assert_eq(result["action_chain"].size(), 0, "Already satisfied goal should have empty action chain")
+	assert_eq(result["action_chain"].size(), 0,
+		"Already satisfied goal should have empty action chain")
 
 func test_simple_one_action_plan():
 	var engine = RustPlanningEngine.new()

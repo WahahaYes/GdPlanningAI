@@ -61,7 +61,8 @@ func get_action_cost(
 	# 		cost.
 	# TODO: Make navigation agent-based cost an option.  Maybe could configure in plugin.cfg?
 	# 		Alternative would be to parameterize within the agent, but that could be tricky.
-	var dist: float = (agent_location.get_property("position") - sim_location.get_property("position")).length()
+	var dist: float = (agent_location.get_property("position") -
+		sim_location.get_property("position")).length()
 	return dist
 
 
@@ -74,34 +75,36 @@ func get_validity_checks() -> Array[Precondition]:
 	checks.append(Precondition.check_is_object_valid(interactable_attribs))
 
 	# Can agent get to the target check
+	var can_reach_target = func(
+		blackboard: GdPAIBlackboard,
+		_world_state: GdPAIBlackboard
+	) -> bool:
+		var entity: Node = blackboard.get_property("entity")
+		if entity == null:
+			return false
+
+		var nav_agent: Node = find_nav_agent(entity)
+		if nav_agent == null:
+			return false
+
+		# Optionally setting the interaction distance <= 0 bypasses the can_get_to constraint.
+		if interactable_attribs.max_interaction_distance <= 0:
+			return true
+
+		# Override the entity's nav agent to test if it is possible to get to this object.
+		var old_target_position = nav_agent.target_position
+		nav_agent.target_position = object_location.position
+		nav_agent.get_next_path_position() # Compute the path.
+		var final_dist: float = (
+			(object_location.position - nav_agent.get_final_position()).length()
+		)
+		# Restore the nav agent's earlier state.
+		nav_agent.target_position = old_target_position
+		nav_agent.get_next_path_position()
+		return final_dist < interactable_attribs.max_interaction_distance
+	
 	checks.append(Precondition.custom_with_deps(
-		func(
-			blackboard: GdPAIBlackboard,
-			_world_state: GdPAIBlackboard
-		) -> bool:
-			var entity: Node = blackboard.get_property("entity")
-			if entity == null:
-				return false
-
-			var nav_agent: Node = find_nav_agent(entity)
-			if nav_agent == null:
-				return false
-
-			# Optionally setting the interaction distance <= 0 bypasses the can_get_to constraint.
-			if interactable_attribs.max_interaction_distance <= 0:
-				return true
-
-			# Override the entity's nav agent to test if it is possible to get to this object.
-			var old_target_position = nav_agent.target_position
-			nav_agent.target_position = object_location.position
-			nav_agent.get_next_path_position() # Compute the path.
-			var final_dist: float = (
-				(object_location.position - nav_agent.get_final_position()).length()
-			)
-			# Restore the nav agent's earlier state.
-			nav_agent.target_position = old_target_position
-			nav_agent.get_next_path_position()
-			return final_dist < interactable_attribs.max_interaction_distance,
+		can_reach_target,
 		[object_location, interactable_attribs]
 	))
 
@@ -141,7 +144,7 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	set_state(agent, "agent_location", agent_location_data)
 
 	var nav_agent: Node = SpatialAction.find_nav_agent(entity)
-	assert(nav_agent != null)
+	assert(nav_agent != null, "Entity must have a NavigationAgent2D or NavigationAgent3D")
 	var dist_check: float = (
 		ARRIVAL_THRESHOLD_2D if nav_agent is NavigationAgent2D else ARRIVAL_THRESHOLD_3D
 	)

@@ -270,6 +270,16 @@ impl RustPlanningEngine {
                 continue;
             }
 
+            if !action.preconditions_satisfied(&agent_state, &world_state) {
+                log_debug!(
+                    "Level {}: action [{}] '{}' preconditions not satisfied",
+                    recursion_level,
+                    idx,
+                    action.name
+                );
+                continue;
+            }
+
             let mut sim_agent = agent_state.bind().clone_for_simulation();
             let mut sim_world = world_state.bind().clone_for_simulation();
 

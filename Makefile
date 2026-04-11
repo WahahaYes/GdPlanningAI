@@ -13,13 +13,5 @@ test-rust:
 	cd addons/GdPlanningAI/rust && cargo test
 
 test-godot:
-	@echo "Importing Godot resources..."
-	@godot --headless --import --quit
 	@echo "Running tests..."
 	godot --headless -s --path . addons/gut/gut_cmdln.gd -gexit
-
-test-godot-verbose:
-	@echo "Importing Godot resources..."
-	@godot --headless --import --quit
-	@echo "Running tests..."
-	godot --headless -s --path . addons/gut/gut_cmdln.gd -gexit -gpo
