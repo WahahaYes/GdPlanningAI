@@ -201,6 +201,7 @@ impl GdPAIBlackboard {
     ///
     /// All properties and [`SimObjectProxy`] objects are copied. Mutations to the
     /// clone during simulation do not affect the original.
+    #[func]
     pub fn clone_for_simulation(&self) -> Gd<GdPAIBlackboard> {
         let mut new_bb = GdPAIBlackboard::new_gd();
         {

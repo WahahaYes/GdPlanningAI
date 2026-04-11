@@ -59,7 +59,19 @@ impl ActionData {
 
         let preconditions = dict
             .get("preconditions")
-            .and_then(|v| v.try_to::<Array<VarDictionary>>().ok())
+            .and_then(|v| {
+                v.try_to::<Array<VarDictionary>>()
+                    .ok()
+                    .or_else(|| v.try_to::<VarArray>().ok().map(|arr| {
+                        let mut typed = Array::<VarDictionary>::new();
+                        for item in arr.iter_shared() {
+                            if let Ok(dict) = item.try_to::<VarDictionary>() {
+                                typed.push(&dict);
+                            }
+                        }
+                        typed
+                    }))
+            })
             .map(|arr| {
                 arr.iter_shared()
                     .filter_map(|d| PreconditionHandler::from_dict(&d))
@@ -69,7 +81,19 @@ impl ActionData {
 
         let validity_checks = dict
             .get("validity_checks")
-            .and_then(|v| v.try_to::<Array<VarDictionary>>().ok())
+            .and_then(|v| {
+                v.try_to::<Array<VarDictionary>>()
+                    .ok()
+                    .or_else(|| v.try_to::<VarArray>().ok().map(|arr| {
+                        let mut typed = Array::<VarDictionary>::new();
+                        for item in arr.iter_shared() {
+                            if let Ok(dict) = item.try_to::<VarDictionary>() {
+                                typed.push(&dict);
+                            }
+                        }
+                        typed
+                    }))
+            })
             .map(|arr| {
                 arr.iter_shared()
                     .filter_map(|d| PreconditionHandler::from_dict(&d))
