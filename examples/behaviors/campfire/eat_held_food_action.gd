@@ -7,21 +7,17 @@ extends Action
 ## from blackboard state rather than a spatial world target.
 
 
-## Inventory item ids that this action is allowed to consume.
-var allowed_items: Array[String] = []
-## How much hunger should be reduced when the held food is eaten.
-var hunger_restored: float = 50.0
+## Maps held item ids to the hunger amount they restore when eaten.
+var hunger_restored_by_item: Dictionary = {}
 ## How long the eating action should take in seconds.
 var eat_duration: float = 1.5
 
 
 func _init(
-		p_allowed_items: Array[String] = [],
-		p_hunger_restored: float = 50.0,
+		p_hunger_restored_by_item: Dictionary = {},
 		p_eat_duration: float = 1.5,
 ) -> void:
-	allowed_items = p_allowed_items.duplicate()
-	hunger_restored = p_hunger_restored
+	hunger_restored_by_item = p_hunger_restored_by_item.duplicate(true)
 	eat_duration = p_eat_duration
 
 
@@ -45,9 +41,10 @@ func get_preconditions() -> Array[Precondition]:
 			return false
 		if not (held_item is String or held_item is StringName):
 			return false
+		var held_item_id := String(held_item)
 		if float(hunger) <= 0.0:
 			return false
-		return allowed_items.has(String(held_item))
+		return hunger_restored_by_item.has(held_item_id)
 	return [Precondition.custom(can_eat_held_item)]
 
 
@@ -65,8 +62,15 @@ func simulate_effect(
 		_world_state: GdPAIBlackboard,
 ) -> void:
 	var hunger = agent_blackboard.get_property("hunger")
+	var held_item = agent_blackboard.get_property("held_item")
 	if hunger == null:
 		return
+	if not (held_item is String or held_item is StringName):
+		return
+	var held_item_id := String(held_item)
+	if not hunger_restored_by_item.has(held_item_id):
+		return
+	var hunger_restored: float = float(hunger_restored_by_item[held_item_id])
 	agent_blackboard.set_property("hunger", max(0.0, float(hunger) - hunger_restored))
 	agent_blackboard.set_property("held_item", "")
 
@@ -85,13 +89,15 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 		return Action.Status.FAILURE
 	if not (held_item is String or held_item is StringName):
 		return Action.Status.FAILURE
-	if not allowed_items.has(String(held_item)):
+	var held_item_id := String(held_item)
+	if not hunger_restored_by_item.has(held_item_id):
 		return Action.Status.FAILURE
 
 	var eat_elapsed: float = get_state(agent, "eat_elapsed") + delta
 	set_state(agent, "eat_elapsed", eat_elapsed)
 
 	if eat_elapsed >= eat_duration:
+		var hunger_restored: float = float(hunger_restored_by_item[held_item_id])
 		agent.blackboard.set_property("hunger", max(0.0, float(hunger) - hunger_restored))
 		agent.blackboard.set_property("held_item", "")
 		return Action.Status.SUCCESS

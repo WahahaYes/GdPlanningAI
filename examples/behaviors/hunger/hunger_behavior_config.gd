@@ -11,9 +11,13 @@ extends GdPAIBehaviorConfig
 @export var hunger_decay: float = 2.5
 ## Starting hunger value on agent initialization.
 @export var initial_hunger: float = 0.0
-@export var hunger_restored_per_meal: float = 50.0
+## Maps held food item ids to the hunger they restore when consumed.
+@export var hunger_restored_by_item: Dictionary = {
+	"banana": 20.0,
+	"cooked_potato": 50.0,
+}
+## How long the self-eating action should take in seconds.
 @export var eat_duration: float = 1.5
-@export var allowed_food_items: Array[String] = ["cooked_potato"]
 
 
 # Override
@@ -24,8 +28,7 @@ func _populate(
 ) -> void:
 	goals.append(HungerGoal.new())
 	actions.append(EatHeldFoodAction.new(
-		allowed_food_items,
-		hunger_restored_per_meal,
+		hunger_restored_by_item,
 		eat_duration,
 	))
 	updaters.append(HungerPropertyUpdater.new(hunger_decay, initial_hunger))

@@ -21,6 +21,8 @@ func _init(
 # Override
 func initialize(agent: GdPAIAgent) -> void:
 	agent.blackboard.set_property("hunger", initial_hunger)
+	if not agent.blackboard.has_property("held_item"):
+		agent.blackboard.set_property("held_item", "")
 
 
 # Override

@@ -1,35 +1,31 @@
 class_name FoodObject
-extends GdPAIObjectData
-## World object representing an edible food item.
+extends HoldableObject
+## World object representing a pickupable food item.
 ##[br]
 ##[br]
-## Demonstrates [GdPAIObjectData]: exposes sim properties and provides a
-## [FoodAction] for any agent that can reach this item.
+## Demonstrates [HoldableObject]: adds food-specific simulation metadata on top
+## of the shared pickup contract so the item can later be consumed by an
+## agent-provided eating action.
 
 
-## How many points of hunger this item restores.
+## How many points of hunger this item should restore when consumed.
+##[br]
+## Kept on the object so other planner-side actions can estimate the value of spawned food.
 @export var hunger_value: float = 20.0
-## How long it takes to eat this item in seconds.
-@export var eating_duration: float = 1.0
-## Reference to the [GdPAIInteractable] component on this object.
-@export var interactable_attribs: GdPAIInteractable
-## Reference to the [GdPAILocationData] component on this object.
-@export var location_data: GdPAILocationData
 
 
 # Override
 func get_group_labels() -> Array[String]:
-	return ["FoodObject", "GdPAIObjectData"]
+	return ["FoodObject", "HoldableObject", "GdPAIObjectData"]
 
 
 # Override
 func get_provided_actions() -> Array[Action]:
-	return [FoodAction.new(location_data, interactable_attribs, self )]
+	return [PickupAction.new(location_data, interactable_attribs, self )]
 
 
 # Override
 func get_sim_properties() -> Dictionary:
-	return {
-		"hunger_value": hunger_value,
-		"eating_duration": eating_duration,
-	}
+	var sim_properties: Dictionary = super ()
+	sim_properties["hunger_value"] = hunger_value
+	return sim_properties

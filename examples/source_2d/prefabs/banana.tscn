@@ -31,7 +31,7 @@ entity = NodePath("..")
 
 [node name="FoodObject" type="Node" parent="." node_paths=PackedStringArray("interactable_attribs", "location_data", "entity")]
 script = ExtResource("4_iet1d")
-hunger_value = 20.0
+item_id = "banana"
 interactable_attribs = NodePath("../GdPAIInteractable")
 location_data = NodePath("../GdPAILocationData")
 entity = NodePath("..")
