@@ -24,7 +24,6 @@ func _init(
 # Override
 func get_validity_checks() -> Array[Precondition]:
 	var checks: Array[Precondition] = []
-	checks.append(Precondition.agent_has_property("held_item"))
 	checks.append(Precondition.agent_has_property("hunger"))
 	return checks
 
@@ -41,7 +40,7 @@ func get_preconditions() -> Array[Precondition]:
 			return false
 		if not (held_item is String or held_item is StringName):
 			return false
-		var held_item_id := String(held_item)
+		var held_item_id: String = String(held_item)
 		if float(hunger) <= 0.0:
 			return false
 		return hunger_restored_by_item.has(held_item_id)
@@ -67,7 +66,7 @@ func simulate_effect(
 		return
 	if not (held_item is String or held_item is StringName):
 		return
-	var held_item_id := String(held_item)
+	var held_item_id: String = String(held_item)
 	if not hunger_restored_by_item.has(held_item_id):
 		return
 	var hunger_restored: float = float(hunger_restored_by_item[held_item_id])

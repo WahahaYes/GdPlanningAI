@@ -12,7 +12,7 @@
 - **Fire maintenance reward:** `MaintainFireGoal` should use a **simple exported/parameterized reward value** in v1 rather than computing a dynamic reward from fire fuel.
 - **Fire fuel access:** Campfire-related actions may **query the referenced campfire object directly** for runtime/planning validity and cost checks in the first pass.
 - **Inventory flexibility:** Add a **minimal `DropItemAction`** so agents can recover from plans where they must switch from holding food to holding wood.
-- **Eating action ownership:** Resource objects should provide pickup/interaction actions, but eating should be an **agent-provided action**. Use an `EatHeldFoodAction` with a configurable allowlist containing only `"cooked_potato"` for this example.
+- **Eating action ownership:** Resource objects should provide pickup/interaction actions, but eating should be an **agent-provided action**. `EatHeldFoodAction` now lives on the shared hunger behavior and restores hunger from a configurable per-item dictionary keyed by held item id.
 - **Object data responsibility:** `GdPAIObjectData` should remain focused on **planning-system integration only**. Any campfire fuel visuals, labels, or scene presentation should live in separate scene nodes/scripts.
 - **UI scope:** Keep the initial UI/visual feedback **minimal** and prioritize a working end-to-end implementation.
 
@@ -114,11 +114,30 @@ var initial_hunger: float = 50.0
 
 func initialize(agent: GdPAIAgent) -> void:
     agent.blackboard.set_property("hunger", initial_hunger)
-    agent.blackboard.set_property("held_item", "")  # "", "wood", "potato", "cooked_potato"
+    if not agent.blackboard.has_property("held_item"):
+        agent.blackboard.set_property("held_item", "")  # "", "wood", "potato", "cooked_potato"
 
 func update_properties(agent: GdPAIAgent, delta: float) -> void:
     var hunger: float = agent.blackboard.get_property("hunger")
     agent.blackboard.set_property("hunger", min(100.0, hunger + hunger_rate * delta))
+```
+
+**`hunger_behavior_config.gd`** (`HungerBehaviorConfig extends GdPAIBehaviorConfig`)
+```gdscript
+@export var hunger_restored_by_item: Dictionary = {
+    "banana": 20.0,
+    "cooked_potato": 50.0,
+}
+@export var eat_duration: float = 1.5
+
+func _populate(
+    goals: Array[Goal],
+    actions: Array[Action],
+    updaters: Array[PropertyUpdater]
+) -> void:
+    goals.append(HungerGoal.new())
+    actions.append(EatHeldFoodAction.new(hunger_restored_by_item, eat_duration))
+    updaters.append(HungerUpdater.new())
 ```
 
 **`campfire_behavior_config.gd`** (`CampfireBehaviorConfig extends GdPAIBehaviorConfig`)
@@ -128,16 +147,56 @@ func _populate(
     actions: Array[Action],
     updaters: Array[PropertyUpdater]
 ) -> void:
-    goals.append(HungerGoal.new())
     goals.append(MaintainFireGoal.new())
     actions.append(DropItemAction.new())
-    actions.append(EatHeldFoodAction.new(["cooked_potato"]))
-    updaters.append(HungerUpdater.new())
 ```
+
+Agents in the campfire example should be configured with both `HungerBehaviorConfig`
+and `CampfireBehaviorConfig`. Hunger owns `held_item`, `EatHeldFoodAction`, and hunger
+restoration values; campfire owns fire-maintenance logic and task-switching via drop.
 
 ---
 
 ### Objects
+
+#### `shared/objects/holdable/`
+
+**`holdable_object.gd`** (`HoldableObject extends GdPAIObjectData`)
+```gdscript
+@export var item_id: String = ""
+@export var interactable_attribs: GdPAIInteractable
+@export var location_data: GdPAILocationData
+
+func get_group_labels() -> Array[String]:
+    return ["HoldableObject", "GdPAIObjectData"]
+
+func get_provided_actions() -> Array[Action]:
+    return [PickupAction.new(location_data, interactable_attribs, self)]
+
+func get_sim_properties() -> Dictionary:
+    return {
+        "item_id": item_id,
+    }
+```
+
+**`pickup_action.gd`** (`PickupAction extends SpatialAction`)
+```gdscript
+func get_validity_checks() -> Array[Precondition]:
+    var checks: Array[Precondition] = super()
+    checks.append(Precondition.agent_has_property("held_item"))
+    checks.append(Precondition.check_is_object_valid(holdable_item))
+    return checks
+
+func get_preconditions() -> Array[Precondition]:
+    return [Precondition.agent_property_equal_to("held_item", "")]
+
+func simulate_effect(
+    agent_blackboard: GdPAIBlackboard,
+    world_state: GdPAIBlackboard
+) -> void:
+    super(agent_blackboard, world_state)
+    agent_blackboard.set_property("held_item", holdable_item.item_id)
+```
 
 #### `shared/objects/wood_pile/`
 
@@ -438,15 +497,17 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
     return Action.Status.SUCCESS
 ```
 
-**`drop_item_action.gd`** (`DropItemAction extends Action`)
+**`drop_item_action.gd`** (`DropItemAction extends Action`, now under `shared/objects/holdable/`)
 ```gdscript
 const DROP_DURATION: float = 0.2
 
 func get_validity_checks() -> Array[Precondition]:
     var checks: Array[Precondition] = []
     checks.append(Precondition.agent_has_property("held_item"))
-    checks.append(Precondition.agent_property_not_equal_to("held_item", ""))
     return checks
+
+func get_preconditions() -> Array[Precondition]:
+    return [Precondition.agent_property_not_equal_to("held_item", "")]
 
 func get_action_cost(
     agent_blackboard: GdPAIBlackboard,
@@ -463,10 +524,12 @@ func simulate_effect(
 
 **`eat_held_food_action.gd`** (`EatHeldFoodAction extends Action`)
 ```gdscript
-const EAT_DURATION: float = 1.5
-const HUNGER_RESTORED: float = 50.0
+@export var hunger_restored_by_item: Dictionary = {
+    "banana": 20.0,
+    "cooked_potato": 50.0,
+}
 
-# Configured on the agent behavior side; v1 allowlist is ["cooked_potato"]
+# Configured on the agent behavior side; any held item id in the dictionary is edible.
 ```
 
 ---
@@ -541,7 +604,7 @@ func _on_potato_picked_up(potato: Node) -> void:
 
 **Agent Setup:**
 - 2-4 agents (CharacterBody2D + NavigationAgent2D + Labels showing held_item)
-- `CampfireBehaviorConfig` (includes hunger + fire maintenance goals)
+- `HungerBehaviorConfig` + `CampfireBehaviorConfig`
 - Each agent starts with `hunger = 50`, `held_item = ""`
 
 ### 3D Version: `examples/campfire_3d.tscn`
@@ -556,7 +619,7 @@ func _on_potato_picked_up(potato: Node) -> void:
 
 **Agent Setup:**
 - 2-4 agents (CharacterBody3D + NavigationAgent3D + Label3D showing held_item)
-- `CampfireBehaviorConfig` (includes hunger + fire maintenance goals)
+- `HungerBehaviorConfig` + `CampfireBehaviorConfig`
 - Each agent starts with `hunger = 50`, `held_item = ""`
 
 **Visual Labels:**
@@ -611,8 +674,9 @@ All objects and agents display Label3D (or Label for 2D) showing their state/typ
 
 **Solution:**
 - Pickup and world interactions stay on the relevant objects (`WoodPileObject`, `PotatoObject`, `CampfireObject`)
-- Eating is provided directly by the agent behavior config as `EatHeldFoodAction`
-- For this example, the allowlist contains only `"cooked_potato"`
+- Shared pickup/drop mechanics live under the reusable holdable contract (`HoldableObject`, `PickupAction`, `DropItemAction`)
+- Eating is provided directly by `HungerBehaviorConfig` as `EatHeldFoodAction`
+- Hunger restoration is keyed by held item id so bananas and cooked potatoes can share the same self-eating action
 
 ---
 

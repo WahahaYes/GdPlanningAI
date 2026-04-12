@@ -18,13 +18,18 @@ func _init(p_drop_duration: float = 0.2) -> void:
 # Override
 func get_validity_checks() -> Array[Precondition]:
 	var checks: Array[Precondition] = []
-	checks.append(Precondition.agent_has_property("held_item"))
 	return checks
 
 
 # Override
 func get_preconditions() -> Array[Precondition]:
-	return [Precondition.agent_property_not_equal_to("held_item", "")]
+	var is_holding_item = func(
+			blackboard: GdPAIBlackboard,
+			_world_state: GdPAIBlackboard,
+	) -> bool:
+		var held_item = blackboard.get_property("held_item")
+		return held_item != null and held_item != ""
+	return [Precondition.custom(is_holding_item)]
 
 
 # Override

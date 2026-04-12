@@ -24,7 +24,6 @@ func _init(
 # Override
 func get_validity_checks() -> Array[Precondition]:
 	var checks: Array[Precondition] = super ()
-	checks.append(Precondition.agent_has_property("held_item"))
 	checks.append(Precondition.check_is_object_valid(holdable_item))
 	return checks
 
@@ -39,7 +38,13 @@ func get_action_cost(
 
 # Override
 func get_preconditions() -> Array[Precondition]:
-	return [Precondition.agent_property_equal_to("held_item", "")]
+	var has_empty_hands = func(
+			blackboard: GdPAIBlackboard,
+			_world_state: GdPAIBlackboard,
+	) -> bool:
+		var held_item = blackboard.get_property("held_item")
+		return held_item == null or held_item == ""
+	return [Precondition.custom(has_empty_hands)]
 
 
 # Override

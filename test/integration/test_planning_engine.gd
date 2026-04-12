@@ -123,3 +123,69 @@ func test_chooses_lower_cost_plan():
 	assert_true(result["success"], "Plan should succeed")
 	assert_eq(result["total_cost"], 1.0, "Should choose cheaper action with cost 1.0")
 	assert_eq(result["action_chain"][0], 1, "Should choose CheapGetKey (index 1)")
+
+func test_chooses_cheaper_deeper_chain_over_direct_expensive_completion():
+	var engine = RustPlanningEngine.new()
+	engine.set_max_recursion(3)
+	var agent_bb = GdPAIBlackboard.new()
+	agent_bb.set_property("has_food", false)
+	agent_bb.set_property("has_fire", false)
+	var world_state = GdPAIBlackboard.new()
+	
+	var actions: Array[Dictionary] = [
+		{
+			"name": "ExpensiveDirectCampfirePrep",
+			"cost_callable": func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float:
+				return 10.0,
+			"effect_callable": func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+				agent.set_property("has_food", true)
+				agent.set_property("has_fire", true),
+			"preconditions": [],
+			"validity_checks": []
+		},
+		{
+			"name": "GetFood",
+			"cost_callable": func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float:
+				return 1.0,
+			"effect_callable": func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+				agent.set_property("has_food", true),
+			"preconditions": [],
+			"validity_checks": []
+		},
+		{
+			"name": "LightFire",
+			"cost_callable": func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float:
+				return 1.0,
+			"effect_callable": func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+				agent.set_property("has_fire", true),
+			"preconditions": [],
+			"validity_checks": []
+		}
+	]
+	
+	var goals: Array[Dictionary] = [
+		{
+			"name": "ReadyCampfireMeal",
+			"reward": 100.0,
+			"desired_state": [
+				{
+					"target": "agent",
+					"operation": "equal",
+					"property_name": "has_food",
+					"value": true
+				},
+				{
+					"target": "agent",
+					"operation": "equal",
+					"property_name": "has_fire",
+					"value": true
+				}
+			]
+		}
+	]
+	
+	var result = engine.build_plan(agent_bb, world_state, actions, goals)
+	
+	assert_true(result["success"], "Plan should succeed")
+	assert_eq(result["total_cost"], 2.0, "Should prefer the cheaper two-step chain")
+	assert_eq(result["action_chain"], [1, 2], "Should choose GetFood then LightFire")

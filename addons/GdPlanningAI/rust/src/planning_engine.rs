@@ -10,6 +10,19 @@ use super::precondition::PreconditionHandler;
 use crate::plan_tree::{self, PlanResult, PlanTreeNode};
 use godot::prelude::*;
 
+/// Captures a candidate branch discovered at the current recursion level.
+///
+/// The planner evaluates all viable actions for the level first, stores the
+/// simulated successor state and accumulated desired preconditions here, then
+/// descends into the pending branches in ascending lower-bound cost order.
+struct PendingAction {
+    action_index: i64,
+    cost: f64,
+    child_desired: Vec<PreconditionHandler>,
+    sim_agent: Gd<GdPAIBlackboard>,
+    sim_world: Gd<GdPAIBlackboard>,
+}
+
 /// Forward-chaining GOAP planning engine exposed to GDScript.
 ///
 /// Given a set of [GdPAIBlackboard] states, [code]Action[/code] dictionaries, and
@@ -165,6 +178,32 @@ impl RustPlanningEngine {
         PlanResult::failure()
     }
 
+    /// Returns the lowest cumulative cost among all completed plan leaves
+    /// reachable from `node`, including the accumulated `path_cost` leading
+    /// to that node.
+    fn current_best_plan_cost(&self, node: &PlanTreeNode, path_cost: f64) -> f64 {
+        let mut best_cost = f64::INFINITY;
+        self.find_best_plan_cost(node, path_cost, &mut best_cost);
+        best_cost
+    }
+
+    /// Depth-first helper for [`current_best_plan_cost`](Self::current_best_plan_cost).
+    ///
+    /// Only leaf nodes represent completed action chains, so interior nodes
+    /// contribute their own action cost and recurse into children.
+    fn find_best_plan_cost(&self, node: &PlanTreeNode, path_cost: f64, best_cost: &mut f64) {
+        let new_cost = path_cost + node.cost;
+
+        if node.action_index >= 0 && node.children.is_empty() {
+            *best_cost = (*best_cost).min(new_cost);
+            return;
+        }
+
+        for child in &node.children {
+            self.find_best_plan_cost(child, new_cost, best_cost);
+        }
+    }
+
     /// Attempts to build a plan for a single goal.
     ///
     /// Returns immediately with an empty action chain if the goal is already
@@ -223,10 +262,16 @@ impl RustPlanningEngine {
 
     /// Core recursive search step.
     ///
-    /// Iterates over all actions, skipping invalid or infinite-cost ones.
-    /// For each action that makes progress toward the node's desired state,
-    /// applies its effect on a cloned blackboard pair and recurses. Returns
-    /// `true` if at least one satisfying leaf was found.
+    /// Iterates over all actions, skipping invalid or infinite-cost ones, and
+    /// records every viable branch for the current recursion level before any
+    /// descent occurs.
+    ///
+    /// Actions that immediately satisfy the desired state are added as leaf
+    /// children right away. Remaining progress-making actions are stored as
+    /// pending branches, sorted by their current lower-bound cost, and then
+    /// explored recursively until the best completed chain is strictly cheaper
+    /// than every pending branch. Returns `true` if at least one satisfying
+    /// leaf was found.
     fn build_plan_recursive(
         &mut self,
         node: &mut PlanTreeNode,
@@ -237,7 +282,7 @@ impl RustPlanningEngine {
         recursion_level: usize,
     ) -> bool {
         if recursion_level > self.max_recursion {
-            log_warn!(
+            log_debug!(
                 "Search depth limit ({}) reached; pruning branch",
                 recursion_level
             );
@@ -245,6 +290,7 @@ impl RustPlanningEngine {
         }
 
         let mut has_solution = false;
+        let mut pending_actions: Vec<PendingAction> = vec![];
 
         log_debug!(
             "Level {}: checking {} available action(s)",
@@ -333,34 +379,16 @@ impl RustPlanningEngine {
                     continue;
                 }
 
-                let mut next_node = PlanTreeNode {
-                    action_index: idx as i64,
-                    cost,
-                    children: vec![],
-                };
-
-                // Propagate the action's preconditions as additional constraints
-                // the sub-plan must satisfy before this action can be used.
                 let mut child_desired = desired_state.to_vec();
                 child_desired.extend(action.preconditions.clone());
 
-                if self.build_plan_recursive(
-                    &mut next_node,
-                    &child_desired,
+                pending_actions.push(PendingAction {
+                    action_index: idx as i64,
+                    cost,
+                    child_desired,
                     sim_agent,
                     sim_world,
-                    actions,
-                    recursion_level + 1,
-                ) {
-                    log_debug!(
-                        "Level {}: valid sub-plan found through action [{}] '{}'",
-                        recursion_level,
-                        idx,
-                        action.name
-                    );
-                    node.children.push(next_node);
-                    has_solution = true;
-                }
+                });
             } else {
                 log_debug!(
                     "Level {}: action [{}] '{}' makes no progress, skipping",
@@ -368,6 +396,48 @@ impl RustPlanningEngine {
                     idx,
                     action.name
                 );
+            }
+        }
+
+        pending_actions.sort_by(|a, b| {
+            a.cost
+                .partial_cmp(&b.cost)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        for pending in pending_actions {
+            let best_complete_cost = self.current_best_plan_cost(node, 0.0);
+            if best_complete_cost < pending.cost {
+                log_debug!(
+                    "Level {}: stopping descent because best complete cost {} beats pending lower bound {}",
+                    recursion_level,
+                    best_complete_cost as f32,
+                    pending.cost as f32
+                );
+                break;
+            }
+
+            let mut next_node = PlanTreeNode {
+                action_index: pending.action_index,
+                cost: pending.cost,
+                children: vec![],
+            };
+
+            if self.build_plan_recursive(
+                &mut next_node,
+                &pending.child_desired,
+                pending.sim_agent,
+                pending.sim_world,
+                actions,
+                recursion_level + 1,
+            ) {
+                log_debug!(
+                    "Level {}: valid sub-plan found through action [{}]",
+                    recursion_level,
+                    pending.action_index
+                );
+                node.children.push(next_node);
+                has_solution = true;
             }
         }
 
