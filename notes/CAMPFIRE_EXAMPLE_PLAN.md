@@ -370,63 +370,25 @@ Agents recognize they must get wood FIRST before they can add fuel. Can't direct
 
 ---
 
-## File Structure
+## File Locations
 
-**Note:** Examples use flattened structure - demo scenes at root, dimension-agnostic code in `behaviors/`, `objects/`, `shared/`, and dimension-specific assets in `source_2d/` and `source_3d/`.
+**New demo scenes:**
+- `examples/campfire_2d.tscn`
+- `examples/campfire_3d.tscn`
 
-```
-examples/
-  # Runnable demos at root
-  campfire_2d.tscn                  ← NEW: 2D campfire demo
-  campfire_3d.tscn                  ← NEW: 3D campfire demo
-  
-  # Dimension-agnostic code
-  behaviors/
-    fire_maintenance/
-      fire_maintenance_goal.gd
-      fire_fuel_updater.gd
-      fire_maintenance_behavior_config.gd
-      fire_maintenance_behavior_config.tres
-  
-  objects/
-    wood_pile/
-      wood_pile_object.gd
-      pick_up_wood_action.gd
-    campfire/
-      campfire_object.gd
-      add_fuel_action.gd
-  
-  shared/                           ← dimension-agnostic utility scripts
-    ui/
-      fps_counter.gd
-      agent_debug_label.gd
-  
-  configs/
-    campfire_agent_config.tres      ← NEW: includes hunger + fire maintenance
-  
-  # 2D source files
-  source_2d/
-    prefabs/
-      wood_pile.tscn                ← Node2D + WoodPileObject + Sprite2D
-      campfire.tscn                 ← Node2D + CampfireObject + AnimatedSprite2D + Label
-    assets/
-      agent/                        ← 2D nav/animation controllers
-      world/                        ← wood pile sprite, fire animations
-  
-  # 3D source files
-  source_3d/
-    prefabs/
-      agent.tscn                    ← CharacterBody3D + NavigationAgent3D
-      wood_pile.tscn                ← Node3D + WoodPileObject + MeshInstance3D
-      campfire.tscn                 ← Node3D + CampfireObject + GPUParticles3D + Label3D
-    assets/
-      agent/                        ← 3D agent model
-      world/                        ← wood pile model, fire particles
-```
+**New dimension-agnostic code:**
+- `examples/behaviors/fire_maintenance/` - Goal, PropertyUpdater, BehaviorConfig
+- `examples/objects/wood_pile/` - ObjectData, PickUpWoodAction
+- `examples/objects/campfire/` - ObjectData, AddFuelAction
+- `examples/configs/campfire_agent_config.tres` - includes hunger + fire maintenance
 
-**All paths use:** `res://examples/behaviors/`, `res://examples/objects/`, `res://examples/shared/`, `res://examples/source_2d/`, etc.
+**New 2D/3D prefabs:**
+- `source_2d/prefabs/wood_pile.tscn`, `campfire.tscn`
+- `source_3d/prefabs/wood_pile.tscn`, `campfire.tscn`, `agent.tscn`
 
-**Note:** All GDScript files in `behaviors/` and `objects/` are dimension-agnostic and used by both 2D and 3D demos.
+**New assets:**
+- `source_2d/assets/world/` - wood pile sprite, fire animations
+- `source_3d/assets/` - 3D models and particles
 
 ---
 

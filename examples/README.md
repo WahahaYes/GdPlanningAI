@@ -34,50 +34,19 @@
 
 ---
 
-## Folder Layout
+## Folder Organization
 
-```
-examples/
-  # Runnable demo scenes (at root for easy access!)
-  hunger_basic_2d.tscn              ← single agent hunger demo
-  hunger_multi_agent_2d.tscn        ← multi-agent competition
-  hunger_stress_test_2d.tscn        ← performance testing
-  
-  # Dimension-agnostic reusable code
-  behaviors/                        ← Goals, PropertyUpdaters, BehaviorConfigs
-    hunger/
-    wander/
-  
-  objects/                          ← ObjectData + Actions
-    food/
-    fruit_tree/
-  
-  shared/                           ← Dimension-agnostic utility scripts
-    ui/
-      fps_counter.gd                ← Performance monitoring
-      agent_debug_label.gd          ← Agent state display
-    many_agents_spawner.gd          ← Stress test spawner
-  
-  configs/                          ← Agent configuration resources
-    hunger_wander_agent_config.tres
-  
-  # 2D-specific source files
-  source_2d/
-    prefabs/                        ← Reusable scene components
-      agent.tscn
-      banana.tscn
-      banana_tree.tscn
-      scenery.tscn
-      huge_scenery.tscn
-    assets/                         ← Raw art: sprites, textures
-      agent/                        ← 2D-specific: nav controller, animator
-      world/                        ← Tiny Swords pack tiles, sprites
-  
-  # 3D-specific source files (future)
-  source_3d/
-    prefabs/
-    assets/
-```
+**Demo scenes** are at the root for easy access (`hunger_basic_2d.tscn`, etc.)
+
+**Dimension-agnostic code:**
+- `behaviors/` - Goals, PropertyUpdaters, BehaviorConfigs
+- `objects/` - ObjectData + Actions  
+- `shared/` - Utility scripts
+- `configs/` - Agent configuration resources
+
+**Dimension-specific source files:**
+- `source_2d/` - 2D prefabs and assets
+- `source_3d/` - 3D prefabs and assets
 
 ---
 
