@@ -37,7 +37,7 @@ func get_validity_checks() -> Array[Precondition]:
 	var checks: Array[Precondition] = super ()
 	checks.append(Precondition.agent_has_property("hunger"))
 	checks.append(Precondition.check_is_object_valid(fruit_tree))
-	checks.append(Precondition.agent_property_less_than("hunger", 100.0))
+	checks.append(Precondition.agent_property_greater_than("hunger", 0.0))
 	
 	var tree_not_on_cooldown = func(_bb: GdPAIBlackboard, _ws: GdPAIBlackboard) -> bool:
 		return not fruit_tree.is_on_cooldown
@@ -72,7 +72,7 @@ func simulate_effect(
 ) -> void:
 	super (agent_blackboard, world_state)
 	var hunger: float = agent_blackboard.get_property("hunger")
-	agent_blackboard.set_property("hunger", hunger + _sim_hunger_gain)
+	agent_blackboard.set_property("hunger", max(0.0, hunger - _sim_hunger_gain))
 
 
 # Override

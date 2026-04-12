@@ -11,14 +11,14 @@ extends Goal
 func compute_reward(agent: GdPAIAgent) -> float:
 	var hunger_val = agent.blackboard.get_property("hunger")
 	if hunger_val == null:
-		hunger_val = 100.0
-	return 100.0 - hunger_val
+		return 0.0
+	return max(0.0, float(hunger_val))
 
 
 # Override
 func get_desired_state(agent: GdPAIAgent) -> Array[Precondition]:
 	var current_hunger: float = agent.blackboard.get_property("hunger")
-	return [Precondition.agent_property_greater_than("hunger", current_hunger)]
+	return [Precondition.agent_property_less_than("hunger", current_hunger)]
 
 
 # Override

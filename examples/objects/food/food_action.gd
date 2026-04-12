@@ -26,7 +26,7 @@ func get_validity_checks() -> Array[Precondition]:
 	var checks: Array[Precondition] = super ()
 	checks.append(Precondition.agent_has_property("hunger"))
 	checks.append(Precondition.check_is_object_valid(food_item))
-	checks.append(Precondition.agent_property_less_than("hunger", 100.0))
+	checks.append(Precondition.agent_property_greater_than("hunger", 0.0))
 	return checks
 
 
@@ -55,7 +55,7 @@ func simulate_effect(
 ) -> void:
 	super (agent_blackboard, world_state)
 	var hunger: float = agent_blackboard.get_property("hunger")
-	agent_blackboard.set_property("hunger", hunger + food_item.hunger_value)
+	agent_blackboard.set_property("hunger", max(0.0, hunger - food_item.hunger_value))
 
 
 # Override
@@ -80,7 +80,7 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 
 	if eating_elapsed >= food_item.eating_duration:
 		var hunger: float = agent.blackboard.get_property("hunger")
-		agent.blackboard.set_property("hunger", hunger + food_item.hunger_value)
+		agent.blackboard.set_property("hunger", max(0.0, hunger - food_item.hunger_value))
 		food_item.entity.queue_free()
 		return Action.Status.SUCCESS
 

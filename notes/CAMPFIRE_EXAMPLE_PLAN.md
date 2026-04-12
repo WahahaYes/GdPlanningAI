@@ -6,6 +6,18 @@
 
 ---
 
+## Agreed v1 Implementation Scope
+
+- **Primary target:** Implement the **2D version first**. Shared gameplay logic should be written so it can be reused by a later 3D pass, but 3D scene/prefab work is deferred.
+- **Fire maintenance reward:** `MaintainFireGoal` should use a **simple exported/parameterized reward value** in v1 rather than computing a dynamic reward from fire fuel.
+- **Fire fuel access:** Campfire-related actions may **query the referenced campfire object directly** for runtime/planning validity and cost checks in the first pass.
+- **Inventory flexibility:** Add a **minimal `DropItemAction`** so agents can recover from plans where they must switch from holding food to holding wood.
+- **Eating action ownership:** Resource objects should provide pickup/interaction actions, but eating should be an **agent-provided action**. Use an `EatHeldFoodAction` with a configurable allowlist containing only `"cooked_potato"` for this example.
+- **Object data responsibility:** `GdPAIObjectData` should remain focused on **planning-system integration only**. Any campfire fuel visuals, labels, or scene presentation should live in separate scene nodes/scripts.
+- **UI scope:** Keep the initial UI/visual feedback **minimal** and prioritize a working end-to-end implementation.
+
+---
+
 ## Goals
 
 This example demonstrates **maintenance/proactive planning with resource transformation** — a planning pattern where agents must maintain shared resources while also preparing food through a cooking process.
@@ -20,6 +32,8 @@ This example demonstrates **maintenance/proactive planning with resource transfo
 7. **Threshold-based goals** — goal reward scales as resource depletes
 8. **Dynamic respawning** — potatoes respawn at randomized locations
 
+**Note for v1:** Although dynamic/threshold-based fire maintenance is an interesting extension, the first implementation uses a **parameterized fixed reward** for fire maintenance and focuses on proving the core planning loop in 2D.
+
 ---
 
 ## Design Overview
@@ -31,6 +45,7 @@ Agents gather around a campfire that tracks its own fuel level (attached to the 
 2. **Dig up raw potatoes** from randomized ground spawn locations
 3. **Cook potatoes** at the fire (requires fire fuel > threshold)
 4. **Eat cooked potatoes** to satisfy hunger
+5. **Drop held items when needed** to switch tasks
 
 **Fail state:** If fire fuel reaches 0, cooking is blocked until fire is refueled.
 
@@ -53,7 +68,7 @@ This example leverages existing systems with minimal new code:
 | Multi-step chains | Dig potato → cook potato → eat cooked potato |
 | Object-attached properties | Fire object tracks its own fuel level |
 
-**Net new systems:** Potato respawn manager (randomized location spawning). Otherwise just new goal/action/object implementations.
+**Net new systems:** Potato respawn manager (randomized location spawning), minimal drop action, and an agent-provided eat-held-food action. Otherwise just new goal/action/object implementations.
 
 ---
 
@@ -65,14 +80,11 @@ This example leverages existing systems with minimal new code:
 
 **`fire_maintenance_goal.gd`** (`MaintainFireGoal extends Goal`)
 ```gdscript
-# Reward scales from 0 (fire full) to 80 (fire nearly out)
-# Competes with HungerGoal (0-100 range)
+@export var reward_value: float = 40.0
+
+# v1: fixed parameterized reward so it can compete with HungerGoal
 func compute_reward(agent: GdPAIAgent) -> float:
-    # Fire fuel is stored on the campfire object itself
-    # Agent doesn't track it directly - actions query the fire object
-    # For reward, we can check if fire is low via world state
-    # Simplified: assume agents know fire needs maintenance when it's accessible
-    return 40.0  # Moderate baseline priority
+    return reward_value
 
 func get_desired_state(agent: GdPAIAgent) -> Array[Precondition]:
     # Goal is satisfied when we've added fuel to the fire
@@ -118,6 +130,8 @@ func _populate(
 ) -> void:
     goals.append(HungerGoal.new())
     goals.append(MaintainFireGoal.new())
+    actions.append(DropItemAction.new())
+    actions.append(EatHeldFoodAction.new(["cooked_potato"]))
     updaters.append(HungerUpdater.new())
 ```
 
@@ -192,21 +206,10 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 @export var location_data: GdPAILocationData
 @export var fuel_per_wood: float = 30.0  # How much fuel one wood restores
 @export var min_fuel_to_cook: float = 20.0  # Minimum fuel required for cooking
-@export var label_text: String = "Campfire"  # Displayed in scene
 
-# Fire tracks its own fuel level
+# Planning-relevant campfire state only
 var current_fuel: float = 100.0
 var fuel_decay_rate: float = 3.0  # Fuel per second
-
-func _process(delta: float) -> void:
-    # Decay fuel over time
-    current_fuel = max(0.0, current_fuel - fuel_decay_rate * delta)
-    update_visuals()
-
-func update_visuals() -> void:
-    # Update fire size/intensity based on fuel
-    # Implementation depends on 2D vs 3D scene setup
-    pass
 
 func get_group_labels() -> Array[String]:
     return ["CampfireObject", "GdPAIObjectData"]
@@ -431,57 +434,39 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
     
     # Instant pickup once at location
     agent.blackboard.set_property("held_item", "potato")
+    # Trigger potato pickup/despawn on the owning potato object/node
     return Action.Status.SUCCESS
 ```
 
-**`eat_cooked_potato_action.gd`** (`EatCookedPotatoAction extends Action`)
+**`drop_item_action.gd`** (`DropItemAction extends Action`)
 ```gdscript
-const EAT_DURATION: float = 1.5
-const HUNGER_RESTORED: float = 50.0
+const DROP_DURATION: float = 0.2
 
 func get_validity_checks() -> Array[Precondition]:
     var checks: Array[Precondition] = []
     checks.append(Precondition.agent_has_property("held_item"))
-    checks.append(Precondition.agent_has_property("hunger"))
-    # Must be holding cooked potato
-    checks.append(Precondition.agent_property_equal_to("held_item", "cooked_potato"))
-    # No point eating if not hungry
-    checks.append(Precondition.agent_property_greater_than("hunger", 10.0))
+    checks.append(Precondition.agent_property_not_equal_to("held_item", ""))
     return checks
 
 func get_action_cost(
     agent_blackboard: GdPAIBlackboard,
     world_state: GdPAIBlackboard
 ) -> float:
-    return EAT_DURATION
+    return DROP_DURATION
 
 func simulate_effect(
     agent_blackboard: GdPAIBlackboard,
     world_state: GdPAIBlackboard
 ) -> void:
-    var hunger: float = agent_blackboard.get_property("hunger")
-    agent_blackboard.set_property("hunger", max(0.0, hunger - HUNGER_RESTORED))
     agent_blackboard.set_property("held_item", "")
+```
 
-func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
-    set_state(agent, "eat_elapsed", 0.0)
-    return Action.Status.SUCCESS
+**`eat_held_food_action.gd`** (`EatHeldFoodAction extends Action`)
+```gdscript
+const EAT_DURATION: float = 1.5
+const HUNGER_RESTORED: float = 50.0
 
-func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
-    var elapsed: float = get_state(agent, "eat_elapsed") + delta
-    set_state(agent, "eat_elapsed", elapsed)
-    
-    if elapsed >= EAT_DURATION:
-        var hunger: float = agent.blackboard.get_property("hunger")
-        agent.blackboard.set_property("hunger", max(0.0, hunger - HUNGER_RESTORED))
-        agent.blackboard.set_property("held_item", "")
-        return Action.Status.SUCCESS
-    
-    return Action.Status.RUNNING
-
-func post_perform_action(agent: GdPAIAgent) -> Action.Status:
-    erase_state(agent, "eat_elapsed")
-    return Action.Status.SUCCESS
+# Configured on the agent behavior side; v1 allowlist is ["cooked_potato"]
 ```
 
 ---
@@ -586,7 +571,8 @@ All objects and agents display Label3D (or Label for 2D) showing their state/typ
 **Problem:** Multiple agents need to know the fire's fuel level for planning.
 
 **Solution:** Fire fuel is stored **directly on the CampfireObject**
-- `CampfireObject` has `current_fuel` property that decays in `_process()`
+- `CampfireObject` has `current_fuel` property used by planning actions
+- A separate scene node/script should handle runtime fuel decay and visuals, updating the object data as needed
 - Actions reference the campfire object directly via `campfire_ref`
 - `AddFuelAction` and `CookPotatoAction` check `campfire_ref.current_fuel` in `get_action_cost()`
 - No world state or agent property mirroring needed - just direct object reference
@@ -615,9 +601,18 @@ All objects and agents display Label3D (or Label for 2D) showing their state/typ
 **Problem:** How does PotatoSpawner know when a potato is picked up?
 
 **Solution:** 
-- When `DigPotatoAction` completes, it can call a method on the potato object
-- Or potato emits `picked_up` signal that spawner connects to
-- For simplicity: potato gets `queue_free()` called directly by spawner when detecting despawn
+- `DigPotatoAction` should trigger pickup on the potato object/node when the action succeeds
+- The potato scene can then emit a `picked_up` signal or otherwise notify the spawner
+- Keep the action responsible for initiating pickup; keep the spawner responsible for tracking active potato instances
+
+### Challenge 5: Eating Ownership
+
+**Problem:** Eating is not tied to a world object, so where should that action live?
+
+**Solution:**
+- Pickup and world interactions stay on the relevant objects (`WoodPileObject`, `PotatoObject`, `CampfireObject`)
+- Eating is provided directly by the agent behavior config as `EatHeldFoodAction`
+- For this example, the allowlist contains only `"cooked_potato"`
 
 ---
 
@@ -640,11 +635,12 @@ Agent completes full resource transformation chain.
 
 **Expected plan:**
 1. Navigate to potato → Dig up potato
-2. Navigate to wood pile (drop potato if needed) → Pick up wood
-3. Navigate to campfire → Add fuel (fire now at 45)
-4. Navigate back to potato (or dig new one)
-5. Navigate to campfire → Cook potato
-6. Eat cooked potato
+2. Drop potato if needed
+3. Navigate to wood pile → Pick up wood
+4. Navigate to campfire → Add fuel (fire now at 45)
+5. Navigate back to potato (or dig new one)
+6. Navigate to campfire → Cook potato
+7. Eat cooked potato
 
 OR if fire has just enough fuel:
 1. Navigate to potato → Dig up potato
@@ -660,7 +656,7 @@ Agent must balance immediate hunger with fire dependency.
 **State:** Hunger = 60, Fire fuel = 10, held_item = "potato"
 
 **Expected plan:**
-1. Drop potato (or navigate to campfire anyway)
+1. Drop potato
 2. Navigate to wood pile → Pick up wood
 3. Navigate to campfire → Add fuel
 4. Navigate back to potato → Pick up potato
@@ -689,14 +685,15 @@ Agent maintains fire proactively before it becomes critical, enabling smooth coo
 
 **New demo scenes:**
 - `examples/campfire_2d.tscn`
-- `examples/campfire_3d.tscn`
 
-**New dimension-agnostic code (shared between 2D and 3D):**
+**New shared gameplay code for the 2D-first implementation:**
 - `examples/behaviors/campfire/`
   - `hunger_goal.gd`
   - `fire_maintenance_goal.gd`
   - `hunger_updater.gd`
   - `campfire_behavior_config.gd`
+  - `eat_held_food_action.gd`
+  - `drop_item_action.gd`
 - `examples/objects/wood_pile/`
   - `wood_pile_object.gd`
   - `pick_up_wood_action.gd`
@@ -707,7 +704,6 @@ Agent maintains fire proactively before it becomes critical, enabling smooth coo
 - `examples/objects/potato/`
   - `potato_object.gd`
   - `dig_potato_action.gd`
-  - `eat_cooked_potato_action.gd`
 - `examples/shared/`
   - `potato_spawner.gd`
 
@@ -717,7 +713,8 @@ Agent maintains fire proactively before it becomes critical, enabling smooth coo
 - `examples/source_2d/prefabs/potato_2d.tscn`
 - `examples/source_2d/prefabs/agent_2d.tscn`
 
-**New 3D prefabs:**
+**Deferred to a later pass:**
+- `examples/campfire_3d.tscn`
 - `examples/source_3d/prefabs/wood_pile_3d.tscn`
 - `examples/source_3d/prefabs/campfire_3d.tscn`
 - `examples/source_3d/prefabs/potato_3d.tscn`
@@ -739,12 +736,13 @@ Agent maintains fire proactively before it becomes critical, enabling smooth coo
 - [ ] Agent holding raw potato can cook it at campfire (if fuel >= 20)
 - [ ] Cooking transforms held_item from "potato" to "cooked_potato"
 - [ ] Can't cook if fire fuel < min_fuel_to_cook threshold
-- [ ] Agent can eat cooked potato (reduces hunger by 50)
+- [ ] Agent can use `EatHeldFoodAction` on cooked potato (reduces hunger by 50)
 - [ ] Can't eat if not holding cooked potato
 
 **Inventory Management:**
 - [ ] Can't pick up wood while already holding something
 - [ ] Can't pick up potato while already holding something
+- [ ] Agent can drop held items when replanning requires free hands
 - [ ] held_item correctly shows: "", "wood", "potato", or "cooked_potato"
 - [ ] Agent labels display current held_item
 
@@ -772,17 +770,16 @@ Agent maintains fire proactively before it becomes critical, enabling smooth coo
 - **Other cookable foods** — fish, meat, etc. with different cook times
 - **Partial cooking** — food burns if left too long, or becomes partially cooked
 - **Fuel consumption during cooking** — cooking uses some fire fuel, not just blocking threshold
-- **Drop item action** — explicit action to drop held items instead of requiring empty hands
 
 ---
 
 ## Estimated Implementation Time
 
-**Shared Code (dimension-agnostic):**
+**Shared Code (2D-first):**
 - **Goals (Hunger + Fire Maintenance) + Updater + BehaviorConfig:** 1.5 hours
 - **WoodPileObject + PickUpWoodAction:** 1 hour  
 - **CampfireObject + AddFuelAction + CookPotatoAction:** 2 hours
-- **PotatoObject + DigPotatoAction + EatCookedPotatoAction:** 1.5 hours
+- **PotatoObject + DigPotatoAction + EatHeldFoodAction + DropItemAction:** 2 hours
 - **PotatoSpawner system:** 1 hour
 
 **2D Demo:**
@@ -790,14 +787,9 @@ Agent maintains fire proactively before it becomes critical, enabling smooth coo
 - **Demo scene assembly + PotatoSpawner setup:** 1 hour
 - **Navigation setup:** 0.5 hours
 
-**3D Demo:**
-- **Prefabs (CSG primitives + Label3D for all objects):** 2 hours
-- **Demo scene assembly + PotatoSpawner setup:** 1.5 hours
-- **Navigation baking + ground plane:** 1 hour
+**Testing + bug fixes:** 1.5-2 hours (2D first pass)
 
-**Testing + bug fixes:** 2 hours (both versions)
-
-**Total:** ~15-16 hours for complete implementation (both 2D and 3D)
+**Total:** ~9-10 hours for a solid 2D-first implementation
 
 ---
 
@@ -810,7 +802,6 @@ Update `examples/README.md` to add:
 
 **Scenes:** 
 - 2D: `examples/campfire_2d.tscn`
-- 3D: `examples/campfire_3d.tscn`
 
 Agents must maintain a shared campfire while gathering and cooking food. Demonstrates resource transformation (raw potato → cooked potato) and multi-step planning chains.
 
@@ -827,7 +818,7 @@ Agents must maintain a shared campfire while gathering and cooking food. Demonst
 - **Competing priorities** — balance personal hunger vs group fire maintenance
 - **Dynamic spawning** — potatoes respawn at randomized locations
 - **Inventory management** — single held_item slot for wood/potato/cooked_potato
+- **Task switching** — drop held items when priorities change
 - **Threshold-based actions** — cooking requires fire fuel >= 20
-- **Dimension-agnostic code** — same scripts work in both 2D and 3D
-- **Visual feedback** — all objects display labels showing state
+- **2D-first implementation** — shared logic designed for later 3D extension
 ```
