@@ -4,7 +4,7 @@
 1. [Intro](#gdplanningai)
 2. [Installation](#installation)
 3. [Usage](#usage)
-4. [Demos](#demos)
+4. [Examples](#examples)
 5. [License](#license)
 6. [Frequently Asked Questions (FAQ)](#faq)
 7. [TODOs](#todos)
@@ -85,7 +85,7 @@ The final major component of this framework, and the most novel improvement over
 
 In addition to an agent's self-actions, which are not dependent on external factors (for example, maybe an agent has the action to rest to regain stamina), these `GdPAIObjectData` broadcast their relevent actions.  A `banana` object may broadcast the `eat_food` action.  The relevant subclass of `GdPAIObjectData` contains a `hunger_restored` attribute that the `eat_food` action references.  Through a validity check, the `eat_food` action ensures that agents have a `hunger` property, to prevent unnecessary computations for agents that don't become hungry.
 
-The templates in `script_templates` and the demo in `examples/..` are verbosely commented to help with initial understanding of the framework.  Using the script templates is highly recommended when creating your own actions, goals, and object data classes.
+The templates in `script_templates` and the examples in the project root `examples/` folder are verbosely commented to help with initial understanding of the framework. Using the script templates is highly recommended when creating your own actions, goals, and object data classes.
 
 **SpatialAction**
 
@@ -144,29 +144,9 @@ The debugger still lacks some useful features, like listing preconditions or the
 
 ![Illustration of the debugger tab](https://raw.githubusercontent.com/WahahaYes/GdPlanningAI/refs/heads/main/media/debugger_screenshot2.png)
 
-### Demos
+### Examples
 
-Demos with sample actions and objects are located in `examples/`.  You can download the whole project to play around with the demos.  The examples now demonstrate the new behavior system:
-
-**Behavior System Examples**
-- `examples/hunger/`: Complete hunger system with goals, actions, and property updaters.
-- `examples/wander/`: Wandering behavior with configurable distance parameters.
-- `examples/fruit_tree/`: Object interaction example with shakeable fruit trees.
-
-**Demo Scenes**
-- `examples/2D/single_agent_demo.tscn`: Shows a single agent using the behavior system.
-- `examples/2D/multi_agent_demo.tscn`: Multiple agents competing for resources using different configurations.
-- `examples/2D/multithread_single_agent.tscn`: Demonstrates multithreaded planning.
-- `examples/2D/singlethreading_stress_test.tscn`: Performance testing with many single-threaded agents.
-- `examples/2D/multithreading_stress_test.tscn`: Performance testing with many multithreaded agents.
-
-The hunger system demonstrates how agents balance multiple goals - when hungry, they prioritize finding food, but when satisfied, they wander to explore.  The fruit tree example shows object interactions where agents can shake trees to spawn fruit, then eat the fruit to satisfy hunger.  As an exercise, consider creating new behavior configurations (like a combat behavior) and combining them with existing ones!
-
-![GIF of the multi_agent_demo.tscn scene running](https://raw.githubusercontent.com/WahahaYes/GdPlanningAI/refs/heads/main/media/2d_demo.gif)
-
-A set of demos showcases the multithreading feature.  By multithreading agents in a complex scene, we see a 2x speedup! (on a laptop with an integrated GPU).  
-
-![GIF of the multitheading_stress_test.tscn scene running](https://raw.githubusercontent.com/WahahaYes/GdPlanningAI/refs/heads/main/media/multithread_demo.gif)
+Example scenes are available in the `examples/` folder at the project root. See `examples/README.md` for details.
 
 ### License
 
