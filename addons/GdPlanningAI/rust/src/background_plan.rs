@@ -20,6 +20,13 @@ pub fn run_plan(
     request_tx: Sender<CallbackRequest>,
     result_tx: Sender<PlanResult>,
 ) {
+    crate::log_debug!(
+        "Starting background planning: {} actions, {} goals, max recursion {}",
+        actions.len(),
+        goals.len(),
+        max_recursion
+    );
+
     let mut sorted_goals = goals;
     sorted_goals.sort_by(|a, b| {
         b.reward
@@ -28,7 +35,10 @@ pub fn run_plan(
     });
 
     for goal in &sorted_goals {
+        crate::log_debug!("Processing goal '{}' (reward: {:.1})", goal.name, goal.reward);
+
         if is_goal_satisfied(&goal.desired_state, &agent, &world, &request_tx) {
+            crate::log_debug!("Goal '{}' already satisfied", goal.name);
             let _ = result_tx.send(PlanResult {
                 success: true,
                 action_chain: vec![],
@@ -54,6 +64,7 @@ pub fn run_plan(
         let success = build_plan_recursive(&mut root_node, &agent, &world, 0, &ctx);
 
         if success {
+            crate::log_debug!("Found valid plan for goal '{}'", goal.name);
             let plan = plan_tree::extract_best_plan(&root_node);
             let _ = result_tx.send(PlanResult {
                 success: true,
@@ -140,13 +151,18 @@ fn build_plan_recursive(
     ctx: &PlanContext,
 ) -> bool {
     if recursion_level > ctx.max_recursion {
+        crate::log_debug!("Max recursion depth {} reached", ctx.max_recursion);
         return false;
     }
+
+    crate::log_debug!("Recursion level {}, evaluating {} actions", recursion_level, ctx.actions.len());
 
     let mut has_solution = false;
     let mut pending_actions: Vec<PendingAction> = vec![];
 
     for (idx, action) in ctx.actions.iter().enumerate() {
+        crate::log_debug!("Evaluating action '{}' at depth {}", action.name, recursion_level);
+
         // Validity checks
         if !action_is_valid(action, agent_state, world_state, ctx.request_tx) {
             continue;
@@ -164,8 +180,11 @@ fn build_plan_recursive(
             ctx.request_tx,
         );
         if cost == f64::INFINITY {
+            crate::log_debug!("Action '{}' has infinite cost, skipping", action.name);
             continue;
         }
+
+        crate::log_debug!("Action '{}' cost: {:.2}", action.name, cost);
 
         // Apply effect via callback channel — returns updated snapshots
         let (new_agent, new_world) = call_apply_effect(
@@ -182,7 +201,10 @@ fn build_plan_recursive(
             check_progress_toward_goal(ctx.desired_state, &sim_agent, &sim_world, ctx.request_tx);
 
         if makes_progress {
+            crate::log_debug!("Action '{}' makes progress toward goal", action.name);
+
             if is_goal_satisfied(ctx.desired_state, &sim_agent, &sim_world, ctx.request_tx) {
+                crate::log_debug!("Action '{}' satisfies goal immediately", action.name);
                 let next_node = PlanTreeNode {
                     action_index: idx as i64,
                     cost,
@@ -203,6 +225,8 @@ fn build_plan_recursive(
                 sim_agent,
                 sim_world,
             });
+        } else {
+            crate::log_debug!("Action '{}' does not make progress toward goal", action.name);
         }
     }
 
@@ -212,11 +236,27 @@ fn build_plan_recursive(
             .unwrap_or(std::cmp::Ordering::Equal)
     });
 
+    crate::log_debug!(
+        "Sorted {} pending actions, exploring from lowest cost",
+        pending_actions.len()
+    );
+
     for pending in pending_actions {
         let best_complete_cost = current_best_plan_cost(node, 0.0);
         if best_complete_cost < pending.cost {
+            crate::log_debug!(
+                "Pruning action with cost {:.2} (best complete: {:.2})",
+                pending.cost,
+                best_complete_cost
+            );
             break;
         }
+
+        crate::log_debug!(
+            "Descending into recursion level {} with action cost {:.2}",
+            recursion_level + 1,
+            pending.cost
+        );
 
         let mut next_node = PlanTreeNode {
             action_index: pending.action_index,
@@ -283,14 +323,25 @@ fn action_is_valid(
 ) -> bool {
     // First check if all dependent objects still exist
     if !check_dependencies_valid(&action.dependent_object_ids) {
+        crate::log_debug!(
+            "Action '{}' validity check failed: dependent objects no longer valid",
+            action.name
+        );
         return false;
     }
 
     // Then check validity preconditions
-    action
-        .validity_checks
-        .iter()
-        .all(|check| eval_precondition(check, agent, world, request_tx))
+    for (i, check) in action.validity_checks.iter().enumerate() {
+        if !eval_precondition(check, agent, world, request_tx) {
+            crate::log_debug!(
+                "Action '{}' validity check {} failed",
+                action.name,
+                i
+            );
+            return false;
+        }
+    }
+    true
 }
 
 /// Validate that all dependent object IDs still refer to live objects.
@@ -312,15 +363,38 @@ fn eval_precondition(
     request_tx: &Sender<CallbackRequest>,
 ) -> bool {
     match spec.evaluate_builtin(agent, world) {
-        Some(result) => result,
+        Some(result) => {
+            if !result {
+                if let PreconditionSpec::Builtin {
+                    operation,
+                    property_name,
+                    ..
+                } = spec
+                {
+                    crate::log_debug!(
+                        "Builtin precondition failed: op={:?}, property='{}'",
+                        operation,
+                        property_name
+                    );
+                }
+            }
+            result
+        }
         None => {
             // Custom callback — check dependencies first
             if !check_dependencies_valid(spec.dependent_object_ids()) {
+                crate::log_debug!(
+                    "Custom precondition failed: dependent objects no longer valid"
+                );
                 return false;
             }
 
             let callable_id = spec.callable_id().unwrap();
-            call_eval_custom_precond(callable_id, agent, world, request_tx)
+            let result = call_eval_custom_precond(callable_id, agent, world, request_tx);
+            if !result {
+                crate::log_debug!("Custom precondition callback returned false");
+            }
+            result
         }
     }
 }
