@@ -28,4 +28,4 @@ project/assembly_name="GdPlanningAI"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/GdPlanningAI/plugin.cfg")
+enabled=PackedStringArray("res://addons/GdPlanningAI/plugin.cfg", "res://addons/gut/plugin.cfg")

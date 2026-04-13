@@ -33,5 +33,6 @@ func _apply_log_level() -> void:
 		push_warning("GdPlanningAI: could not load plugin.cfg (error %d)" % err)
 		return
 	var level: int = config.get_value("configuration", "log_level", 2)
-	var engine := RustPlanningEngine.new()
+	var engine: RustPlanningEngine = RustPlanningEngine.new()
 	engine.set_log_level(level)
+	print("GdPlanningAI: log level set to %d" % level)

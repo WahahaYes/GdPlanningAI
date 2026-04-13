@@ -60,6 +60,8 @@ impl INode for GdPAIPlanScheduler {
     }
 
     fn ready(&mut self) {
+        crate::logger::init_log_channel();
+
         let mut builder = rayon::ThreadPoolBuilder::new();
         if self.max_threads > 0 {
             builder = builder.num_threads(self.max_threads as usize);
@@ -69,10 +71,12 @@ impl INode for GdPAIPlanScheduler {
                 .build()
                 .expect("GdPAIPlanScheduler: failed to build Rayon thread pool"),
         );
+        godot::prelude::godot_print!("[GdPAI] Direct print from scheduler ready - logging works");
         log_info!(
             "GdPAIPlanScheduler ready — {} worker thread(s)",
             self.thread_pool.as_ref().unwrap().current_num_threads()
         );
+        log_debug!("Log channel initialized and ready for background thread logging");
     }
 }
 
@@ -82,6 +86,9 @@ impl GdPAIPlanScheduler {
     /// Call this once per frame from GDScript `_process`.
     #[func]
     fn process_callbacks(&mut self) {
+        // Process pending log messages from background threads
+        crate::logger::process_logs();
+
         // Process each job's pending callbacks using its own callable registry.
         for job in self.active_jobs.iter_mut().filter(|j| !j.done) {
             while let Ok(req) = job.request_rx.try_recv() {
