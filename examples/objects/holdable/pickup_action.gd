@@ -55,6 +55,19 @@ func simulate_effect(
 	super (agent_blackboard, _world_state)
 	agent_blackboard.set_property("held_item", holdable_item.item_id)
 
+	# If the item being picked up is food, estimate the hunger reduction
+	# This allows the planner to recognize that picking up food makes progress
+	# toward the hunger goal
+	if holdable_item is FoodObject:
+		var food = holdable_item as FoodObject
+		var hunger = agent_blackboard.get_property("hunger")
+		if hunger != null:
+			var hunger_restored = food.hunger_value
+			var new_hunger = max(0.0, float(hunger) - hunger_restored)
+			print("[PickupAction] Picking up food")
+			print("  hunger reduction: ", hunger_restored, ", new hunger: ", new_hunger)
+			agent_blackboard.set_property("hunger", new_hunger)
+
 
 # Override
 func pre_perform_action(agent: GdPAIAgent) -> Action.Status:

@@ -15,5 +15,6 @@ script = ExtResource("3_ymf1b")
 script = ExtResource("4_bjvph")
 planning_strategy = 1
 planning_interval = 1.0
+max_recursion = 4
 behavior_configs = Array[ExtResource("1_oyipl")]([SubResource("Resource_ctvl8"), SubResource("Resource_cfkli")])
 metadata/_custom_type_script = "uid://b8bjqnbsl1gr7"

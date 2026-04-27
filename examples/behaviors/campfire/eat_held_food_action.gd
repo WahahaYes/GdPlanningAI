@@ -30,21 +30,30 @@ func get_validity_checks() -> Array[Precondition]:
 
 # Override
 func get_preconditions() -> Array[Precondition]:
-	var can_eat_held_item = func(
+	var preconditions: Array[Precondition] = []
+
+	# Require that a food object exists in the world to be picked up
+	# This ensures the planner must identify a specific food target
+	var food_exists = func(
+			_blackboard: GdPAIBlackboard,
+			world_state: GdPAIBlackboard,
+		) -> bool:
+		var food_objects = world_state.get_proxies_in_group("FoodObject")
+		return food_objects.size() > 0
+	preconditions.append(Precondition.custom(food_exists))
+
+	# Require hunger > 0 (don't eat when not hungry)
+	var has_hunger = func(
 			blackboard: GdPAIBlackboard,
 			_world_state: GdPAIBlackboard,
-	) -> bool:
-		var held_item = blackboard.get_property("held_item")
+		) -> bool:
 		var hunger = blackboard.get_property("hunger")
-		if held_item == null or hunger == null:
+		if hunger == null:
 			return false
-		if not (held_item is String or held_item is StringName):
-			return false
-		var held_item_id: String = String(held_item)
-		if float(hunger) <= 0.0:
-			return false
-		return hunger_restored_by_item.has(held_item_id)
-	return [Precondition.custom(can_eat_held_item)]
+		return float(hunger) > 0.0
+	preconditions.append(Precondition.custom(has_hunger))
+
+	return preconditions
 
 
 # Override
@@ -62,15 +71,35 @@ func simulate_effect(
 ) -> void:
 	var hunger = agent_blackboard.get_property("hunger")
 	var held_item = agent_blackboard.get_property("held_item")
+	print("[EatHeldFoodAction] simulate_effect - hunger: ", hunger, ", held_item: ", held_item)
 	if hunger == null:
+		print("[EatHeldFoodAction] hunger is null, returning")
 		return
-	if not (held_item is String or held_item is StringName):
-		return
-	var held_item_id: String = String(held_item)
-	if not hunger_restored_by_item.has(held_item_id):
-		return
-	var hunger_restored: float = float(hunger_restored_by_item[held_item_id])
-	agent_blackboard.set_property("hunger", max(0.0, float(hunger) - hunger_restored))
+
+	var hunger_restored: float
+	var held_item_id: String
+
+	# Extract held_item_id if present
+	if held_item != null and (held_item is String or held_item is StringName):
+		held_item_id = String(held_item)
+
+	# Use small placeholder value for planning when no item is held
+	# This allows the planner to recognize eat makes progress, but the small value
+	# ensures pickup is still needed to fully satisfy the goal
+	if held_item_id.is_empty() or not hunger_restored_by_item.has(held_item_id):
+		print("[EatHeldFoodAction] Using small placeholder for planning")
+		hunger_restored = 5.0 # Small placeholder - shows progress but doesn't satisfy goal alone
+	else:
+		hunger_restored = float(hunger_restored_by_item[held_item_id])
+
+	var new_hunger = max(0.0, float(hunger) - hunger_restored)
+	print(
+		"[EatHeldFoodAction] hunger_restored: ",
+		hunger_restored,
+		", new hunger: ",
+		new_hunger
+	)
+	agent_blackboard.set_property("hunger", new_hunger)
 	agent_blackboard.set_property("held_item", "")
 
 
