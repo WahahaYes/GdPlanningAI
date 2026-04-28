@@ -8,6 +8,10 @@ use super::gdpai_blackboard::GdPAIBlackboard;
 use super::goal::GoalData;
 use super::precondition::PreconditionHandler;
 use crate::plan_tree::{self, PlanResult, PlanTreeNode};
+use crate::requirement::{
+    extend_unique_requirements, provisions_satisfy_any_requirement, remove_satisfied_requirements,
+    RequirementSpec,
+};
 use godot::prelude::*;
 
 /// Captures a candidate branch discovered at the current recursion level.
@@ -19,6 +23,7 @@ struct PendingAction {
     action_index: i64,
     cost: f64,
     child_desired: Vec<PreconditionHandler>,
+    child_requirements: Vec<RequirementSpec>,
     sim_agent: Gd<GdPAIBlackboard>,
     sim_world: Gd<GdPAIBlackboard>,
 }
@@ -236,6 +241,7 @@ impl RustPlanningEngine {
         let success = self.build_plan_recursive(
             &mut root_node,
             &goal.desired_state,
+            &[],
             agent_state,
             world_state,
             actions,
@@ -276,6 +282,7 @@ impl RustPlanningEngine {
         &mut self,
         node: &mut PlanTreeNode,
         desired_state: &[PreconditionHandler],
+        active_requirements: &[RequirementSpec],
         agent_state: Gd<GdPAIBlackboard>,
         world_state: Gd<GdPAIBlackboard>,
         actions: &[ActionData],
@@ -350,18 +357,30 @@ impl RustPlanningEngine {
 
             action.apply_effect(&mut sim_agent, &mut sim_world);
 
-            let should_use_action =
+            let makes_goal_progress =
                 self.check_progress_toward_goal(desired_state, &sim_agent, &sim_world);
+            let satisfies_requirements =
+                provisions_satisfy_any_requirement(&action.provisions, active_requirements);
+            let introduces_requirements = !action.requirements.is_empty();
+
+            let should_use_action =
+                makes_goal_progress || satisfies_requirements || introduces_requirements;
 
             if should_use_action {
                 log_debug!(
-                    "Level {}: action [{}] '{}' makes progress toward goal",
+                    "Level {}: action [{}] '{}' contributes useful progress",
                     recursion_level,
                     idx,
                     action.name
                 );
 
-                if self.is_goal_satisfied(desired_state, &sim_agent, &sim_world) {
+                let mut child_requirements =
+                    remove_satisfied_requirements(active_requirements, &action.provisions);
+                extend_unique_requirements(&mut child_requirements, &action.requirements);
+
+                if self.is_goal_satisfied(desired_state, &sim_agent, &sim_world)
+                    && child_requirements.is_empty()
+                {
                     log_debug!(
                         "Level {}: action [{}] '{}' fully satisfies goal — leaf added",
                         recursion_level,
@@ -386,6 +405,7 @@ impl RustPlanningEngine {
                     action_index: idx as i64,
                     cost,
                     child_desired,
+                    child_requirements,
                     sim_agent,
                     sim_world,
                 });
@@ -426,6 +446,7 @@ impl RustPlanningEngine {
             if self.build_plan_recursive(
                 &mut next_node,
                 &pending.child_desired,
+                &pending.child_requirements,
                 pending.sim_agent,
                 pending.sim_world,
                 actions,

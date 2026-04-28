@@ -5,6 +5,7 @@
 
 use super::gdpai_blackboard::GdPAIBlackboard;
 use super::precondition::PreconditionHandler;
+use crate::requirement::{ProvisionSpec, RequirementSpec};
 use godot::prelude::*;
 
 /// Action data extracted from a GDScript Action object.
@@ -17,6 +18,8 @@ pub struct ActionData {
     pub effect_callable: Callable,
     pub preconditions: Vec<PreconditionHandler>,
     pub validity_checks: Vec<PreconditionHandler>,
+    pub requirements: Vec<RequirementSpec>,
+    pub provisions: Vec<ProvisionSpec>,
 }
 
 impl ActionData {
@@ -101,12 +104,17 @@ impl ActionData {
             })
             .unwrap_or_default();
 
+        let requirements = extract_requirement_specs(dict, "requirements");
+        let provisions = extract_provision_specs(dict, "provisions");
+
         Some(Self {
             name,
             cost_callable,
             effect_callable,
             preconditions,
             validity_checks,
+            requirements,
+            provisions,
         })
     }
 
@@ -168,6 +176,52 @@ impl ActionData {
         self.effect_callable
             .call(&[agent_state.to_variant(), world_state.to_variant()]);
     }
+}
+
+fn extract_requirement_specs(dict: &VarDictionary, key: &str) -> Vec<RequirementSpec> {
+    dict.get(key)
+        .and_then(|v| {
+            v.try_to::<Array<VarDictionary>>()
+                .ok()
+                .or_else(|| v.try_to::<VarArray>().ok().map(|arr| {
+                    let mut typed = Array::<VarDictionary>::new();
+                    for item in arr.iter_shared() {
+                        if let Ok(dict) = item.try_to::<VarDictionary>() {
+                            typed.push(&dict);
+                        }
+                    }
+                    typed
+                }))
+        })
+        .map(|arr| {
+            arr.iter_shared()
+                .filter_map(|d| RequirementSpec::from_dict(&d))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn extract_provision_specs(dict: &VarDictionary, key: &str) -> Vec<ProvisionSpec> {
+    dict.get(key)
+        .and_then(|v| {
+            v.try_to::<Array<VarDictionary>>()
+                .ok()
+                .or_else(|| v.try_to::<VarArray>().ok().map(|arr| {
+                    let mut typed = Array::<VarDictionary>::new();
+                    for item in arr.iter_shared() {
+                        if let Ok(dict) = item.try_to::<VarDictionary>() {
+                            typed.push(&dict);
+                        }
+                    }
+                    typed
+                }))
+        })
+        .map(|arr| {
+            arr.iter_shared()
+                .filter_map(|d| ProvisionSpec::from_dict(&d))
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 #[cfg(test)]

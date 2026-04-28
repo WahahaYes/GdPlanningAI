@@ -6,6 +6,10 @@
 
 use crate::background_types::*;
 use crate::plan_tree::{self, PlanResult, PlanTreeNode};
+use crate::requirement::{
+    extend_unique_requirements, provisions_satisfy_any_requirement, remove_satisfied_requirements,
+    RequirementSpec,
+};
 use crate::snapshot::BlackboardSnapshot;
 use std::sync::mpsc::Sender;
 
@@ -56,6 +60,7 @@ pub fn run_plan(
 
         let ctx = PlanContext {
             desired_state: &goal.desired_state,
+            active_requirements: &[],
             actions: &actions,
             max_recursion,
             request_tx: &request_tx,
@@ -87,6 +92,7 @@ pub fn run_plan(
 /// background planner while searching for a plan for one goal.
 struct PlanContext<'a> {
     desired_state: &'a [PreconditionSpec],
+    active_requirements: &'a [RequirementSpec],
     actions: &'a [ActionSpec],
     max_recursion: usize,
     request_tx: &'a Sender<CallbackRequest>,
@@ -101,6 +107,7 @@ struct PendingAction {
     action_index: i64,
     cost: f64,
     child_desired: Vec<PreconditionSpec>,
+    child_requirements: Vec<RequirementSpec>,
     sim_agent: BlackboardSnapshot,
     sim_world: BlackboardSnapshot,
 }
@@ -197,13 +204,22 @@ fn build_plan_recursive(
         sim_world = new_world;
 
         // Check if this action makes progress toward the goal
-        let makes_progress =
+        let makes_goal_progress =
             check_progress_toward_goal(ctx.desired_state, &sim_agent, &sim_world, ctx.request_tx);
+        let satisfies_requirements =
+            provisions_satisfy_any_requirement(&action.provisions, ctx.active_requirements);
+        let introduces_requirements = !action.requirements.is_empty();
 
-        if makes_progress {
-            crate::log_debug!("Action '{}' makes progress toward goal", action.name);
+        if makes_goal_progress || satisfies_requirements || introduces_requirements {
+            crate::log_debug!("Action '{}' contributes useful progress", action.name);
 
-            if is_goal_satisfied(ctx.desired_state, &sim_agent, &sim_world, ctx.request_tx) {
+            let mut child_requirements =
+                remove_satisfied_requirements(ctx.active_requirements, &action.provisions);
+            extend_unique_requirements(&mut child_requirements, &action.requirements);
+
+            if is_goal_satisfied(ctx.desired_state, &sim_agent, &sim_world, ctx.request_tx)
+                && child_requirements.is_empty()
+            {
                 crate::log_debug!("Action '{}' satisfies goal immediately", action.name);
                 let next_node = PlanTreeNode {
                     action_index: idx as i64,
@@ -222,6 +238,7 @@ fn build_plan_recursive(
                 action_index: idx as i64,
                 cost,
                 child_desired,
+                child_requirements,
                 sim_agent,
                 sim_world,
             });
@@ -266,6 +283,7 @@ fn build_plan_recursive(
 
         let child_ctx = PlanContext {
             desired_state: &pending.child_desired,
+            active_requirements: &pending.child_requirements,
             actions: ctx.actions,
             max_recursion: ctx.max_recursion,
             request_tx: ctx.request_tx,

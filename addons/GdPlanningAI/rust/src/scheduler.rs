@@ -8,6 +8,7 @@
 use crate::background_types::*;
 use crate::plan_tree::PlanResult;
 use crate::precondition::{PreconditionHandler, PreconditionOp};
+use crate::requirement::{ProvisionSpec, RequirementSpec};
 use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use godot::prelude::*;
 use std::sync::mpsc::Receiver;
@@ -212,6 +213,8 @@ fn build_action_specs(
 
             let preconditions = extract_precond_specs(&dict, "preconditions", registry);
             let validity_checks = extract_precond_specs(&dict, "validity_checks", registry);
+            let requirements = extract_requirement_specs(&dict, "requirements");
+            let provisions = extract_provision_specs(&dict, "provisions");
 
             // Collect all dependent object IDs from preconditions and action-level deps
             let mut dependent_object_ids: Vec<i64> = Vec::new();
@@ -242,6 +245,8 @@ fn build_action_specs(
                 effect_callable_id: effect_id,
                 preconditions,
                 validity_checks,
+                requirements,
+                provisions,
                 dependent_object_ids,
             })
         })
@@ -276,6 +281,52 @@ fn extract_precond_specs(
         .map(|arr| {
             arr.iter_shared()
                 .filter_map(|d| precond_spec_from_dict(&d, registry))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn extract_requirement_specs(dict: &VarDictionary, key: &str) -> Vec<RequirementSpec> {
+    dict.get(key)
+        .and_then(|v| {
+            v.try_to::<Array<VarDictionary>>()
+                .ok()
+                .or_else(|| v.try_to::<VarArray>().ok().map(|arr| {
+                    let mut typed = Array::<VarDictionary>::new();
+                    for item in arr.iter_shared() {
+                        if let Ok(dict) = item.try_to::<VarDictionary>() {
+                            typed.push(&dict);
+                        }
+                    }
+                    typed
+                }))
+        })
+        .map(|arr| {
+            arr.iter_shared()
+                .filter_map(|d| RequirementSpec::from_dict(&d))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn extract_provision_specs(dict: &VarDictionary, key: &str) -> Vec<ProvisionSpec> {
+    dict.get(key)
+        .and_then(|v| {
+            v.try_to::<Array<VarDictionary>>()
+                .ok()
+                .or_else(|| v.try_to::<VarArray>().ok().map(|arr| {
+                    let mut typed = Array::<VarDictionary>::new();
+                    for item in arr.iter_shared() {
+                        if let Ok(dict) = item.try_to::<VarDictionary>() {
+                            typed.push(&dict);
+                        }
+                    }
+                    typed
+                }))
+        })
+        .map(|arr| {
+            arr.iter_shared()
+                .filter_map(|d| ProvisionSpec::from_dict(&d))
                 .collect()
         })
         .unwrap_or_default()

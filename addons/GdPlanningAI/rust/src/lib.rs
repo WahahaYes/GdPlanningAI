@@ -25,6 +25,7 @@ pub mod goal;
 pub mod plan_tree;
 pub mod planning_engine;
 pub mod precondition;
+pub mod requirement;
 pub mod scheduler;
 pub mod sim_object_proxy;
 pub mod snapshot;

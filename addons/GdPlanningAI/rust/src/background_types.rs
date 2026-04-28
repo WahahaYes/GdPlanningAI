@@ -2,6 +2,7 @@
 //! for background planning.
 
 use crate::precondition::{PreconditionOp, PreconditionTarget};
+use crate::requirement::{ProvisionSpec, RequirementSpec};
 use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use std::sync::mpsc::Sender;
 
@@ -166,6 +167,8 @@ pub struct ActionSpec {
     pub effect_callable_id: usize,
     pub preconditions: Vec<PreconditionSpec>,
     pub validity_checks: Vec<PreconditionSpec>,
+    pub requirements: Vec<RequirementSpec>,
+    pub provisions: Vec<ProvisionSpec>,
     /// Object instance IDs this action depends on.
     /// Collected from action callables and all preconditions.
     pub dependent_object_ids: Vec<i64>,

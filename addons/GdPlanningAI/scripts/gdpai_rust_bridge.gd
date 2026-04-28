@@ -76,6 +76,8 @@ func _extract_actions(actions: Array[Action]) -> Array[Dictionary]:
 			"effect_callable": Callable(action, "simulate_effect"),
 			"preconditions": _extract_preconditions(action.get_preconditions()),
 			"validity_checks": _extract_preconditions(action.get_validity_checks()),
+			"requirements": _extract_requirements(action.get_requirements()),
+			"provisions": _extract_provisions(action.get_provisions()),
 		})
 	return extracted
 
@@ -87,6 +89,26 @@ func _extract_preconditions(preconditions: Array[Precondition]) -> Array[Diction
 	var extracted: Array[Dictionary] = []
 	for precond in preconditions:
 		extracted.append(precond.to_bridge_dict())
+	return extracted
+
+
+## Serialises each [RequirementSpec] in [param requirements] into the dictionary
+## format expected by the Rust layer by calling [method RequirementSpec.to_bridge_dict]
+## on each requirement.
+func _extract_requirements(requirements: Array[RequirementSpec]) -> Array[Dictionary]:
+	var extracted: Array[Dictionary] = []
+	for requirement in requirements:
+		extracted.append(requirement.to_bridge_dict())
+	return extracted
+
+
+## Serialises each [ProvisionSpec] in [param provisions] into the dictionary
+## format expected by the Rust layer by calling [method ProvisionSpec.to_bridge_dict]
+## on each provision.
+func _extract_provisions(provisions: Array[ProvisionSpec]) -> Array[Dictionary]:
+	var extracted: Array[Dictionary] = []
+	for provision in provisions:
+		extracted.append(provision.to_bridge_dict())
 	return extracted
 
 

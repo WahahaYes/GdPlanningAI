@@ -43,6 +43,16 @@ func get_preconditions() -> Array[Precondition]:
 	return []
 
 
+## Lists planner-readable requirements that should be satisfied earlier in the action chain.
+func get_requirements() -> Array[RequirementSpec]:
+	return []
+
+
+## Lists planner-readable provisions this action contributes for later actions.
+func get_provisions() -> Array[ProvisionSpec]:
+	return []
+
+
 ## Simulates the effect of this action onto the agent and world blackboards.  Modifies both
 ## in-place; does not return a value.
 ##[br]
