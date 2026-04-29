@@ -11,6 +11,7 @@ use crate::requirement::{
     RequirementSpec,
 };
 use crate::snapshot::BlackboardSnapshot;
+use std::sync::{Arc, atomic::AtomicBool};
 use std::sync::mpsc::Sender;
 
 /// Entry point for background planning. Runs the full goal-prioritised
@@ -22,7 +23,8 @@ pub fn run_plan(
     goals: Vec<GoalSpec>,
     max_recursion: usize,
     request_tx: Sender<CallbackRequest>,
-    result_tx: Sender<PlanResult>,
+    result_tx: Sender<Option<PlanResult>>,
+    cancel_flag: Arc<AtomicBool>,
 ) {
     crate::log_debug!(
         "Starting background planning: {} actions, {} goals, max recursion {}",
@@ -30,6 +32,11 @@ pub fn run_plan(
         goals.len(),
         max_recursion
     );
+
+    if cancel_flag.load(std::sync::atomic::Ordering::Relaxed) {
+        let _ = result_tx.send(None);
+        return;
+    }
 
     let mut sorted_goals = goals;
     sorted_goals.sort_by(|a, b| {
@@ -39,16 +46,21 @@ pub fn run_plan(
     });
 
     for goal in &sorted_goals {
+        if cancel_flag.load(std::sync::atomic::Ordering::Relaxed) {
+            let _ = result_tx.send(None);
+            return;
+        }
+
         crate::log_debug!("Processing goal '{}' (reward: {:.1})", goal.name, goal.reward);
 
         if is_goal_satisfied(&goal.desired_state, &agent, &world, &request_tx) {
             crate::log_debug!("Goal '{}' already satisfied", goal.name);
-            let _ = result_tx.send(PlanResult {
+            let _ = result_tx.send(Some(PlanResult {
                 success: true,
                 action_chain: vec![],
                 total_cost: 0.0,
                 goal_index: goal.original_index as i64,
-            });
+            }));
             return;
         }
 
@@ -64,24 +76,30 @@ pub fn run_plan(
             actions: &actions,
             max_recursion,
             request_tx: &request_tx,
+            cancel_flag: &cancel_flag,
         };
 
         let success = build_plan_recursive(&mut root_node, &agent, &world, 0, &ctx);
 
+        if cancel_flag.load(std::sync::atomic::Ordering::Relaxed) {
+            let _ = result_tx.send(None);
+            return;
+        }
+
         if success {
             crate::log_debug!("Found valid plan for goal '{}'", goal.name);
             let plan = plan_tree::extract_best_plan(&root_node);
-            let _ = result_tx.send(PlanResult {
+            let _ = result_tx.send(Some(PlanResult {
                 success: true,
                 action_chain: plan.actions,
                 total_cost: plan.cost,
                 goal_index: goal.original_index as i64,
-            });
+            }));
             return;
         }
     }
 
-    let _ = result_tx.send(PlanResult::failure());
+    let _ = result_tx.send(Some(PlanResult::failure()));
 }
 
 // ---------------------------------------------------------------------------
@@ -96,6 +114,7 @@ struct PlanContext<'a> {
     actions: &'a [ActionSpec],
     max_recursion: usize,
     request_tx: &'a Sender<CallbackRequest>,
+    cancel_flag: &'a Arc<AtomicBool>,
 }
 
 /// Captures a candidate branch discovered at the current recursion level.
@@ -157,6 +176,10 @@ fn build_plan_recursive(
     recursion_level: usize,
     ctx: &PlanContext,
 ) -> bool {
+    if ctx.cancel_flag.load(std::sync::atomic::Ordering::Relaxed) {
+        return false;
+    }
+
     if recursion_level > ctx.max_recursion {
         crate::log_debug!("Max recursion depth {} reached", ctx.max_recursion);
         return false;
@@ -168,6 +191,10 @@ fn build_plan_recursive(
     let mut pending_actions: Vec<PendingAction> = vec![];
 
     for (idx, action) in ctx.actions.iter().enumerate() {
+        if ctx.cancel_flag.load(std::sync::atomic::Ordering::Relaxed) {
+            return false;
+        }
+
         crate::log_debug!("Evaluating action '{}' at depth {}", action.name, recursion_level);
 
         // Validity checks
@@ -269,6 +296,10 @@ fn build_plan_recursive(
     );
 
     for pending in pending_actions {
+        if ctx.cancel_flag.load(std::sync::atomic::Ordering::Relaxed) {
+            return false;
+        }
+
         let best_complete_cost = current_best_plan_cost(node, 0.0);
         if best_complete_cost < pending.cost {
             crate::log_debug!(
@@ -297,6 +328,7 @@ fn build_plan_recursive(
             actions: ctx.actions,
             max_recursion: ctx.max_recursion,
             request_tx: ctx.request_tx,
+            cancel_flag: ctx.cancel_flag,
         };
 
         if build_plan_recursive(

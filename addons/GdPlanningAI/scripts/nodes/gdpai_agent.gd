@@ -127,7 +127,7 @@ func manually_start_plan() -> void:
 	if goals.size() == 0:
 		return
 
-	_start_plan()
+	_start_plan_async()
 
 
 ## Submit a planning job to the background scheduler.
@@ -146,9 +146,8 @@ func _start_plan_async() -> void:
 
 	var scheduler: GdPAIPlanScheduler = GdPAIAutoload.get_scheduler()
 	if scheduler == null:
-		push_warning("GdPAIAgent: scheduler not available, falling back to sync plan")
 		_waiting_for_plan = false
-		_start_plan()
+		push_error("GdPAIAgent: scheduler not available; async planning is required")
 		return
 
 	scheduler.submit_plan(

@@ -12,6 +12,7 @@ use crate::requirement::{ProvisionSpec, RequirementSpec};
 use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use godot::prelude::*;
 use std::sync::mpsc::Receiver;
+use std::sync::{Arc, atomic::AtomicBool};
 
 // ---------------------------------------------------------------------------
 // ActiveJobHandle
@@ -19,9 +20,11 @@ use std::sync::mpsc::Receiver;
 
 struct ActiveJobHandle {
     agent: Gd<Object>,
+    agent_instance_id: i64,
     callable_registry: Vec<Callable>,
     request_rx: Receiver<CallbackRequest>,
-    result_rx: Receiver<PlanResult>,
+    result_rx: Receiver<Option<PlanResult>>,
+    cancel_flag: Arc<AtomicBool>,
     done: bool,
 }
 
@@ -100,6 +103,12 @@ impl GdPAIPlanScheduler {
             // Check for completed plan
             if let Ok(result) = job.result_rx.try_recv() {
                 job.done = true;
+                if job.cancel_flag.load(std::sync::atomic::Ordering::Relaxed) || result.is_none() {
+                    log_debug!("Canceled plan job finished without delivery");
+                    continue;
+                }
+
+                let result = result.unwrap();
                 if job.agent.is_instance_valid() {
                     log_info!(
                         "Plan complete: success={}, actions={}, cost={:.1}",
@@ -134,6 +143,17 @@ impl GdPAIPlanScheduler {
         actions: Array<VarDictionary>,
         goals: Array<VarDictionary>,
     ) {
+        let agent_instance_id = agent.instance_id().to_i64();
+
+        for job in self
+            .active_jobs
+            .iter_mut()
+            .filter(|job| !job.done && job.agent_instance_id == agent_instance_id)
+        {
+            job.cancel_flag
+                .store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+
         // 1. Snapshot blackboards on main thread
         let snap_agent = BlackboardSnapshot::from_blackboard(&agent_bb.bind());
         let snap_world = BlackboardSnapshot::from_blackboard(&world_bb.bind());
@@ -152,10 +172,12 @@ impl GdPAIPlanScheduler {
 
         // 3. Create channels
         let (req_tx, req_rx) = std::sync::mpsc::channel::<CallbackRequest>();
-        let (res_tx, res_rx) = std::sync::mpsc::channel::<PlanResult>();
+        let (res_tx, res_rx) = std::sync::mpsc::channel::<Option<PlanResult>>();
+        let cancel_flag = Arc::new(AtomicBool::new(false));
 
         // 4. Dispatch to Rayon
         let max_rec = self.max_recursion as usize;
+        let worker_cancel_flag = cancel_flag.clone();
         self.thread_pool
             .as_ref()
             .expect("submit_plan called before ready()")
@@ -168,14 +190,17 @@ impl GdPAIPlanScheduler {
                     max_rec,
                     req_tx,
                     res_tx,
+                    worker_cancel_flag,
                 );
             });
 
         self.active_jobs.push(ActiveJobHandle {
             agent,
+            agent_instance_id,
             callable_registry: job_registry,
             request_rx: req_rx,
             result_rx: res_rx,
+            cancel_flag,
             done: false,
         });
     }

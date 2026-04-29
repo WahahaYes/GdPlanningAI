@@ -2,16 +2,19 @@ extends GutTest
 
 var _plan_ready := false
 var _last_plan_result: Dictionary = {}
+var _plan_ready_count := 0
 
 
 func before_each() -> void:
 	_plan_ready = false
 	_last_plan_result = {}
+	_plan_ready_count = 0
 
 
 func _on_plan_ready(result: Dictionary) -> void:
 	_last_plan_result = result
 	_plan_ready = true
+	_plan_ready_count += 1
 
 
 func _make_scheduler() -> GdPAIPlanScheduler:
@@ -311,3 +314,95 @@ func test_async_chooses_cheaper_deeper_chain_over_direct_expensive_completion() 
 	assert_true(result["success"], "Plan should succeed")
 	assert_eq(result["total_cost"], 2.0, "Should prefer the cheaper two-step chain")
 	assert_eq(result["action_chain"], [1, 2], "Should choose GetFood then LightFire")
+
+
+func test_async_newer_submission_cancels_older_inflight_plan() -> void:
+	var scheduler := _make_scheduler()
+	await get_tree().process_frame
+
+	var first_actions: Array[Dictionary] = [
+		{
+			"name": "ExpensiveGetKey",
+			"cost_callable": func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float:
+				return 10.0,
+			"effect_callable": func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+				agent.set_property("has_key", true),
+			"preconditions": [],
+			"validity_checks": []
+		}
+	]
+	var first_goals: Array[Dictionary] = [
+		{
+			"name": "HaveKey",
+			"reward": 10.0,
+			"desired_state": [
+				{
+					"target": "agent",
+					"operation": "equal",
+					"property_name": "has_key",
+					"value": true
+				}
+			]
+		}
+	]
+
+	var second_actions: Array[Dictionary] = [
+		{
+			"name": "CheapGetFood",
+			"cost_callable": func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float:
+				return 1.0,
+			"effect_callable": func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+				agent.set_property("has_food", true),
+			"preconditions": [],
+			"validity_checks": []
+		}
+	]
+	var second_goals: Array[Dictionary] = [
+		{
+			"name": "HaveFood",
+			"reward": 20.0,
+			"desired_state": [
+				{
+					"target": "agent",
+					"operation": "equal",
+					"property_name": "has_food",
+					"value": true
+				}
+			]
+		}
+	]
+
+	_plan_ready = false
+	_last_plan_result = {}
+	_plan_ready_count = 0
+
+	scheduler.submit_plan(
+		self ,
+		_make_blackboard({"has_key": false, "has_food": false}),
+		_make_blackboard(),
+		first_actions,
+		first_goals,
+	)
+	scheduler.submit_plan(
+		self ,
+		_make_blackboard({"has_key": false, "has_food": false}),
+		_make_blackboard(),
+		second_actions,
+		second_goals,
+	)
+
+	for i in range(120):
+		scheduler.process_callbacks()
+		if _plan_ready:
+			break
+		await get_tree().process_frame
+
+	assert_true(_plan_ready, "Newest plan submission should complete")
+	assert_eq(_plan_ready_count, 1, "Only the newest plan result should be delivered")
+	assert_true(_last_plan_result["success"], "Newest plan should succeed")
+	assert_eq(_last_plan_result["total_cost"], 1.0, "Newest plan result should win")
+	assert_eq(
+		_last_plan_result["action_chain"],
+		[0],
+		"Newest plan should produce the second submission's single action"
+	)
