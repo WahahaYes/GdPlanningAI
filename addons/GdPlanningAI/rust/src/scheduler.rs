@@ -277,7 +277,19 @@ fn extract_precond_specs(
     registry: &mut Vec<Callable>,
 ) -> Vec<PreconditionSpec> {
     dict.get(key)
-        .and_then(|v| v.try_to::<Array<VarDictionary>>().ok())
+        .and_then(|v| {
+            v.try_to::<Array<VarDictionary>>()
+                .ok()
+                .or_else(|| v.try_to::<VarArray>().ok().map(|arr| {
+                    let mut typed = Array::<VarDictionary>::new();
+                    for item in arr.iter_shared() {
+                        if let Ok(dict) = item.try_to::<VarDictionary>() {
+                            typed.push(&dict);
+                        }
+                    }
+                    typed
+                }))
+        })
         .map(|arr| {
             arr.iter_shared()
                 .filter_map(|d| precond_spec_from_dict(&d, registry))

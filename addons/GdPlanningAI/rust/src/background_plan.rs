@@ -175,6 +175,16 @@ fn build_plan_recursive(
             continue;
         }
 
+        // Action preconditions
+        if !action_preconditions_satisfied(action, agent_state, world_state, ctx.request_tx) {
+            crate::log_debug!(
+                "Action '{}' preconditions not satisfied at depth {}",
+                action.name,
+                recursion_level
+            );
+            continue;
+        }
+
         // Clone snapshots for simulation (trivial — just HashMap clone)
         let mut sim_agent = agent_state.clone();
         let mut sim_world = world_state.clone();
@@ -329,6 +339,18 @@ fn is_goal_satisfied(
     request_tx: &Sender<CallbackRequest>,
 ) -> bool {
     preconditions
+        .iter()
+        .all(|p| eval_precondition(p, agent, world, request_tx))
+}
+
+fn action_preconditions_satisfied(
+    action: &ActionSpec,
+    agent: &BlackboardSnapshot,
+    world: &BlackboardSnapshot,
+    request_tx: &Sender<CallbackRequest>,
+) -> bool {
+    action
+        .preconditions
         .iter()
         .all(|p| eval_precondition(p, agent, world, request_tx))
 }
