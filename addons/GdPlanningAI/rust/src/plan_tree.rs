@@ -49,6 +49,7 @@ pub fn extract_best_plan(root: &PlanTreeNode) -> ExtractedPlan {
     let mut best_path: Vec<i64> = vec![];
     let mut best_cost = f64::INFINITY;
     let mut best_deferred: Vec<i64> = vec![];
+    let mut found_any = false;
 
     find_lowest_cost_path(
         root,
@@ -58,6 +59,7 @@ pub fn extract_best_plan(root: &PlanTreeNode) -> ExtractedPlan {
         &mut best_path,
         &mut best_cost,
         &mut best_deferred,
+        &mut found_any,
     );
 
     ExtractedPlan {
@@ -77,6 +79,7 @@ fn find_lowest_cost_path(
     best_path: &mut Vec<i64>,
     best_cost: &mut f64,
     best_deferred: &mut Vec<i64>,
+    found_any: &mut bool,
 ) {
     let new_cost = current_cost + node.cost;
     let mut new_path = current_path.clone();
@@ -90,10 +93,29 @@ fn find_lowest_cost_path(
     }
 
     if node.children.is_empty() {
-        if new_cost < *best_cost {
+        // Prefer concrete plans (no deferred actions) over placeholder plans.
+        // Only compare cost when both paths have the same "concreteness".
+        let new_is_concrete = new_deferred.is_empty();
+
+        let should_update = if !*found_any {
+            // No plan found yet - accept this one regardless
+            true
+        } else if new_is_concrete && !best_deferred.is_empty() {
+            // New path is concrete, current best is placeholder → prefer concrete
+            true
+        } else if !new_is_concrete && best_deferred.is_empty() {
+            // New path is placeholder, current best is concrete → keep best
+            false
+        } else {
+            // Both concrete or both placeholder → compare cost
+            new_cost < *best_cost
+        };
+
+        if should_update {
             *best_path = new_path;
             *best_cost = new_cost;
             *best_deferred = new_deferred;
+            *found_any = true;
         }
         return;
     }
@@ -107,6 +129,7 @@ fn find_lowest_cost_path(
             best_path,
             best_cost,
             best_deferred,
+            found_any,
         );
     }
 }

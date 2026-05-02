@@ -98,13 +98,18 @@ pub fn run_plan(
             crate::log_debug!("Found valid plan for goal '{}'", goal.name);
             let plan = plan_tree::extract_best_plan(&root_node);
 
-            // Log warning if any actions used placeholder simulation
+            // Reject plans that still contain placeholder-simulated actions.
+            // With re-simulation logic in place, this indicates a planner bug.
             if !plan.deferred_indices.is_empty() {
-                crate::log_warn!(
-                    "Plan contains {} placeholder-simulated actions: {:?}",
+                crate::log_error!(
+                    "BUG: Plan contains {} placeholder-simulated actions: {:?}. \
+                     This should not happen - all actions should be re-simulated when requirements are satisfied.",
                     plan.deferred_indices.len(),
                     plan.deferred_indices
                 );
+                // Treat as plan failure to prevent invalid plans from being executed
+                let _ = result_tx.send(Some(PlanResult::failure()));
+                return;
             }
 
             let _ = result_tx.send(Some(PlanResult {
@@ -384,23 +389,73 @@ fn build_plan_recursive(
             break;
         }
 
-        let sim_type = if pending.was_concretely_simulated {
-            "concrete"
-        } else {
-            "placeholder"
-        };
+        // Check if a previously-deferred action can now be concretely simulated
+        // because its requirements are satisfied by accumulated provisions
+        let (mut final_agent, mut final_world, mut final_cost, mut final_was_concrete) = (
+            pending.sim_agent.clone(),
+            pending.sim_world.clone(),
+            pending.cost,
+            pending.was_concretely_simulated,
+        );
+
+        if !pending.was_concretely_simulated {
+            let action = &ctx.actions[pending.action_index as usize];
+            let now_satisfied = get_unsatisfied_requirements(&action.requirements, &pending.child_provisions).is_empty();
+
+            if now_satisfied {
+                crate::log_debug!(
+                    "Action '{}' requirements now satisfied - re-simulating concretely",
+                    action.name
+                );
+
+                // Re-get cost with actual callback
+                final_cost = call_get_cost(
+                    action.cost_callable_id,
+                    &final_agent,
+                    &final_world,
+                    ctx.request_tx,
+                );
+
+                if final_cost == f64::INFINITY {
+                    crate::log_debug!(
+                        "Action '{}' now has infinite cost after re-simulation, skipping branch",
+                        action.name
+                    );
+                    continue;
+                }
+
+                // Re-apply effect with actual callback
+                let (new_agent, new_world) = call_apply_effect(
+                    action.effect_callable_id,
+                    final_agent,
+                    final_world,
+                    ctx.request_tx,
+                );
+                final_agent = new_agent;
+                final_world = new_world;
+                final_was_concrete = true;
+
+                crate::log_debug!(
+                    "Action '{}' re-simulated with cost {:.2}",
+                    action.name,
+                    final_cost
+                );
+            }
+        }
+
+        let sim_type = if final_was_concrete { "concrete" } else { "placeholder" };
         crate::log_debug!(
             "Descending into recursion level {} with action cost {:.2} ({} simulation)",
             recursion_level + 1,
-            pending.cost,
+            final_cost,
             sim_type
         );
 
         let mut next_node = PlanTreeNode {
             action_index: pending.action_index,
-            cost: pending.cost,
+            cost: final_cost,
             children: vec![],
-            was_concretely_simulated: pending.was_concretely_simulated,
+            was_concretely_simulated: final_was_concrete,
         };
 
         let child_ctx = PlanContext {
@@ -415,8 +470,8 @@ fn build_plan_recursive(
 
         if build_plan_recursive(
             &mut next_node,
-            &pending.sim_agent,
-            &pending.sim_world,
+            &final_agent,
+            &final_world,
             recursion_level + 1,
             &child_ctx,
         ) {

@@ -388,6 +388,16 @@ Implementation details:
 - Actions with **unresolved requirements**: still explored (so predecessors can satisfy them), but use placeholder cost (1.0) and skip effect simulation
 - Provisions accumulate through the branch, allowing later actions to see if their requirements are now satisfied
 
+**Critical: Re-simulation on descent**
+
+When descending into a pending branch, if an action was previously deferred (placeholder simulation) but its requirements are now satisfied by accumulated provisions, it is **re-simulated** before recursing:
+
+1. Re-run `call_get_cost()` with actual callback → updated cost
+2. Re-run `call_apply_effect()` with actual callback → updated agent/world snapshots
+3. Mark as concretely simulated for the child context
+
+This ensures that when `Pickup → Eat` chains are explored, the `Eat` action gets accurate cost and effects after `Pickup` provides `held_item`, rather than keeping the placeholder values.
+
 This allows the planner to explore action chains where earlier actions provide bindings (e.g., `held_item`) that later actions require, without needing placeholder-driven simulation hacks.
 
 ### Phase 5: Migrate examples
