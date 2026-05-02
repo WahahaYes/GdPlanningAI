@@ -37,10 +37,11 @@ func _submit_plan_and_wait(
 	actions: Array[Dictionary],
 	goals: Array[Dictionary],
 	timeout_frames: int = 120,
+	max_recursion: int = 100,
 ) -> Dictionary:
 	_plan_ready = false
 	_last_plan_result = {}
-	scheduler.submit_plan(self , agent_bb, world_bb, actions, goals)
+	scheduler.submit_plan(self , agent_bb, world_bb, actions, goals, max_recursion)
 
 	for i in range(timeout_frames):
 		scheduler.process_callbacks()
@@ -249,7 +250,6 @@ func test_async_action_with_failed_precondition() -> void:
 
 func test_async_chooses_cheaper_deeper_chain_over_direct_expensive_completion() -> void:
 	var scheduler := _make_scheduler()
-	scheduler.max_recursion = 3
 	await get_tree().process_frame
 
 	var actions: Array[Dictionary] = [
@@ -309,6 +309,8 @@ func test_async_chooses_cheaper_deeper_chain_over_direct_expensive_completion() 
 		_make_blackboard(),
 		actions,
 		goals,
+		120,
+		3,
 	)
 
 	assert_true(result["success"], "Plan should succeed")
@@ -382,6 +384,7 @@ func test_async_newer_submission_cancels_older_inflight_plan() -> void:
 		_make_blackboard(),
 		first_actions,
 		first_goals,
+		100,
 	)
 	scheduler.submit_plan(
 		self ,
@@ -389,6 +392,7 @@ func test_async_newer_submission_cancels_older_inflight_plan() -> void:
 		_make_blackboard(),
 		second_actions,
 		second_goals,
+		100,
 	)
 
 	for i in range(120):

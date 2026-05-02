@@ -22,12 +22,12 @@ func deserialize_plan_result(result: Dictionary, actions: Array[Action]) -> Arra
 	return action_chain
 
 
-## Public accessor for action serialisation — used by the async planning path.
+## Public accessor for action serialisation.
 func serialize_actions(actions: Array[Action]) -> Array[Dictionary]:
 	return _extract_actions(actions)
 
 
-## Public accessor for goal serialisation — used by the async planning path.
+## Public accessor for goal serialisation.
 func serialize_goals(goals: Array[Goal], agent: GdPAIAgent) -> Array[Dictionary]:
 	return _extract_goals(goals, agent)
 
@@ -51,7 +51,7 @@ func _extract_actions(actions: Array[Action]) -> Array[Dictionary]:
 
 
 ## Serialises each [Precondition] in [param preconditions] into the dictionary
-## format expected by the Rust layer by calling [method Precondition._to_bridge_dict]
+## format expected by the Rust layer by calling [method Precondition.to_bridge_dict]
 ## on each precondition.
 func _extract_preconditions(preconditions: Array[Precondition]) -> Array[Dictionary]:
 	var extracted: Array[Dictionary] = []

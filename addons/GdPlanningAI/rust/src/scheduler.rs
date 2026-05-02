@@ -43,9 +43,6 @@ pub struct GdPAIPlanScheduler {
     /// Maximum Rayon worker threads. 0 = number of logical CPUs.
     #[export]
     max_threads: i64,
-    /// Maximum search depth forwarded to the planner.
-    #[export]
-    max_recursion: i64,
     active_jobs: Vec<ActiveJobHandle>,
     thread_pool: Option<rayon::ThreadPool>,
     base: Base<Node>,
@@ -56,7 +53,6 @@ impl INode for GdPAIPlanScheduler {
     fn init(base: Base<Node>) -> Self {
         Self {
             max_threads: 0,
-            max_recursion: 100,
             active_jobs: Vec::new(),
             thread_pool: None,
             base,
@@ -132,7 +128,8 @@ impl GdPAIPlanScheduler {
     /// Submit a planning job for `agent`.
     ///
     /// `agent_bb` and `world_bb` are snapshotted immediately. `actions` and
-    /// `goals` use the same `Array[Dictionary]` format as `build_plan`.
+    /// `goals` are `Array[Dictionary]` serialised by [GdPAIRustBridge].
+    /// `max_recursion` caps the planner search depth for this job.
     /// When the plan is ready, `agent._on_plan_ready(result)` is called.
     #[func]
     fn submit_plan(
@@ -142,6 +139,7 @@ impl GdPAIPlanScheduler {
         world_bb: Gd<crate::gdpai_blackboard::GdPAIBlackboard>,
         actions: Array<VarDictionary>,
         goals: Array<VarDictionary>,
+        max_recursion: i64,
     ) {
         let agent_instance_id = agent.instance_id().to_i64();
 
@@ -176,7 +174,7 @@ impl GdPAIPlanScheduler {
         let cancel_flag = Arc::new(AtomicBool::new(false));
 
         // 4. Dispatch to Rayon
-        let max_rec = self.max_recursion as usize;
+        let max_rec = max_recursion.max(1) as usize;
         let worker_cancel_flag = cancel_flag.clone();
         self.thread_pool
             .as_ref()

@@ -57,9 +57,6 @@ func _ready() -> void:
 	# Try to find a world node.
 	world_node = GdPAIUTILS.get_child_of_type(get_tree().root, GdPAIWorldNode)
 	_bridge = GdPAIRustBridge.new()
-	var scheduler: GdPAIPlanScheduler = GdPAIAutoload.get_scheduler()
-	if scheduler:
-		scheduler.max_recursion = config.max_recursion
 
 
 func _process(delta: float) -> void:
@@ -158,6 +155,7 @@ func _start_plan_async() -> void:
 		world_node.get_world_state(),
 		_bridge.serialize_actions(all_actions),
 		_bridge.serialize_goals(goals, self ),
+		config.max_recursion,
 	)
 
 
