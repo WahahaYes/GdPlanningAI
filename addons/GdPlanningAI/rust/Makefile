@@ -1,13 +1,9 @@
-# GdPlanningAI Rust Extension Makefile
-
 # Directory paths
 RUST_DIR = .
 BIN_DIR = ../bin
 TARGET_DIR = $(RUST_DIR)/target
 
-# ======================================
-# Build Commands
-# ======================================
+##@ Build
 
 .PHONY: build-release
 build-release: ## Build release binary for current platform
@@ -57,9 +53,7 @@ clean-binaries: ## Clean all binary directories
 	rm -rf $(BIN_DIR)/windows/*
 	@echo "Binary directories cleaned"
 
-# ======================================
-# Development Commands
-# ======================================
+##@ Development
 
 .PHONY: test
 test: ## Run unit tests
@@ -85,9 +79,7 @@ clean: ## Clean build artifacts
 doc: ## Generate documentation
 	cargo doc --open
 
-# ======================================
-# Cross-Compilation Setup
-# ======================================
+##@ Cross-Compilation
 
 .PHONY: setup-cross
 setup-cross: ## Install cross (requires Docker/Podman)
@@ -97,8 +89,8 @@ setup-cross: ## Install cross (requires Docker/Podman)
 	@echo "On Windows/macOS: Docker Desktop should be running."
 	@echo "On Linux: Run 'sudo systemctl start docker' or use Podman."
 
+##@ Help
+
 .PHONY: help
 help: ## Show this help message
-	@echo "GdPlanningAI Rust Extension Build System"
-	@echo ""
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	@awk 'BEGIN {FS = ":.*?## "}; /^##@ / {printf "\n\033[1m%s\033[0m\n", substr($$0, 5)}; /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
