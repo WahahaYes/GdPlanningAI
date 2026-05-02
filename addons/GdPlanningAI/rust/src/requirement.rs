@@ -6,6 +6,7 @@
 use crate::snapshot::VariantSnapshot;
 use godot::prelude::*;
 
+/// A planner-readable dependency that must be satisfied by a prior action's provisions.
 #[derive(Clone, Debug, PartialEq)]
 pub enum RequirementSpec {
     BindingExists {
@@ -25,6 +26,7 @@ pub enum RequirementSpec {
     },
 }
 
+/// A value or fact that an action contributes for later actions to consume.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ProvisionSpec {
     Binding {
@@ -38,6 +40,7 @@ pub enum ProvisionSpec {
 }
 
 impl RequirementSpec {
+    /// Deserialises a [`RequirementSpec`] from a GDScript dictionary.
     pub fn from_dict(dict: &VarDictionary) -> Option<Self> {
         let kind = dict
             .get("kind")
@@ -91,6 +94,7 @@ impl RequirementSpec {
 }
 
 impl ProvisionSpec {
+    /// Deserialises a [`ProvisionSpec`] from a GDScript dictionary.
     pub fn from_dict(dict: &VarDictionary) -> Option<Self> {
         let kind = dict
             .get("kind")
@@ -125,6 +129,7 @@ impl ProvisionSpec {
     }
 }
 
+/// Returns `true` if every requirement in `requirements` is satisfied by at least one provision.
 pub fn requirements_satisfied(
     requirements: &[RequirementSpec],
     provisions: &[ProvisionSpec],
@@ -134,12 +139,14 @@ pub fn requirements_satisfied(
         .all(|requirement| requirement_satisfied(requirement, provisions))
 }
 
+/// Returns `true` if `requirement` is satisfied by at least one entry in `provisions`.
 pub fn requirement_satisfied(requirement: &RequirementSpec, provisions: &[ProvisionSpec]) -> bool {
     provisions
         .iter()
         .any(|provision| provision_satisfies_requirement(provision, requirement))
 }
 
+/// Returns `true` if any requirement in `requirements` is satisfied by `provisions`.
 pub fn provisions_satisfy_any_requirement(
     provisions: &[ProvisionSpec],
     requirements: &[RequirementSpec],
@@ -149,6 +156,7 @@ pub fn provisions_satisfy_any_requirement(
         .any(|requirement| requirement_satisfied(requirement, provisions))
 }
 
+/// Returns a filtered copy of `requirements` with any already-satisfied entries removed.
 pub fn remove_satisfied_requirements(
     requirements: &[RequirementSpec],
     provisions: &[ProvisionSpec],
@@ -160,6 +168,7 @@ pub fn remove_satisfied_requirements(
         .collect()
 }
 
+/// Appends entries from `additional` into `requirements`, skipping duplicates.
 pub fn extend_unique_requirements(
     requirements: &mut Vec<RequirementSpec>,
     additional: &[RequirementSpec],
@@ -171,6 +180,7 @@ pub fn extend_unique_requirements(
     }
 }
 
+/// Appends entries from `additional` into `provisions`, skipping duplicates.
 pub fn extend_unique_provisions(provisions: &mut Vec<ProvisionSpec>, additional: &[ProvisionSpec]) {
     for provision in additional {
         if !provisions.contains(provision) {

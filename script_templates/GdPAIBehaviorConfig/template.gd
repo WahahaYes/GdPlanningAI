@@ -3,6 +3,7 @@
 extends GdPAIBehaviorConfig
 
 # Add your configurable properties here with @export for serialization.
+## Example configurable parameter.
 @export var example_parameter: float = 1.0
 
 

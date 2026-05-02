@@ -66,7 +66,7 @@ def report(violations: list[tuple]) -> int:
 
 RE_GD_WALRUS = re.compile(r":=")
 RE_GD_BORDER = re.compile(r"#\s*-{" + str(BORDER_DASHES) + r",}")
-RE_GD_FUNC = re.compile(r"^(func |static func )")
+RE_GD_FUNC = re.compile(r"^(func |static func )")  # matches only unindented funcs
 RE_GD_EXPORT = re.compile(r"^\s*@export\b")
 RE_GD_DOCSTRING = re.compile(r"^\s*##")
 
@@ -111,11 +111,11 @@ def lint_gdscript(path: Path) -> list[tuple]:
                     )
                 )
 
-        # gd-spacing: track blank-line runs before func definitions
+        # gd-spacing: track blank-line runs before top-level func definitions
         if stripped == "":
             blank_run += 1
         else:
-            if RE_GD_FUNC.match(stripped):
+            if RE_GD_FUNC.match(raw):  # raw (not stripped) ensures top-level only
                 if prev_func_lineno is not None and blank_run < 2:
                     violations.append(
                         (

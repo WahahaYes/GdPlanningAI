@@ -19,6 +19,7 @@ pub struct PlanResult {
 }
 
 impl PlanResult {
+    /// Returns a [`PlanResult`] representing a failed plan.
     pub fn failure() -> Self {
         Self {
             success: false,
@@ -29,6 +30,7 @@ impl PlanResult {
     }
 }
 
+/// The best action sequence extracted from a completed plan tree.
 pub struct ExtractedPlan {
     pub actions: Vec<i64>,
     pub cost: f64,

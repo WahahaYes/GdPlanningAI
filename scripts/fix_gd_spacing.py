@@ -18,7 +18,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-RE_FUNC = re.compile(r"^(func |static func )")
+RE_FUNC = re.compile(r"^(func |static func )")  # matches only unindented funcs
 
 
 def git_tracked_gd_files() -> list[Path]:
@@ -42,9 +42,7 @@ def fix_spacing(lines: list[str]) -> tuple[list[str], int]:
     prev_func_idx: int | None = None  # index in *out* of last func line
 
     for raw in lines:
-        stripped = raw.strip()
-
-        if RE_FUNC.match(stripped):
+        if RE_FUNC.match(raw):  # raw (not stripped) ensures top-level only
             if prev_func_idx is not None:
                 # Count trailing blank lines already in out
                 blank_run = 0
