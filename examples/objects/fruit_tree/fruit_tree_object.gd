@@ -7,7 +7,6 @@ extends GdPAIObjectData
 ## on the provided [ShakeTreeAction] inspect [member is_on_cooldown] to prevent
 ## agents from targeting a tree that was recently shaken.
 
-
 ## Prefab of the fruit to spawn when the tree is shaken.
 @export var fruit_prefab: PackedScene
 ## Radius around the tree in which fruit can land (units match 2D/3D context).
@@ -76,7 +75,7 @@ func get_group_labels() -> Array[String]:
 
 # Override
 func get_provided_actions() -> Array[Action]:
-	return [ShakeTreeAction.new(location_data, interactable_attribs, self )]
+	return [ShakeTreeAction.new(location_data, interactable_attribs, self)]
 
 
 # Override

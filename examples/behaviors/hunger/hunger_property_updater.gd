@@ -3,7 +3,6 @@ extends PropertyUpdater
 ## Decays the agent's [code]hunger[/code] blackboard property over time and
 ## initializes it to a starting value when the agent is set up.
 
-
 ## How much hunger drops per second.
 var hunger_decay: float = 5.0
 ## The starting hunger value.
@@ -11,8 +10,8 @@ var initial_hunger: float = 0.0
 
 
 func _init(
-		p_hunger_decay: float = 5.0,
-		p_initial_hunger: float = 0.0,
+	p_hunger_decay: float = 5.0,
+	p_initial_hunger: float = 0.0,
 ) -> void:
 	hunger_decay = p_hunger_decay
 	initial_hunger = p_initial_hunger

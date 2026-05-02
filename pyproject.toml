@@ -1,0 +1,8 @@
+[project]
+name = "gdplanningai-scripts"
+version = "0.1.0"
+description = "Development helper scripts for GdPlanningAI."
+requires-python = ">=3.13"
+dependencies = [
+    "gdtoolkit>=4.0",
+]

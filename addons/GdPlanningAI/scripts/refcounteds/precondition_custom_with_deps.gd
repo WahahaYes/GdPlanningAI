@@ -4,7 +4,6 @@ extends Precondition
 ## This allows the planner to validate that dependent objects still exist before
 ## invoking the precondition, preventing errors from freed objects.
 
-
 var eval_func: Callable
 var dependent_objects: Array[Object] = []
 
@@ -23,7 +22,7 @@ func _do_evaluate(agent: GdPAIBlackboard, world: GdPAIBlackboard) -> bool:
 	for obj in dependent_objects:
 		if not is_instance_valid(obj):
 			return false
-	
+
 	return eval_func.call(agent, world)
 
 
@@ -34,10 +33,10 @@ func to_bridge_dict() -> Dictionary:
 	for obj in dependent_objects:
 		if is_instance_valid(obj):
 			dep_ids.append(obj.get_instance_id())
-	
+
 	return {
 		"operation": "custom_callback",
-		"eval_callable": func(a: GdPAIBlackboard, w: GdPAIBlackboard) -> bool:
-			return _do_evaluate(a, w),
+		"eval_callable":
+		func(a: GdPAIBlackboard, w: GdPAIBlackboard) -> bool: return _do_evaluate(a, w),
 		"dependent_object_ids": dep_ids,
 	}

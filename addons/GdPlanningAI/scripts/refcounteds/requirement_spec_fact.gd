@@ -2,7 +2,6 @@ class_name RequirementSpecFact
 extends RequirementSpec
 ## Requires that a fact with specific arguments exists.
 
-
 var fact_name: String
 var args: Array[Variant] = []
 

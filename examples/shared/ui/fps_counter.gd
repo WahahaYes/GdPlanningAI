@@ -1,7 +1,6 @@
 extends Node
 ## Simple FPS counter for monitoring performance in GdPAI demos.
 
-
 ## Label node to display FPS information.
 @export var display_text: Label
 

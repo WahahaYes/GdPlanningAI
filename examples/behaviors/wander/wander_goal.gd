@@ -14,8 +14,12 @@ func compute_reward(_agent: GdPAIAgent) -> float:
 
 # Override
 func get_desired_state(agent: GdPAIAgent) -> Array[Precondition]:
-	var agent_location_data: GdPAILocationData = agent.blackboard.get_node_in_group(
-		"GdPAILocationData",
+	var agent_location_data: GdPAILocationData = (
+		agent
+		. blackboard
+		. get_node_in_group(
+			"GdPAILocationData",
+		)
 	)
 	var agent_position = agent_location_data.position
 
@@ -24,12 +28,12 @@ func get_desired_state(agent: GdPAIAgent) -> Array[Precondition]:
 			blackboard: GdPAIBlackboard,
 			_world_state: GdPAIBlackboard,
 		) -> bool:
-		var sim_location: SimObjectProxy = blackboard.get_proxy_in_group("GdPAILocationData")
-		if sim_location == null:
-			return false
-		var sim_position = sim_location.get_property("position")
-		var req_distance: float = 16.0 if sim_position is Vector2 else 1.0
-		return (sim_position - agent_position).length() > req_distance
+			var sim_location: SimObjectProxy = blackboard.get_proxy_in_group("GdPAILocationData")
+			if sim_location == null:
+				return false
+			var sim_position = sim_location.get_property("position")
+			var req_distance: float = 16.0 if sim_position is Vector2 else 1.0
+			return (sim_position - agent_position).length() > req_distance
 	)
 
 	return [move_condition]

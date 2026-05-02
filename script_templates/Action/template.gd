@@ -21,8 +21,8 @@ func get_validity_checks() -> Array[Precondition]:
 
 # Override
 func get_action_cost(
-		_agent_blackboard: GdPAIBlackboard,
-		_world_state: GdPAIBlackboard,
+	_agent_blackboard: GdPAIBlackboard,
+	_world_state: GdPAIBlackboard,
 ) -> float:
 	# Return the cost of performing this action. Lower cost is preferred.
 	return 0
@@ -36,8 +36,8 @@ func get_preconditions() -> Array[Precondition]:
 
 # Override
 func simulate_effect(
-		_agent_blackboard: GdPAIBlackboard,
-		_world_state: GdPAIBlackboard,
+	_agent_blackboard: GdPAIBlackboard,
+	_world_state: GdPAIBlackboard,
 ) -> void:
 	# Modify the simulated blackboard to reflect what this action does.
 	pass
@@ -51,8 +51,8 @@ func pre_perform_action(_agent: GdPAIAgent) -> Action.Status:
 
 # Override
 func perform_action(
-		_agent: GdPAIAgent,
-		_delta: float,
+	_agent: GdPAIAgent,
+	_delta: float,
 ) -> Action.Status:
 	# Called every frame while the action is active.
 	# Return RUNNING to continue, SUCCESS to advance, FAILURE to abort.

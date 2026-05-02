@@ -7,6 +7,7 @@ extends Node
 ## simulation.
 @export var entity: Node
 
+
 func _init() -> void:
 	for label in get_group_labels():
 		add_to_group(label)
@@ -27,4 +28,3 @@ func get_provided_actions() -> Array[Action]:
 ## This is captured once at the start of planning.
 func get_sim_properties() -> Dictionary:
 	return {}
-

@@ -2,7 +2,6 @@ class_name RequirementSpecBindingEquals
 extends RequirementSpec
 ## Requires that a binding equals a specific value.
 
-
 var binding_name: String
 var value: Variant
 

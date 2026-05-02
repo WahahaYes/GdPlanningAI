@@ -6,7 +6,6 @@ extends Action
 ## Demonstrates a [SpatialAction] sibling that has no specific world target — the
 ## destination is computed at execution time from the agent's current position.
 
-
 ## How far from the agent's current position the wander target may be.
 var wander_distance: float
 
@@ -25,8 +24,8 @@ func get_validity_checks() -> Array[Precondition]:
 
 # Override
 func get_action_cost(
-		_agent_blackboard: GdPAIBlackboard,
-		_world_state: GdPAIBlackboard,
+	_agent_blackboard: GdPAIBlackboard,
+	_world_state: GdPAIBlackboard,
 ) -> float:
 	return 0.0
 
@@ -38,8 +37,8 @@ func get_preconditions() -> Array[Precondition]:
 
 # Override
 func simulate_effect(
-		agent_blackboard: GdPAIBlackboard,
-		_world_state: GdPAIBlackboard,
+	agent_blackboard: GdPAIBlackboard,
+	_world_state: GdPAIBlackboard,
 ) -> void:
 	var sim_location: SimObjectProxy = agent_blackboard.get_proxy_in_group("GdPAILocationData")
 	var current_pos: Variant = sim_location.get_property("position")
@@ -51,8 +50,12 @@ func simulate_effect(
 
 # Override
 func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
-	var location_data: GdPAILocationData = agent.blackboard.get_node_in_group(
-		"GdPAILocationData",
+	var location_data: GdPAILocationData = (
+		agent
+		. blackboard
+		. get_node_in_group(
+			"GdPAILocationData",
+		)
 	)
 	set_state(agent, "agent_location", location_data)
 
@@ -98,8 +101,10 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 		if nav_agent is NavigationAgent2D
 		else SpatialAction.ARRIVAL_THRESHOLD_3D
 	)
-	if (nav_agent.is_navigation_finished()
-			or (prior_positions.size() == 60 and dist_traveled < dist_check)):
+	if (
+		nav_agent.is_navigation_finished()
+		or (prior_positions.size() == 60 and dist_traveled < dist_check)
+	):
 		return Action.Status.SUCCESS
 
 	return Action.Status.RUNNING

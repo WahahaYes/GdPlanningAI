@@ -7,8 +7,8 @@ extends RefCounted
 ## Called every frame to update agent properties.
 ## Override this method to implement custom property update logic.
 func update_properties(
-		_agent: GdPAIAgent,
-		_delta: float,
+	_agent: GdPAIAgent,
+	_delta: float,
 ) -> void:
 	pass
 

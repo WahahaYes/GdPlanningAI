@@ -4,7 +4,7 @@ extends RefCounted
 ## instantaneously.  After planning, actions are carried out by the agent in real time.
 
 ## Return states for actions during true simulation.
-enum Status {FAILURE, RUNNING, SUCCESS}
+enum Status { FAILURE, RUNNING, SUCCESS }
 
 
 ## List of static preconditions needed for the action to be considered.  This is
@@ -28,8 +28,8 @@ func get_validity_checks() -> Array[Precondition]:
 ##[br]
 ## [b]Do not use [code]await[/code] and do not access the scene tree from this method.[/b]
 func get_action_cost(
-		_agent_blackboard: GdPAIBlackboard,
-		_world_state: GdPAIBlackboard,
+	_agent_blackboard: GdPAIBlackboard,
+	_world_state: GdPAIBlackboard,
 ) -> float:
 	return 0
 
@@ -66,8 +66,8 @@ func get_provisions() -> Array[ProvisionSpec]:
 ##[br]
 ## [b]Do not use [code]await[/code] and do not access the scene tree from this method.[/b]
 func simulate_effect(
-		_agent_blackboard: GdPAIBlackboard,
-		_world_state: GdPAIBlackboard,
+	_agent_blackboard: GdPAIBlackboard,
+	_world_state: GdPAIBlackboard,
 ) -> void:
 	pass
 
@@ -88,8 +88,8 @@ func pre_perform_action(_agent: GdPAIAgent) -> Status:
 ##[br]
 ## Need to monitor any validity checks that could become false after some time.
 func perform_action(
-		_agent: GdPAIAgent,
-		_delta: float,
+	_agent: GdPAIAgent,
+	_delta: float,
 ) -> Status:
 	return Status.SUCCESS
 

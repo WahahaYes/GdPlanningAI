@@ -6,7 +6,6 @@ extends Action
 ## Demonstrates an agent-provided self action that exists to unblock replanning when
 ## a single held-item slot prevents the next desired interaction.
 
-
 ## How long the drop action should take in seconds.
 var drop_duration: float = 0.2
 
@@ -24,8 +23,8 @@ func get_validity_checks() -> Array[Precondition]:
 # Override
 func get_preconditions() -> Array[Precondition]:
 	var is_holding_item = func(
-			blackboard: GdPAIBlackboard,
-			_world_state: GdPAIBlackboard,
+		blackboard: GdPAIBlackboard,
+		_world_state: GdPAIBlackboard,
 	) -> bool:
 		var held_item: Variant = blackboard.get_property("held_item")
 		return held_item != null and held_item != ""
@@ -34,16 +33,16 @@ func get_preconditions() -> Array[Precondition]:
 
 # Override
 func get_action_cost(
-		_agent_blackboard: GdPAIBlackboard,
-		_world_state: GdPAIBlackboard,
+	_agent_blackboard: GdPAIBlackboard,
+	_world_state: GdPAIBlackboard,
 ) -> float:
 	return drop_duration
 
 
 # Override
 func simulate_effect(
-		agent_blackboard: GdPAIBlackboard,
-		_world_state: GdPAIBlackboard,
+	agent_blackboard: GdPAIBlackboard,
+	_world_state: GdPAIBlackboard,
 ) -> void:
 	agent_blackboard.set_property("held_item", "")
 

@@ -5,8 +5,8 @@ extends Object
 
 ## Searches a node's tree to find the first instance of _class.
 static func get_child_of_type(
-		node: Node,
-		_class: Variant,
+	node: Node,
+	_class: Variant,
 ) -> Variant:
 	if is_instance_of(node, _class):
 		return node

@@ -27,8 +27,9 @@ var _current_action_chain: Array[Action] = []
 ## The current step within a plan.  Also used to control flow for pre/post actions.
 var _current_plan_step: int = -1
 ## Planning strategy for this agent.
-var _planning_strategy: GdPAIAgentConfig.PlanningStrategy = \
-GdPAIAgentConfig.PlanningStrategy.CONTINUOUS
+var _planning_strategy: GdPAIAgentConfig.PlanningStrategy = (
+	GdPAIAgentConfig.PlanningStrategy.CONTINUOUS
+)
 ## Timer for interval-based planning.
 var _planning_timer: Timer = null
 ## True while a background plan is in flight.
@@ -53,7 +54,7 @@ func _ready() -> void:
 	blackboard.set_property("GDPAI_OBJECTS", agent_objects)
 	# Apply behavior configurations.
 	for behavior_config in config.behavior_configs:
-		behavior_config.apply_to_agent(self )
+		behavior_config.apply_to_agent(self)
 	# Try to find a world node.
 	world_node = GdPAIUTILS.get_child_of_type(get_tree().root, GdPAIWorldNode)
 	_bridge = GdPAIRustBridge.new()
@@ -61,7 +62,7 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	for updater in property_updaters:
-		updater.update_properties(self , delta)
+		updater.update_properties(self, delta)
 
 	# Until some goals and actions have been provided, this agent is effectively turned off.
 	if goals.size() == 0:
@@ -70,8 +71,7 @@ func _process(delta: float) -> void:
 	if _planning_strategy == GdPAIAgentConfig.PlanningStrategy.CONTINUOUS:
 		# Check if a new plan is needed.
 		var plan_done: bool = (
-			_current_action_chain.is_empty()
-			or _current_plan_step > _current_action_chain.size()
+			_current_action_chain.is_empty() or _current_plan_step > _current_action_chain.size()
 		)
 		if plan_done and not _waiting_for_plan:
 			_start_plan_async()
@@ -96,8 +96,8 @@ func get_current_plan_step() -> int:
 
 ## Set the planning strategy for this agent.
 func set_planning_strategy(
-		strategy: GdPAIAgentConfig.PlanningStrategy,
-		interval: float = 0.5,
+	strategy: GdPAIAgentConfig.PlanningStrategy,
+	interval: float = 0.5,
 ) -> void:
 	_planning_strategy = strategy
 
@@ -106,7 +106,8 @@ func set_planning_strategy(
 		_planning_timer = null
 
 	if (
-		strategy in [
+		strategy
+		in [
 			GdPAIAgentConfig.PlanningStrategy.ON_INTERVAL,
 			GdPAIAgentConfig.PlanningStrategy.ON_INTERVAL_FORCED,
 		]
@@ -149,13 +150,16 @@ func _start_plan_async() -> void:
 		push_error("GdPAIAgent: scheduler not available; async planning is required")
 		return
 
-	scheduler.submit_plan(
-		self ,
-		blackboard,
-		world_node.get_world_state(),
-		_bridge.serialize_actions(all_actions),
-		_bridge.serialize_goals(goals, self ),
-		config.max_recursion,
+	(
+		scheduler
+		. submit_plan(
+			self,
+			blackboard,
+			world_node.get_world_state(),
+			_bridge.serialize_actions(all_actions),
+			_bridge.serialize_goals(goals, self),
+			config.max_recursion,
+		)
 	)
 
 
@@ -182,8 +186,7 @@ func _on_planning_timer_timeout() -> void:
 		_start_plan_async()
 	elif _planning_strategy == GdPAIAgentConfig.PlanningStrategy.ON_INTERVAL:
 		var plan_done: bool = (
-			_current_action_chain.is_empty()
-			or _current_plan_step > _current_action_chain.size()
+			_current_action_chain.is_empty() or _current_plan_step > _current_action_chain.size()
 		)
 		if plan_done and not _waiting_for_plan:
 			_start_plan_async()
@@ -198,7 +201,7 @@ func _execute_plan(delta: float) -> void:
 	# Pre actions.
 	if _current_plan_step == -1:
 		for action: Action in action_chain:
-			var action_status: Action.Status = action.pre_perform_action(self )
+			var action_status: Action.Status = action.pre_perform_action(self)
 			if action_status == Action.Status.FAILURE:
 				# Abort the plan.
 				_current_plan_step = action_chain.size()
@@ -209,7 +212,7 @@ func _execute_plan(delta: float) -> void:
 	# Actions.
 	if _current_plan_step < action_chain.size():
 		var current_action: Action = action_chain[_current_plan_step]
-		var action_status: Action.Status = current_action.perform_action(self , delta)
+		var action_status: Action.Status = current_action.perform_action(self, delta)
 		if action_status == Action.Status.FAILURE:
 			# Abort the plan.
 			_current_plan_step = action_chain.size()
@@ -221,9 +224,9 @@ func _execute_plan(delta: float) -> void:
 			_current_plan_step += 1
 
 	# Post actions.
-	if _current_plan_step == action_chain.size(): # We just finished, do post actions.
+	if _current_plan_step == action_chain.size():  # We just finished, do post actions.
 		for action: Action in action_chain:
-			action.post_perform_action(self )
+			action.post_perform_action(self)
 		_current_plan_step += 1
 
 

@@ -5,7 +5,6 @@ extends Node
 ## Add this node to a scene, assign [member agent_scene], and set [member agent_count].
 ## Agents are scattered randomly inside [member spawn_rect] on [method _ready].
 
-
 ## Agent packed scene to instantiate.
 @export var agent_scene: PackedScene
 ## Number of agents to spawn.

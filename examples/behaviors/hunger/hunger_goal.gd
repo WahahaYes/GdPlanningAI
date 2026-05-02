@@ -26,9 +26,9 @@ func get_desired_state(agent: GdPAIAgent) -> Array[Precondition]:
 	var required_hunger: float = max(0.0, current_hunger - 15.0)
 
 	var check_hunger_less_than = func(
-			blackboard: GdPAIBlackboard,
-			_world_state: GdPAIBlackboard,
-		) -> bool:
+		blackboard: GdPAIBlackboard,
+		_world_state: GdPAIBlackboard,
+	) -> bool:
 		var hunger: Variant = blackboard.get_property("hunger")
 		var result = hunger < required_hunger
 		print("[HungerGoal] Custom precondition check")

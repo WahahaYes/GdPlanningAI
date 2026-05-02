@@ -11,6 +11,7 @@ extends RefCounted
 ##
 ## Not intended for direct use — [GdPAIAgent] owns and calls this internally.
 
+
 ## Resolves the [code]action_chain[/code] indices in [param result] back to
 ## the original [Action] objects from [param actions].
 ##
@@ -38,15 +39,20 @@ func serialize_goals(goals: Array[Goal], agent: GdPAIAgent) -> Array[Dictionary]
 func _extract_actions(actions: Array[Action]) -> Array[Dictionary]:
 	var extracted: Array[Dictionary] = []
 	for action in actions:
-		extracted.append({
-			"name": action.get_title(),
-			"cost_callable": Callable(action, "get_action_cost"),
-			"effect_callable": Callable(action, "simulate_effect"),
-			"preconditions": _extract_preconditions(action.get_preconditions()),
-			"validity_checks": _extract_preconditions(action.get_validity_checks()),
-			"requirements": _extract_requirements(action.get_requirements()),
-			"provisions": _extract_provisions(action.get_provisions()),
-		})
+		(
+			extracted
+			. append(
+				{
+					"name": action.get_title(),
+					"cost_callable": Callable(action, "get_action_cost"),
+					"effect_callable": Callable(action, "simulate_effect"),
+					"preconditions": _extract_preconditions(action.get_preconditions()),
+					"validity_checks": _extract_preconditions(action.get_validity_checks()),
+					"requirements": _extract_requirements(action.get_requirements()),
+					"provisions": _extract_provisions(action.get_provisions()),
+				}
+			)
+		)
 	return extracted
 
 
@@ -85,9 +91,14 @@ func _extract_provisions(provisions: Array[ProvisionSpec]) -> Array[Dictionary]:
 func _extract_goals(goals: Array[Goal], agent: GdPAIAgent) -> Array[Dictionary]:
 	var extracted: Array[Dictionary] = []
 	for goal in goals:
-		extracted.append({
-			"name": goal.get_title(),
-			"reward": goal.compute_reward(agent),
-			"desired_state": _extract_preconditions(goal.get_desired_state(agent)),
-		})
+		(
+			extracted
+			. append(
+				{
+					"name": goal.get_title(),
+					"reward": goal.compute_reward(agent),
+					"desired_state": _extract_preconditions(goal.get_desired_state(agent)),
+				}
+			)
+		)
 	return extracted

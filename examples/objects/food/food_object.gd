@@ -7,7 +7,6 @@ extends HoldableObject
 ## of the shared pickup contract so the item can later be consumed by an
 ## agent-provided eating action.
 
-
 ## How many points of hunger this item should restore when consumed.
 ##[br]
 ## Kept on the object so other planner-side actions can estimate the value of spawned food.
@@ -21,11 +20,11 @@ func get_group_labels() -> Array[String]:
 
 # Override
 func get_provided_actions() -> Array[Action]:
-	return [PickupAction.new(location_data, interactable_attribs, self )]
+	return [PickupAction.new(location_data, interactable_attribs, self)]
 
 
 # Override
 func get_sim_properties() -> Dictionary:
-	var sim_properties: Dictionary = super ()
+	var sim_properties: Dictionary = super()
 	sim_properties["hunger_value"] = hunger_value
 	return sim_properties

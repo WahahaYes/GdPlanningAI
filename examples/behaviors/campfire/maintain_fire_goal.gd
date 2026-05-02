@@ -6,7 +6,6 @@ extends Goal
 ## Demonstrates a goal that inspects shared world-object state instead of only the
 ## agent blackboard.
 
-
 ## Fixed reward used when comparing fire maintenance against other goals.
 var reward_value: float = 40.0
 ## Minimum fuel level any campfire must reach for this goal to count as satisfied.
@@ -14,8 +13,8 @@ var desired_fuel_level: float = 60.0
 
 
 func _init(
-		p_reward_value: float = 40.0,
-		p_desired_fuel_level: float = 60.0,
+	p_reward_value: float = 40.0,
+	p_desired_fuel_level: float = 60.0,
 ) -> void:
 	reward_value = p_reward_value
 	desired_fuel_level = p_desired_fuel_level
@@ -29,8 +28,8 @@ func compute_reward(_agent: GdPAIAgent) -> float:
 # Override
 func get_desired_state(_agent: GdPAIAgent) -> Array[Precondition]:
 	var fire_is_maintained = func(
-			_blackboard: GdPAIBlackboard,
-			world_state: GdPAIBlackboard,
+		_blackboard: GdPAIBlackboard,
+		world_state: GdPAIBlackboard,
 	) -> bool:
 		var campfires: Array[SimObjectProxy] = world_state.get_proxies_in_group("CampfireObject")
 		for campfire in campfires:

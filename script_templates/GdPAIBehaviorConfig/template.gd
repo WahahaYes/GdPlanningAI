@@ -8,9 +8,9 @@ extends GdPAIBehaviorConfig
 
 # Override _populate to add goals, actions, and property updaters.
 func _populate(
-		goals: Array[Goal],
-		actions: Array[Action],
-		updaters: Array[PropertyUpdater],
+	goals: Array[Goal],
+	actions: Array[Action],
+	updaters: Array[PropertyUpdater],
 ) -> void:
 	# Append to the provided arrays. You can use the @export properties you defined here.
 	goals.append(Goal.new())

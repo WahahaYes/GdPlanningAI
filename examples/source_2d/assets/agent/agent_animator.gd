@@ -3,7 +3,6 @@ extends Node
 ## Plays "Run" while moving and "Idle" when still. Flips the sprite horizontally
 ## to face the direction of travel.
 
-
 ## The entity whose velocity drives the animation.
 @export var entity: RigidBody2D
 ## The sprite to animate.

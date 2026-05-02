@@ -6,7 +6,6 @@ extends GdPAIBehaviorConfig
 ## Apply alongside [HungerBehaviorConfig] so the same agent can balance personal
 ## food needs with shared fire maintenance.
 
-
 ## Fixed reward value assigned to the fire-maintenance goal.
 @export var fire_goal_reward: float = 40.0
 ## Fire fuel threshold considered "maintained" for planning purposes.
@@ -17,9 +16,9 @@ extends GdPAIBehaviorConfig
 
 # Override
 func _populate(
-		goals: Array[Goal],
-		actions: Array[Action],
-		_updaters: Array[PropertyUpdater],
+	goals: Array[Goal],
+	actions: Array[Action],
+	_updaters: Array[PropertyUpdater],
 ) -> void:
 	goals.append(MaintainFireGoal.new(fire_goal_reward, desired_fuel_level))
 	actions.append(DropItemAction.new(drop_duration))

@@ -27,8 +27,8 @@ func apply_to_agent(agent: GdPAIAgent) -> void:
 ## [param updaters] with the behaviours this config provides.
 ## Called once per agent during [method apply_to_agent].
 func _populate(
-		_goals: Array[Goal],
-		_actions: Array[Action],
-		_updaters: Array[PropertyUpdater],
+	_goals: Array[Goal],
+	_actions: Array[Action],
+	_updaters: Array[PropertyUpdater],
 ) -> void:
 	pass

@@ -6,7 +6,6 @@ extends Action
 ## Demonstrates an agent-provided self action whose validity is determined entirely
 ## from blackboard state rather than a spatial world target.
 
-
 ## Maps held item ids to the hunger amount they restore when eaten.
 var hunger_restored_by_item: Dictionary = {}
 ## How long the eating action should take in seconds.
@@ -14,8 +13,8 @@ var eat_duration: float = 1.5
 
 
 func _init(
-		p_hunger_restored_by_item: Dictionary = {},
-		p_eat_duration: float = 1.5,
+	p_hunger_restored_by_item: Dictionary = {},
+	p_eat_duration: float = 1.5,
 ) -> void:
 	hunger_restored_by_item = p_hunger_restored_by_item.duplicate(true)
 	eat_duration = p_eat_duration
@@ -35,18 +34,18 @@ func get_preconditions() -> Array[Precondition]:
 	# Require that a food object exists in the world to be picked up
 	# This ensures the planner must identify a specific food target
 	var food_exists = func(
-			_blackboard: GdPAIBlackboard,
-			world_state: GdPAIBlackboard,
-		) -> bool:
+		_blackboard: GdPAIBlackboard,
+		world_state: GdPAIBlackboard,
+	) -> bool:
 		var food_objects = world_state.get_proxies_in_group("FoodObject")
 		return food_objects.size() > 0
 	preconditions.append(Precondition.custom(food_exists))
 
 	# Require hunger > 0 (don't eat when not hungry)
 	var has_hunger = func(
-			blackboard: GdPAIBlackboard,
-			_world_state: GdPAIBlackboard,
-		) -> bool:
+		blackboard: GdPAIBlackboard,
+		_world_state: GdPAIBlackboard,
+	) -> bool:
 		var hunger = blackboard.get_property("hunger")
 		if hunger == null:
 			return false
@@ -58,16 +57,16 @@ func get_preconditions() -> Array[Precondition]:
 
 # Override
 func get_action_cost(
-		_agent_blackboard: GdPAIBlackboard,
-		_world_state: GdPAIBlackboard,
+	_agent_blackboard: GdPAIBlackboard,
+	_world_state: GdPAIBlackboard,
 ) -> float:
 	return eat_duration
 
 
 # Override
 func simulate_effect(
-		agent_blackboard: GdPAIBlackboard,
-		_world_state: GdPAIBlackboard,
+	agent_blackboard: GdPAIBlackboard,
+	_world_state: GdPAIBlackboard,
 ) -> void:
 	var hunger = agent_blackboard.get_property("hunger")
 	var held_item = agent_blackboard.get_property("held_item")
@@ -88,17 +87,12 @@ func simulate_effect(
 	# ensures pickup is still needed to fully satisfy the goal
 	if held_item_id.is_empty() or not hunger_restored_by_item.has(held_item_id):
 		print("[EatHeldFoodAction] Using small placeholder for planning")
-		hunger_restored = 5.0 # Small placeholder - shows progress but doesn't satisfy goal alone
+		hunger_restored = 5.0  # Small placeholder - shows progress but doesn't satisfy goal alone
 	else:
 		hunger_restored = float(hunger_restored_by_item[held_item_id])
 
 	var new_hunger = max(0.0, float(hunger) - hunger_restored)
-	print(
-		"[EatHeldFoodAction] hunger_restored: ",
-		hunger_restored,
-		", new hunger: ",
-		new_hunger
-	)
+	print("[EatHeldFoodAction] hunger_restored: ", hunger_restored, ", new hunger: ", new_hunger)
 	agent_blackboard.set_property("hunger", new_hunger)
 	agent_blackboard.set_property("held_item", "")
 

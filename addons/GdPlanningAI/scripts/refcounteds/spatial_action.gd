@@ -38,8 +38,8 @@ var interactable_attribs: GdPAIInteractable
 
 # Override
 func _init(
-		p_object_location: GdPAILocationData,
-		p_interactable_attribs: GdPAIInteractable,
+	p_object_location: GdPAILocationData,
+	p_interactable_attribs: GdPAIInteractable,
 ) -> void:
 	self.object_location = p_object_location
 	self.interactable_attribs = p_interactable_attribs
@@ -47,8 +47,8 @@ func _init(
 
 # Override
 func get_action_cost(
-		agent_blackboard: GdPAIBlackboard,
-		world_state: GdPAIBlackboard,
+	agent_blackboard: GdPAIBlackboard,
+	world_state: GdPAIBlackboard,
 ) -> float:
 	var agent_location: SimObjectProxy = agent_blackboard.get_proxy_in_group("GdPAILocationData")
 	if not is_instance_valid(object_location):
@@ -61,8 +61,9 @@ func get_action_cost(
 	# 		cost.
 	# TODO: Make navigation agent-based cost an option.  Maybe could configure in plugin.cfg?
 	# 		Alternative would be to parameterize within the agent, but that could be tricky.
-	var dist: float = (agent_location.get_property("position") -
-		sim_location.get_property("position")).length()
+	var dist: float = (
+		(agent_location.get_property("position") - sim_location.get_property("position")).length()
+	)
 	return dist
 
 
@@ -75,10 +76,7 @@ func get_validity_checks() -> Array[Precondition]:
 	checks.append(Precondition.check_is_object_valid(interactable_attribs))
 
 	# Can agent get to the target check
-	var can_reach_target = func(
-		blackboard: GdPAIBlackboard,
-		_world_state: GdPAIBlackboard
-	) -> bool:
+	var can_reach_target = func(blackboard: GdPAIBlackboard, _world_state: GdPAIBlackboard) -> bool:
 		var entity: Node = blackboard.get_property("entity")
 		if entity == null:
 			return false
@@ -94,38 +92,35 @@ func get_validity_checks() -> Array[Precondition]:
 		# Override the entity's nav agent to test if it is possible to get to this object.
 		var old_target_position = nav_agent.target_position
 		nav_agent.target_position = object_location.position
-		nav_agent.get_next_path_position() # Compute the path.
-		var final_dist: float = (
-			(object_location.position - nav_agent.get_final_position()).length()
-		)
+		nav_agent.get_next_path_position()  # Compute the path.
+		var final_dist: float = (object_location.position - nav_agent.get_final_position()).length()
 		# Restore the nav agent's earlier state.
 		nav_agent.target_position = old_target_position
 		nav_agent.get_next_path_position()
 		return final_dist < interactable_attribs.max_interaction_distance
-	
-	checks.append(Precondition.custom_with_deps(
-		can_reach_target,
-		[object_location, interactable_attribs]
-	))
+
+	checks.append(
+		Precondition.custom_with_deps(can_reach_target, [object_location, interactable_attribs])
+	)
 
 	return checks
 
 
 # Override
 func simulate_effect(
-		agent_blackboard: GdPAIBlackboard,
-		world_state: GdPAIBlackboard,
+	agent_blackboard: GdPAIBlackboard,
+	world_state: GdPAIBlackboard,
 ) -> void:
 	# Validate object_location still exists before simulating
 	if not is_instance_valid(object_location):
 		return
-	
+
 	# Simulate by teleporting the agent to the object's location.
 	var agent_location: SimObjectProxy = agent_blackboard.get_proxy_in_group("GdPAILocationData")
 	var sim_location: SimObjectProxy = world_state.get_object_for(object_location)
 	if sim_location == null:
 		return
-	
+
 	agent_location.set_property("position", sim_location.get_property("position"))
 
 
@@ -138,8 +133,12 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	var entity: Node = agent.entity
 
 	# Cache the location data.
-	var agent_location_data: GdPAILocationData = agent.blackboard.get_node_in_group(
-		"GdPAILocationData",
+	var agent_location_data: GdPAILocationData = (
+		agent
+		. blackboard
+		. get_node_in_group(
+			"GdPAILocationData",
+		)
 	)
 	set_state(agent, "agent_location", agent_location_data)
 
@@ -163,8 +162,8 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 
 # Override
 func perform_action(
-		agent: GdPAIAgent,
-		delta: float,
+	agent: GdPAIAgent,
+	delta: float,
 ) -> Action.Status:
 	# Failure state in the case the target has been freed.
 	if not is_instance_valid(object_location) or not is_instance_valid(interactable_attribs):
@@ -199,8 +198,8 @@ func perform_action(
 		set_state(agent, "target_set", true)
 	# Update the nav agent target if the object has moved too far from its planning-time position.
 	elif (
-		(nav_agent.target_position - object_location.position).length() >
-		interactable_attribs.max_interaction_distance
+		(nav_agent.target_position - object_location.position).length()
+		> interactable_attribs.max_interaction_distance
 	):
 		nav_agent.target_position = object_location.position
 
@@ -211,8 +210,8 @@ func perform_action(
 	)
 	var dist_check: float = get_state(agent, "dist_check")
 	if (
-		nav_agent.is_navigation_finished() or
-		(prior_positions.size() == 60 and dist_traveled < dist_check)
+		nav_agent.is_navigation_finished()
+		or (prior_positions.size() == 60 and dist_traveled < dist_check)
 	):
 		# Pass if we have no interaction distance constraint.
 		if interactable_attribs.max_interaction_distance <= 0:

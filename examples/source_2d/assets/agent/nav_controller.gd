@@ -2,7 +2,6 @@ extends Node
 ## Moves a [RigidBody2D] entity toward the next path position reported by a
 ## [NavigationAgent2D] each physics frame.
 
-
 ## The top-level entity node to move.
 @export var entity: RigidBody2D
 ## The navigation agent driving path-finding.

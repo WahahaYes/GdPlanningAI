@@ -6,7 +6,6 @@ extends Label
 ## The label updates every frame with the agent's current goal title and
 ## the title of the action currently being executed.
 
-
 ## The agent to display debug info for.
 @export var gdpai_agent: GdPAIAgent
 

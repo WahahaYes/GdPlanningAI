@@ -40,6 +40,6 @@ func _do_evaluate(agent: GdPAIBlackboard, world: GdPAIBlackboard) -> bool:
 func to_bridge_dict() -> Dictionary:
 	return {
 		"operation": "custom_callback",
-		"eval_callable": func(a: GdPAIBlackboard, w: GdPAIBlackboard) -> bool:
-			return _do_evaluate(a, w),
+		"eval_callable":
+		func(a: GdPAIBlackboard, w: GdPAIBlackboard) -> bool: return _do_evaluate(a, w),
 	}

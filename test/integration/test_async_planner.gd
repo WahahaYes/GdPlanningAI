@@ -41,7 +41,7 @@ func _submit_plan_and_wait(
 ) -> Dictionary:
 	_plan_ready = false
 	_last_plan_result = {}
-	scheduler.submit_plan(self , agent_bb, world_bb, actions, goals, max_recursion)
+	scheduler.submit_plan(self, agent_bb, world_bb, actions, goals, max_recursion)
 
 	for i in range(timeout_frames):
 		scheduler.process_callbacks()
@@ -82,7 +82,8 @@ func test_async_goal_already_satisfied() -> void:
 			{
 				"name": "HaveKey",
 				"reward": 10.0,
-				"desired_state": [
+				"desired_state":
+				[
 					{
 						"target": "agent",
 						"operation": "equal",
@@ -97,9 +98,7 @@ func test_async_goal_already_satisfied() -> void:
 	assert_true(result["success"], "Already satisfied goal should succeed")
 	assert_eq(result["total_cost"], 0.0, "Already satisfied goal should have zero cost")
 	assert_eq(
-		result["action_chain"].size(),
-		0,
-		"Already satisfied goal should have empty action chain"
+		result["action_chain"].size(), 0, "Already satisfied goal should have empty action chain"
 	)
 
 
@@ -110,9 +109,10 @@ func test_async_simple_one_action_plan() -> void:
 	var actions: Array[Dictionary] = [
 		{
 			"name": "GetKey",
-			"cost_callable": func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float:
-				return 1.0,
-			"effect_callable": func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+			"cost_callable":
+			func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float: return 1.0,
+			"effect_callable":
+			func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
 				agent.set_property("has_key", true),
 			"preconditions": [],
 			"validity_checks": []
@@ -122,14 +122,8 @@ func test_async_simple_one_action_plan() -> void:
 		{
 			"name": "HaveKey",
 			"reward": 10.0,
-			"desired_state": [
-				{
-					"target": "agent",
-					"operation": "equal",
-					"property_name": "has_key",
-					"value": true
-				}
-			]
+			"desired_state":
+			[{"target": "agent", "operation": "equal", "property_name": "has_key", "value": true}]
 		}
 	]
 
@@ -154,18 +148,20 @@ func test_async_chooses_lower_cost_plan() -> void:
 	var actions: Array[Dictionary] = [
 		{
 			"name": "ExpensiveGetKey",
-			"cost_callable": func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float:
-				return 10.0,
-			"effect_callable": func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+			"cost_callable":
+			func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float: return 10.0,
+			"effect_callable":
+			func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
 				agent.set_property("has_key", true),
 			"preconditions": [],
 			"validity_checks": []
 		},
 		{
 			"name": "CheapGetKey",
-			"cost_callable": func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float:
-				return 1.0,
-			"effect_callable": func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+			"cost_callable":
+			func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float: return 1.0,
+			"effect_callable":
+			func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
 				agent.set_property("has_key", true),
 			"preconditions": [],
 			"validity_checks": []
@@ -175,14 +171,8 @@ func test_async_chooses_lower_cost_plan() -> void:
 		{
 			"name": "HaveKey",
 			"reward": 100.0,
-			"desired_state": [
-				{
-					"target": "agent",
-					"operation": "equal",
-					"property_name": "has_key",
-					"value": true
-				}
-			]
+			"desired_state":
+			[{"target": "agent", "operation": "equal", "property_name": "has_key", "value": true}]
 		}
 	]
 
@@ -206,18 +196,13 @@ func test_async_action_with_failed_precondition() -> void:
 	var actions: Array[Dictionary] = [
 		{
 			"name": "LockedAction",
-			"cost_callable": func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float:
-				return 1.0,
-			"effect_callable": func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+			"cost_callable":
+			func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float: return 1.0,
+			"effect_callable":
+			func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
 				agent.set_property("goal_met", true),
-			"preconditions": [
-				{
-					"target": "agent",
-					"operation": "equal",
-					"property_name": "has_key",
-					"value": true
-				}
-			],
+			"preconditions":
+			[{"target": "agent", "operation": "equal", "property_name": "has_key", "value": true}],
 			"validity_checks": []
 		}
 	]
@@ -225,14 +210,8 @@ func test_async_action_with_failed_precondition() -> void:
 		{
 			"name": "Goal",
 			"reward": 10.0,
-			"desired_state": [
-				{
-					"target": "agent",
-					"operation": "equal",
-					"property_name": "goal_met",
-					"value": true
-				}
-			]
+			"desired_state":
+			[{"target": "agent", "operation": "equal", "property_name": "goal_met", "value": true}]
 		}
 	]
 
@@ -255,9 +234,10 @@ func test_async_chooses_cheaper_deeper_chain_over_direct_expensive_completion() 
 	var actions: Array[Dictionary] = [
 		{
 			"name": "ExpensiveDirectCampfirePrep",
-			"cost_callable": func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float:
-				return 10.0,
-			"effect_callable": func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+			"cost_callable":
+			func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float: return 10.0,
+			"effect_callable":
+			func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
 				agent.set_property("has_food", true)
 				agent.set_property("has_fire", true),
 			"preconditions": [],
@@ -265,18 +245,20 @@ func test_async_chooses_cheaper_deeper_chain_over_direct_expensive_completion() 
 		},
 		{
 			"name": "GetFood",
-			"cost_callable": func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float:
-				return 1.0,
-			"effect_callable": func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+			"cost_callable":
+			func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float: return 1.0,
+			"effect_callable":
+			func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
 				agent.set_property("has_food", true),
 			"preconditions": [],
 			"validity_checks": []
 		},
 		{
 			"name": "LightFire",
-			"cost_callable": func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float:
-				return 1.0,
-			"effect_callable": func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+			"cost_callable":
+			func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float: return 1.0,
+			"effect_callable":
+			func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
 				agent.set_property("has_fire", true),
 			"preconditions": [],
 			"validity_checks": []
@@ -286,7 +268,8 @@ func test_async_chooses_cheaper_deeper_chain_over_direct_expensive_completion() 
 		{
 			"name": "ReadyCampfireMeal",
 			"reward": 100.0,
-			"desired_state": [
+			"desired_state":
+			[
 				{
 					"target": "agent",
 					"operation": "equal",
@@ -325,9 +308,10 @@ func test_async_newer_submission_cancels_older_inflight_plan() -> void:
 	var first_actions: Array[Dictionary] = [
 		{
 			"name": "ExpensiveGetKey",
-			"cost_callable": func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float:
-				return 10.0,
-			"effect_callable": func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+			"cost_callable":
+			func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float: return 10.0,
+			"effect_callable":
+			func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
 				agent.set_property("has_key", true),
 			"preconditions": [],
 			"validity_checks": []
@@ -337,23 +321,18 @@ func test_async_newer_submission_cancels_older_inflight_plan() -> void:
 		{
 			"name": "HaveKey",
 			"reward": 10.0,
-			"desired_state": [
-				{
-					"target": "agent",
-					"operation": "equal",
-					"property_name": "has_key",
-					"value": true
-				}
-			]
+			"desired_state":
+			[{"target": "agent", "operation": "equal", "property_name": "has_key", "value": true}]
 		}
 	]
 
 	var second_actions: Array[Dictionary] = [
 		{
 			"name": "CheapGetFood",
-			"cost_callable": func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float:
-				return 1.0,
-			"effect_callable": func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+			"cost_callable":
+			func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float: return 1.0,
+			"effect_callable":
+			func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
 				agent.set_property("has_food", true),
 			"preconditions": [],
 			"validity_checks": []
@@ -363,14 +342,8 @@ func test_async_newer_submission_cancels_older_inflight_plan() -> void:
 		{
 			"name": "HaveFood",
 			"reward": 20.0,
-			"desired_state": [
-				{
-					"target": "agent",
-					"operation": "equal",
-					"property_name": "has_food",
-					"value": true
-				}
-			]
+			"desired_state":
+			[{"target": "agent", "operation": "equal", "property_name": "has_food", "value": true}]
 		}
 	]
 
@@ -378,21 +351,27 @@ func test_async_newer_submission_cancels_older_inflight_plan() -> void:
 	_last_plan_result = {}
 	_plan_ready_count = 0
 
-	scheduler.submit_plan(
-		self ,
-		_make_blackboard({"has_key": false, "has_food": false}),
-		_make_blackboard(),
-		first_actions,
-		first_goals,
-		100,
+	(
+		scheduler
+		. submit_plan(
+			self,
+			_make_blackboard({"has_key": false, "has_food": false}),
+			_make_blackboard(),
+			first_actions,
+			first_goals,
+			100,
+		)
 	)
-	scheduler.submit_plan(
-		self ,
-		_make_blackboard({"has_key": false, "has_food": false}),
-		_make_blackboard(),
-		second_actions,
-		second_goals,
-		100,
+	(
+		scheduler
+		. submit_plan(
+			self,
+			_make_blackboard({"has_key": false, "has_food": false}),
+			_make_blackboard(),
+			second_actions,
+			second_goals,
+			100,
+		)
 	)
 
 	for i in range(120):
@@ -420,18 +399,15 @@ func test_async_missing_property_fails_equal_true() -> void:
 	var actions: Array[Dictionary] = [
 		{
 			"name": "RequiresKey",
-			"cost_callable": func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float:
-				return 1.0,
-			"effect_callable": func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+			"cost_callable":
+			func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float: return 1.0,
+			"effect_callable":
+			func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
 				agent.set_property("success", true),
-			"preconditions": [
-				{
-					"target": "agent",
-					"operation": "equal",
-					"property_name": "has_key",
-					"value": true
-				}
-			],
+			"preconditions":
+			[{"target": "agent", "operation": "equal", "property_name": "has_key", "value": true}],
 			"validity_checks": []
 		}
 	]
@@ -439,27 +415,20 @@ func test_async_missing_property_fails_equal_true() -> void:
 		{
 			"name": "Succeed",
 			"reward": 10.0,
-			"desired_state": [
-				{
-					"target": "agent",
-					"operation": "equal",
-					"property_name": "success",
-					"value": true
-				}
-			]
+			"desired_state":
+			[{"target": "agent", "operation": "equal", "property_name": "success", "value": true}]
 		}
 	]
 
 	var result: Dictionary = await _submit_plan_and_wait(
 		scheduler,
-		_make_blackboard(), # Deliberately NOT setting has_key property
+		_make_blackboard(),  # Deliberately NOT setting has_key property
 		_make_blackboard(),
 		actions,
 		goals,
 	)
 
-	assert_false(result["success"],
-		"Should fail when precondition checks missing property == true")
+	assert_false(result["success"], "Should fail when precondition checks missing property == true")
 
 
 func test_async_missing_property_fails_equal_false() -> void:
@@ -469,18 +438,15 @@ func test_async_missing_property_fails_equal_false() -> void:
 	var actions: Array[Dictionary] = [
 		{
 			"name": "RequiresNoKey",
-			"cost_callable": func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float:
-				return 1.0,
-			"effect_callable": func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+			"cost_callable":
+			func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float: return 1.0,
+			"effect_callable":
+			func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
 				agent.set_property("success", true),
-			"preconditions": [
-				{
-					"target": "agent",
-					"operation": "equal",
-					"property_name": "has_key",
-					"value": false
-				}
-			],
+			"preconditions":
+			[{"target": "agent", "operation": "equal", "property_name": "has_key", "value": false}],
 			"validity_checks": []
 		}
 	]
@@ -488,27 +454,22 @@ func test_async_missing_property_fails_equal_false() -> void:
 		{
 			"name": "Succeed",
 			"reward": 10.0,
-			"desired_state": [
-				{
-					"target": "agent",
-					"operation": "equal",
-					"property_name": "success",
-					"value": true
-				}
-			]
+			"desired_state":
+			[{"target": "agent", "operation": "equal", "property_name": "success", "value": true}]
 		}
 	]
 
 	var result: Dictionary = await _submit_plan_and_wait(
 		scheduler,
-		_make_blackboard(), # Deliberately NOT setting has_key property
+		_make_blackboard(),  # Deliberately NOT setting has_key property
 		_make_blackboard(),
 		actions,
 		goals,
 	)
 
-	assert_false(result["success"],
-		"Should fail when precondition checks missing property == false")
+	assert_false(
+		result["success"], "Should fail when precondition checks missing property == false"
+	)
 
 
 func test_async_has_property_on_missing_property() -> void:
@@ -518,11 +479,15 @@ func test_async_has_property_on_missing_property() -> void:
 	var actions: Array[Dictionary] = [
 		{
 			"name": "RequiresKeyExists",
-			"cost_callable": func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float:
-				return 1.0,
-			"effect_callable": func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+			"cost_callable":
+			func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float: return 1.0,
+			"effect_callable":
+			func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
 				agent.set_property("success", true),
-			"preconditions": [
+			"preconditions":
+			[
 				{
 					"target": "agent",
 					"operation": "has_property",
@@ -537,24 +502,19 @@ func test_async_has_property_on_missing_property() -> void:
 		{
 			"name": "Succeed",
 			"reward": 10.0,
-			"desired_state": [
-				{
-					"target": "agent",
-					"operation": "equal",
-					"property_name": "success",
-					"value": true
-				}
-			]
+			"desired_state":
+			[{"target": "agent", "operation": "equal", "property_name": "success", "value": true}]
 		}
 	]
 
 	var result: Dictionary = await _submit_plan_and_wait(
 		scheduler,
-		_make_blackboard(), # Deliberately NOT setting has_key property
+		_make_blackboard(),  # Deliberately NOT setting has_key property
 		_make_blackboard(),
 		actions,
 		goals,
 	)
 
-	assert_false(result["success"],
-		"Should fail when has_property precondition checks missing property")
+	assert_false(
+		result["success"], "Should fail when has_property precondition checks missing property"
+	)

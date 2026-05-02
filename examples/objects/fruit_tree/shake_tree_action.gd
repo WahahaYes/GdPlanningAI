@@ -7,7 +7,6 @@ extends SpatialAction
 ## and a simulated effect that fakes hunger gain (the planner cannot model spawning new
 ## objects, so we substitute the expected minimum hunger restored).
 
-
 ## Duration of the shaking animation in seconds.
 const SHAKE_DURATION: float = 0.5
 
@@ -19,11 +18,11 @@ var _sim_hunger_gain: float
 
 # Override
 func _init(
-		p_object_location: GdPAILocationData,
-		p_interactable_attribs: GdPAIInteractable,
-		p_fruit_tree: FruitTreeObject,
+	p_object_location: GdPAILocationData,
+	p_interactable_attribs: GdPAIInteractable,
+	p_fruit_tree: FruitTreeObject,
 ) -> void:
-	super (p_object_location, p_interactable_attribs)
+	super(p_object_location, p_interactable_attribs)
 	fruit_tree = p_fruit_tree
 
 	var fruit: Node = fruit_tree.fruit_prefab.instantiate()
@@ -34,27 +33,24 @@ func _init(
 
 # Override
 func get_validity_checks() -> Array[Precondition]:
-	var checks: Array[Precondition] = super ()
+	var checks: Array[Precondition] = super()
 	checks.append(Precondition.agent_has_property("hunger"))
 	checks.append(Precondition.check_is_object_valid(fruit_tree))
 	checks.append(Precondition.agent_property_greater_than("hunger", 0.0))
-	
+
 	var tree_not_on_cooldown = func(_bb: GdPAIBlackboard, _ws: GdPAIBlackboard) -> bool:
 		return not fruit_tree.is_on_cooldown
-	
-	checks.append(Precondition.custom_with_deps(
-		tree_not_on_cooldown,
-		[fruit_tree]
-	))
+
+	checks.append(Precondition.custom_with_deps(tree_not_on_cooldown, [fruit_tree]))
 	return checks
 
 
 # Override
 func get_action_cost(
-		agent_blackboard: GdPAIBlackboard,
-		world_state: GdPAIBlackboard,
+	agent_blackboard: GdPAIBlackboard,
+	world_state: GdPAIBlackboard,
 ) -> float:
-	var cost: float = super (agent_blackboard, world_state)
+	var cost: float = super(agent_blackboard, world_state)
 	if cost == INF:
 		return INF
 	return 100.0 + cost
@@ -67,17 +63,17 @@ func get_preconditions() -> Array[Precondition]:
 
 # Override
 func simulate_effect(
-		agent_blackboard: GdPAIBlackboard,
-		world_state: GdPAIBlackboard,
+	agent_blackboard: GdPAIBlackboard,
+	world_state: GdPAIBlackboard,
 ) -> void:
-	super (agent_blackboard, world_state)
+	super(agent_blackboard, world_state)
 	var hunger: float = agent_blackboard.get_property("hunger")
 	agent_blackboard.set_property("hunger", max(0.0, hunger - _sim_hunger_gain))
 
 
 # Override
 func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
-	if super (agent) == Action.Status.FAILURE:
+	if super(agent) == Action.Status.FAILURE:
 		return Action.Status.FAILURE
 	set_state(agent, "shake_elapsed", 0.0)
 	return Action.Status.SUCCESS
@@ -85,7 +81,7 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 
 # Override
 func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
-	var parent_status: Action.Status = super (agent, delta)
+	var parent_status: Action.Status = super(agent, delta)
 	if parent_status == Action.Status.FAILURE:
 		return Action.Status.FAILURE
 
@@ -107,7 +103,7 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 
 # Override
 func post_perform_action(agent: GdPAIAgent) -> Action.Status:
-	super (agent)
+	super(agent)
 	erase_state(agent, "shake_elapsed")
 	return Action.Status.SUCCESS
 

@@ -2,7 +2,6 @@ class_name ProvisionSpecFact
 extends ProvisionSpec
 ## Provides a fact with specific arguments.
 
-
 var fact_name: String
 var args: Array[Variant] = []
 

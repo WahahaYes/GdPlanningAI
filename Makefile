@@ -23,13 +23,13 @@ format-rust: ## Format Rust source files with rustfmt
 
 .PHONY: format-godot
 format-godot: ## Format GDScript files with gdformat (requires gdtoolkit)
-	git ls-files '*.gd' | xargs gdformat
+	git ls-files '*.gd' | xargs uv run gdformat
 
 ##@ Linting
 
 .PHONY: lint-style
 lint-style: ## Check GDScript and Rust files for style-guide violations
-	python scripts/lint_style.py
+	uv run scripts/lint_style.py
 
 ##@ Documentation
 
