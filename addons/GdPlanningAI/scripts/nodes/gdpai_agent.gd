@@ -57,7 +57,9 @@ func _ready() -> void:
 	# Try to find a world node.
 	world_node = GdPAIUTILS.get_child_of_type(get_tree().root, GdPAIWorldNode)
 	_bridge = GdPAIRustBridge.new()
-	_bridge.planning_engine.set_max_recursion(config.max_recursion)
+	var scheduler: GdPAIPlanScheduler = GdPAIAutoload.get_scheduler()
+	if scheduler:
+		scheduler.max_recursion = config.max_recursion
 
 
 func _process(delta: float) -> void:
@@ -188,33 +190,6 @@ func _on_planning_timer_timeout() -> void:
 		if plan_done and not _waiting_for_plan:
 			_start_plan_async()
 	_planning_timer.start()
-
-
-## Collects all candidate actions and asks the Rust engine for a plan.
-## Fully synchronous — no await.
-func _start_plan() -> void:
-	# Refresh the agent's own object snapshots so proxy positions are current.
-	var agent_objects: Array = GdPAIUTILS.get_children_in_group(entity, "GdPAIObjectData")
-	blackboard.set_property("GDPAI_OBJECTS", agent_objects)
-
-	var all_actions: Array[Action] = []
-	all_actions.append_array(self_actions)
-	all_actions.append_array(_collect_worldly_actions())
-
-	var result: Dictionary = _bridge.build_plan(
-		blackboard,
-		world_node.get_world_state(),
-		all_actions,
-		goals,
-		self ,
-	)
-	_current_plan_step = -1
-	if result.get("success", false):
-		_current_action_chain = _bridge.deserialize_plan_result(result, all_actions)
-		_current_goal = goals[result.get("goal_index", 0)]
-	else:
-		_current_action_chain = []
-		_current_goal = null
 
 
 ## Executes the currently selected plan based on the current step.

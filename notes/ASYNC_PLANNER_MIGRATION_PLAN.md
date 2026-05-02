@@ -10,34 +10,16 @@ This note documents what needs to happen to complete that migration safely.
 
 ## Current State
 
-The codebase currently has two planner entrypoints:
+**Migration complete.** The framework uses a single async planner path.
 
-- `RustPlanningEngine.build_plan(...)`
-  - synchronous
-  - implemented in `addons/GdPlanningAI/rust/src/planning_engine.rs`
-  - used through `addons/GdPlanningAI/scripts/gdpai_rust_bridge.gd`
-
-- `GdPAIPlanScheduler.submit_plan(...)`
-  - asynchronous/background
-  - implemented through `addons/GdPlanningAI/rust/src/scheduler.rs` and `addons/GdPlanningAI/rust/src/background_plan.rs`
-
-The migration to async is only partially complete.
-
-### Current sync usages
-
-- `GdPAIAgent.manually_start_plan()` calls `_start_plan()`
-- `GdPAIAgent._start_plan()` calls `_bridge.build_plan(...)`
-- `GdPAIAgent._start_plan_async()` falls back to `_start_plan()` when no scheduler is available
-- current GDScript planner tests call `RustPlanningEngine.build_plan(...)` directly
-
-### Important architecture fact
-
-The async planner is not just a transport wrapper around the sync planner. The planning algorithm exists twice today:
-
-- sync recursive search in `planning_engine.rs`
-- async recursive search in `background_plan.rs`
-
-That means removing the sync planner is not only an API cleanup; it also means choosing the async planner as the single source of truth for planning behavior.
+- `GdPAIPlanScheduler.submit_plan(...)` is the only planning entry point
+  - implemented in `addons/GdPlanningAI/rust/src/scheduler.rs` and `addons/GdPlanningAI/rust/src/planner.rs`
+- `RustPlanningEngine` and `planning_engine.rs` have been removed
+- `GdPAIAgent.manually_start_plan()` uses the async scheduler path
+- Missing scheduler is an explicit error, not a silent sync fallback
+- `GdPAIRustBridge` is serialization-only; `build_plan()` has been removed
+- Log level is configured through `GdPAIPlanScheduler.set_log_level()`
+- `max_recursion` is set on the `GdPAIPlanScheduler` instance, not the bridge
 
 ---
 
@@ -231,26 +213,26 @@ Documentation should reflect async-only planning behavior.
 
 ## Suggested Execution Order
 
-## Phase 1: Lock behavior and tests
+## Phase 1: Lock behavior and tests — COMPLETE
 
 - audit async planner for sync parity
 - add async integration tests for all existing sync planner scenarios
 - confirm hunger and other example scenes behave correctly under async planning only
 
-## Phase 2: Flip GDScript runtime to async-only
+## Phase 2: Flip GDScript runtime to async-only — COMPLETE
 
 - make `manually_start_plan()` async
 - remove sync fallback from `_start_plan_async()`
 - stop using `_bridge.build_plan(...)`
 
-## Phase 3: Remove sync Rust path
+## Phase 3: Remove sync Rust path — COMPLETE
 
 - remove `planning_engine.rs`
 - remove sync bridge methods and dead data structures
 - update `lib.rs`
 - clean up any docs or tests that still mention sync planning
 
-## Phase 4: Cleanup and release notes
+## Phase 4: Cleanup and release notes — COMPLETE
 
 - document any public API changes
 - document manual planning completion semantics

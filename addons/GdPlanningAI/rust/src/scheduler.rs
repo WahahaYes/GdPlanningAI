@@ -210,6 +210,16 @@ impl GdPAIPlanScheduler {
     fn active_job_count(&self) -> i64 {
         self.active_jobs.len() as i64
     }
+
+    /// Sets the process-wide log verbosity.
+    ///
+    /// [param level]: [code]0[/code] = Error, [code]1[/code] = Warn,
+    /// [code]2[/code] = Info (default), [code]3[/code] = Debug.
+    #[func]
+    fn set_log_level(&self, level: i64) {
+        let log_level = crate::logger::LogLevel::from_u8(level.clamp(0, 3) as u8);
+        crate::logger::set_log_level(log_level);
+    }
 }
 
 // ---------------------------------------------------------------------------

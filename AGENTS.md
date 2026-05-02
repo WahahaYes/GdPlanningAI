@@ -10,7 +10,7 @@ Plans scoped to the duration of one or few sessions should be written into `note
 
 ## Build Tasks
 
-Prefer `make` targets over executing arbitrary shell commands. Check the [Makefile](Makefile) for available targets before proposing custom commands.
+Prefer `make` targets over executing arbitrary shell commands. Check the [Makefile](Makefile) ([Rust Makefile](addons/GdPlanningAI/rust/Makefile)) for available targets before proposing custom commands.
 
 New features should include unit tests and integration tests when applicable.  For `gdscript` code, these tests are written in the `test/` folder.  For `rust` planning engine updates, tests are bundled into `addons/GdPlanningAI/rust/tests/`.
 
