@@ -29,17 +29,23 @@ func to_bridge_dict() -> Dictionary:
 
 
 ## Create a custom precondition that invokes a callable with the agent and world blackboards.
+
+
 static func custom(fn: Callable) -> Precondition:
 	return PreconditionCustom.new(fn)
 
 
 ## Create a custom precondition with explicit object dependencies.
 ## The planner will validate these objects exist before invoking the precondition.
+
+
 static func custom_with_deps(fn: Callable, deps: Array[Object]) -> Precondition:
 	return PreconditionCustomWithDeps.new(fn, deps)
 
 
 ## Generic function to create property comparison preconditions, eliminating code duplication.
+
+
 static func _create_property_precondition(
 	target: PreconditionBuiltin.Target,
 	prop: String,
@@ -50,6 +56,8 @@ static func _create_property_precondition(
 
 
 ## Instantiate a precondition that checks whether a property in the agent blackboard exists.
+
+
 static func agent_has_property(prop: String) -> Precondition:
 	return _create_property_precondition(
 		PreconditionBuiltin.Target.AGENT, prop, PreconditionBuiltin.Op.HAS_PROPERTY
@@ -58,6 +66,8 @@ static func agent_has_property(prop: String) -> Precondition:
 
 ## Instantiate a precondition that checks whether a property in the agent blackboard is not
 ## equal to a specified value.
+
+
 static func agent_property_not_equal_to(
 	prop: String,
 	value: Variant,
@@ -69,6 +79,8 @@ static func agent_property_not_equal_to(
 
 ## Instantiate a precondition that checks whether a property in the agent blackboard is greater
 ## than a specified value.
+
+
 static func agent_property_greater_than(
 	prop: String,
 	value: Variant,
@@ -80,6 +92,8 @@ static func agent_property_greater_than(
 
 ## Instantiate a precondition that checks whether a property in the agent blackboard is greater
 ## or equal than a specified value.
+
+
 static func agent_property_geq_than(
 	prop: String,
 	value: Variant,
@@ -91,6 +105,8 @@ static func agent_property_geq_than(
 
 ## Instantiate a precondition that checks whether a property in the agent blackboard is less
 ## than a specified value.
+
+
 static func agent_property_less_than(
 	prop: String,
 	value: Variant,
@@ -102,6 +118,8 @@ static func agent_property_less_than(
 
 ## Instantiate a precondition that checks whether a property in the agent blackboard is less
 ## than or equal to a specified value.
+
+
 static func agent_property_leq_than(
 	prop: String,
 	value: Variant,
@@ -113,6 +131,8 @@ static func agent_property_leq_than(
 
 ## Instantiate a precondition that checks whether a property in the agent blackboard is equal to
 ## a specified value.
+
+
 static func agent_property_equal_to(
 	prop: String,
 	value: Variant,
@@ -123,6 +143,8 @@ static func agent_property_equal_to(
 
 
 ## Instantiate a precondition that checks whether a property in the agent blackboard exists.
+
+
 static func world_state_has_property(prop: String) -> Precondition:
 	return _create_property_precondition(
 		PreconditionBuiltin.Target.WORLD_STATE, prop, PreconditionBuiltin.Op.HAS_PROPERTY
@@ -131,6 +153,8 @@ static func world_state_has_property(prop: String) -> Precondition:
 
 ## Instantiate a precondition that checks whether a property in the world state is greater
 ## than a specified value.
+
+
 static func world_state_property_greater_than(
 	prop: String,
 	value: Variant,
@@ -142,6 +166,8 @@ static func world_state_property_greater_than(
 
 ## Instantiate a precondition that checks whether a property in the world state is greater
 ## or equal than a specified value.
+
+
 static func world_state_property_geq_than(
 	prop: String,
 	value: Variant,
@@ -153,6 +179,8 @@ static func world_state_property_geq_than(
 
 ## Instantiate a precondition that checks whether a property in the world state is less
 ## than a specified value.
+
+
 static func world_state_property_less_than(
 	prop: String,
 	value: Variant,
@@ -164,6 +192,8 @@ static func world_state_property_less_than(
 
 ## Instantiate a precondition that checks whether a property in the world state is less
 ## than or equal to a specified value.
+
+
 static func world_state_property_leq_than(
 	prop: String,
 	value: Variant,
@@ -175,6 +205,8 @@ static func world_state_property_leq_than(
 
 ## Instantiate a precondition that checks whether a property in the world state is equal to
 ## a specified value.
+
+
 static func world_state_property_equal_to(
 	prop: String,
 	value: Variant,
@@ -185,6 +217,8 @@ static func world_state_property_equal_to(
 
 
 ## Check if any of the agent's object data matches a requested group.
+
+
 static func agent_has_object_data_of_group(group: String) -> Precondition:
 	return PreconditionCustom.new(
 		func(blackboard: GdPAIBlackboard, _world_state: GdPAIBlackboard):
@@ -194,6 +228,8 @@ static func agent_has_object_data_of_group(group: String) -> Precondition:
 
 
 ## Check if any of the world state's object data matches a requested group.
+
+
 static func world_state_has_object_data_of_group(group: String) -> Precondition:
 	return PreconditionCustom.new(
 		func(_blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
@@ -204,6 +240,8 @@ static func world_state_has_object_data_of_group(group: String) -> Precondition:
 
 ## Check if a given object is valid.
 ## Uses dependency tracking to validate the object exists before planning.
+
+
 static func check_is_object_valid(object: Variant) -> Precondition:
 	var deps: Array[Object] = []
 	if object is Object:

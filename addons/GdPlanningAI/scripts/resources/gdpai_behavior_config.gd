@@ -26,6 +26,8 @@ func apply_to_agent(agent: GdPAIAgent) -> void:
 ## Override this method to fill [param goals], [param actions], and
 ## [param updaters] with the behaviours this config provides.
 ## Called once per agent during [method apply_to_agent].
+
+
 func _populate(
 	_goals: Array[Goal],
 	_actions: Array[Action],

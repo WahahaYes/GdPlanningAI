@@ -16,6 +16,8 @@ func compute_reward(agent: GdPAIAgent) -> float:
 
 
 # Override
+
+
 func get_desired_state(agent: GdPAIAgent) -> Array[Precondition]:
 	var current_hunger: float = agent.blackboard.get_property("hunger")
 	print("[HungerGoal] get_desired_state - current_hunger: ", current_hunger)
@@ -39,10 +41,14 @@ func get_desired_state(agent: GdPAIAgent) -> Array[Precondition]:
 
 
 # Override
+
+
 func get_title() -> String:
 	return "Hunger"
 
 
 # Override
+
+
 func get_description() -> String:
 	return "Eat food and keep hunger up."

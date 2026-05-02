@@ -18,11 +18,15 @@ func _init(
 
 
 # Override
+
+
 func initialize(agent: GdPAIAgent) -> void:
 	agent.blackboard.set_property("hunger", initial_hunger)
 
 
 # Override
+
+
 func update_properties(agent: GdPAIAgent, delta: float) -> void:
 	var current_hunger: float = agent.blackboard.get_property("hunger")
 	var new_hunger: float = min(100.0, current_hunger + hunger_decay * delta)

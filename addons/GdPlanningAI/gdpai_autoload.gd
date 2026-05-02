@@ -22,6 +22,8 @@ func _process(_delta: float) -> void:
 
 
 ## Returns the background plan scheduler instance.
+
+
 func get_scheduler() -> GdPAIPlanScheduler:
 	return _scheduler
 

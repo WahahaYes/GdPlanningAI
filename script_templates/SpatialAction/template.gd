@@ -9,11 +9,15 @@ func get_title() -> String:
 
 
 # Override
+
+
 func get_description() -> String:
 	return ""
 
 
 # Override
+
+
 func _init(
 	p_object_location: GdPAILocationData,
 	p_interactable_attribs: GdPAIInteractable,
@@ -23,6 +27,8 @@ func _init(
 
 
 # Override
+
+
 func get_validity_checks() -> Array[Precondition]:
 	var checks: Array[Precondition] = super()
 	# Add any additional checks here.
@@ -30,6 +36,8 @@ func get_validity_checks() -> Array[Precondition]:
 
 
 # Override
+
+
 func get_action_cost(
 	agent_blackboard: GdPAIBlackboard,
 	world_state: GdPAIBlackboard,
@@ -42,11 +50,15 @@ func get_action_cost(
 
 
 # Override
+
+
 func get_preconditions() -> Array[Precondition]:
 	return []
 
 
 # Override
+
+
 func simulate_effect(
 	agent_blackboard: GdPAIBlackboard,
 	world_state: GdPAIBlackboard,
@@ -55,6 +67,8 @@ func simulate_effect(
 
 
 # Override
+
+
 func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	if super(agent) == Action.Status.FAILURE:
 		return Action.Status.FAILURE
@@ -63,6 +77,8 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 
 
 # Override
+
+
 func perform_action(
 	agent: GdPAIAgent,
 	delta: float,
@@ -78,6 +94,8 @@ func perform_action(
 
 
 # Override
+
+
 func post_perform_action(agent: GdPAIAgent) -> Action.Status:
 	super(agent)
 	# Add any additional postactions here.

@@ -21,6 +21,8 @@ func _init(
 
 
 # Override
+
+
 func get_validity_checks() -> Array[Precondition]:
 	var checks: Array[Precondition] = super()
 	checks.append(Precondition.check_is_object_valid(holdable_item))
@@ -28,6 +30,8 @@ func get_validity_checks() -> Array[Precondition]:
 
 
 # Override
+
+
 func get_action_cost(
 	agent_blackboard: GdPAIBlackboard,
 	world_state: GdPAIBlackboard,
@@ -36,6 +40,8 @@ func get_action_cost(
 
 
 # Override
+
+
 func get_preconditions() -> Array[Precondition]:
 	var has_empty_hands = func(
 		blackboard: GdPAIBlackboard,
@@ -47,6 +53,8 @@ func get_preconditions() -> Array[Precondition]:
 
 
 # Override
+
+
 func simulate_effect(
 	agent_blackboard: GdPAIBlackboard,
 	_world_state: GdPAIBlackboard,
@@ -69,11 +77,15 @@ func simulate_effect(
 
 
 # Override
+
+
 func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	return super(agent)
 
 
 # Override
+
+
 func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 	var parent_status: Action.Status = super(agent, delta)
 	if parent_status == Action.Status.FAILURE:
@@ -88,15 +100,21 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 
 
 # Override
+
+
 func post_perform_action(agent: GdPAIAgent) -> Action.Status:
 	return super(agent)
 
 
 # Override
+
+
 func get_title() -> String:
 	return "Pick Up Item"
 
 
 # Override
+
+
 func get_description() -> String:
 	return "Navigate to and pick up an item."

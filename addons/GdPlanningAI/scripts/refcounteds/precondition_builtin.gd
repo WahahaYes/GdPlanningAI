@@ -36,6 +36,8 @@ func _init(t: Target, op: Op, prop: String, val: Variant = null) -> void:
 
 
 ## Serializes this precondition into the dictionary format expected by the Rust bridge.
+
+
 func to_bridge_dict() -> Dictionary:
 	return {
 		"target": _target_to_string(target),
@@ -46,6 +48,8 @@ func to_bridge_dict() -> Dictionary:
 
 
 ## Converts a Target enum value to its string representation for the Rust bridge.
+
+
 static func _target_to_string(t: Target) -> String:
 	match t:
 		Target.AGENT:
@@ -57,6 +61,8 @@ static func _target_to_string(t: Target) -> String:
 
 
 ## Converts an Op enum value to its string representation for the Rust bridge.
+
+
 static func _operation_to_string(op: Op) -> String:
 	match op:
 		Op.HAS_PROPERTY:

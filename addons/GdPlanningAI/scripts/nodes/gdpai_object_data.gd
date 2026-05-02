@@ -15,16 +15,22 @@ func _init() -> void:
 
 ## A list of group labels to be automatically assigned when this node is initialized.  This is done
 ## because the underlying grouping for Godot is a hashmap, so lookup is very fast.
+
+
 func get_group_labels() -> Array[String]:
 	return ["GdPAIObjectData"]
 
 
 ## If this node broadcasts any actions, instantiate these actions here.
+
+
 func get_provided_actions() -> Array[Action]:
 	return []
 
 
 ## Override this method to return a dictionary of properties that are relevant for simulation.
 ## This is captured once at the start of planning.
+
+
 func get_sim_properties() -> Dictionary:
 	return {}

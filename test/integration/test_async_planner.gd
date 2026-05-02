@@ -392,6 +392,8 @@ func test_async_newer_submission_cancels_older_inflight_plan() -> void:
 
 
 ## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+
 func test_async_missing_property_fails_equal_true() -> void:
 	var scheduler: GdPAIPlanScheduler = _make_scheduler()
 	await get_tree().process_frame
@@ -402,7 +404,44 @@ func test_async_missing_property_fails_equal_true() -> void:
 			"cost_callable":
 			func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float: return 1.0,
 			"effect_callable":
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
 			func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
 ## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
 
 				agent.set_property("success", true),
@@ -441,7 +480,109 @@ func test_async_missing_property_fails_equal_false() -> void:
 			"cost_callable":
 			func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float: return 1.0,
 			"effect_callable":
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
 			func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
 ## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
 
 				agent.set_property("success", true),
@@ -482,7 +623,219 @@ func test_async_has_property_on_missing_property() -> void:
 			"cost_callable":
 			func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float: return 1.0,
 			"effect_callable":
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+			## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
 			func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+				## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
+
 ## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
 
 				agent.set_property("success", true),

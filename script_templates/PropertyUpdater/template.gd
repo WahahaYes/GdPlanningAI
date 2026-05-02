@@ -14,12 +14,16 @@ func _init(p_example_parameter: float) -> void:
 
 
 # Override
+
+
 func initialize(agent: GdPAIAgent) -> void:
 	# Set up initial property values with the agent.
 	agent.blackboard.set_property("example_parameter", example_parameter)
 
 
 # Override
+
+
 func update_properties(
 	agent: GdPAIAgent,
 	delta: float,

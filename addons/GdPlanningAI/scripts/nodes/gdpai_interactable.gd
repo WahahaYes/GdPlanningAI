@@ -16,6 +16,8 @@ func get_group_labels() -> Array[String]:
 
 
 # Override
+
+
 func get_sim_properties() -> Dictionary:
 	return {
 		"max_interaction_distance": max_interaction_distance,

@@ -15,6 +15,8 @@ func _init(p_wander_distance: float) -> void:
 
 
 # Override
+
+
 func get_validity_checks() -> Array[Precondition]:
 	var checks: Array[Precondition] = []
 	checks.append(Precondition.agent_has_property("entity"))
@@ -23,6 +25,8 @@ func get_validity_checks() -> Array[Precondition]:
 
 
 # Override
+
+
 func get_action_cost(
 	_agent_blackboard: GdPAIBlackboard,
 	_world_state: GdPAIBlackboard,
@@ -31,11 +35,15 @@ func get_action_cost(
 
 
 # Override
+
+
 func get_preconditions() -> Array[Precondition]:
 	return []
 
 
 # Override
+
+
 func simulate_effect(
 	agent_blackboard: GdPAIBlackboard,
 	_world_state: GdPAIBlackboard,
@@ -49,6 +57,8 @@ func simulate_effect(
 
 
 # Override
+
+
 func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	var location_data: GdPAILocationData = (
 		agent
@@ -78,6 +88,8 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 
 
 # Override
+
+
 func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 	var nav_agent: Node = get_state(agent, "nav_agent")
 	var agent_location_data: GdPAILocationData = get_state(agent, "agent_location")
@@ -111,6 +123,8 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 
 
 # Override
+
+
 func post_perform_action(agent: GdPAIAgent) -> Action.Status:
 	var nav_agent: Node = get_state(agent, "nav_agent")
 	var agent_location_data: GdPAILocationData = get_state(agent, "agent_location")
@@ -125,10 +139,14 @@ func post_perform_action(agent: GdPAIAgent) -> Action.Status:
 
 
 # Override
+
+
 func get_title() -> String:
 	return "Wander"
 
 
 # Override
+
+
 func get_description() -> String:
 	return "Navigate to a random nearby point."

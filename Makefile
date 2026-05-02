@@ -23,6 +23,7 @@ format-rust: ## Format Rust source files with rustfmt
 
 .PHONY: format-godot
 format-godot: ## Format GDScript files with gdformat (requires gdtoolkit)
+	uv run scripts/fix_gd_spacing.py
 	git ls-files '*.gd' | xargs uv run gdformat
 
 ##@ Linting

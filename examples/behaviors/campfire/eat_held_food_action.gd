@@ -21,6 +21,8 @@ func _init(
 
 
 # Override
+
+
 func get_validity_checks() -> Array[Precondition]:
 	var checks: Array[Precondition] = []
 	checks.append(Precondition.agent_has_property("hunger"))
@@ -28,6 +30,8 @@ func get_validity_checks() -> Array[Precondition]:
 
 
 # Override
+
+
 func get_preconditions() -> Array[Precondition]:
 	var preconditions: Array[Precondition] = []
 
@@ -56,6 +60,8 @@ func get_preconditions() -> Array[Precondition]:
 
 
 # Override
+
+
 func get_action_cost(
 	_agent_blackboard: GdPAIBlackboard,
 	_world_state: GdPAIBlackboard,
@@ -64,6 +70,8 @@ func get_action_cost(
 
 
 # Override
+
+
 func simulate_effect(
 	agent_blackboard: GdPAIBlackboard,
 	_world_state: GdPAIBlackboard,
@@ -98,12 +106,16 @@ func simulate_effect(
 
 
 # Override
+
+
 func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	set_state(agent, "eat_elapsed", 0.0)
 	return Action.Status.SUCCESS
 
 
 # Override
+
+
 func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 	var held_item = agent.blackboard.get_property("held_item")
 	var hunger = agent.blackboard.get_property("hunger")
@@ -128,16 +140,22 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 
 
 # Override
+
+
 func post_perform_action(agent: GdPAIAgent) -> Action.Status:
 	erase_state(agent, "eat_elapsed")
 	return Action.Status.SUCCESS
 
 
 # Override
+
+
 func get_title() -> String:
 	return "Eat Held Food"
 
 
 # Override
+
+
 func get_description() -> String:
 	return "Consume a held food item that is allowed by this action."

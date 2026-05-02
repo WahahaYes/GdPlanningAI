@@ -43,6 +43,8 @@ func _process(delta: float) -> void:
 
 
 ## Spawns a random number of fruit in a radius around the tree and starts the cooldown.
+
+
 func drop_fruit() -> void:
 	is_on_cooldown = true
 	var amt: int = randi_range(drop_min_amount, drop_max_amount)
@@ -69,15 +71,21 @@ func drop_fruit() -> void:
 
 
 # Override
+
+
 func get_group_labels() -> Array[String]:
 	return ["FruitTreeObject", "GdPAIObjectData"]
 
 
 # Override
+
+
 func get_provided_actions() -> Array[Action]:
 	return [ShakeTreeAction.new(location_data, interactable_attribs, self)]
 
 
 # Override
+
+
 func get_sim_properties() -> Dictionary:
 	return {}
