@@ -7,23 +7,20 @@
 //! # Public Godot classes
 //! - [`gdpai_blackboard::GdPAIBlackboard`] — key/value store for agent and world state.
 //! - [`sim_object_proxy::SimObjectProxy`] — simulation snapshot of a world object.
-//! - [`planning_engine::RustPlanningEngine`] — the planning engine itself.
+//! - [`scheduler::GdPAIPlanScheduler`] — background planning scheduler.
 //!
 //! # Internal types
-//! - [`action::ActionData`], [`goal::GoalData`], [`precondition::PreconditionHandler`]
-//!   are deserialized from GDScript bridge dictionaries and used only inside Rust.
+//! Planning is performed asynchronously on a Rayon thread pool using Send-safe
+//! snapshot types in [`background_types`].
 
 use godot::prelude::*;
 
 #[macro_use]
 pub mod logger;
-pub mod action;
 pub mod background_plan;
 pub mod background_types;
 pub mod gdpai_blackboard;
-pub mod goal;
 pub mod plan_tree;
-pub mod planning_engine;
 pub mod precondition;
 pub mod requirement;
 pub mod scheduler;

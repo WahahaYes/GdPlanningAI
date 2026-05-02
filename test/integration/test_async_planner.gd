@@ -406,3 +406,154 @@ func test_async_newer_submission_cancels_older_inflight_plan() -> void:
 		[0],
 		"Newest plan should produce the second submission's single action"
 	)
+
+
+# ---------------------------------------------------------------------------
+# Precondition Edge Cases (ported from test_precondition_edge_cases.gd)
+# ---------------------------------------------------------------------------
+
+func test_async_missing_property_fails_equal_true() -> void:
+	var scheduler := _make_scheduler()
+	await get_tree().process_frame
+
+	var actions: Array[Dictionary] = [
+		{
+			"name": "RequiresKey",
+			"cost_callable": func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float:
+				return 1.0,
+			"effect_callable": func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+				agent.set_property("success", true),
+			"preconditions": [
+				{
+					"target": "agent",
+					"operation": "equal",
+					"property_name": "has_key",
+					"value": true
+				}
+			],
+			"validity_checks": []
+		}
+	]
+	var goals: Array[Dictionary] = [
+		{
+			"name": "Succeed",
+			"reward": 10.0,
+			"desired_state": [
+				{
+					"target": "agent",
+					"operation": "equal",
+					"property_name": "success",
+					"value": true
+				}
+			]
+		}
+	]
+
+	var result := await _submit_plan_and_wait(
+		scheduler,
+		_make_blackboard(), # Deliberately NOT setting has_key property
+		_make_blackboard(),
+		actions,
+		goals,
+	)
+
+	assert_false(result["success"],
+		"Should fail when precondition checks missing property == true")
+
+
+func test_async_missing_property_fails_equal_false() -> void:
+	var scheduler := _make_scheduler()
+	await get_tree().process_frame
+
+	var actions: Array[Dictionary] = [
+		{
+			"name": "RequiresNoKey",
+			"cost_callable": func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float:
+				return 1.0,
+			"effect_callable": func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+				agent.set_property("success", true),
+			"preconditions": [
+				{
+					"target": "agent",
+					"operation": "equal",
+					"property_name": "has_key",
+					"value": false
+				}
+			],
+			"validity_checks": []
+		}
+	]
+	var goals: Array[Dictionary] = [
+		{
+			"name": "Succeed",
+			"reward": 10.0,
+			"desired_state": [
+				{
+					"target": "agent",
+					"operation": "equal",
+					"property_name": "success",
+					"value": true
+				}
+			]
+		}
+	]
+
+	var result := await _submit_plan_and_wait(
+		scheduler,
+		_make_blackboard(), # Deliberately NOT setting has_key property
+		_make_blackboard(),
+		actions,
+		goals,
+	)
+
+	assert_false(result["success"],
+		"Should fail when precondition checks missing property == false")
+
+
+func test_async_has_property_on_missing_property() -> void:
+	var scheduler := _make_scheduler()
+	await get_tree().process_frame
+
+	var actions: Array[Dictionary] = [
+		{
+			"name": "RequiresKeyExists",
+			"cost_callable": func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float:
+				return 1.0,
+			"effect_callable": func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+				agent.set_property("success", true),
+			"preconditions": [
+				{
+					"target": "agent",
+					"operation": "has_property",
+					"property_name": "has_key",
+					"value": null
+				}
+			],
+			"validity_checks": []
+		}
+	]
+	var goals: Array[Dictionary] = [
+		{
+			"name": "Succeed",
+			"reward": 10.0,
+			"desired_state": [
+				{
+					"target": "agent",
+					"operation": "equal",
+					"property_name": "success",
+					"value": true
+				}
+			]
+		}
+	]
+
+	var result := await _submit_plan_and_wait(
+		scheduler,
+		_make_blackboard(), # Deliberately NOT setting has_key property
+		_make_blackboard(),
+		actions,
+		goals,
+	)
+
+	assert_false(result["success"],
+		"Should fail when has_property precondition checks missing property")
