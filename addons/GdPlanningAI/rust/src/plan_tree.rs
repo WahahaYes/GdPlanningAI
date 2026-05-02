@@ -6,6 +6,8 @@ pub struct PlanTreeNode {
     pub action_index: i64,
     pub cost: f64,
     pub children: Vec<PlanTreeNode>,
+    /// Whether this action was concretely simulated (true) or used placeholder cost.
+    pub was_concretely_simulated: bool,
 }
 
 /// Result of the planning algorithm.
@@ -16,6 +18,9 @@ pub struct PlanResult {
     pub total_cost: f64,
     /// Index into the original goals array passed from GDScript; -1 on failure
     pub goal_index: i64,
+    /// Indices of actions that used placeholder simulation (requirements unresolved at eval time).
+    /// These may need re-simulation with actual cost/effects for accurate planning.
+    pub deferred_action_indices: Vec<i64>,
 }
 
 impl PlanResult {
@@ -26,6 +31,7 @@ impl PlanResult {
             action_chain: vec![],
             total_cost: f64::INFINITY,
             goal_index: -1,
+            deferred_action_indices: vec![],
         }
     }
 }
@@ -34,47 +40,74 @@ impl PlanResult {
 pub struct ExtractedPlan {
     pub actions: Vec<i64>,
     pub cost: f64,
+    /// Indices of actions that used placeholder simulation.
+    pub deferred_indices: Vec<i64>,
 }
 
 /// Traverses the completed plan tree and returns the path with the lowest total cost.
 pub fn extract_best_plan(root: &PlanTreeNode) -> ExtractedPlan {
     let mut best_path: Vec<i64> = vec![];
     let mut best_cost = f64::INFINITY;
+    let mut best_deferred: Vec<i64> = vec![];
 
-    find_lowest_cost_path(root, 0.0, vec![], &mut best_path, &mut best_cost);
+    find_lowest_cost_path(
+        root,
+        0.0,
+        vec![],
+        vec![],
+        &mut best_path,
+        &mut best_cost,
+        &mut best_deferred,
+    );
 
     ExtractedPlan {
         actions: best_path,
         cost: best_cost,
+        deferred_indices: best_deferred,
     }
 }
 
-/// Recursive depth-first traversal that updates `best_path` and `best_cost`
+/// Recursive depth-first traversal that updates `best_path`, `best_cost`, and `best_deferred`
 /// whenever a leaf is reached with a lower cumulative cost.
 fn find_lowest_cost_path(
     node: &PlanTreeNode,
     current_cost: f64,
     current_path: Vec<i64>,
+    current_deferred: Vec<i64>,
     best_path: &mut Vec<i64>,
     best_cost: &mut f64,
+    best_deferred: &mut Vec<i64>,
 ) {
     let new_cost = current_cost + node.cost;
     let mut new_path = current_path.clone();
+    let mut new_deferred = current_deferred.clone();
 
     if node.action_index >= 0 {
         new_path.push(node.action_index);
+        if !node.was_concretely_simulated {
+            new_deferred.push(node.action_index);
+        }
     }
 
     if node.children.is_empty() {
         if new_cost < *best_cost {
             *best_path = new_path;
             *best_cost = new_cost;
+            *best_deferred = new_deferred;
         }
         return;
     }
 
     for child in &node.children {
-        find_lowest_cost_path(child, new_cost, new_path.clone(), best_path, best_cost);
+        find_lowest_cost_path(
+            child,
+            new_cost,
+            new_path.clone(),
+            new_deferred.clone(),
+            best_path,
+            best_cost,
+            best_deferred,
+        );
     }
 }
 
@@ -87,6 +120,7 @@ mod tests {
             action_index,
             cost,
             children: vec![],
+            was_concretely_simulated: true,
         }
     }
 
@@ -95,6 +129,7 @@ mod tests {
             action_index,
             cost,
             children,
+            was_concretely_simulated: true,
         }
     }
 
@@ -103,6 +138,7 @@ mod tests {
             action_index: -1,
             cost: 0.0,
             children,
+            was_concretely_simulated: true,
         }
     }
 

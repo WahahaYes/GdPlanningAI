@@ -372,18 +372,23 @@ Tasks:
 - revise progress heuristics to consider requirement progress in addition to direct goal progress
 - ensure pruning remains conservative enough to avoid search explosion
 
-### Phase 4: Binding-aware simulation
+### Phase 4: Binding-aware simulation ✅ COMPLETED
 
 Teach the planner to distinguish between:
 
 - actions that can be concretely simulated now
 - actions whose effect depends on unresolved bindings or facts
 
-Tasks:
+Implementation details:
 
-- add checks for whether requirements needed for simulation are resolved
-- only run concrete effect logic when required inputs are available
-- remove placeholder-driven simulation hacks from affected examples once this works
+- `PlanContext` now carries `accumulated_provisions: &[ProvisionSpec]` tracking provisions from actions already selected in the branch
+- `PendingAction` tracks `child_provisions` and `was_concretely_simulated` flag for each branch
+- Added `get_unsatisfied_requirements()` helper to identify which requirements aren't satisfied by accumulated provisions
+- Actions with **satisfied requirements**: get full cost callback + effect simulation
+- Actions with **unresolved requirements**: still explored (so predecessors can satisfy them), but use placeholder cost (1.0) and skip effect simulation
+- Provisions accumulate through the branch, allowing later actions to see if their requirements are now satisfied
+
+This allows the planner to explore action chains where earlier actions provide bindings (e.g., `held_item`) that later actions require, without needing placeholder-driven simulation hacks.
 
 ### Phase 5: Migrate examples
 

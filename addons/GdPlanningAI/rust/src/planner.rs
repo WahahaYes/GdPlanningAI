@@ -7,8 +7,9 @@
 use crate::plan_tree::{self, PlanResult, PlanTreeNode};
 use crate::plan_types::*;
 use crate::requirement::{
-    RequirementSpec, extend_unique_requirements, provisions_satisfy_any_requirement,
-    remove_satisfied_requirements,
+    extend_unique_provisions, extend_unique_requirements, get_unsatisfied_requirements,
+    provisions_satisfy_any_requirement, remove_satisfied_requirements, ProvisionSpec,
+    RequirementSpec,
 };
 use crate::snapshot::BlackboardSnapshot;
 use std::sync::mpsc::Sender;
@@ -64,6 +65,7 @@ pub fn run_plan(
                 action_chain: vec![],
                 total_cost: 0.0,
                 goal_index: goal.original_index as i64,
+                deferred_action_indices: vec![],
             }));
             return;
         }
@@ -72,11 +74,13 @@ pub fn run_plan(
             action_index: -1,
             cost: 0.0,
             children: vec![],
+            was_concretely_simulated: true,
         };
 
         let ctx = PlanContext {
             desired_state: &goal.desired_state,
             active_requirements: &[],
+            accumulated_provisions: &[],
             actions: &actions,
             max_recursion,
             request_tx: &request_tx,
@@ -93,11 +97,22 @@ pub fn run_plan(
         if success {
             crate::log_debug!("Found valid plan for goal '{}'", goal.name);
             let plan = plan_tree::extract_best_plan(&root_node);
+
+            // Log warning if any actions used placeholder simulation
+            if !plan.deferred_indices.is_empty() {
+                crate::log_warn!(
+                    "Plan contains {} placeholder-simulated actions: {:?}",
+                    plan.deferred_indices.len(),
+                    plan.deferred_indices
+                );
+            }
+
             let _ = result_tx.send(Some(PlanResult {
                 success: true,
                 action_chain: plan.actions,
                 total_cost: plan.cost,
                 goal_index: goal.original_index as i64,
+                deferred_action_indices: plan.deferred_indices,
             }));
             return;
         }
@@ -111,6 +126,9 @@ pub fn run_plan(
 struct PlanContext<'a> {
     desired_state: &'a [PreconditionSpec],
     active_requirements: &'a [RequirementSpec],
+    /// Provisions accumulated from actions already selected in this branch.
+    /// Used to determine which actions can be concretely simulated.
+    accumulated_provisions: &'a [ProvisionSpec],
     actions: &'a [ActionSpec],
     max_recursion: usize,
     request_tx: &'a Sender<CallbackRequest>,
@@ -127,8 +145,12 @@ struct PendingAction {
     cost: f64,
     child_desired: Vec<PreconditionSpec>,
     child_requirements: Vec<RequirementSpec>,
+    /// Provisions accumulated for the child context (parent provisions + this action's provisions).
+    child_provisions: Vec<ProvisionSpec>,
     sim_agent: BlackboardSnapshot,
     sim_world: BlackboardSnapshot,
+    /// Whether this action was concretely simulated (true) or deferred due to unresolved requirements.
+    was_concretely_simulated: bool,
 }
 
 /// Returns the lowest cumulative cost among all completed plan leaves
@@ -220,33 +242,67 @@ fn build_plan_recursive(
             continue;
         }
 
+        // Check if action's requirements are satisfied by accumulated provisions
+        let unsatisfied_requirements =
+            get_unsatisfied_requirements(&action.requirements, ctx.accumulated_provisions);
+        let can_simulate_concretely = unsatisfied_requirements.is_empty();
+
+        if !can_simulate_concretely {
+            crate::log_debug!(
+                "Action '{}' has {} unresolved requirements - deferring concrete simulation",
+                action.name,
+                unsatisfied_requirements.len()
+            );
+        }
+
         // Clone snapshots for simulation (trivial — just HashMap clone)
         let mut sim_agent = agent_state.clone();
         let mut sim_world = world_state.clone();
 
-        // Get cost via callback channel
-        let cost = call_get_cost(
-            action.cost_callable_id,
-            &sim_agent,
-            &sim_world,
-            ctx.request_tx,
-        );
+        // Get cost via callback channel (skip if requirements unresolved - use placeholder)
+        let cost = if can_simulate_concretely {
+            let cost = call_get_cost(
+                action.cost_callable_id,
+                &sim_agent,
+                &sim_world,
+                ctx.request_tx,
+            );
+            crate::log_debug!("Action '{}' cost: {:.2}", action.name, cost);
+            cost
+        } else {
+            // Use default/placeholder cost when requirements unresolved
+            // This allows the action to be explored without accurate cost info
+            crate::log_debug!(
+                "Action '{}' using placeholder cost (requirements unresolved)",
+                action.name
+            );
+            1.0 // Default placeholder cost
+        };
+
         if cost == f64::INFINITY {
             crate::log_debug!("Action '{}' has infinite cost, skipping", action.name);
             continue;
         }
 
-        crate::log_debug!("Action '{}' cost: {:.2}", action.name, cost);
-
-        // Apply effect via callback channel — returns updated snapshots
-        let (new_agent, new_world) = call_apply_effect(
-            action.effect_callable_id,
-            sim_agent,
-            sim_world,
-            ctx.request_tx,
-        );
-        sim_agent = new_agent;
-        sim_world = new_world;
+        // Apply effect via callback channel only if requirements are satisfied
+        if can_simulate_concretely {
+            let (new_agent, new_world) = call_apply_effect(
+                action.effect_callable_id,
+                sim_agent,
+                sim_world,
+                ctx.request_tx,
+            );
+            sim_agent = new_agent;
+            sim_world = new_world;
+        } else {
+            // For deferred actions, we still need to propagate the action's provisions
+            // so that successor actions can see them as available. We don't modify
+            // agent/world state since we can't accurately simulate without resolved bindings.
+            crate::log_debug!(
+                "Action '{}' skipping effect simulation (requirements unresolved)",
+                action.name
+            );
+        }
 
         // Check if this action makes progress toward the goal
         let makes_goal_progress =
@@ -270,6 +326,7 @@ fn build_plan_recursive(
                     action_index: idx as i64,
                     cost,
                     children: vec![],
+                    was_concretely_simulated: can_simulate_concretely,
                 };
                 node.children.push(next_node);
                 has_solution = true;
@@ -279,13 +336,19 @@ fn build_plan_recursive(
             let mut child_desired = ctx.desired_state.to_vec();
             child_desired.extend(action.preconditions.clone());
 
+            // Accumulate provisions for child context
+            let mut child_provisions = ctx.accumulated_provisions.to_vec();
+            extend_unique_provisions(&mut child_provisions, &action.provisions);
+
             pending_actions.push(PendingAction {
                 action_index: idx as i64,
                 cost,
                 child_desired,
                 child_requirements,
+                child_provisions,
                 sim_agent,
                 sim_world,
+                was_concretely_simulated: can_simulate_concretely,
             });
         } else {
             crate::log_debug!(
@@ -321,21 +384,29 @@ fn build_plan_recursive(
             break;
         }
 
+        let sim_type = if pending.was_concretely_simulated {
+            "concrete"
+        } else {
+            "placeholder"
+        };
         crate::log_debug!(
-            "Descending into recursion level {} with action cost {:.2}",
+            "Descending into recursion level {} with action cost {:.2} ({} simulation)",
             recursion_level + 1,
-            pending.cost
+            pending.cost,
+            sim_type
         );
 
         let mut next_node = PlanTreeNode {
             action_index: pending.action_index,
             cost: pending.cost,
             children: vec![],
+            was_concretely_simulated: pending.was_concretely_simulated,
         };
 
         let child_ctx = PlanContext {
             desired_state: &pending.child_desired,
             active_requirements: &pending.child_requirements,
+            accumulated_provisions: &pending.child_provisions,
             actions: ctx.actions,
             max_recursion: ctx.max_recursion,
             request_tx: ctx.request_tx,

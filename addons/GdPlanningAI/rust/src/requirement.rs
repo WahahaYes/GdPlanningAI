@@ -189,6 +189,21 @@ pub fn extend_unique_provisions(provisions: &mut Vec<ProvisionSpec>, additional:
     }
 }
 
+/// Returns the subset of `requirements` that are NOT satisfied by `provisions`.
+///
+/// This is useful for determining which requirements remain unresolved
+/// before deciding whether an action can be concretely simulated.
+pub fn get_unsatisfied_requirements(
+    requirements: &[RequirementSpec],
+    provisions: &[ProvisionSpec],
+) -> Vec<RequirementSpec> {
+    requirements
+        .iter()
+        .filter(|req| !requirement_satisfied(req, provisions))
+        .cloned()
+        .collect()
+}
+
 fn provision_satisfies_requirement(
     provision: &ProvisionSpec,
     requirement: &RequirementSpec,

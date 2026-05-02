@@ -15,7 +15,9 @@ fn extract_best_plan_single_action() {
             action_index: 0,
             cost: 5.0,
             children: vec![],
+            was_concretely_simulated: true,
         }],
+        was_concretely_simulated: true,
     };
 
     let plan = extract_best_plan(&root);
@@ -35,18 +37,22 @@ fn extract_best_plan_picks_lowest_cost_branch() {
                 action_index: 0,
                 cost: 10.0,
                 children: vec![],
+                was_concretely_simulated: true,
             },
             PlanTreeNode {
                 action_index: 1,
                 cost: 5.0,
                 children: vec![],
+                was_concretely_simulated: true,
             },
             PlanTreeNode {
                 action_index: 2,
                 cost: 7.0,
                 children: vec![],
+                was_concretely_simulated: true,
             },
         ],
+        was_concretely_simulated: true,
     };
 
     let plan = extract_best_plan(&root);
@@ -71,9 +77,13 @@ fn extract_best_plan_multi_step_chain() {
                     action_index: 2,
                     cost: 2.0,
                     children: vec![],
+                    was_concretely_simulated: true,
                 }],
+                was_concretely_simulated: true,
             }],
+            was_concretely_simulated: true,
         }],
+        was_concretely_simulated: true,
     };
 
     let plan = extract_best_plan(&root);
@@ -97,7 +107,9 @@ fn extract_best_plan_picks_cheapest_multi_step_path() {
                     action_index: 1,
                     cost: 5.0,
                     children: vec![],
+                    was_concretely_simulated: true,
                 }],
+                was_concretely_simulated: true,
             },
             // Cheap two-step path: 2 + 3 = 5
             PlanTreeNode {
@@ -107,9 +119,12 @@ fn extract_best_plan_picks_cheapest_multi_step_path() {
                     action_index: 3,
                     cost: 3.0,
                     children: vec![],
+                    was_concretely_simulated: true,
                 }],
+                was_concretely_simulated: true,
             },
         ],
+        was_concretely_simulated: true,
     };
 
     let plan = extract_best_plan(&root);
@@ -125,6 +140,7 @@ fn extract_best_plan_empty_root_returns_zero_cost() {
         action_index: -1,
         cost: 0.0,
         children: vec![],
+        was_concretely_simulated: true,
     };
 
     let plan = extract_best_plan(&root);
@@ -145,6 +161,7 @@ fn extract_best_plan_complex_branching() {
                 action_index: 0,
                 cost: 8.0,
                 children: vec![],
+                was_concretely_simulated: true,
             },
             // Branch 2: Two-step (cost 3 + 2 = 5) <- should win
             PlanTreeNode {
@@ -154,7 +171,9 @@ fn extract_best_plan_complex_branching() {
                     action_index: 2,
                     cost: 2.0,
                     children: vec![],
+                    was_concretely_simulated: true,
                 }],
+                was_concretely_simulated: true,
             },
             // Branch 3: Three-step (cost 2 + 2 + 3 = 7)
             PlanTreeNode {
@@ -167,10 +186,14 @@ fn extract_best_plan_complex_branching() {
                         action_index: 5,
                         cost: 3.0,
                         children: vec![],
+                        was_concretely_simulated: true,
                     }],
+                    was_concretely_simulated: true,
                 }],
+                was_concretely_simulated: true,
             },
         ],
+        was_concretely_simulated: true,
     };
 
     let plan = extract_best_plan(&root);
@@ -199,6 +222,7 @@ fn plan_result_can_be_cloned() {
         action_chain: vec![0, 1, 2],
         total_cost: 15.0,
         goal_index: 3,
+        deferred_action_indices: vec![],
     };
 
     let cloned = original.clone();
@@ -220,7 +244,9 @@ fn plan_tree_node_clone_creates_deep_copy() {
             action_index: 1,
             cost: 3.0,
             children: vec![],
+            was_concretely_simulated: true,
         }],
+        was_concretely_simulated: true,
     };
 
     let cloned = original.clone();
@@ -243,13 +269,16 @@ fn extract_best_plan_handles_ties_deterministically() {
                 action_index: 0,
                 cost: 5.0,
                 children: vec![],
+                was_concretely_simulated: true,
             },
             PlanTreeNode {
                 action_index: 1,
                 cost: 5.0,
                 children: vec![],
+                was_concretely_simulated: true,
             },
         ],
+        was_concretely_simulated: true,
     };
 
     let plan = extract_best_plan(&root);
