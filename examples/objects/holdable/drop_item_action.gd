@@ -27,7 +27,7 @@ func get_preconditions() -> Array[Precondition]:
 			blackboard: GdPAIBlackboard,
 			_world_state: GdPAIBlackboard,
 	) -> bool:
-		var held_item = blackboard.get_property("held_item")
+		var held_item: Variant = blackboard.get_property("held_item")
 		return held_item != null and held_item != ""
 	return [Precondition.custom(is_holding_item)]
 

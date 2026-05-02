@@ -117,7 +117,7 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 		return Action.Status.FAILURE
 	if not (held_item is String or held_item is StringName):
 		return Action.Status.FAILURE
-	var held_item_id := String(held_item)
+	var held_item_id: String = String(held_item)
 	if not hunger_restored_by_item.has(held_item_id):
 		return Action.Status.FAILURE
 

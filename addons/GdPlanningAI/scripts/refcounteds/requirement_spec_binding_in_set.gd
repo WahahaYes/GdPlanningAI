@@ -1,5 +1,6 @@
 class_name RequirementSpecBindingInSet
 extends RequirementSpec
+## Requires that a binding's value is in a named set.
 
 
 var binding_name: String

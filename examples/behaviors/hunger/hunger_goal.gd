@@ -29,7 +29,7 @@ func get_desired_state(agent: GdPAIAgent) -> Array[Precondition]:
 			blackboard: GdPAIBlackboard,
 			_world_state: GdPAIBlackboard,
 		) -> bool:
-		var hunger = blackboard.get_property("hunger")
+		var hunger: Variant = blackboard.get_property("hunger")
 		var result = hunger < required_hunger
 		print("[HungerGoal] Custom precondition check")
 		print("  hunger: ", hunger, ", threshold: ", required_hunger, ", result: ", result)

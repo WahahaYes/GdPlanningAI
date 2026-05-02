@@ -27,8 +27,8 @@ func get_scheduler() -> GdPAIPlanScheduler:
 
 
 func _apply_log_level() -> void:
-	var config := ConfigFile.new()
-	var err := config.load("res://addons/GdPlanningAI/plugin.cfg")
+	var config: ConfigFile = ConfigFile.new()
+	var err: int = config.load("res://addons/GdPlanningAI/plugin.cfg")
 	if err != OK:
 		push_warning("GdPlanningAI: could not load plugin.cfg (error %d)" % err)
 		return

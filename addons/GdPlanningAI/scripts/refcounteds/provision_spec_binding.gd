@@ -1,5 +1,6 @@
 class_name ProvisionSpecBinding
 extends ProvisionSpec
+## Provides a binding with a specific value.
 
 
 var binding_name: String

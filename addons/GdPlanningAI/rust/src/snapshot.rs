@@ -9,10 +9,6 @@ use crate::sim_object_proxy::SimObjectProxy;
 use godot::prelude::*;
 use std::collections::HashMap;
 
-// ---------------------------------------------------------------------------
-// VariantSnapshot
-// ---------------------------------------------------------------------------
-
 /// Send-safe mirror of a Godot [`Variant`].
 ///
 /// Three tiers:
@@ -99,10 +95,6 @@ impl VariantSnapshot {
     }
 }
 
-// ---------------------------------------------------------------------------
-// SimObjectData
-// ---------------------------------------------------------------------------
-
 /// Send-safe mirror of [`SimObjectProxy`].
 #[derive(Clone, Debug)]
 pub struct SimObjectData {
@@ -110,10 +102,6 @@ pub struct SimObjectData {
     pub groups: Vec<String>,
     pub properties: HashMap<String, VariantSnapshot>,
 }
-
-// ---------------------------------------------------------------------------
-// BlackboardSnapshot
-// ---------------------------------------------------------------------------
 
 /// Send-safe mirror of [`GdPAIBlackboard`].
 ///

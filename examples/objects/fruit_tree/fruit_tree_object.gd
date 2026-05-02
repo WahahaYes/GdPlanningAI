@@ -48,7 +48,7 @@ func drop_fruit() -> void:
 	is_on_cooldown = true
 	var amt: int = randi_range(drop_min_amount, drop_max_amount)
 	for i in range(amt):
-		var fruit_obj = fruit_prefab.instantiate()
+		var fruit_obj: Node = fruit_prefab.instantiate()
 		get_tree().root.add_child(fruit_obj)
 		if fruit_obj is Node2D:
 			fruit_obj.global_position = (

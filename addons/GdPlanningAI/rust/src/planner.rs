@@ -102,10 +102,6 @@ pub fn run_plan(
     let _ = result_tx.send(Some(PlanResult::failure()));
 }
 
-// ---------------------------------------------------------------------------
-// Recursive search (mirrors planning_engine::build_plan_recursive)
-// ---------------------------------------------------------------------------
-
 /// Immutable configuration shared across all recursion levels of the
 /// planner while searching for a plan for one goal.
 struct PlanContext<'a> {
@@ -346,10 +342,6 @@ fn build_plan_recursive(
     has_solution
 }
 
-// ---------------------------------------------------------------------------
-// Precondition evaluation helpers
-// ---------------------------------------------------------------------------
-
 fn check_progress_toward_goal(
     preconditions: &[PreconditionSpec],
     agent: &BlackboardSnapshot,
@@ -470,10 +462,6 @@ fn eval_precondition(
         }
     }
 }
-
-// ---------------------------------------------------------------------------
-// Channel callback helpers
-// ---------------------------------------------------------------------------
 
 fn call_get_cost(
     callable_id: usize,

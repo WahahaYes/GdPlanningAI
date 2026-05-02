@@ -5,10 +5,6 @@ use crate::requirement::{ProvisionSpec, RequirementSpec};
 use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use std::sync::mpsc::Sender;
 
-// ---------------------------------------------------------------------------
-// PreconditionSpec
-// ---------------------------------------------------------------------------
-
 /// Send-safe mirror of [`crate::precondition::PreconditionHandler`].
 ///
 /// Builtin operations carry their data directly and can be evaluated
@@ -154,10 +150,6 @@ fn snap_as_f64(v: &VariantSnapshot) -> Option<f64> {
     }
 }
 
-// ---------------------------------------------------------------------------
-// ActionSpec / GoalSpec
-// ---------------------------------------------------------------------------
-
 /// Send-safe mirror of [`crate::action::ActionData`].
 #[derive(Clone, Debug)]
 pub struct ActionSpec {
@@ -181,10 +173,6 @@ pub struct GoalSpec {
     pub desired_state: Vec<PreconditionSpec>,
     pub original_index: usize,
 }
-
-// ---------------------------------------------------------------------------
-// Channel messages
-// ---------------------------------------------------------------------------
 
 /// Sent from planner thread → main thread.
 pub struct CallbackRequest {

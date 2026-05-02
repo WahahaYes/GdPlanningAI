@@ -1,8 +1,8 @@
 extends GutTest
 
-var _plan_ready := false
+var _plan_ready: bool = false
 var _last_plan_result: Dictionary = {}
-var _plan_ready_count := 0
+var _plan_ready_count: int = 0
 
 
 func before_each() -> void:
@@ -18,13 +18,13 @@ func _on_plan_ready(result: Dictionary) -> void:
 
 
 func _make_scheduler() -> GdPAIPlanScheduler:
-	var scheduler := GdPAIPlanScheduler.new()
+	var scheduler: GdPAIPlanScheduler = GdPAIPlanScheduler.new()
 	add_child_autofree(scheduler)
 	return scheduler
 
 
 func _make_blackboard(initial_values: Dictionary = {}) -> GdPAIBlackboard:
-	var bb := GdPAIBlackboard.new()
+	var bb: GdPAIBlackboard = GdPAIBlackboard.new()
 	for key in initial_values.keys():
 		bb.set_property(key, initial_values[key])
 	return bb
@@ -54,10 +54,10 @@ func _submit_plan_and_wait(
 
 
 func test_async_empty_plan_returns_failure() -> void:
-	var scheduler := _make_scheduler()
+	var scheduler: GdPAIPlanScheduler = _make_scheduler()
 	await get_tree().process_frame
 
-	var result := await _submit_plan_and_wait(
+	var result: Dictionary = await _submit_plan_and_wait(
 		scheduler,
 		_make_blackboard(),
 		_make_blackboard(),
@@ -70,10 +70,10 @@ func test_async_empty_plan_returns_failure() -> void:
 
 
 func test_async_goal_already_satisfied() -> void:
-	var scheduler := _make_scheduler()
+	var scheduler: GdPAIPlanScheduler = _make_scheduler()
 	await get_tree().process_frame
 
-	var result := await _submit_plan_and_wait(
+	var result: Dictionary = await _submit_plan_and_wait(
 		scheduler,
 		_make_blackboard({"has_key": true}),
 		_make_blackboard(),
@@ -104,7 +104,7 @@ func test_async_goal_already_satisfied() -> void:
 
 
 func test_async_simple_one_action_plan() -> void:
-	var scheduler := _make_scheduler()
+	var scheduler: GdPAIPlanScheduler = _make_scheduler()
 	await get_tree().process_frame
 
 	var actions: Array[Dictionary] = [
@@ -133,7 +133,7 @@ func test_async_simple_one_action_plan() -> void:
 		}
 	]
 
-	var result := await _submit_plan_and_wait(
+	var result: Dictionary = await _submit_plan_and_wait(
 		scheduler,
 		_make_blackboard({"has_key": false}),
 		_make_blackboard(),
@@ -148,7 +148,7 @@ func test_async_simple_one_action_plan() -> void:
 
 
 func test_async_chooses_lower_cost_plan() -> void:
-	var scheduler := _make_scheduler()
+	var scheduler: GdPAIPlanScheduler = _make_scheduler()
 	await get_tree().process_frame
 
 	var actions: Array[Dictionary] = [
@@ -186,7 +186,7 @@ func test_async_chooses_lower_cost_plan() -> void:
 		}
 	]
 
-	var result := await _submit_plan_and_wait(
+	var result: Dictionary = await _submit_plan_and_wait(
 		scheduler,
 		_make_blackboard({"has_key": false}),
 		_make_blackboard(),
@@ -200,7 +200,7 @@ func test_async_chooses_lower_cost_plan() -> void:
 
 
 func test_async_action_with_failed_precondition() -> void:
-	var scheduler := _make_scheduler()
+	var scheduler: GdPAIPlanScheduler = _make_scheduler()
 	await get_tree().process_frame
 
 	var actions: Array[Dictionary] = [
@@ -236,7 +236,7 @@ func test_async_action_with_failed_precondition() -> void:
 		}
 	]
 
-	var result := await _submit_plan_and_wait(
+	var result: Dictionary = await _submit_plan_and_wait(
 		scheduler,
 		_make_blackboard({"has_key": false}),
 		_make_blackboard(),
@@ -249,7 +249,7 @@ func test_async_action_with_failed_precondition() -> void:
 
 
 func test_async_chooses_cheaper_deeper_chain_over_direct_expensive_completion() -> void:
-	var scheduler := _make_scheduler()
+	var scheduler: GdPAIPlanScheduler = _make_scheduler()
 	await get_tree().process_frame
 
 	var actions: Array[Dictionary] = [
@@ -303,7 +303,7 @@ func test_async_chooses_cheaper_deeper_chain_over_direct_expensive_completion() 
 		}
 	]
 
-	var result := await _submit_plan_and_wait(
+	var result: Dictionary = await _submit_plan_and_wait(
 		scheduler,
 		_make_blackboard({"has_food": false, "has_fire": false}),
 		_make_blackboard(),
@@ -319,7 +319,7 @@ func test_async_chooses_cheaper_deeper_chain_over_direct_expensive_completion() 
 
 
 func test_async_newer_submission_cancels_older_inflight_plan() -> void:
-	var scheduler := _make_scheduler()
+	var scheduler: GdPAIPlanScheduler = _make_scheduler()
 	await get_tree().process_frame
 
 	var first_actions: Array[Dictionary] = [
@@ -412,12 +412,9 @@ func test_async_newer_submission_cancels_older_inflight_plan() -> void:
 	)
 
 
-# ---------------------------------------------------------------------------
-# Precondition Edge Cases (ported from test_precondition_edge_cases.gd)
-# ---------------------------------------------------------------------------
-
+## Precondition Edge Cases (ported from test_precondition_edge_cases.gd).
 func test_async_missing_property_fails_equal_true() -> void:
-	var scheduler := _make_scheduler()
+	var scheduler: GdPAIPlanScheduler = _make_scheduler()
 	await get_tree().process_frame
 
 	var actions: Array[Dictionary] = [
@@ -453,7 +450,7 @@ func test_async_missing_property_fails_equal_true() -> void:
 		}
 	]
 
-	var result := await _submit_plan_and_wait(
+	var result: Dictionary = await _submit_plan_and_wait(
 		scheduler,
 		_make_blackboard(), # Deliberately NOT setting has_key property
 		_make_blackboard(),
@@ -466,7 +463,7 @@ func test_async_missing_property_fails_equal_true() -> void:
 
 
 func test_async_missing_property_fails_equal_false() -> void:
-	var scheduler := _make_scheduler()
+	var scheduler: GdPAIPlanScheduler = _make_scheduler()
 	await get_tree().process_frame
 
 	var actions: Array[Dictionary] = [
@@ -502,7 +499,7 @@ func test_async_missing_property_fails_equal_false() -> void:
 		}
 	]
 
-	var result := await _submit_plan_and_wait(
+	var result: Dictionary = await _submit_plan_and_wait(
 		scheduler,
 		_make_blackboard(), # Deliberately NOT setting has_key property
 		_make_blackboard(),
@@ -515,7 +512,7 @@ func test_async_missing_property_fails_equal_false() -> void:
 
 
 func test_async_has_property_on_missing_property() -> void:
-	var scheduler := _make_scheduler()
+	var scheduler: GdPAIPlanScheduler = _make_scheduler()
 	await get_tree().process_frame
 
 	var actions: Array[Dictionary] = [
@@ -551,7 +548,7 @@ func test_async_has_property_on_missing_property() -> void:
 		}
 	]
 
-	var result := await _submit_plan_and_wait(
+	var result: Dictionary = await _submit_plan_and_wait(
 		scheduler,
 		_make_blackboard(), # Deliberately NOT setting has_key property
 		_make_blackboard(),

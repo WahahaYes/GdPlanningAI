@@ -34,7 +34,7 @@ func get_desired_state(_agent: GdPAIAgent) -> Array[Precondition]:
 	) -> bool:
 		var campfires: Array[SimObjectProxy] = world_state.get_proxies_in_group("CampfireObject")
 		for campfire in campfires:
-			var fuel = campfire.get_property("current_fuel")
+			var fuel: Variant = campfire.get_property("current_fuel")
 			if fuel != null and float(fuel) >= desired_fuel_level:
 				return true
 		return false

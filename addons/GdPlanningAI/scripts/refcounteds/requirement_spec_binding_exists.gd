@@ -1,5 +1,6 @@
 class_name RequirementSpecBindingExists
 extends RequirementSpec
+## Requires that a binding exists (regardless of value).
 
 
 var binding_name: String

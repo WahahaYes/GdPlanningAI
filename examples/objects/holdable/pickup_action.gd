@@ -60,9 +60,9 @@ func simulate_effect(
 	# toward the hunger goal
 	if holdable_item is FoodObject:
 		var food = holdable_item as FoodObject
-		var hunger = agent_blackboard.get_property("hunger")
+		var hunger: Variant = agent_blackboard.get_property("hunger")
 		if hunger != null:
-			var hunger_restored = food.hunger_value
+			var hunger_restored: float = food.hunger_value
 			var new_hunger = max(0.0, float(hunger) - hunger_restored)
 			print("[PickupAction] Picking up food")
 			print("  hunger reduction: ", hunger_restored, ", new hunger: ", new_hunger)

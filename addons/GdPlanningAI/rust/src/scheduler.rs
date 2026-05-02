@@ -14,10 +14,6 @@ use godot::prelude::*;
 use std::sync::mpsc::Receiver;
 use std::sync::{Arc, atomic::AtomicBool};
 
-// ---------------------------------------------------------------------------
-// ActiveJobHandle
-// ---------------------------------------------------------------------------
-
 struct ActiveJobHandle {
     agent: Gd<Object>,
     agent_instance_id: i64,
@@ -27,10 +23,6 @@ struct ActiveJobHandle {
     cancel_flag: Arc<AtomicBool>,
     done: bool,
 }
-
-// ---------------------------------------------------------------------------
-// GdPAIPlanScheduler
-// ---------------------------------------------------------------------------
 
 /// Planning scheduler.
 ///
@@ -220,10 +212,6 @@ impl GdPAIPlanScheduler {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Private helpers (standalone functions with per-job registry)
-// ---------------------------------------------------------------------------
-
 fn register_callable(registry: &mut Vec<Callable>, callable: Callable) -> usize {
     let id = registry.len();
     registry.push(callable);
@@ -411,10 +399,6 @@ fn precond_spec_from_dict(
         value: handler.value.map(|v| VariantSnapshot::from_variant(&v)),
     })
 }
-
-// ---------------------------------------------------------------------------
-// Callback dispatch (main thread only)
-// ---------------------------------------------------------------------------
 
 fn dispatch_callback(callable: &Callable, kind: CallbackKind) -> CallbackResponse {
     // Check if callable is still valid (target object may have been freed)
