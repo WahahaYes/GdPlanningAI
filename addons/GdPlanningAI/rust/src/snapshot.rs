@@ -1,4 +1,4 @@
-//! Send-safe snapshot types for background planning.
+//! Send-safe snapshot types for planning.
 //!
 //! [`VariantSnapshot`], [`SimObjectData`], and [`BlackboardSnapshot`] mirror
 //! their Godot-bound counterparts but contain only plain Rust data so they
@@ -117,7 +117,7 @@ pub struct SimObjectData {
 
 /// Send-safe mirror of [`GdPAIBlackboard`].
 ///
-/// The background planning thread operates exclusively on these. The
+/// The planner thread operates exclusively on these. The
 /// `GDPAI_OBJECTS` key is excluded from `properties`; world objects live
 /// in `objects` as [`SimObjectData`].
 #[derive(Clone, Debug)]

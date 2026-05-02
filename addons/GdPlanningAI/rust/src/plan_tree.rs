@@ -1,5 +1,4 @@
-//! Shared plan-tree types used by both the synchronous planning engine
-//! and the background planning thread.
+//! Shared plan-tree types used during planning.
 
 /// Internal plan tree node for tracking search paths.
 #[derive(Clone, Debug)]

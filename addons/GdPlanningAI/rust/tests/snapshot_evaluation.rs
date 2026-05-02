@@ -6,7 +6,7 @@
 mod common;
 
 use common::{create_sim_object, create_test_agent, create_test_world};
-use gdplanningai_rust::background_types::PreconditionSpec;
+use gdplanningai_rust::plan_types::PreconditionSpec;
 use gdplanningai_rust::precondition::{PreconditionOp, PreconditionTarget};
 use gdplanningai_rust::snapshot::VariantSnapshot;
 

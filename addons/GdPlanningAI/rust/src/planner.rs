@@ -1,10 +1,10 @@
-//! Background planning algorithm operating on [`BlackboardSnapshot`]s.
+//! Planning algorithm operating on [`BlackboardSnapshot`]s.
 //!
-//! This is the Send-safe counterpart of the synchronous search in
-//! [`crate::planning_engine`]. GDScript callables are invoked indirectly
-//! via [`CallbackRequest`] / [`CallbackResponse`] channels.
+//! Performs forward-chaining GOAP search on a Rayon thread pool. GDScript
+//! callables are invoked indirectly via [`CallbackRequest`] / [`CallbackResponse`]
+//! channels.
 
-use crate::background_types::*;
+use crate::plan_types::*;
 use crate::plan_tree::{self, PlanResult, PlanTreeNode};
 use crate::requirement::{
     extend_unique_requirements, provisions_satisfy_any_requirement, remove_satisfied_requirements,
@@ -14,7 +14,7 @@ use crate::snapshot::BlackboardSnapshot;
 use std::sync::{Arc, atomic::AtomicBool};
 use std::sync::mpsc::Sender;
 
-/// Entry point for background planning. Runs the full goal-prioritised
+/// Entry point for planning. Runs the full goal-prioritised
 /// search and sends the result through `result_tx` when done.
 pub fn run_plan(
     agent: BlackboardSnapshot,
@@ -27,7 +27,7 @@ pub fn run_plan(
     cancel_flag: Arc<AtomicBool>,
 ) {
     crate::log_debug!(
-        "Starting background planning: {} actions, {} goals, max recursion {}",
+        "Starting planning: {} actions, {} goals, max recursion {}",
         actions.len(),
         goals.len(),
         max_recursion
@@ -107,7 +107,7 @@ pub fn run_plan(
 // ---------------------------------------------------------------------------
 
 /// Immutable configuration shared across all recursion levels of the
-/// background planner while searching for a plan for one goal.
+/// planner while searching for a plan for one goal.
 struct PlanContext<'a> {
     desired_state: &'a [PreconditionSpec],
     active_requirements: &'a [RequirementSpec],
@@ -157,7 +157,7 @@ fn find_best_plan_cost(node: &PlanTreeNode, path_cost: f64, best_cost: &mut f64)
     }
 }
 
-/// Core recursive background search step.
+/// Core recursive search step.
 ///
 /// Iterates over all actions, skipping invalid or infinite-cost ones, and
 /// records every viable branch for the current recursion level before any

@@ -7,18 +7,18 @@
 //! # Public Godot classes
 //! - [`gdpai_blackboard::GdPAIBlackboard`] — key/value store for agent and world state.
 //! - [`sim_object_proxy::SimObjectProxy`] — simulation snapshot of a world object.
-//! - [`scheduler::GdPAIPlanScheduler`] — background planning scheduler.
+//! - [`scheduler::GdPAIPlanScheduler`] — planning scheduler.
 //!
 //! # Internal types
 //! Planning is performed asynchronously on a Rayon thread pool using Send-safe
-//! snapshot types in [`background_types`].
+//! snapshot types in [`plan_types`].
 
 use godot::prelude::*;
 
 #[macro_use]
 pub mod logger;
-pub mod background_plan;
-pub mod background_types;
+pub mod plan_types;
+pub mod planner;
 pub mod gdpai_blackboard;
 pub mod plan_tree;
 pub mod precondition;

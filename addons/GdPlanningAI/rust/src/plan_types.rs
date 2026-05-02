@@ -1,5 +1,4 @@
-//! Send-safe action/goal/precondition specs and channel message types
-//! for background planning.
+//! Send-safe action/goal/precondition specs and channel message types.
 
 use crate::precondition::{PreconditionOp, PreconditionTarget};
 use crate::requirement::{ProvisionSpec, RequirementSpec};
@@ -12,8 +11,8 @@ use std::sync::mpsc::Sender;
 
 /// Send-safe mirror of [`crate::precondition::PreconditionHandler`].
 ///
-/// Builtin operations carry their data directly and can be evaluated on the
-/// background thread without any channel round-trip. Custom callbacks store
+/// Builtin operations carry their data directly and can be evaluated
+/// without any channel round-trip. Custom callbacks store
 /// a `callable_id` that the main thread resolves via the callable registry.
 #[derive(Clone, Debug)]
 pub enum PreconditionSpec {
@@ -187,7 +186,7 @@ pub struct GoalSpec {
 // Channel messages
 // ---------------------------------------------------------------------------
 
-/// Sent from background thread → main thread.
+/// Sent from planner thread → main thread.
 pub struct CallbackRequest {
     pub callable_id: usize,
     pub kind: CallbackKind,
@@ -213,7 +212,7 @@ pub enum CallbackKind {
     },
 }
 
-/// Sent from main thread → background thread.
+/// Sent from main thread → planner thread.
 pub enum CallbackResponse {
     Float(f64),
     Bool(bool),

@@ -9,7 +9,7 @@
 //! The level is a single process-wide value. Change it at runtime via
 //! [`set_log_level`] (Rust) or `RustPlanningEngine.set_log_level` (GDScript).
 //!
-//! Debug logs from background threads are sent through a global channel and
+//! Debug logs from planner threads are sent through a global channel and
 //! printed by the scheduler on the main thread.
 
 use std::sync::atomic::{AtomicU8, Ordering};
@@ -19,14 +19,14 @@ use std::sync::{Mutex, OnceLock};
 /// Process-wide log level. Defaults to [`LogLevel::Info`].
 static GLOBAL_LOG_LEVEL: AtomicU8 = AtomicU8::new(LogLevel::Info as u8);
 
-/// Log message with level for background thread logging.
+/// Log message with level for planner thread logging.
 #[derive(Clone, Debug)]
 pub struct LogMessage {
     pub level: LogLevel,
     pub message: String,
 }
 
-/// Global channel for sending log messages from background threads to main thread.
+/// Global channel for sending log messages from planner threads to main thread.
 /// Created lazily on first use.
 static LOG_CHANNEL: OnceLock<(Mutex<Sender<LogMessage>>, Mutex<Receiver<LogMessage>>)> = OnceLock::new();
 

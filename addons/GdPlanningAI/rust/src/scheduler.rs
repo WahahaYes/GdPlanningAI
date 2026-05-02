@@ -1,11 +1,11 @@
-//! Background plan scheduler exposed to GDScript.
+//! Plan scheduler exposed to GDScript.
 //!
 //! [`GdPAIPlanScheduler`] owns a Rayon thread pool and a callable registry.
 //! GDScript agents submit planning jobs via [`submit_plan`]; each frame the
 //! autoload calls [`process_callbacks`] to drain pending callback requests
-//! from background threads and deliver completed results.
+//! from planner threads and deliver completed results.
 
-use crate::background_types::*;
+use crate::plan_types::*;
 use crate::plan_tree::PlanResult;
 use crate::precondition::{PreconditionHandler, PreconditionOp};
 use crate::requirement::{ProvisionSpec, RequirementSpec};
@@ -32,7 +32,7 @@ struct ActiveJobHandle {
 // GdPAIPlanScheduler
 // ---------------------------------------------------------------------------
 
-/// Background planning scheduler.
+/// Planning scheduler.
 ///
 /// Add as a child of the autoload and call [method process_callbacks] every
 /// frame. Agents submit jobs with [method submit_plan]; results arrive via
@@ -43,7 +43,7 @@ pub struct GdPAIPlanScheduler {
     /// Maximum Rayon worker threads. 0 = number of logical CPUs.
     #[export]
     max_threads: i64,
-    /// Maximum search depth forwarded to the background planner.
+    /// Maximum search depth forwarded to the planner.
     #[export]
     max_recursion: i64,
     active_jobs: Vec<ActiveJobHandle>,
@@ -80,7 +80,7 @@ impl INode for GdPAIPlanScheduler {
             "GdPAIPlanScheduler ready — {} worker thread(s)",
             self.thread_pool.as_ref().unwrap().current_num_threads()
         );
-        log_debug!("Log channel initialized and ready for background thread logging");
+        log_debug!("Log channel initialized and ready for planner thread logging");
     }
 }
 
@@ -90,7 +90,7 @@ impl GdPAIPlanScheduler {
     /// Call this once per frame from GDScript `_process`.
     #[func]
     fn process_callbacks(&mut self) {
-        // Process pending log messages from background threads
+        // Process pending log messages from planner threads
         crate::logger::process_logs();
 
         // Process each job's pending callbacks using its own callable registry.
@@ -182,7 +182,7 @@ impl GdPAIPlanScheduler {
             .as_ref()
             .expect("submit_plan called before ready()")
             .spawn(move || {
-                crate::background_plan::run_plan(
+                crate::planner::run_plan(
                     snap_agent,
                     snap_world,
                     action_specs,
