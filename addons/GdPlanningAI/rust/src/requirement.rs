@@ -134,10 +134,7 @@ pub fn requirements_satisfied(
         .all(|requirement| requirement_satisfied(requirement, provisions))
 }
 
-pub fn requirement_satisfied(
-    requirement: &RequirementSpec,
-    provisions: &[ProvisionSpec],
-) -> bool {
+pub fn requirement_satisfied(requirement: &RequirementSpec, provisions: &[ProvisionSpec]) -> bool {
     provisions
         .iter()
         .any(|provision| provision_satisfies_requirement(provision, requirement))
@@ -174,10 +171,7 @@ pub fn extend_unique_requirements(
     }
 }
 
-pub fn extend_unique_provisions(
-    provisions: &mut Vec<ProvisionSpec>,
-    additional: &[ProvisionSpec],
-) {
+pub fn extend_unique_provisions(provisions: &mut Vec<ProvisionSpec>, additional: &[ProvisionSpec]) {
     for provision in additional {
         if !provisions.contains(provision) {
             provisions.push(provision.clone());
@@ -228,15 +222,15 @@ fn provision_satisfies_requirement(
 fn extract_variant_snapshots(dict: &VarDictionary, key: &str) -> Vec<VariantSnapshot> {
     dict.get(key)
         .and_then(|v| {
-            v.try_to::<Array<Variant>>()
-                .ok()
-                .or_else(|| v.try_to::<VarArray>().ok().map(|arr| {
+            v.try_to::<Array<Variant>>().ok().or_else(|| {
+                v.try_to::<VarArray>().ok().map(|arr| {
                     let mut typed = Array::<Variant>::new();
                     for item in arr.iter_shared() {
                         typed.push(&item);
                     }
                     typed
-                }))
+                })
+            })
         })
         .map(|arr| {
             arr.iter_shared()

@@ -17,10 +17,10 @@ use godot::prelude::*;
 
 #[macro_use]
 pub mod logger;
-pub mod plan_types;
-pub mod planner;
 pub mod gdpai_blackboard;
 pub mod plan_tree;
+pub mod plan_types;
+pub mod planner;
 pub mod precondition;
 pub mod requirement;
 pub mod scheduler;

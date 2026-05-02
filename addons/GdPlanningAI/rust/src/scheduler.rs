@@ -5,8 +5,8 @@
 //! autoload calls [`process_callbacks`] to drain pending callback requests
 //! from planner threads and deliver completed results.
 
-use crate::plan_types::*;
 use crate::plan_tree::PlanResult;
+use crate::plan_types::*;
 use crate::precondition::{PreconditionHandler, PreconditionOp};
 use crate::requirement::{ProvisionSpec, RequirementSpec};
 use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
@@ -299,9 +299,8 @@ fn extract_precond_specs(
 ) -> Vec<PreconditionSpec> {
     dict.get(key)
         .and_then(|v| {
-            v.try_to::<Array<VarDictionary>>()
-                .ok()
-                .or_else(|| v.try_to::<VarArray>().ok().map(|arr| {
+            v.try_to::<Array<VarDictionary>>().ok().or_else(|| {
+                v.try_to::<VarArray>().ok().map(|arr| {
                     let mut typed = Array::<VarDictionary>::new();
                     for item in arr.iter_shared() {
                         if let Ok(dict) = item.try_to::<VarDictionary>() {
@@ -309,7 +308,8 @@ fn extract_precond_specs(
                         }
                     }
                     typed
-                }))
+                })
+            })
         })
         .map(|arr| {
             arr.iter_shared()
@@ -322,9 +322,8 @@ fn extract_precond_specs(
 fn extract_requirement_specs(dict: &VarDictionary, key: &str) -> Vec<RequirementSpec> {
     dict.get(key)
         .and_then(|v| {
-            v.try_to::<Array<VarDictionary>>()
-                .ok()
-                .or_else(|| v.try_to::<VarArray>().ok().map(|arr| {
+            v.try_to::<Array<VarDictionary>>().ok().or_else(|| {
+                v.try_to::<VarArray>().ok().map(|arr| {
                     let mut typed = Array::<VarDictionary>::new();
                     for item in arr.iter_shared() {
                         if let Ok(dict) = item.try_to::<VarDictionary>() {
@@ -332,7 +331,8 @@ fn extract_requirement_specs(dict: &VarDictionary, key: &str) -> Vec<Requirement
                         }
                     }
                     typed
-                }))
+                })
+            })
         })
         .map(|arr| {
             arr.iter_shared()
@@ -345,9 +345,8 @@ fn extract_requirement_specs(dict: &VarDictionary, key: &str) -> Vec<Requirement
 fn extract_provision_specs(dict: &VarDictionary, key: &str) -> Vec<ProvisionSpec> {
     dict.get(key)
         .and_then(|v| {
-            v.try_to::<Array<VarDictionary>>()
-                .ok()
-                .or_else(|| v.try_to::<VarArray>().ok().map(|arr| {
+            v.try_to::<Array<VarDictionary>>().ok().or_else(|| {
+                v.try_to::<VarArray>().ok().map(|arr| {
                     let mut typed = Array::<VarDictionary>::new();
                     for item in arr.iter_shared() {
                         if let Ok(dict) = item.try_to::<VarDictionary>() {
@@ -355,7 +354,8 @@ fn extract_provision_specs(dict: &VarDictionary, key: &str) -> Vec<ProvisionSpec
                         }
                     }
                     typed
-                }))
+                })
+            })
         })
         .map(|arr| {
             arr.iter_shared()

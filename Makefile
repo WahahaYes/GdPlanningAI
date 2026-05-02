@@ -5,7 +5,7 @@ test: test-rust test-godot ## Run all tests (Rust + Godot)
 
 .PHONY: test-rust
 test-rust: ## Run Rust tests only
-	$(MAKE) -C addons/GdPlanningAI/rust test
+	"$(MAKE)" -C addons/GdPlanningAI/rust test
 
 .PHONY: test-godot
 test-godot: ## Run Godot integration tests
@@ -19,7 +19,7 @@ format: format-rust format-godot ## Format all source files (Rust + GDScript)
 
 .PHONY: format-rust
 format-rust: ## Format Rust source files with rustfmt
-	$(MAKE) -C addons/GdPlanningAI/rust format
+	"$(MAKE)" -C addons/GdPlanningAI/rust format
 
 .PHONY: format-godot
 format-godot: ## Format GDScript files with gdformat (requires gdtoolkit)

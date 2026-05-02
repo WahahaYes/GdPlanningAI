@@ -4,15 +4,15 @@
 //! callables are invoked indirectly via [`CallbackRequest`] / [`CallbackResponse`]
 //! channels.
 
-use crate::plan_types::*;
 use crate::plan_tree::{self, PlanResult, PlanTreeNode};
+use crate::plan_types::*;
 use crate::requirement::{
-    extend_unique_requirements, provisions_satisfy_any_requirement, remove_satisfied_requirements,
-    RequirementSpec,
+    RequirementSpec, extend_unique_requirements, provisions_satisfy_any_requirement,
+    remove_satisfied_requirements,
 };
 use crate::snapshot::BlackboardSnapshot;
-use std::sync::{Arc, atomic::AtomicBool};
 use std::sync::mpsc::Sender;
+use std::sync::{Arc, atomic::AtomicBool};
 
 /// Entry point for planning. Runs the full goal-prioritised
 /// search and sends the result through `result_tx` when done.
@@ -51,7 +51,11 @@ pub fn run_plan(
             return;
         }
 
-        crate::log_debug!("Processing goal '{}' (reward: {:.1})", goal.name, goal.reward);
+        crate::log_debug!(
+            "Processing goal '{}' (reward: {:.1})",
+            goal.name,
+            goal.reward
+        );
 
         if is_goal_satisfied(&goal.desired_state, &agent, &world, &request_tx) {
             crate::log_debug!("Goal '{}' already satisfied", goal.name);
@@ -181,7 +185,11 @@ fn build_plan_recursive(
         return false;
     }
 
-    crate::log_debug!("Recursion level {}, evaluating {} actions", recursion_level, ctx.actions.len());
+    crate::log_debug!(
+        "Recursion level {}, evaluating {} actions",
+        recursion_level,
+        ctx.actions.len()
+    );
 
     let mut has_solution = false;
     let mut pending_actions: Vec<PendingAction> = vec![];
@@ -191,7 +199,11 @@ fn build_plan_recursive(
             return false;
         }
 
-        crate::log_debug!("Evaluating action '{}' at depth {}", action.name, recursion_level);
+        crate::log_debug!(
+            "Evaluating action '{}' at depth {}",
+            action.name,
+            recursion_level
+        );
 
         // Validity checks
         if !action_is_valid(action, agent_state, world_state, ctx.request_tx) {
@@ -276,7 +288,10 @@ fn build_plan_recursive(
                 sim_world,
             });
         } else {
-            crate::log_debug!("Action '{}' does not make progress toward goal", action.name);
+            crate::log_debug!(
+                "Action '{}' does not make progress toward goal",
+                action.name
+            );
         }
     }
 
@@ -397,11 +412,7 @@ fn action_is_valid(
     // Then check validity preconditions
     for (i, check) in action.validity_checks.iter().enumerate() {
         if !eval_precondition(check, agent, world, request_tx) {
-            crate::log_debug!(
-                "Action '{}' validity check {} failed",
-                action.name,
-                i
-            );
+            crate::log_debug!("Action '{}' validity check {} failed", action.name, i);
             return false;
         }
     }
@@ -447,9 +458,7 @@ fn eval_precondition(
         None => {
             // Custom callback — check dependencies first
             if !check_dependencies_valid(spec.dependent_object_ids()) {
-                crate::log_debug!(
-                    "Custom precondition failed: dependent objects no longer valid"
-                );
+                crate::log_debug!("Custom precondition failed: dependent objects no longer valid");
                 return false;
             }
 

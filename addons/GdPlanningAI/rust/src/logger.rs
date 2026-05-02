@@ -28,7 +28,8 @@ pub struct LogMessage {
 
 /// Global channel for sending log messages from planner threads to main thread.
 /// Created lazily on first use.
-static LOG_CHANNEL: OnceLock<(Mutex<Sender<LogMessage>>, Mutex<Receiver<LogMessage>>)> = OnceLock::new();
+static LOG_CHANNEL: OnceLock<(Mutex<Sender<LogMessage>>, Mutex<Receiver<LogMessage>>)> =
+    OnceLock::new();
 
 /// Initialize the log channel. Call this once during initialization.
 pub fn init_log_channel() {
@@ -53,22 +54,20 @@ pub fn process_logs() {
                 receiver.try_recv()
             };
             match log_msg {
-                Ok(log_msg) => {
-                    match log_msg.level {
-                        LogLevel::Error => {
-                            godot::prelude::godot_error!("[GdPAI] {}", log_msg.message);
-                        }
-                        LogLevel::Warn => {
-                            godot::prelude::godot_warn!("[GdPAI] {}", log_msg.message);
-                        }
-                        LogLevel::Info => {
-                            godot::prelude::godot_print!("[GdPAI] {}", log_msg.message);
-                        }
-                        LogLevel::Debug => {
-                            godot::prelude::godot_print!("[GdPAI | debug] {}", log_msg.message);
-                        }
+                Ok(log_msg) => match log_msg.level {
+                    LogLevel::Error => {
+                        godot::prelude::godot_error!("[GdPAI] {}", log_msg.message);
                     }
-                }
+                    LogLevel::Warn => {
+                        godot::prelude::godot_warn!("[GdPAI] {}", log_msg.message);
+                    }
+                    LogLevel::Info => {
+                        godot::prelude::godot_print!("[GdPAI] {}", log_msg.message);
+                    }
+                    LogLevel::Debug => {
+                        godot::prelude::godot_print!("[GdPAI | debug] {}", log_msg.message);
+                    }
+                },
                 Err(TryRecvError::Empty) => break,
                 Err(TryRecvError::Disconnected) => break,
             }
