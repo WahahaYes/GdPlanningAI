@@ -34,9 +34,10 @@ func to_bridge_dict() -> Dictionary:
 		if is_instance_valid(obj):
 			dep_ids.append(obj.get_instance_id())
 
+	var eval: Callable = func(a: GdPAIBlackboard, w: GdPAIBlackboard) -> bool:
+		return _do_evaluate(a, w)
 	return {
 		"operation": "custom_callback",
-		"eval_callable":
-		func(a: GdPAIBlackboard, w: GdPAIBlackboard) -> bool: return _do_evaluate(a, w),
+		"eval_callable": eval,
 		"dependent_object_ids": dep_ids,
 	}

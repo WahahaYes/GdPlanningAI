@@ -9,10 +9,12 @@ Exit code 1  – one or more violations found (or git unavailable).
 Checks
 ------
 GDScript
-  - gd-walrus   : walrus / type-inference operator ``:=`` used (explicit types required)
-  - gd-border   : decorative comment border (``# ---...``)
-  - gd-spacing  : fewer than two blank lines between ``func`` definitions
-  - gd-export   : ``@export`` variable without a ``##`` docstring on the preceding line
+  - gd-walrus          : walrus / type-inference operator ``:=`` used (explicit types required)
+  - gd-border          : decorative comment border (``# ---...``)
+  - gd-spacing         : fewer than two blank lines between ``func`` definitions
+  - gd-export          : ``@export`` variable without a ``##`` docstring on the preceding line
+  - gd-inline-lambda  : any lambda literal (``func(``) inside a dict/array/paren;
+                         predefine as a ``var name: Callable = func(...)`` instead
 
 Rust
   - rs-module   : ``.rs`` file missing ``//!`` module-level doc at the top
@@ -67,6 +69,7 @@ def report(violations: list[tuple]) -> int:
 RE_GD_WALRUS = re.compile(r":=")
 RE_GD_BORDER = re.compile(r"#\s*-{" + str(BORDER_DASHES) + r",}")
 RE_GD_FUNC = re.compile(r"^(func |static func )")  # matches only unindented funcs
+RE_GD_INLINE_LAMBDA = re.compile(r"\bfunc\s*\(")  # any func( usage (lambda)
 RE_GD_EXPORT = re.compile(r"^\s*@export\b")
 RE_GD_DOCSTRING = re.compile(r"^\s*##")
 RE_GD_COMMENT = re.compile(r"^##?")  # unindented only, mirrors RE_GD_FUNC
@@ -138,6 +141,18 @@ def lint_gdscript(path: Path) -> list[tuple]:
                         f"@export without '##' docstring above: {stripped!r}",
                     )
                 )
+
+        # gd-inline-lambda: any lambda literal inside a dict/array/paren.
+        # gdformat corrupts files that contain inline lambdas; predefine as a named Callable.
+        if line_depth > 0 and RE_GD_INLINE_LAMBDA.search(stripped):
+            violations.append(
+                (
+                    path,
+                    lineno,
+                    "gd-inline-lambda",
+                    f"lambda literal inside dict/array/paren: {stripped!r}",
+                )
+            )
 
         # gd-spacing: check blank lines before top-level func blocks.
         # A "block" starts at the func keyword or the top of any directly

@@ -38,8 +38,9 @@ func _do_evaluate(agent: GdPAIBlackboard, world: GdPAIBlackboard) -> bool:
 
 ## Serializes this precondition into the dictionary format expected by the Rust bridge.
 func to_bridge_dict() -> Dictionary:
+	var eval: Callable = func(a: GdPAIBlackboard, w: GdPAIBlackboard) -> bool:
+		return _do_evaluate(a, w)
 	return {
 		"operation": "custom_callback",
-		"eval_callable":
-		func(a: GdPAIBlackboard, w: GdPAIBlackboard) -> bool: return _do_evaluate(a, w),
+		"eval_callable": eval,
 	}

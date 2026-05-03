@@ -186,20 +186,16 @@ static func world_state_property_equal_to(
 
 ## Check if any of the agent's object data matches a requested group.
 static func agent_has_object_data_of_group(group: String) -> Precondition:
-	return PreconditionCustom.new(
-		func(blackboard: GdPAIBlackboard, _world_state: GdPAIBlackboard):
-			var objs: Array[SimObjectProxy] = blackboard.get_proxies_in_group(group)
-			return objs.size() > 0
-	)
+	var check: Callable = func(bb: GdPAIBlackboard, _w: GdPAIBlackboard):
+		return bb.get_proxies_in_group(group).size() > 0
+	return PreconditionCustom.new(check)
 
 
 ## Check if any of the world state's object data matches a requested group.
 static func world_state_has_object_data_of_group(group: String) -> Precondition:
-	return PreconditionCustom.new(
-		func(_blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):
-			var objs: Array[SimObjectProxy] = world_state.get_proxies_in_group(group)
-			return objs.size() > 0
-	)
+	var check: Callable = func(_b: GdPAIBlackboard, ws: GdPAIBlackboard):
+		return ws.get_proxies_in_group(group).size() > 0
+	return PreconditionCustom.new(check)
 
 
 ## Check if a given object is valid.
@@ -209,8 +205,6 @@ static func check_is_object_valid(object: Variant) -> Precondition:
 	if object is Object:
 		deps.append(object)
 
-	return PreconditionCustomWithDeps.new(
-		func(_blackboard: GdPAIBlackboard, _world_state: GdPAIBlackboard) -> bool:
-			return is_instance_valid(object),
-		deps
-	)
+	var check: Callable = func(_b: GdPAIBlackboard, _w: GdPAIBlackboard) -> bool:
+		return is_instance_valid(object)
+	return PreconditionCustomWithDeps.new(check, deps)
