@@ -225,6 +225,7 @@ pub fn extract_initial_provisions(agent: &crate::snapshot::BlackboardSnapshot) -
     provisions
 }
 
+/// Returns `true` if a provision satisfies a requirement.
 pub fn provision_satisfies_requirement(
     provision: &ProvisionSpec,
     requirement: &RequirementSpec,

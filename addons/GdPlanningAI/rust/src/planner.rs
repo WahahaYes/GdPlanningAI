@@ -7,11 +7,8 @@
 
 use crate::plan_tree::PlanResult;
 use crate::plan_types::*;
-use crate::requirement::{
-    extract_initial_provisions, provision_satisfies_requirement, provisions_satisfy_any_requirement,
-    requirements_satisfied, ProvisionSpec, RequirementSpec,
-};
-use crate::snapshot::BlackboardSnapshot;
+use crate::requirement::{extract_initial_provisions, ProvisionSpec, RequirementSpec};
+use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, atomic::AtomicBool};
 
@@ -49,7 +46,7 @@ impl PlanBranch {
 
         // Check if all requirements are satisfied
         let requirements_ok = self.open_requirements.is_empty()
-            || requirements_satisfied(&self.open_requirements, initial_provisions);
+            || requirements_satisfied_in_context(&self.open_requirements, initial_provisions, world);
 
         preconditions_ok && requirements_ok
     }
@@ -134,7 +131,8 @@ pub fn run_plan(
 
         // Start backward search from goal
         let root_branch = PlanBranch::new(&goal.desired_state);
-        let result = backward_search(root_branch, &ctx, 0);
+        let mut best_cost = f64::INFINITY;
+        let result = backward_search(root_branch, &ctx, 0, &mut best_cost);
 
         if cancel_flag.load(std::sync::atomic::Ordering::Relaxed) {
             let _ = result_tx.send(None);
@@ -175,8 +173,19 @@ fn backward_search(
     branch: PlanBranch,
     ctx: &SearchContext,
     depth: usize,
+    best_cost: &mut f64,
 ) -> Option<(Vec<i64>, f64)> {
     if ctx.cancel_flag.load(std::sync::atomic::Ordering::Relaxed) {
+        return None;
+    }
+
+    if branch.estimated_cost >= *best_cost {
+        crate::log_debug!(
+            "Pruning branch at depth {} with estimated cost {:.2} (best valid: {:.2})",
+            depth,
+            branch.estimated_cost,
+            *best_cost
+        );
         return None;
     }
 
@@ -189,7 +198,13 @@ fn backward_search(
     if branch.is_complete(ctx.initial_agent, ctx.initial_world, ctx.initial_provisions) {
         crate::log_debug!("Branch complete with {} actions", branch.action_chain.len());
         // Forward validate the complete chain
-        return forward_validate(&branch.action_chain, ctx);
+        let result = forward_validate(&branch.action_chain, ctx);
+        if let Some((_, total_cost)) = &result {
+            if *total_cost < *best_cost {
+                *best_cost = *total_cost;
+            }
+        }
+        return result;
     }
 
     // Find candidate actions that can satisfy an open need
@@ -207,6 +222,8 @@ fn backward_search(
         branch.open_preconditions.len(),
         branch.open_requirements.len()
     );
+
+    let mut best_result: Option<(Vec<i64>, f64)> = None;
 
     // Try each candidate (already sorted by estimated cost)
     for (action_idx, estimated_cost) in candidates {
@@ -234,12 +251,23 @@ fn backward_search(
         update_open_needs(&mut new_branch, action, ctx);
 
         // Recurse
-        if let Some(result) = backward_search(new_branch, ctx, depth + 1) {
-            return Some(result);
+        if let Some(result) = backward_search(new_branch, ctx, depth + 1, best_cost) {
+            let should_update = best_result
+                .as_ref()
+                .map(|(_, best_cost)| result.1 < *best_cost)
+                .unwrap_or(true);
+            if should_update {
+                crate::log_debug!(
+                    "New best branch at depth {} with cost {:.2}",
+                    depth,
+                    result.1
+                );
+                best_result = Some(result);
+            }
         }
     }
 
-    None
+    best_result
 }
 
 /// Find actions that can satisfy at least one open need in the branch.
@@ -301,7 +329,11 @@ fn can_action_satisfy_need(
 ) -> bool {
     // 1. Check if action's provisions satisfy any open requirement
     if !branch.open_requirements.is_empty() {
-        let satisfies_req = provisions_satisfy_any_requirement(&action.provisions, &branch.open_requirements);
+        let satisfies_req = provisions_satisfy_any_requirement_in_context(
+            &action.provisions,
+            &branch.open_requirements,
+            ctx.initial_world,
+        );
         if satisfies_req {
             crate::log_debug!("Action '{}' satisfies open requirements via provisions", action.name);
             return true;
@@ -381,6 +413,15 @@ fn create_hypothetical_snapshot(
             RequirementSpec::BindingEquals { binding_name, value } => {
                 hypo_agent.properties.insert(binding_name.clone(), value.clone());
             }
+            RequirementSpec::BindingInSet {
+                binding_name,
+                set_name,
+            } => {
+                let value = find_world_object_in_group(world, set_name)
+                    .map(VariantSnapshot::ObjectRef)
+                    .unwrap_or_else(|| VariantSnapshot::Str(format!("hypothetical_{}", set_name)));
+                hypo_agent.properties.insert(binding_name.clone(), value);
+            }
             _ => {
                 // Other requirement types - ignore for now
             }
@@ -424,7 +465,10 @@ fn update_open_needs(branch: &mut PlanBranch, action: &ActionSpec, ctx: &SearchC
 
     // 1. Remove requirements satisfied by this action's provisions
     branch.open_requirements.retain(|req| {
-        !action.provisions.iter().any(|prov| provision_satisfies_requirement(prov, req))
+        !action
+            .provisions
+            .iter()
+            .any(|prov| provision_satisfies_requirement_in_context(prov, req, ctx.initial_world))
     });
 
     // 2. Remove preconditions that this action's effect satisfies
@@ -527,7 +571,11 @@ fn forward_validate(
         }
 
         // 4. Check requirements satisfied by accumulated provisions
-        if !requirements_satisfied(&action.requirements, &accumulated_provisions) {
+        if !requirements_satisfied_in_context(
+            &action.requirements,
+            &accumulated_provisions,
+            &world,
+        ) {
             crate::log_debug!("Action '{}' failed: requirements not satisfied", action.name);
             return None;
         }
@@ -569,6 +617,113 @@ fn forward_validate(
 
     crate::log_debug!("Forward validation succeeded, total cost: {:.2}", total_cost);
     Some((action_chain.to_vec(), total_cost))
+}
+
+/// Returns true when every requirement is satisfied by known provisions.
+fn requirements_satisfied_in_context(
+    requirements: &[RequirementSpec],
+    provisions: &[ProvisionSpec],
+    world: &BlackboardSnapshot,
+) -> bool {
+    requirements
+        .iter()
+        .all(|requirement| requirement_satisfied_in_context(requirement, provisions, world))
+}
+
+/// Returns true when any known provision satisfies a requirement.
+fn requirement_satisfied_in_context(
+    requirement: &RequirementSpec,
+    provisions: &[ProvisionSpec],
+    world: &BlackboardSnapshot,
+) -> bool {
+    provisions
+        .iter()
+        .any(|provision| provision_satisfies_requirement_in_context(provision, requirement, world))
+}
+
+/// Returns true when any provision satisfies at least one requirement.
+fn provisions_satisfy_any_requirement_in_context(
+    provisions: &[ProvisionSpec],
+    requirements: &[RequirementSpec],
+    world: &BlackboardSnapshot,
+) -> bool {
+    requirements
+        .iter()
+        .any(|requirement| requirement_satisfied_in_context(requirement, provisions, world))
+}
+
+/// Returns true when a provision satisfies a requirement with world-aware checks.
+fn provision_satisfies_requirement_in_context(
+    provision: &ProvisionSpec,
+    requirement: &RequirementSpec,
+    world: &BlackboardSnapshot,
+) -> bool {
+    match (provision, requirement) {
+        (
+            ProvisionSpec::Binding {
+                binding_name: provided_name,
+                value,
+            },
+            RequirementSpec::BindingExists { binding_name },
+        ) => provided_name == binding_name && !value.is_null() && !value.is_empty_string(),
+        (
+            ProvisionSpec::Binding {
+                binding_name: provided_name,
+                value: provided_value,
+            },
+            RequirementSpec::BindingEquals {
+                binding_name,
+                value,
+            },
+        ) => provided_name == binding_name && provided_value == value,
+        (
+            ProvisionSpec::Binding {
+                binding_name: provided_name,
+                value,
+            },
+            RequirementSpec::BindingInSet {
+                binding_name,
+                set_name,
+            },
+        ) => provided_name == binding_name && binding_value_is_in_set(value, set_name, world),
+        (
+            ProvisionSpec::Fact {
+                fact_name: provided_name,
+                args: provided_args,
+            },
+            RequirementSpec::Fact { fact_name, args },
+        ) => provided_name == fact_name && provided_args == args,
+        _ => false,
+    }
+}
+
+/// Returns true when a binding value refers to a known world object in a group.
+fn binding_value_is_in_set(
+    value: &VariantSnapshot,
+    set_name: &str,
+    world: &BlackboardSnapshot,
+) -> bool {
+    match value {
+        VariantSnapshot::ObjectRef(id) => world
+            .objects
+            .values()
+            .any(|object| object.uid == id.to_string() && object.groups.contains(&set_name.to_string())),
+        VariantSnapshot::Str(uid) => world
+            .objects
+            .get(uid)
+            .map(|object| object.groups.contains(&set_name.to_string()))
+            .unwrap_or(false),
+        _ => false,
+    }
+}
+
+/// Returns the instance ID of the first known world object in a group.
+fn find_world_object_in_group(world: &BlackboardSnapshot, set_name: &str) -> Option<i64> {
+    world
+        .objects
+        .values()
+        .find(|object| object.groups.contains(&set_name.to_string()))
+        .and_then(|object| object.uid.parse::<i64>().ok())
 }
 
 /// Check if action is valid (dependencies exist).

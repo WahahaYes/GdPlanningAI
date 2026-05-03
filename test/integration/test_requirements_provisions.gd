@@ -12,6 +12,20 @@ var _plan_ready: bool = false
 var _last_plan_result: Dictionary = {}
 
 
+class TestObjectData:
+	extends GdPAIObjectData
+	var _extra_groups: Array[String] = []
+
+	func _init(extra_groups: Array[String] = []):
+		_extra_groups = extra_groups
+		super._init()
+
+	func get_group_labels() -> Array[String]:
+		var labels = super.get_group_labels()
+		labels.append_array(_extra_groups)
+		return labels
+
+
 func before_each() -> void:
 	_plan_ready = false
 	_last_plan_result = {}
@@ -319,3 +333,200 @@ func test_eat_alone_succeeds_when_already_holding_food() -> void:
 	assert_eq(result["action_chain"].size(), 1, "Plan should have 1 action (just Eat)")
 	assert_eq(result["action_chain"][0], 0, "Action should be Eat (index 0)")
 	assert_eq(result["total_cost"], 1.5, "Cost should be just eat cost")
+
+
+func test_search_returns_cheapest_valid_requirement_chain() -> void:
+	var scheduler: GdPAIPlanScheduler = _make_scheduler()
+	await get_tree().process_frame
+
+	var cost_use_expensive: Callable = func(
+		_a: GdPAIBlackboard,
+		_w: GdPAIBlackboard,
+	) -> float: return 1.0
+	var cost_get_expensive: Callable = func(
+		_a: GdPAIBlackboard,
+		_w: GdPAIBlackboard,
+	) -> float: return 50.0
+	var cost_use_cheap: Callable = func(
+		_a: GdPAIBlackboard,
+		_w: GdPAIBlackboard,
+	) -> float: return 2.0
+	var cost_get_cheap: Callable = func(
+		_a: GdPAIBlackboard,
+		_w: GdPAIBlackboard,
+	) -> float: return 1.0
+	var use_tool_effect: Callable = func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+		var tool = agent.get_property("tool")
+		if tool != null and tool != "":
+			agent.set_property("task_done", true)
+	var get_expensive_effect: Callable = func(
+		agent: GdPAIBlackboard,
+		_world: GdPAIBlackboard,
+	) -> void:
+		agent.set_property("tool", "expensive")
+	var get_cheap_effect: Callable = func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+		agent.set_property("tool", "cheap")
+
+	var actions: Array[Dictionary] = [
+		{
+			"name": "UseExpensiveTool",
+			"cost_callable": cost_use_expensive,
+			"effect_callable": use_tool_effect,
+			"preconditions": [],
+			"validity_checks": [],
+			"requirements": [
+				{"kind": "binding_equals", "binding_name": "tool", "value": "expensive"}
+			],
+			"provisions": []
+		},
+		{
+			"name": "GetExpensiveTool",
+			"cost_callable": cost_get_expensive,
+			"effect_callable": get_expensive_effect,
+			"preconditions": [],
+			"validity_checks": [],
+			"requirements": [],
+			"provisions": [ {"kind": "binding", "binding_name": "tool", "value": "expensive"}]
+		},
+		{
+			"name": "UseCheapTool",
+			"cost_callable": cost_use_cheap,
+			"effect_callable": use_tool_effect,
+			"preconditions": [],
+			"validity_checks": [],
+			"requirements": [ {"kind": "binding_equals", "binding_name": "tool", "value": "cheap"}],
+			"provisions": []
+		},
+		{
+			"name": "GetCheapTool",
+			"cost_callable": cost_get_cheap,
+			"effect_callable": get_cheap_effect,
+			"preconditions": [],
+			"validity_checks": [],
+			"requirements": [],
+			"provisions": [ {"kind": "binding", "binding_name": "tool", "value": "cheap"}]
+		}
+	]
+	var goals: Array[Dictionary] = [
+		{
+			"name": "TaskDone",
+			"reward": 100.0,
+			"desired_state":
+			[
+				{
+					"target": "agent",
+					"operation": "equal",
+					"property_name": "task_done",
+					"value": true
+				}
+			]
+		}
+	]
+
+	var result: Dictionary = await _submit_plan_and_wait(
+		scheduler,
+		_make_blackboard({"task_done": false, "tool": ""}),
+		_make_blackboard(),
+		actions,
+		goals,
+		120,
+		4
+	)
+
+	assert_true(result["success"], "Plan should succeed")
+	assert_eq(result["total_cost"], 3.0, "Plan should use the cheapest complete valid chain")
+	assert_eq(result["action_chain"], [3, 2], "Plan should get and use the cheap tool")
+
+
+func test_binding_in_set_requires_world_group_membership() -> void:
+	var scheduler: GdPAIPlanScheduler = _make_scheduler()
+	var banana = TestObjectData.new(["edible"])
+	var rock = TestObjectData.new(["mineral"])
+	add_child_autofree(banana)
+	add_child_autofree(rock)
+	await get_tree().process_frame
+
+	var cost_use: Callable = func(_a: GdPAIBlackboard, _w: GdPAIBlackboard) -> float: return 1.0
+	var cost_pickup_banana: Callable = func(
+		_a: GdPAIBlackboard,
+		_w: GdPAIBlackboard,
+	) -> float: return 2.0
+	var cost_pickup_rock: Callable = func(
+		_a: GdPAIBlackboard,
+		_w: GdPAIBlackboard,
+	) -> float: return 0.5
+	var use_effect: Callable = func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+		if agent.get_property("held_item") != null:
+			agent.set_property("ate", true)
+	var pickup_banana_effect: Callable = func(
+		agent: GdPAIBlackboard,
+		_world: GdPAIBlackboard,
+	) -> void:
+		agent.set_property("held_item", banana)
+	var pickup_rock_effect: Callable = func(
+		agent: GdPAIBlackboard,
+		_world: GdPAIBlackboard,
+	) -> void:
+		agent.set_property("held_item", rock)
+
+	var actions: Array[Dictionary] = [
+		{
+			"name": "EatEdible",
+			"cost_callable": cost_use,
+			"effect_callable": use_effect,
+			"preconditions": [],
+			"validity_checks": [],
+			"requirements": [
+				{"kind": "binding_in_set", "binding_name": "held_item", "set_name": "edible"}
+			],
+			"provisions": []
+		},
+		{
+			"name": "PickupBanana",
+			"cost_callable": cost_pickup_banana,
+			"effect_callable": pickup_banana_effect,
+			"preconditions": [],
+			"validity_checks": [],
+			"requirements": [],
+			"provisions": [ {"kind": "binding", "binding_name": "held_item", "value": banana}]
+		},
+		{
+			"name": "PickupRock",
+			"cost_callable": cost_pickup_rock,
+			"effect_callable": pickup_rock_effect,
+			"preconditions": [],
+			"validity_checks": [],
+			"requirements": [],
+			"provisions": [ {"kind": "binding", "binding_name": "held_item", "value": rock}]
+		}
+	]
+	var goals: Array[Dictionary] = [
+		{
+			"name": "Ate",
+			"reward": 100.0,
+			"desired_state":
+			[
+				{
+					"target": "agent",
+					"operation": "equal",
+					"property_name": "ate",
+					"value": true
+				}
+			]
+		}
+	]
+	var world: GdPAIBlackboard = _make_blackboard()
+	world.set_property("GDPAI_OBJECTS", [banana, rock])
+
+	var result: Dictionary = await _submit_plan_and_wait(
+		scheduler,
+		_make_blackboard({"ate": false, "held_item": ""}),
+		world,
+		actions,
+		goals,
+		120,
+		4
+	)
+
+	assert_true(result["success"], "Plan should succeed")
+	assert_eq(result["action_chain"], [1, 0], "Plan should choose the edible item provider")
