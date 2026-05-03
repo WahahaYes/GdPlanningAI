@@ -32,8 +32,6 @@ func _init(
 
 
 # Override
-
-
 func get_validity_checks() -> Array[Precondition]:
 	var checks: Array[Precondition] = super()
 	checks.append(Precondition.agent_has_property("hunger"))
@@ -48,8 +46,6 @@ func get_validity_checks() -> Array[Precondition]:
 
 
 # Override
-
-
 func get_action_cost(
 	agent_blackboard: GdPAIBlackboard,
 	world_state: GdPAIBlackboard,
@@ -61,15 +57,11 @@ func get_action_cost(
 
 
 # Override
-
-
 func get_preconditions() -> Array[Precondition]:
 	return []
 
 
 # Override
-
-
 func simulate_effect(
 	agent_blackboard: GdPAIBlackboard,
 	world_state: GdPAIBlackboard,
@@ -80,8 +72,6 @@ func simulate_effect(
 
 
 # Override
-
-
 func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	if super(agent) == Action.Status.FAILURE:
 		return Action.Status.FAILURE
@@ -90,8 +80,6 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 
 
 # Override
-
-
 func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 	var parent_status: Action.Status = super(agent, delta)
 	if parent_status == Action.Status.FAILURE:
@@ -114,8 +102,6 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 
 
 # Override
-
-
 func post_perform_action(agent: GdPAIAgent) -> Action.Status:
 	super(agent)
 	erase_state(agent, "shake_elapsed")
@@ -123,14 +109,10 @@ func post_perform_action(agent: GdPAIAgent) -> Action.Status:
 
 
 # Override
-
-
 func get_title() -> String:
 	return "Shake Tree"
 
 
 # Override
-
-
 func get_description() -> String:
 	return "Navigate to and shake a fruit tree to drop fruit."

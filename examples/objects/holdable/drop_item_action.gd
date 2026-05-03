@@ -15,16 +15,12 @@ func _init(p_drop_duration: float = 0.2) -> void:
 
 
 # Override
-
-
 func get_validity_checks() -> Array[Precondition]:
 	var checks: Array[Precondition] = []
 	return checks
 
 
 # Override
-
-
 func get_preconditions() -> Array[Precondition]:
 	var is_holding_item = func(
 		blackboard: GdPAIBlackboard,
@@ -36,8 +32,6 @@ func get_preconditions() -> Array[Precondition]:
 
 
 # Override
-
-
 func get_action_cost(
 	_agent_blackboard: GdPAIBlackboard,
 	_world_state: GdPAIBlackboard,
@@ -46,8 +40,6 @@ func get_action_cost(
 
 
 # Override
-
-
 func simulate_effect(
 	agent_blackboard: GdPAIBlackboard,
 	_world_state: GdPAIBlackboard,
@@ -56,16 +48,12 @@ func simulate_effect(
 
 
 # Override
-
-
 func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	set_state(agent, "drop_elapsed", 0.0)
 	return Action.Status.SUCCESS
 
 
 # Override
-
-
 func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 	var drop_elapsed: float = get_state(agent, "drop_elapsed") + delta
 	set_state(agent, "drop_elapsed", drop_elapsed)
@@ -78,22 +66,16 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 
 
 # Override
-
-
 func post_perform_action(agent: GdPAIAgent) -> Action.Status:
 	erase_state(agent, "drop_elapsed")
 	return Action.Status.SUCCESS
 
 
 # Override
-
-
 func get_title() -> String:
 	return "Drop Item"
 
 
 # Override
-
-
 func get_description() -> String:
 	return "Drop the item currently being held."

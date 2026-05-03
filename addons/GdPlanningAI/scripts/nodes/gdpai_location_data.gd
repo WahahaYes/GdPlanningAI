@@ -41,7 +41,5 @@ func get_group_labels() -> Array[String]:
 
 
 # Override
-
-
 func get_sim_properties() -> Dictionary:
 	return {"position": position, "rotation": rotation}

@@ -15,7 +15,5 @@ func update_properties(
 
 ## Called when the property updater is first initialized.
 ## Override this method to set up initial property values.
-
-
 func initialize(_agent: GdPAIAgent) -> void:
 	pass

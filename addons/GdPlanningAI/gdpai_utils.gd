@@ -20,8 +20,6 @@ static func get_child_of_type(
 
 
 ## Returns all nodes belonging to [param group] that are [param node] itself or a descendant of it.
-
-
 static func get_children_in_group(node: Node, group: String) -> Array:
 	var result: Array = []
 	for child in node.get_tree().get_nodes_in_group(group):

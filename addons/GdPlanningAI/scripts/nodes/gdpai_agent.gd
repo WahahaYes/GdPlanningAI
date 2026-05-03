@@ -80,29 +80,21 @@ func _process(delta: float) -> void:
 
 
 ## Returns the currently selected goal.
-
-
 func get_current_goal() -> Goal:
 	return _current_goal
 
 
 ## Returns the current action chain being executed.
-
-
 func get_current_plan() -> Array[Action]:
 	return _current_action_chain
 
 
 ## Returns the current step within the plan.
-
-
 func get_current_plan_step() -> int:
 	return _current_plan_step
 
 
 ## Set the planning strategy for this agent.
-
-
 func set_planning_strategy(
 	strategy: GdPAIAgentConfig.PlanningStrategy,
 	interval: float = 0.5,
@@ -131,8 +123,6 @@ func set_planning_strategy(
 
 
 ## Trigger planning on demand.
-
-
 func manually_start_plan() -> void:
 	if goals.size() == 0:
 		return
@@ -141,8 +131,6 @@ func manually_start_plan() -> void:
 
 
 ## Submit a planning job to the background scheduler.
-
-
 func _start_plan_async() -> void:
 	var agent_objects: Array = GdPAIUTILS.get_children_in_group(entity, "GdPAIObjectData")
 	blackboard.set_property("GDPAI_OBJECTS", agent_objects)
@@ -176,8 +164,6 @@ func _start_plan_async() -> void:
 
 
 ## Called by the scheduler when a background plan completes.
-
-
 func _on_plan_ready(result: Dictionary) -> void:
 	_waiting_for_plan = false
 	# Discard stale results if goals changed since submission.
@@ -193,8 +179,6 @@ func _on_plan_ready(result: Dictionary) -> void:
 
 
 ## Timer callback for interval planning.
-
-
 func _on_planning_timer_timeout() -> void:
 	if goals.size() == 0:
 		return
@@ -210,8 +194,6 @@ func _on_planning_timer_timeout() -> void:
 
 
 ## Executes the currently selected plan based on the current step.
-
-
 func _execute_plan(delta: float) -> void:
 	if _current_action_chain.is_empty():
 		return
@@ -250,8 +232,6 @@ func _execute_plan(delta: float) -> void:
 
 ## Collects actions provided by world objects. Validity filtering is handled
 ## by the Rust engine during planning search.
-
-
 func _collect_worldly_actions() -> Array[Action]:
 	var ws: GdPAIBlackboard = world_node.get_world_state()
 	var actions: Array[Action] = []

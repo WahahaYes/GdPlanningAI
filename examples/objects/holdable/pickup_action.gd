@@ -16,32 +16,26 @@ func _init(
 	p_interactable_attribs: GdPAIInteractable,
 	p_holdable_item: HoldableObject,
 ) -> void:
-	super (p_object_location, p_interactable_attribs)
+	super(p_object_location, p_interactable_attribs)
 	holdable_item = p_holdable_item
 
 
 # Override
-
-
 func get_validity_checks() -> Array[Precondition]:
-	var checks: Array[Precondition] = super ()
+	var checks: Array[Precondition] = super()
 	checks.append(Precondition.check_is_object_valid(holdable_item))
 	return checks
 
 
 # Override
-
-
 func get_action_cost(
 	agent_blackboard: GdPAIBlackboard,
 	world_state: GdPAIBlackboard,
 ) -> float:
-	return super (agent_blackboard, world_state)
+	return super(agent_blackboard, world_state)
 
 
 # Override
-
-
 func get_preconditions() -> Array[Precondition]:
 	var has_empty_hands = func(
 		blackboard: GdPAIBlackboard,
@@ -59,29 +53,23 @@ func get_provisions() -> Array[ProvisionSpec]:
 
 
 # Override
-
-
 func simulate_effect(
 	agent_blackboard: GdPAIBlackboard,
 	_world_state: GdPAIBlackboard,
 ) -> void:
-	super (agent_blackboard, _world_state)
+	super(agent_blackboard, _world_state)
 	agent_blackboard.set_property("held_item", holdable_item.item_id)
 	print("[PickupAction] simulate_effect - setting held_item to: ", holdable_item.item_id)
 
 
 # Override
-
-
 func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
-	return super (agent)
+	return super(agent)
 
 
 # Override
-
-
 func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
-	var parent_status: Action.Status = super (agent, delta)
+	var parent_status: Action.Status = super(agent, delta)
 	if parent_status == Action.Status.FAILURE:
 		return Action.Status.FAILURE
 
@@ -94,21 +82,15 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 
 
 # Override
-
-
 func post_perform_action(agent: GdPAIAgent) -> Action.Status:
-	return super (agent)
+	return super(agent)
 
 
 # Override
-
-
 func get_title() -> String:
 	return "Pick Up Item"
 
 
 # Override
-
-
 func get_description() -> String:
 	return "Navigate to and pick up an item."

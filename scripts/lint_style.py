@@ -69,6 +69,7 @@ RE_GD_BORDER = re.compile(r"#\s*-{" + str(BORDER_DASHES) + r",}")
 RE_GD_FUNC = re.compile(r"^(func |static func )")  # matches only unindented funcs
 RE_GD_EXPORT = re.compile(r"^\s*@export\b")
 RE_GD_DOCSTRING = re.compile(r"^\s*##")
+RE_GD_COMMENT = re.compile(r"^##?")  # unindented only, mirrors RE_GD_FUNC
 
 
 def lint_gdscript(path: Path) -> list[tuple]:
@@ -79,12 +80,39 @@ def lint_gdscript(path: Path) -> list[tuple]:
         print(f"WARNING: could not read {path}: {exc}", file=sys.stderr)
         return violations
 
-    blank_run = 0  # consecutive blank lines immediately before current line
-    prev_func_lineno: int | None = None  # 1-indexed line of the last func keyword
+    prev_block_lineno: int | None = None  # 1-indexed line of the last func block start
+    nesting_depth: int = 0  # tracks { ( [ nesting to detect nested funcs
 
     for i, raw in enumerate(lines):
         lineno = i + 1
         stripped = raw.strip()
+        line_depth = nesting_depth  # depth at start of this line
+        in_str = False
+        str_ch = ""
+        ci = 0
+        while ci < len(raw):
+            ch = raw[ci]
+            if in_str:
+                if ch == "\\":
+                    ci += 2
+                    continue
+                if ch == str_ch:
+                    in_str = False
+            else:
+                if ch in ('"', "'"):
+                    in_str = True
+                    str_ch = ch
+                elif ch == "#":
+                    break
+                elif ch in ("{("):
+                    nesting_depth += 1
+                elif ch in ("})"):
+                    nesting_depth = max(0, nesting_depth - 1)
+                elif ch == "[":
+                    nesting_depth += 1
+                elif ch == "]":
+                    nesting_depth = max(0, nesting_depth - 1)
+            ci += 1
 
         # gd-walrus: walrus / type-inference
         if RE_GD_WALRUS.search(stripped):
@@ -111,23 +139,34 @@ def lint_gdscript(path: Path) -> list[tuple]:
                     )
                 )
 
-        # gd-spacing: track blank-line runs before top-level func definitions
-        if stripped == "":
-            blank_run += 1
-        else:
-            if RE_GD_FUNC.match(raw):  # raw (not stripped) ensures top-level only
-                if prev_func_lineno is not None and blank_run < 2:
-                    violations.append(
-                        (
-                            path,
-                            lineno,
-                            "gd-spacing",
-                            f"only {blank_run} blank line(s) before 'func' "
-                            f"(expected 2, previous func at line {prev_func_lineno})",
-                        )
-                    )
-                prev_func_lineno = lineno
+        # gd-spacing: check blank lines before top-level func blocks.
+        # A "block" starts at the func keyword or the top of any directly
+        # attached ##/# comment run (no blanks between comments and func).
+        if RE_GD_FUNC.match(raw) and line_depth == 0:
+            block_start = i
+            j = i - 1
+            while j >= 0 and RE_GD_COMMENT.match(lines[j]):
+                block_start = j
+                j -= 1
+
             blank_run = 0
+            k = block_start - 1
+            while k >= 0 and lines[k].strip() == "":
+                blank_run += 1
+                k -= 1
+
+            block_lineno = block_start + 1  # 1-indexed
+            if prev_block_lineno is not None and blank_run < 2:
+                violations.append(
+                    (
+                        path,
+                        block_lineno,
+                        "gd-spacing",
+                        f"only {blank_run} blank line(s) before func block "
+                        f"(expected 2, previous block at line {prev_block_lineno})",
+                    )
+                )
+            prev_block_lineno = block_lineno
 
     return violations
 

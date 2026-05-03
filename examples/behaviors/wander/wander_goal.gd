@@ -13,8 +13,6 @@ func compute_reward(_agent: GdPAIAgent) -> float:
 
 
 # Override
-
-
 func get_desired_state(agent: GdPAIAgent) -> Array[Precondition]:
 	var agent_location_data: GdPAILocationData = (
 		agent
@@ -42,14 +40,10 @@ func get_desired_state(agent: GdPAIAgent) -> Array[Precondition]:
 
 
 # Override
-
-
 func get_title() -> String:
 	return "Wander"
 
 
 # Override
-
-
 func get_description() -> String:
 	return "Move around the environment."

@@ -27,8 +27,6 @@ func get_validity_checks() -> Array[Precondition]:
 ##[br]
 ##[br]
 ## [b]Do not use [code]await[/code] and do not access the scene tree from this method.[/b]
-
-
 func get_action_cost(
 	_agent_blackboard: GdPAIBlackboard,
 	_world_state: GdPAIBlackboard,
@@ -41,22 +39,16 @@ func get_action_cost(
 ##[br]
 ##[br]
 ## Preconditions are checked against the simulated blackboards, not the live scene tree.
-
-
 func get_preconditions() -> Array[Precondition]:
 	return []
 
 
 ## Lists planner-readable requirements that should be satisfied earlier in the action chain.
-
-
 func get_requirements() -> Array[RequirementSpec]:
 	return []
 
 
 ## Lists planner-readable provisions this action contributes for later actions.
-
-
 func get_provisions() -> Array[ProvisionSpec]:
 	return []
 
@@ -73,8 +65,6 @@ func get_provisions() -> Array[ProvisionSpec]:
 ##[br]
 ##[br]
 ## [b]Do not use [code]await[/code] and do not access the scene tree from this method.[/b]
-
-
 func simulate_effect(
 	_agent_blackboard: GdPAIBlackboard,
 	_world_state: GdPAIBlackboard,
@@ -88,8 +78,6 @@ func simulate_effect(
 ##[br]
 ##[br]
 ## At this point, validity checks true during planning could be false in the real world.
-
-
 func pre_perform_action(_agent: GdPAIAgent) -> Status:
 	return Status.SUCCESS
 
@@ -99,8 +87,6 @@ func pre_perform_action(_agent: GdPAIAgent) -> Status:
 ##[br]
 ##[br]
 ## Need to monitor any validity checks that could become false after some time.
-
-
 func perform_action(
 	_agent: GdPAIAgent,
 	_delta: float,
@@ -111,50 +97,36 @@ func perform_action(
 ## Perform any post computations for the action.  Status currently doesn't matter because the plan
 ## is already done.  All actions' post_perform methods are called, regardless of if the plan
 ## succeeded.  These methods should make sure to safely de-allocate anything created for the action.
-
-
 func post_perform_action(_agent: GdPAIAgent) -> Status:
 	return Status.SUCCESS
 
 
 ## Sets a state variable for the action.  The key is internally prefixed with the action's
 ## instance id to avoid collisions.
-
-
 func set_state(agent: GdPAIAgent, key: String, value: Variant) -> void:
 	agent.blackboard.set_property(str(get_instance_id()) + "_" + key, value)
 
 
 ## Gets a state variable for the action.
-
-
 func get_state(agent: GdPAIAgent, key: String) -> Variant:
 	return agent.blackboard.get_property(str(get_instance_id()) + "_" + key)
 
 
 ## Erases a state variable for the action.
-
-
 func erase_state(agent: GdPAIAgent, key: String) -> void:
 	agent.blackboard.erase_property(str(get_instance_id()) + "_" + key)
 
 
 ## Checks if a state variable exists for the action.
-
-
 func has_state(agent: GdPAIAgent, key: String) -> bool:
 	return agent.blackboard.has_property(str(get_instance_id()) + "_" + key)
 
 
 ## Returns a short title for the action.
-
-
 func get_title() -> String:
 	return ""
 
 
 ## Returns a description of the action.
-
-
 func get_description() -> String:
 	return "Root action."

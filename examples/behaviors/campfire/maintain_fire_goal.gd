@@ -21,15 +21,11 @@ func _init(
 
 
 # Override
-
-
 func compute_reward(_agent: GdPAIAgent) -> float:
 	return reward_value
 
 
 # Override
-
-
 func get_desired_state(_agent: GdPAIAgent) -> Array[Precondition]:
 	var fire_is_maintained = func(
 		_blackboard: GdPAIBlackboard,
@@ -45,14 +41,10 @@ func get_desired_state(_agent: GdPAIAgent) -> Array[Precondition]:
 
 
 # Override
-
-
 func get_title() -> String:
 	return "Maintain Fire"
 
 
 # Override
-
-
 func get_description() -> String:
 	return "Keep the campfire supplied with enough fuel for cooking."

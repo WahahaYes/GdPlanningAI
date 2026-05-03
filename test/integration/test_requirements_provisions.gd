@@ -58,7 +58,7 @@ func _submit_plan_and_wait(
 	return {}
 
 
-## Test that Pickup → Eat chain works when:
+## Test that Pickup -> Eat chain works when:
 ## - Agent is hungry (hunger > 0)
 ## - PickupAction provides held_item = "banana"
 ## - EatHeldFoodAction requires held_item exists
@@ -70,10 +70,9 @@ func test_pickup_eat_chain_satisfies_hunger() -> void:
 	var actions: Array[Dictionary] = [
 		{
 			"name": "EatHeldFood",
-			"cost_callable":
-			func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float: return 1.5,
-			"effect_callable":
-			func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+			"cost_callable": func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float:
+				return 1.5,
+			"effect_callable": func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
 				var hunger = agent.get_property("hunger")
 				var held_item = agent.get_property("held_item")
 				if hunger != null and held_item != null and held_item != "":
@@ -82,26 +81,22 @@ func test_pickup_eat_chain_satisfies_hunger() -> void:
 					agent.set_property("held_item", ""),
 			"preconditions": [],
 			"validity_checks": [],
-			"requirements": [
-				{"kind": "binding_exists", "binding_name": "held_item"}
-			],
+			"requirements": [ {"kind": "binding_exists", "binding_name": "held_item"}],
 			"provisions": []
 		},
 		{
 			"name": "PickupBanana",
-			"cost_callable":
-			func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float: return 50.0,
-			"effect_callable":
-			func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+			"cost_callable": func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float:
+				return 50.0,
+			"effect_callable": func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
 				agent.set_property("held_item", "banana"),
 			"preconditions": [],
 			"validity_checks": [],
 			"requirements": [],
-			"provisions": [
-				{"kind": "binding", "binding_name": "held_item", "value": "banana"}
-			]
+			"provisions": [ {"kind": "binding", "binding_name": "held_item", "value": "banana"}]
 		}
 	]
+
 
 	var goals: Array[Dictionary] = [
 		{
@@ -129,10 +124,7 @@ func test_pickup_eat_chain_satisfies_hunger() -> void:
 		4 # max_recursion must allow 2 actions
 	)
 
-	assert_true(
-		result["success"],
-		"Plan should succeed with Pickup → Eat chain"
-	)
+	assert_true(result["success"], "Plan should succeed with Pickup -> Eat chain")
 	assert_eq(result["action_chain"].size(), 2, "Plan should have 2 actions")
 	assert_eq(result["action_chain"][0], 1, "First action should be Pickup (index 1)")
 	assert_eq(result["action_chain"][1], 0, "Second action should be Eat (index 0)")
@@ -149,10 +141,9 @@ func test_eat_alone_fails_without_pickup() -> void:
 	var actions: Array[Dictionary] = [
 		{
 			"name": "EatHeldFood",
-			"cost_callable":
-			func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float: return 1.5,
-			"effect_callable":
-			func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+			"cost_callable": func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float:
+				return 1.5,
+			"effect_callable": func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
 				var hunger = agent.get_property("hunger")
 				var held_item = agent.get_property("held_item")
 				if hunger != null and held_item != null and held_item != "":
@@ -160,9 +151,7 @@ func test_eat_alone_fails_without_pickup() -> void:
 					agent.set_property("held_item", ""),
 			"preconditions": [],
 			"validity_checks": [],
-			"requirements": [
-				{"kind": "binding_exists", "binding_name": "held_item"}
-			],
+			"requirements": [ {"kind": "binding_exists", "binding_name": "held_item"}],
 			"provisions": []
 		}
 	]
@@ -192,10 +181,7 @@ func test_eat_alone_fails_without_pickup() -> void:
 		2
 	)
 
-	assert_false(
-		result["success"],
-		"Plan should fail when Eat has no way to get held_item"
-	)
+	assert_false(result["success"], "Plan should fail when Eat has no way to get held_item")
 
 
 ## Test that chain works when agent already has held_item
@@ -207,10 +193,9 @@ func test_eat_alone_succeeds_when_already_holding_food() -> void:
 	var actions: Array[Dictionary] = [
 		{
 			"name": "EatHeldFood",
-			"cost_callable":
-			func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float: return 1.5,
-			"effect_callable":
-			func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+			"cost_callable": func(_agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> float:
+				return 1.5,
+			"effect_callable": func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
 				var hunger = agent.get_property("hunger")
 				var held_item = agent.get_property("held_item")
 				if hunger != null and held_item != null and held_item != "":
@@ -218,9 +203,7 @@ func test_eat_alone_succeeds_when_already_holding_food() -> void:
 					agent.set_property("held_item", ""),
 			"preconditions": [],
 			"validity_checks": [],
-			"requirements": [
-				{"kind": "binding_exists", "binding_name": "held_item"}
-			],
+			"requirements": [ {"kind": "binding_exists", "binding_name": "held_item"}],
 			"provisions": []
 		}
 	]
@@ -251,10 +234,7 @@ func test_eat_alone_succeeds_when_already_holding_food() -> void:
 		2
 	)
 
-	assert_true(
-		result["success"],
-		"Plan should succeed when already holding food"
-	)
+	assert_true(result["success"], "Plan should succeed when already holding food")
 	assert_eq(result["action_chain"].size(), 1, "Plan should have 1 action (just Eat)")
 	assert_eq(result["action_chain"][0], 0, "Action should be Eat (index 0)")
 	assert_eq(result["total_cost"], 1.5, "Cost should be just eat cost")
