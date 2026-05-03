@@ -7,7 +7,7 @@
 use crate::plan_tree::{self, PlanResult, PlanTreeNode};
 use crate::plan_types::*;
 use crate::requirement::{
-    extend_unique_provisions, extend_unique_requirements, get_unsatisfied_requirements,
+    extend_unique_provisions, extend_unique_requirements, extract_initial_provisions, get_unsatisfied_requirements,
     provisions_satisfy_any_requirement, remove_satisfied_requirements, ProvisionSpec,
     RequirementSpec,
 };
@@ -77,10 +77,14 @@ pub fn run_plan(
             was_concretely_simulated: true,
         };
 
+        // Extract initial provisions from agent state so existing bindings can satisfy requirements
+        let mut initial_provisions = vec![];
+        extend_unique_provisions(&mut initial_provisions, &extract_initial_provisions(&agent));
+        
         let ctx = PlanContext {
             desired_state: &goal.desired_state,
             active_requirements: &[],
-            accumulated_provisions: &[],
+            accumulated_provisions: &initial_provisions,
             actions: &actions,
             max_recursion,
             request_tx: &request_tx,
@@ -158,6 +162,20 @@ struct PendingAction {
     was_concretely_simulated: bool,
 }
 
+/// Intermediate struct to store action evaluation results during two-pass processing.
+struct ActionCandidate {
+    action: ActionSpec,
+    idx: usize,
+    cost: f64,
+    sim_agent: BlackboardSnapshot,
+    sim_world: BlackboardSnapshot,
+    can_simulate_concretely: bool,
+    makes_goal_progress: bool,
+    satisfies_requirements: bool,
+    introduces_requirements: bool,
+    is_progress_maker: bool,
+}
+
 /// Returns the lowest cumulative cost among all completed plan leaves
 /// reachable from `node`, including the accumulated `path_cost` leading
 /// to that node.
@@ -218,9 +236,15 @@ fn build_plan_recursive(
         ctx.actions.len()
     );
 
+    // Two-pass approach to identify actions that contribute progress
+    // Pass 1: Evaluate all actions and collect requirements from progress-making deferred actions
+    // Pass 2: Add actions whose provisions satisfy those collected requirements
     let mut has_solution = false;
     let mut pending_actions: Vec<PendingAction> = vec![];
+    let mut deferred_requirements: Vec<RequirementSpec> = vec![];
+    let mut action_candidates: Vec<ActionCandidate> = vec![];
 
+    // Pass 1: Evaluate all actions and identify initial progress-makers
     for (idx, action) in ctx.actions.iter().enumerate() {
         if ctx.cancel_flag.load(std::sync::atomic::Ordering::Relaxed) {
             return false;
@@ -234,6 +258,11 @@ fn build_plan_recursive(
 
         // Validity checks
         if !action_is_valid(action, agent_state, world_state, ctx.request_tx) {
+            crate::log_debug!(
+                "Action '{}' failed validity checks at depth {}",
+                action.name,
+                recursion_level
+            );
             continue;
         }
 
@@ -248,6 +277,21 @@ fn build_plan_recursive(
         }
 
         // Check if action's requirements are satisfied by accumulated provisions
+        crate::log_debug!(
+            "Action '{}' checking {} requirements against {} accumulated provisions",
+            action.name,
+            action.requirements.len(),
+            ctx.accumulated_provisions.len()
+        );
+        
+        // Debug: print actual requirements and provisions
+        for req in &action.requirements {
+            crate::log_debug!("Action '{}' requirement: {:?}", action.name, req);
+        }
+        for prov in ctx.accumulated_provisions {
+            crate::log_debug!("Action '{}' accumulated provision: {:?}", action.name, prov);
+        }
+        
         let unsatisfied_requirements =
             get_unsatisfied_requirements(&action.requirements, ctx.accumulated_provisions);
         let can_simulate_concretely = unsatisfied_requirements.is_empty();
@@ -258,6 +302,9 @@ fn build_plan_recursive(
                 action.name,
                 unsatisfied_requirements.len()
             );
+            for req in &unsatisfied_requirements {
+                crate::log_debug!("Action '{}' unresolved: {:?}", action.name, req);
+            }
         }
 
         // Clone snapshots for simulation (trivial — just HashMap clone)
@@ -276,7 +323,6 @@ fn build_plan_recursive(
             cost
         } else {
             // Use default/placeholder cost when requirements unresolved
-            // This allows the action to be explored without accurate cost info
             crate::log_debug!(
                 "Action '{}' using placeholder cost (requirements unresolved)",
                 action.name
@@ -299,14 +345,6 @@ fn build_plan_recursive(
             );
             sim_agent = new_agent;
             sim_world = new_world;
-        } else {
-            // For deferred actions, we still need to propagate the action's provisions
-            // so that successor actions can see them as available. We don't modify
-            // agent/world state since we can't accurately simulate without resolved bindings.
-            crate::log_debug!(
-                "Action '{}' skipping effect simulation (requirements unresolved)",
-                action.name
-            );
         }
 
         // Check if this action makes progress toward the goal
@@ -315,21 +353,75 @@ fn build_plan_recursive(
         let satisfies_requirements =
             provisions_satisfy_any_requirement(&action.provisions, ctx.active_requirements);
         let introduces_requirements = !action.requirements.is_empty();
+        let has_provisions = !action.provisions.is_empty();
 
-        if makes_goal_progress || satisfies_requirements || introduces_requirements {
-            crate::log_debug!("Action '{}' contributes useful progress", action.name);
+        // Store candidate for potential second-pass processing
+        // Include actions that:
+        // - Make goal progress
+        // - Satisfy active requirements  
+        // - Introduce requirements (for dependency chaining)
+        // - Have provisions (might enable other actions in Pass 2)
+        let is_progress_maker = makes_goal_progress || satisfies_requirements || introduces_requirements || has_provisions;
+        
+        crate::log_debug!(
+            "Action '{}' evaluated: makes_goal_progress={}, satisfies_reqs={}, introduces_reqs={}, has_provisions={}, is_progress_maker={}",
+            action.name, makes_goal_progress, satisfies_requirements, introduces_requirements, has_provisions, is_progress_maker
+        );
+        
+        if is_progress_maker {
+            crate::log_debug!("Action '{}' contributes useful progress (pass 1)", action.name);
+            
+            // Track requirements from deferred progress-making actions
+            if !can_simulate_concretely && introduces_requirements {
+                extend_unique_requirements(&mut deferred_requirements, &action.requirements);
+            }
+        }
+
+        action_candidates.push(ActionCandidate {
+            action: action.clone(),
+            idx,
+            cost,
+            sim_agent,
+            sim_world,
+            can_simulate_concretely,
+            makes_goal_progress,
+            satisfies_requirements,
+            introduces_requirements,
+            is_progress_maker,
+        });
+    }
+
+    crate::log_debug!(
+        "Pass 1 complete: {} candidates, {} deferred requirements collected",
+        action_candidates.len(),
+        deferred_requirements.len()
+    );
+
+    // Pass 2: Process candidates, adding progress-makers and enablers
+    for candidate in action_candidates {
+        let action = &candidate.action;
+        let idx = candidate.idx;
+        let can_simulate_concretely = candidate.can_simulate_concretely;
+        
+        // Check if this action enables other progress-making actions
+        let enables_progress_actions = provisions_satisfy_any_requirement(
+            &action.provisions,
+            &deferred_requirements
+        );
+
+        if candidate.is_progress_maker || enables_progress_actions {
+            crate::log_debug!("Action '{}' contributes useful progress (pass 2)", action.name);
 
             let mut child_requirements =
                 remove_satisfied_requirements(ctx.active_requirements, &action.provisions);
             extend_unique_requirements(&mut child_requirements, &action.requirements);
 
-            if is_goal_satisfied(ctx.desired_state, &sim_agent, &sim_world, ctx.request_tx)
-                && child_requirements.is_empty()
+            if is_goal_satisfied(ctx.desired_state, &candidate.sim_agent, &candidate.sim_world, ctx.request_tx)
             {
                 crate::log_debug!("Action '{}' satisfies goal immediately", action.name);
                 let next_node = PlanTreeNode {
                     action_index: idx as i64,
-                    cost,
+                    cost: candidate.cost,
                     children: vec![],
                     was_concretely_simulated: can_simulate_concretely,
                 };
@@ -347,12 +439,12 @@ fn build_plan_recursive(
 
             pending_actions.push(PendingAction {
                 action_index: idx as i64,
-                cost,
+                cost: candidate.cost,
                 child_desired,
                 child_requirements,
                 child_provisions,
-                sim_agent,
-                sim_world,
+                sim_agent: candidate.sim_agent.clone(),
+                sim_world: candidate.sim_world.clone(),
                 was_concretely_simulated: can_simulate_concretely,
             });
         } else {
@@ -363,10 +455,18 @@ fn build_plan_recursive(
         }
     }
 
+    // Sort: actions that satisfy deferred requirements should come first
+    // (lower sort key = processed first)
     pending_actions.sort_by(|a, b| {
-        a.cost
-            .partial_cmp(&b.cost)
-            .unwrap_or(std::cmp::Ordering::Equal)
+        let a_satisfies_deferred = provisions_satisfy_any_requirement(&a.child_provisions, &deferred_requirements);
+        let b_satisfies_deferred = provisions_satisfy_any_requirement(&b.child_provisions, &deferred_requirements);
+        
+        // Priority 1: Actions that satisfy deferred requirements come first
+        match (a_satisfies_deferred, b_satisfies_deferred) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            _ => a.cost.partial_cmp(&b.cost).unwrap_or(std::cmp::Ordering::Equal),
+        }
     });
 
     crate::log_debug!(

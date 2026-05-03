@@ -16,7 +16,7 @@ func _init(
 	p_interactable_attribs: GdPAIInteractable,
 	p_holdable_item: HoldableObject,
 ) -> void:
-	super(p_object_location, p_interactable_attribs)
+	super (p_object_location, p_interactable_attribs)
 	holdable_item = p_holdable_item
 
 
@@ -24,7 +24,7 @@ func _init(
 
 
 func get_validity_checks() -> Array[Precondition]:
-	var checks: Array[Precondition] = super()
+	var checks: Array[Precondition] = super ()
 	checks.append(Precondition.check_is_object_valid(holdable_item))
 	return checks
 
@@ -36,7 +36,7 @@ func get_action_cost(
 	agent_blackboard: GdPAIBlackboard,
 	world_state: GdPAIBlackboard,
 ) -> float:
-	return super(agent_blackboard, world_state)
+	return super (agent_blackboard, world_state)
 
 
 # Override
@@ -53,41 +53,35 @@ func get_preconditions() -> Array[Precondition]:
 
 
 # Override
+func get_provisions() -> Array[ProvisionSpec]:
+	# Provide the held_item binding that EatHeldFoodAction requires
+	return [ProvisionSpec.binding("held_item", holdable_item.item_id)]
+
+
+# Override
 
 
 func simulate_effect(
 	agent_blackboard: GdPAIBlackboard,
 	_world_state: GdPAIBlackboard,
 ) -> void:
-	super(agent_blackboard, _world_state)
+	super (agent_blackboard, _world_state)
 	agent_blackboard.set_property("held_item", holdable_item.item_id)
-
-	# If the item being picked up is food, estimate the hunger reduction
-	# This allows the planner to recognize that picking up food makes progress
-	# toward the hunger goal
-	if holdable_item is FoodObject:
-		var food = holdable_item as FoodObject
-		var hunger: Variant = agent_blackboard.get_property("hunger")
-		if hunger != null:
-			var hunger_restored: float = food.hunger_value
-			var new_hunger = max(0.0, float(hunger) - hunger_restored)
-			print("[PickupAction] Picking up food")
-			print("  hunger reduction: ", hunger_restored, ", new hunger: ", new_hunger)
-			agent_blackboard.set_property("hunger", new_hunger)
+	print("[PickupAction] simulate_effect - setting held_item to: ", holdable_item.item_id)
 
 
 # Override
 
 
 func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
-	return super(agent)
+	return super (agent)
 
 
 # Override
 
 
 func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
-	var parent_status: Action.Status = super(agent, delta)
+	var parent_status: Action.Status = super (agent, delta)
 	if parent_status == Action.Status.FAILURE:
 		return Action.Status.FAILURE
 
@@ -103,7 +97,7 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 
 
 func post_perform_action(agent: GdPAIAgent) -> Action.Status:
-	return super(agent)
+	return super (agent)
 
 
 # Override

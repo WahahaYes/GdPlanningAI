@@ -35,16 +35,6 @@ func get_validity_checks() -> Array[Precondition]:
 func get_preconditions() -> Array[Precondition]:
 	var preconditions: Array[Precondition] = []
 
-	# Require that a food object exists in the world to be picked up
-	# This ensures the planner must identify a specific food target
-	var food_exists = func(
-		_blackboard: GdPAIBlackboard,
-		world_state: GdPAIBlackboard,
-	) -> bool:
-		var food_objects = world_state.get_proxies_in_group("FoodObject")
-		return food_objects.size() > 0
-	preconditions.append(Precondition.custom(food_exists))
-
 	# Require hunger > 0 (don't eat when not hungry)
 	var has_hunger = func(
 		blackboard: GdPAIBlackboard,
@@ -57,6 +47,12 @@ func get_preconditions() -> Array[Precondition]:
 	preconditions.append(Precondition.custom(has_hunger))
 
 	return preconditions
+
+
+# Override
+func get_requirements() -> Array[RequirementSpec]:
+	# Require that held_item binding exists (will be provided by PickupAction)
+	return [RequirementSpec.binding_exists("held_item")]
 
 
 # Override
@@ -90,15 +86,13 @@ func simulate_effect(
 	if held_item != null and (held_item is String or held_item is StringName):
 		held_item_id = String(held_item)
 
-	# Use small placeholder value for planning when no item is held
-	# This allows the planner to recognize eat makes progress, but the small value
-	# ensures pickup is still needed to fully satisfy the goal
+	# Only reduce hunger if we have a valid held item
+	# (this happens when requirements are satisfied via re-simulation)
 	if held_item_id.is_empty() or not hunger_restored_by_item.has(held_item_id):
-		print("[EatHeldFoodAction] Using small placeholder for planning")
-		hunger_restored = 5.0  # Small placeholder - shows progress but doesn't satisfy goal alone
-	else:
-		hunger_restored = float(hunger_restored_by_item[held_item_id])
+		print("[EatHeldFoodAction] No valid held item, skipping hunger reduction")
+		return
 
+	hunger_restored = float(hunger_restored_by_item[held_item_id])
 	var new_hunger = max(0.0, float(hunger) - hunger_restored)
 	print("[EatHeldFoodAction] hunger_restored: ", hunger_restored, ", new hunger: ", new_hunger)
 	agent_blackboard.set_property("hunger", new_hunger)

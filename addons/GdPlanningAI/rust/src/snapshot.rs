@@ -93,6 +93,16 @@ impl VariantSnapshot {
             }
         }
     }
+
+    /// Returns true if this variant is null/nil.
+    pub fn is_null(&self) -> bool {
+        matches!(self, Self::Nil)
+    }
+
+    /// Returns true if this variant is an empty string.
+    pub fn is_empty_string(&self) -> bool {
+        matches!(self, Self::Str(s) if s.is_empty())
+    }
 }
 
 /// Send-safe mirror of [`SimObjectProxy`].

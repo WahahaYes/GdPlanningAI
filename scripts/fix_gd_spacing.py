@@ -19,6 +19,7 @@ import sys
 from pathlib import Path
 
 RE_FUNC = re.compile(r"^(func |static func )")  # matches only unindented funcs
+RE_ATTACHED_COMMENT = re.compile(r"^#\s")  # single-hash comments like "# Override"
 
 
 def git_tracked_gd_files() -> list[Path]:
@@ -44,16 +45,28 @@ def fix_spacing(lines: list[str]) -> tuple[list[str], int]:
     for raw in lines:
         if RE_FUNC.match(raw):  # raw (not stripped) ensures top-level only
             if prev_func_idx is not None:
-                # Count trailing blank lines already in out
+                # Look back for attached comments (e.g., "# Override")
+                # These should stay with the function, blank lines go before them
+                attached_comments: list[str] = []
+                j = len(out) - 1
+                while j >= 0 and RE_ATTACHED_COMMENT.match(out[j]):
+                    attached_comments.insert(0, out.pop())
+                    j -= 1
+
+                # Now count blank lines before the attached comments
                 blank_run = 0
                 j = len(out) - 1
                 while j >= 0 and out[j].strip() == "":
                     blank_run += 1
                     j -= 1
+
                 needed = max(0, 2 - blank_run)
                 for _ in range(needed):
                     out.append("\n")
                 insertions += needed
+
+                # Put attached comments back (immediately before func)
+                out.extend(attached_comments)
             prev_func_idx = len(out)
 
         out.append(raw)
