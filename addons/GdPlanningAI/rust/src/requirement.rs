@@ -225,7 +225,7 @@ pub fn extract_initial_provisions(agent: &crate::snapshot::BlackboardSnapshot) -
     provisions
 }
 
-fn provision_satisfies_requirement(
+pub fn provision_satisfies_requirement(
     provision: &ProvisionSpec,
     requirement: &RequirementSpec,
 ) -> bool {

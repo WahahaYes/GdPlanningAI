@@ -46,7 +46,7 @@ func _submit_plan_and_wait(
 ) -> Dictionary:
 	_plan_ready = false
 	_last_plan_result = {}
-	scheduler.submit_plan(self, agent_bb, world_bb, actions, goals, max_recursion)
+	scheduler.submit_plan(self , agent_bb, world_bb, actions, goals, max_recursion)
 
 	for i in range(timeout_frames):
 		scheduler.process_callbacks()
@@ -85,7 +85,7 @@ func test_pickup_eat_chain_satisfies_hunger() -> void:
 			"effect_callable": eat_effect,
 			"preconditions": [],
 			"validity_checks": [],
-			"requirements": [{"kind": "binding_exists", "binding_name": "held_item"}],
+			"requirements": [ {"kind": "binding_exists", "binding_name": "held_item"}],
 			"provisions": []
 		},
 		{
@@ -95,7 +95,7 @@ func test_pickup_eat_chain_satisfies_hunger() -> void:
 			"preconditions": [],
 			"validity_checks": [],
 			"requirements": [],
-			"provisions": [{"kind": "binding", "binding_name": "held_item", "value": "banana"}]
+			"provisions": [ {"kind": "binding", "binding_name": "held_item", "value": "banana"}]
 		}
 	]
 
@@ -123,7 +123,7 @@ func test_pickup_eat_chain_satisfies_hunger() -> void:
 		actions,
 		goals,
 		120,
-		4  # max_recursion must allow 2 actions
+		4 # max_recursion must allow 2 actions
 	)
 
 	assert_true(result["success"], "Plan should succeed with Pickup -> Eat chain")
@@ -154,7 +154,7 @@ func test_eat_alone_fails_without_pickup() -> void:
 			"effect_callable": eat_effect,
 			"preconditions": [],
 			"validity_checks": [],
-			"requirements": [{"kind": "binding_exists", "binding_name": "held_item"}],
+			"requirements": [ {"kind": "binding_exists", "binding_name": "held_item"}],
 			"provisions": []
 		}
 	]
@@ -188,6 +188,81 @@ func test_eat_alone_fails_without_pickup() -> void:
 	assert_false(result["success"], "Plan should fail when Eat has no way to get held_item")
 
 
+## Test that Pickup -> Eat produces correct execution order
+## Eat requires held_item, Pickup provides held_item
+## Correct plan: Pickup first, then Eat (not Eat -> Pickup)
+func test_action_order_is_pickup_then_eat_not_reversed() -> void:
+	var scheduler: GdPAIPlanScheduler = _make_scheduler()
+	await get_tree().process_frame
+
+	var cost_eat: Callable = func(_a: GdPAIBlackboard, _w: GdPAIBlackboard) -> float: return 1.5
+	var cost_pickup: Callable = func(_a: GdPAIBlackboard, _w: GdPAIBlackboard) -> float: return 2.0
+	var eat_effect: Callable = func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+		var hunger = agent.get_property("hunger")
+		var held_item = agent.get_property("held_item")
+		if hunger != null and held_item != null and held_item != "":
+			agent.set_property("hunger", max(0.0, float(hunger) - 20.0))
+			agent.set_property("held_item", "")
+	var effect_pickup: Callable = func(a: GdPAIBlackboard, _w: GdPAIBlackboard) -> void:
+		a.set_property("held_item", "banana")
+
+	# Explicitly put Eat at index 0, Pickup at index 1
+	# Forward planner might pick Eat first; backward planner should pick Pickup first
+	var actions: Array[Dictionary] = [
+		{
+			"name": "EatHeldFood",
+			"cost_callable": cost_eat,
+			"effect_callable": eat_effect,
+			"preconditions": [],
+			"validity_checks": [],
+			"requirements": [ {"kind": "binding_exists", "binding_name": "held_item"}],
+			"provisions": []
+		},
+		{
+			"name": "PickupBanana",
+			"cost_callable": cost_pickup,
+			"effect_callable": effect_pickup,
+			"preconditions": [],
+			"validity_checks": [],
+			"requirements": [],
+			"provisions": [ {"kind": "binding", "binding_name": "held_item", "value": "banana"}]
+		}
+	]
+
+	var goals: Array[Dictionary] = [
+		{
+			"name": "NotHungry",
+			"reward": 100.0,
+			"desired_state":
+			[
+				{
+					"target": "agent",
+					"operation": "less_than_or_equal",
+					"property_name": "hunger",
+					"value": 10.0
+				}
+			]
+		}
+	]
+
+	var result: Dictionary = await _submit_plan_and_wait(
+		scheduler,
+		_make_blackboard({"hunger": 30.0, "held_item": ""}),
+		_make_blackboard(),
+		actions,
+		goals,
+		120,
+		4
+	)
+
+	assert_true(result["success"], "Plan should succeed")
+	assert_eq(result["action_chain"].size(), 2, "Plan should have 2 actions")
+	# CRITICAL: Pickup (index 1) must be FIRST, Eat (index 0) must be SECOND
+	# Execution order: Pickup -> Eat (not Eat -> Pickup)
+	assert_eq(result["action_chain"][0], 1, "First action MUST be Pickup (backward from goal)")
+	assert_eq(result["action_chain"][1], 0, "Second action MUST be Eat (requires held_item)")
+
+
 ## Test that chain works when agent already has held_item
 ## (no Pickup needed)
 func test_eat_alone_succeeds_when_already_holding_food() -> void:
@@ -208,7 +283,7 @@ func test_eat_alone_succeeds_when_already_holding_food() -> void:
 			"effect_callable": eat_effect,
 			"preconditions": [],
 			"validity_checks": [],
-			"requirements": [{"kind": "binding_exists", "binding_name": "held_item"}],
+			"requirements": [ {"kind": "binding_exists", "binding_name": "held_item"}],
 			"provisions": []
 		}
 	]
