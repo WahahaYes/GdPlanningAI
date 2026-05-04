@@ -395,12 +395,16 @@ fn action_candidates_for_needs(
                     requires_bound_effect: false,
                 });
             }
-        } else if !action.requirements.is_empty()
-            && requirements_have_potential_providers(&action.requirements, ctx)
-        {
+        } else if !action.requirements.is_empty() {
+            let potential_satisfied_indices = potential_bound_effect_satisfied_precondition_indices(
+                action,
+                &branch.open_preconditions,
+                &branch.bound_provisions,
+                ctx,
+            );
             let estimated_cost = estimate_action_cost(action, branch, ctx);
             if estimated_cost != f64::INFINITY {
-                for precondition_idx in 0..branch.open_preconditions.len() {
+                for precondition_idx in potential_satisfied_indices {
                     candidates.push(ActionCandidate {
                         action_idx,
                         estimated_cost,
@@ -431,6 +435,11 @@ fn bound_effect_satisfied_precondition_indices(
         return vec![];
     };
 
+    let before_satisfied: Vec<bool> = open_preconditions
+        .iter()
+        .map(|precond| precondition_satisfied(precond, &hypo_agent, &hypo_world, ctx))
+        .collect();
+
     // Apply the action's effect
     let (after_agent, after_world) = call_apply_effect(
         action.effect_callable_id,
@@ -441,20 +450,48 @@ fn bound_effect_satisfied_precondition_indices(
 
     let mut satisfied_indices = Vec::new();
     for (idx, precond) in open_preconditions.iter().enumerate() {
-        let result = precond.evaluate_builtin(&after_agent, &after_world);
-        if let Some(true) = result {
+        let after_satisfied = precondition_satisfied(precond, &after_agent, &after_world, ctx);
+        if !before_satisfied[idx] && after_satisfied {
             satisfied_indices.push(idx);
-            continue;
-        }
-        // For custom preconditions, try evaluating
-        if result.is_none() {
-            if eval_precondition(precond, &after_agent, &after_world, ctx.request_tx) {
-                satisfied_indices.push(idx);
-            }
         }
     }
 
     satisfied_indices
+}
+
+fn potential_bound_effect_satisfied_precondition_indices(
+    action: &ActionSpec,
+    open_preconditions: &[PreconditionSpec],
+    bound_provisions: &[ProvisionSpec],
+    ctx: &SearchContext,
+) -> Vec<usize> {
+    let mut potential_provisions = bound_provisions.to_vec();
+    for provider in ctx.actions {
+        for provision in &provider.provisions {
+            if !potential_provisions.contains(provision) {
+                potential_provisions.push(provision.clone());
+            }
+        }
+    }
+
+    bound_effect_satisfied_precondition_indices(
+        action,
+        open_preconditions,
+        &potential_provisions,
+        ctx,
+    )
+}
+
+fn precondition_satisfied(
+    precondition: &PreconditionSpec,
+    agent: &BlackboardSnapshot,
+    world: &BlackboardSnapshot,
+    ctx: &SearchContext,
+) -> bool {
+    match precondition.evaluate_builtin(agent, world) {
+        Some(result) => result,
+        None => eval_precondition(precondition, agent, world, ctx.request_tx),
+    }
 }
 
 /// Create a hypothetical snapshot from concrete bound provisions.
@@ -528,28 +565,6 @@ fn estimate_action_cost(
     };
 
     call_get_cost(action.cost_callable_id, &hypo_agent, &hypo_world, ctx.request_tx)
-}
-
-/// Returns true if every requirement has a possible provider action or initial provision.
-fn requirements_have_potential_providers(
-    requirements: &[RequirementSpec],
-    ctx: &SearchContext,
-) -> bool {
-    requirements.iter().all(|requirement| {
-        requirement_satisfied_in_context(
-            requirement,
-            ctx.initial_provisions,
-            ctx.initial_world,
-        ) || ctx.actions.iter().any(|action| {
-            action.provisions.iter().any(|provision| {
-                provision_satisfies_requirement_in_context(
-                    provision,
-                    requirement,
-                    ctx.initial_world,
-                )
-            })
-        })
-    })
 }
 
 /// Update open needs when adding a predecessor action.

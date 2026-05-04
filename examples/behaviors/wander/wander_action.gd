@@ -27,7 +27,7 @@ func get_action_cost(
 	_agent_blackboard: GdPAIBlackboard,
 	_world_state: GdPAIBlackboard,
 ) -> float:
-	return 0.0
+	return 10.0
 
 
 # Override
@@ -52,8 +52,8 @@ func simulate_effect(
 func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	var location_data: GdPAILocationData = (
 		agent
-		. blackboard
-		. get_node_in_group(
+		.blackboard
+		.get_node_in_group(
 			"GdPAILocationData",
 		)
 	)
