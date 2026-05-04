@@ -169,7 +169,6 @@ An action is eligible only if it satisfies a currently open need:
 ```text
 1. It satisfies an open state precondition through simulated effect.
 2. It satisfies an open structured requirement through provisions.
-3. It satisfies a precondition introduced by a later selected action.
 ```
 
 The planner should not include an action merely because it has provisions or introduces requirements.
@@ -216,7 +215,7 @@ Option B is preferred because it makes the intended ordering explicit and reduce
 
 ## Implementation Plan
 
-### Phase 1: Preserve Current Behavior with Tests
+### Phase 1: Preserve Current Behavior with Tests ✅ Completed
 
 Add regression tests that expose the current ordering bug and expected backward behavior.
 
@@ -239,7 +238,10 @@ EatHeldFood requires held_item, satisfies hunger.
 Expected plan: GoToFood -> PickupFood -> EatHeldFood.
 ```
 
-### Phase 2: Introduce Backward Branch State
+Implemented in `addons/GdPlanningAI/rust/src/planner.rs` and covered by
+`test/integration/test_requirements_provisions.gd`.
+
+### Phase 2: Introduce Backward Branch State ✅ Completed
 
 Add a branch representation that tracks:
 
@@ -252,7 +254,9 @@ total_lower_bound_cost or estimated_cost
 
 The action chain should be stored in execution order. When a predecessor action is selected, insert it at the front.
 
-### Phase 3: Implement Requirement/Provision Backward Matching
+Implemented with `PlanBranch`, `SearchContext`, and explicit `action_chain` storage in execution order.
+
+### Phase 3: Implement Requirement/Provision Backward Matching ✅ Completed
 
 Implement candidate selection for open requirements:
 
@@ -270,7 +274,9 @@ add action.preconditions
 
 Do not add actions just because they have provisions. They must satisfy an existing open requirement.
 
-### Phase 4: Implement Simulated State-Need Matching
+Implemented for `BindingExists`, `BindingEquals`, `BindingInSet`, and `Fact` matching. `BindingInSet` is context-aware and checks known world object group membership for object references or world object UIDs.
+
+### Phase 4: Implement Simulated State-Need Matching ✅ Completed
 
 Implement candidate selection for open preconditions using `simulate_effect`.
 
@@ -292,7 +298,9 @@ add action.requirements
 insert action at front of chain
 ```
 
-### Phase 5: Forward Validate Complete Chains
+Implemented with planner-owned hypothetical snapshots. Requirement-dependent state effects are classified by temporarily satisfying declared requirements before calling `simulate_effect`.
+
+### Phase 5: Forward Validate Complete Chains ✅ Completed
 
 When all open needs are satisfied by the initial state and initial provisions, run full forward validation/costing.
 
@@ -309,7 +317,9 @@ the final state does not satisfy the selected goal
 
 Only validated chains should be returned to GDScript.
 
-### Phase 6: Pruning and Search Control
+Implemented final goal validation, precondition checks, requirement checks against accumulated provisions, cost callbacks, effect simulation, and provision accumulation.
+
+### Phase 6: Pruning and Search Control ✅ Partially Completed
 
 Add pruning once correctness is restored.
 
@@ -332,7 +342,24 @@ introduces requirements
 
 These recreate near-exhaustive search.
 
-### Phase 7: Cleanup Old Forward Planner Artifacts
+Implemented:
+
+```text
+max recursion depth
+candidate ordering by estimated cost and deterministic action index
+cost upper bound from best valid plan
+branch-and-bound pruning when branch.estimated_cost >= best_valid_cost
+```
+
+Still pending:
+
+```text
+visited state keyed by open needs plus selected suffix
+provision/action indexes for faster lookup
+more precise lower-bound cost estimates
+```
+
+### Phase 7: Cleanup Old Forward Planner Artifacts ✅ Mostly Completed
 
 Remove or rewrite concepts that belong to the accidental forward planner:
 
@@ -345,13 +372,84 @@ plan extraction that treats backward-selected root-to-leaf order as execution or
 
 `accumulated_provisions` should remain, but it belongs primarily in forward validation and in branch completion checks against initial provisions.
 
+The old two-pass same-depth requirement collection and plan-tree-based extraction path were replaced by explicit backward branch search. `PlanTreeNode` still exists for older tests/types, but the active planner no longer builds plans through it.
+
+## Current Implementation Status
+
+Implemented and committed in:
+
+```text
+8683ded reimplement backward planner
+d1e0536 backwards planner fixes
+```
+
+Current behavior:
+
+```text
+search starts from goal desired_state
+branch stores open_preconditions, open_requirements, action_chain, bound_provisions, pending_effects, estimated_cost
+candidate actions must satisfy an open requirement through provisions, directly satisfy an open state need through provider-bound simulate_effect, or make a pending state-effect claim whose requirements have possible providers
+selected predecessor actions are inserted at the front of action_chain
+selected predecessor provisions are added to bound_provisions
+pending state-effect claims are re-simulated when new providers bind concrete requirement values
+complete chains are forward-validated from real initial snapshots
+search keeps the cheapest forward-validated plan found within max_depth
+branches with estimated_cost >= best valid cost are pruned
+```
+
+Requirement/provision support:
+
+```text
+BindingExists:
+  satisfied by a non-null, non-empty binding provision
+
+BindingEquals:
+  satisfied by an equal binding provision
+
+BindingInSet:
+  satisfied by a binding value that refers to a known world object in the requested group
+
+Fact:
+  satisfied by an exactly matching fact provision
+```
+
+Provider-bound hypothetical simulation support:
+
+```text
+BindingExists:
+  inserts the concrete value from an initial provision or selected provider action
+
+BindingEquals:
+  inserts the required value
+
+BindingInSet:
+  inserts the concrete provider value that satisfies world object group membership
+
+Fact:
+  currently has no direct blackboard representation and is used only in provision matching
+```
+
+The planner no longer fabricates placeholder values to prove requirement-dependent effects. If an action cannot accurately simulate its effect until requirements are bound, it can create a pending state-effect claim. That claim remains unresolved until selected predecessor actions provide concrete provisions; the planner then re-simulates the dependent suffix action with those provider-bound values and only clears the pending need if the real effect satisfies the claimed precondition.
+
+Validation status:
+
+```text
+make test-rust
+make build-release
+make test-godot
+make lint-style
+```
+
+All passed after the latest planner hardening. The Godot suite includes 36 tests and 97 assertions.
+
 ## Open Questions
 
-1. Should hypothetical simulation only support binding requirements initially, or should it also support facts?
-2. How should the planner synthesize placeholder values for `binding_exists` when no concrete provider has been selected yet?
-3. Should `BindingInSet` require a set registry before it can be used for hypothetical simulation?
+1. Should facts eventually have a blackboard representation for hypothetical simulation, or should they remain provision-only planner metadata?
+2. Should `BindingExists` remain value-agnostic, or should common contracts prefer `BindingEquals` / `BindingInSet` for stronger provider selection?
+3. Should `BindingInSet` support explicit named set registries in addition to world object group membership?
 4. Should custom preconditions ever be allowed as open needs, or should they only be checked during forward validation?
 5. Should the planner keep `PlanTreeNode` for debugging visualization, while using explicit branches for search?
+6. What visited-state key should be used to suppress cycles without incorrectly pruning distinct useful chains?
 
 ## Decision Summary
 

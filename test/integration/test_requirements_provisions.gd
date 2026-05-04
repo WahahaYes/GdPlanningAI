@@ -335,6 +335,71 @@ func test_eat_alone_succeeds_when_already_holding_food() -> void:
 	assert_eq(result["total_cost"], 1.5, "Cost should be just eat cost")
 
 
+func test_requirement_dependent_effect_uses_provider_bound_resimulation() -> void:
+	var scheduler: GdPAIPlanScheduler = _make_scheduler()
+	await get_tree().process_frame
+
+	var cost_eat: Callable = func(_a: GdPAIBlackboard, _w: GdPAIBlackboard) -> float: return 1.5
+	var cost_pickup: Callable = func(_a: GdPAIBlackboard, _w: GdPAIBlackboard) -> float: return 2.0
+	var eat_effect: Callable = func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+		var hunger = agent.get_property("hunger")
+		var held_item = agent.get_property("held_item")
+		if hunger != null and held_item == "banana":
+			agent.set_property("hunger", max(0.0, float(hunger) - 20.0))
+			agent.set_property("held_item", "")
+	var pickup_effect: Callable = func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+		agent.set_property("held_item", "banana")
+
+	var actions: Array[Dictionary] = [
+		{
+			"name": "EatHeldFood",
+			"cost_callable": cost_eat,
+			"effect_callable": eat_effect,
+			"preconditions": [],
+			"validity_checks": [],
+			"requirements": [ {"kind": "binding_exists", "binding_name": "held_item"}],
+			"provisions": []
+		},
+		{
+			"name": "PickupBanana",
+			"cost_callable": cost_pickup,
+			"effect_callable": pickup_effect,
+			"preconditions": [],
+			"validity_checks": [],
+			"requirements": [],
+			"provisions": [ {"kind": "binding", "binding_name": "held_item", "value": "banana"}]
+		}
+	]
+	var goals: Array[Dictionary] = [
+		{
+			"name": "NotHungry",
+			"reward": 100.0,
+			"desired_state":
+			[
+				{
+					"target": "agent",
+					"operation": "less_than_or_equal",
+					"property_name": "hunger",
+					"value": 10.0
+				}
+			]
+		}
+	]
+
+	var result: Dictionary = await _submit_plan_and_wait(
+		scheduler,
+		_make_blackboard({"hunger": 30.0, "held_item": ""}),
+		_make_blackboard(),
+		actions,
+		goals,
+		120,
+		4
+	)
+
+	assert_true(result["success"], "Plan should re-simulate Eat after Pickup binds banana")
+	assert_eq(result["action_chain"], [1, 0], "Plan should pickup banana before eating it")
+
+
 func test_search_returns_cheapest_valid_requirement_chain() -> void:
 	var scheduler: GdPAIPlanScheduler = _make_scheduler()
 	await get_tree().process_frame

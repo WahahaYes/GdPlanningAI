@@ -22,22 +22,47 @@ struct PlanBranch {
     open_requirements: Vec<RequirementSpec>,
     /// Action indices in execution order (first = execute first).
     action_chain: Vec<i64>,
+    /// Concrete provisions supplied by initial state and selected predecessor actions.
+    bound_provisions: Vec<ProvisionSpec>,
+    /// State-effect claims that require provider-bound re-simulation before completion.
+    pending_effects: Vec<PendingEffectClaim>,
     /// Accumulated lower bound cost estimate.
     estimated_cost: f64,
 }
 
+/// A state effect selected before all of its requirements were bound.
+#[derive(Clone)]
+struct PendingEffectClaim {
+    action_idx: usize,
+    preconditions: Vec<PreconditionSpec>,
+}
+
+/// Candidate action plus the open preconditions it can satisfy.
+struct ActionCandidate {
+    action_idx: usize,
+    estimated_cost: f64,
+    satisfied_precondition_indices: Vec<usize>,
+    requires_bound_effect: bool,
+}
+
 impl PlanBranch {
-    fn new(goal_preconditions: &[PreconditionSpec]) -> Self {
+    fn new(goal_preconditions: &[PreconditionSpec], initial_provisions: &[ProvisionSpec]) -> Self {
         Self {
             open_preconditions: goal_preconditions.to_vec(),
             open_requirements: vec![],
             action_chain: vec![],
+            bound_provisions: initial_provisions.to_vec(),
+            pending_effects: vec![],
             estimated_cost: 0.0,
         }
     }
 
     /// Returns true if all open needs are satisfied by the given initial state and provisions.
     fn is_complete(&self, agent: &BlackboardSnapshot, world: &BlackboardSnapshot, initial_provisions: &[ProvisionSpec]) -> bool {
+        if !self.pending_effects.is_empty() {
+            return false;
+        }
+
         // Check if all preconditions are satisfied
         let preconditions_ok = self.open_preconditions.is_empty()
             || self.open_preconditions.iter().all(|p| {
@@ -130,7 +155,7 @@ pub fn run_plan(
         };
 
         // Start backward search from goal
-        let root_branch = PlanBranch::new(&goal.desired_state);
+        let root_branch = PlanBranch::new(&goal.desired_state, &initial_provisions);
         let mut best_cost = f64::INFINITY;
         let result = backward_search(root_branch, &ctx, 0, &mut best_cost);
 
@@ -226,29 +251,35 @@ fn backward_search(
     let mut best_result: Option<(Vec<i64>, f64)> = None;
 
     // Try each candidate (already sorted by estimated cost)
-    for (action_idx, estimated_cost) in candidates {
+    for candidate in candidates {
         if ctx.cancel_flag.load(std::sync::atomic::Ordering::Relaxed) {
             return None;
         }
 
-        let action = &ctx.actions[action_idx];
+        let action = &ctx.actions[candidate.action_idx];
 
         crate::log_debug!(
             "Trying action '{}' at depth {} (cost {:.2})",
             action.name,
             depth,
-            estimated_cost
+            candidate.estimated_cost
         );
 
         // Create new branch with this action as predecessor
         let mut new_branch = branch.clone();
 
         // Insert action at front of chain (execution order)
-        new_branch.action_chain.insert(0, action_idx as i64);
-        new_branch.estimated_cost += estimated_cost;
+        new_branch.action_chain.insert(0, candidate.action_idx as i64);
+        new_branch.estimated_cost += candidate.estimated_cost;
 
         // Update open needs: remove satisfied needs, add action's requirements/preconditions
-        update_open_needs(&mut new_branch, action, ctx);
+        if !update_open_needs(&mut new_branch, &candidate, action, ctx) {
+            crate::log_debug!(
+                "Action '{}' could not resolve pending provider-bound effects",
+                action.name
+            );
+            continue;
+        }
 
         // Recurse
         if let Some(result) = backward_search(new_branch, ctx, depth + 1, best_cost) {
@@ -275,8 +306,8 @@ fn backward_search(
 fn find_candidate_actions(
     branch: &PlanBranch,
     ctx: &SearchContext,
-) -> Vec<(usize, f64)> {
-    let mut candidates: Vec<(usize, f64)> = vec![];
+) -> Vec<ActionCandidate> {
+    let mut candidates: Vec<ActionCandidate> = vec![];
 
     crate::log_debug!(
         "Finding candidates among {} actions for {} preconditions and {} requirements",
@@ -292,18 +323,12 @@ fn find_candidate_actions(
             continue;
         }
 
-        // Check if action can satisfy any open need
-        let can_satisfy = can_action_satisfy_need(action, branch, ctx);
+        let action_candidates = action_candidates_for_needs(idx, action, branch, ctx);
 
-        if can_satisfy {
+        if !action_candidates.is_empty() {
             crate::log_debug!("Action '{}' can satisfy a need", action.name);
-            // Get estimated cost via hypothetical simulation
-            let cost = estimate_action_cost(action, branch, ctx);
-            crate::log_debug!("Action '{}' estimated cost: {}", action.name, cost);
 
-            if cost != f64::INFINITY {
-                candidates.push((idx, cost));
-            }
+            candidates.extend(action_candidates);
         } else {
             crate::log_debug!("Action '{}' cannot satisfy any open need", action.name);
         }
@@ -313,20 +338,23 @@ fn find_candidate_actions(
 
     // Sort by estimated cost (lower bound), then by action index for deterministic ordering
     candidates.sort_by(|a, b| {
-        a.1.partial_cmp(&b.1)
+        a.estimated_cost.partial_cmp(&b.estimated_cost)
             .unwrap_or(std::cmp::Ordering::Equal)
-            .then_with(|| a.0.cmp(&b.0))
+            .then_with(|| a.action_idx.cmp(&b.action_idx))
     });
 
     candidates
 }
 
-/// Check if an action can satisfy at least one open need in the branch.
-fn can_action_satisfy_need(
+/// Returns candidates for the needs an action can satisfy.
+fn action_candidates_for_needs(
+    action_idx: usize,
     action: &ActionSpec,
     branch: &PlanBranch,
     ctx: &SearchContext,
-) -> bool {
+) -> Vec<ActionCandidate> {
+    let mut candidates = Vec::new();
+
     // 1. Check if action's provisions satisfy any open requirement
     if !branch.open_requirements.is_empty() {
         let satisfies_req = provisions_satisfy_any_requirement_in_context(
@@ -336,36 +364,72 @@ fn can_action_satisfy_need(
         );
         if satisfies_req {
             crate::log_debug!("Action '{}' satisfies open requirements via provisions", action.name);
-            return true;
+            let estimated_cost = estimate_action_cost(action, branch, ctx);
+            if estimated_cost != f64::INFINITY {
+                candidates.push(ActionCandidate {
+                    action_idx,
+                    estimated_cost,
+                    satisfied_precondition_indices: vec![],
+                    requires_bound_effect: false,
+                });
+            }
         }
     }
 
     // 2. Check if action's effect can satisfy any open precondition
-    // Use hypothetical simulation: create a snapshot with action's requirements satisfied
     if !branch.open_preconditions.is_empty() {
-        let satisfies_precond = can_effect_satisfy_precondition(action, &branch.open_preconditions, ctx);
-        if satisfies_precond {
+        let satisfied_indices = bound_effect_satisfied_precondition_indices(
+            action,
+            &branch.open_preconditions,
+            &branch.bound_provisions,
+            ctx,
+        );
+        if !satisfied_indices.is_empty() {
             crate::log_debug!("Action '{}' satisfies open preconditions via effect", action.name);
-            return true;
+            let estimated_cost = estimate_action_cost(action, branch, ctx);
+            if estimated_cost != f64::INFINITY {
+                candidates.push(ActionCandidate {
+                    action_idx,
+                    estimated_cost,
+                    satisfied_precondition_indices: satisfied_indices,
+                    requires_bound_effect: false,
+                });
+            }
+        } else if !action.requirements.is_empty()
+            && requirements_have_potential_providers(&action.requirements, ctx)
+        {
+            let estimated_cost = estimate_action_cost(action, branch, ctx);
+            if estimated_cost != f64::INFINITY {
+                for precondition_idx in 0..branch.open_preconditions.len() {
+                    candidates.push(ActionCandidate {
+                        action_idx,
+                        estimated_cost,
+                        satisfied_precondition_indices: vec![precondition_idx],
+                        requires_bound_effect: true,
+                    });
+                }
+            }
         }
     }
 
-    false
+    candidates
 }
 
-/// Check if action's effect can satisfy any of the open preconditions.
-/// Uses hypothetical simulation with requirements satisfied.
-fn can_effect_satisfy_precondition(
+/// Returns indices of open preconditions satisfied by provider-bound simulation.
+fn bound_effect_satisfied_precondition_indices(
     action: &ActionSpec,
     open_preconditions: &[PreconditionSpec],
+    bound_provisions: &[ProvisionSpec],
     ctx: &SearchContext,
-) -> bool {
-    // Create hypothetical snapshot where action's requirements are satisfied
-    let (hypo_agent, hypo_world) = create_hypothetical_snapshot(
+) -> Vec<usize> {
+    let Some((hypo_agent, hypo_world)) = create_hypothetical_snapshot(
         ctx.initial_agent,
         ctx.initial_world,
         &action.requirements,
-    );
+        bound_provisions,
+    ) else {
+        return vec![];
+    };
 
     // Apply the action's effect
     let (after_agent, after_world) = call_apply_effect(
@@ -375,51 +439,52 @@ fn can_effect_satisfy_precondition(
         ctx.request_tx,
     );
 
-    // Check if any open precondition is now satisfied
-    for precond in open_preconditions {
+    let mut satisfied_indices = Vec::new();
+    for (idx, precond) in open_preconditions.iter().enumerate() {
         let result = precond.evaluate_builtin(&after_agent, &after_world);
         if let Some(true) = result {
-            return true;
+            satisfied_indices.push(idx);
+            continue;
         }
         // For custom preconditions, try evaluating
         if result.is_none() {
             if eval_precondition(precond, &after_agent, &after_world, ctx.request_tx) {
-                return true;
+                satisfied_indices.push(idx);
             }
         }
     }
 
-    false
+    satisfied_indices
 }
 
-/// Create a hypothetical snapshot with requirements satisfied for simulation.
+/// Create a hypothetical snapshot from concrete bound provisions.
 fn create_hypothetical_snapshot(
     agent: &BlackboardSnapshot,
     world: &BlackboardSnapshot,
     requirements: &[RequirementSpec],
-) -> (BlackboardSnapshot, BlackboardSnapshot) {
+    bound_provisions: &[ProvisionSpec],
+) -> Option<(BlackboardSnapshot, BlackboardSnapshot)> {
+    if !requirements_satisfied_in_context(requirements, bound_provisions, world) {
+        return None;
+    }
+
     let mut hypo_agent = agent.clone();
     let hypo_world = world.clone();
 
     for req in requirements {
         match req {
             RequirementSpec::BindingExists { binding_name } => {
-                // Set a placeholder string value for the binding
-                // Using a string ensures compatibility with GDScript string comparisons
-                hypo_agent
-                    .properties
-                    .insert(binding_name.clone(), crate::snapshot::VariantSnapshot::Str("hypothetical".to_string()));
+                let value = bound_value_for_requirement(req, bound_provisions, world)?;
+                hypo_agent.properties.insert(binding_name.clone(), value);
             }
             RequirementSpec::BindingEquals { binding_name, value } => {
                 hypo_agent.properties.insert(binding_name.clone(), value.clone());
             }
             RequirementSpec::BindingInSet {
                 binding_name,
-                set_name,
+                ..
             } => {
-                let value = find_world_object_in_group(world, set_name)
-                    .map(VariantSnapshot::ObjectRef)
-                    .unwrap_or_else(|| VariantSnapshot::Str(format!("hypothetical_{}", set_name)));
+                let value = bound_value_for_requirement(req, bound_provisions, world)?;
                 hypo_agent.properties.insert(binding_name.clone(), value);
             }
             _ => {
@@ -428,41 +493,73 @@ fn create_hypothetical_snapshot(
         }
     }
 
-    (hypo_agent, hypo_world)
+    Some((hypo_agent, hypo_world))
+}
+
+/// Returns the concrete value from bound provisions that satisfies a binding requirement.
+fn bound_value_for_requirement(
+    requirement: &RequirementSpec,
+    bound_provisions: &[ProvisionSpec],
+    world: &BlackboardSnapshot,
+) -> Option<VariantSnapshot> {
+    bound_provisions.iter().find_map(|provision| match provision {
+        ProvisionSpec::Binding { value, .. }
+            if provision_satisfies_requirement_in_context(provision, requirement, world) =>
+        {
+            Some(value.clone())
+        }
+        _ => None,
+    })
 }
 
 /// Estimate action cost using hypothetical simulation.
 fn estimate_action_cost(
     action: &ActionSpec,
-    _branch: &PlanBranch,
+    branch: &PlanBranch,
     ctx: &SearchContext,
 ) -> f64 {
-    // Create hypothetical snapshot where requirements are satisfied
-    let (hypo_agent, hypo_world) = create_hypothetical_snapshot(
+    let Some((hypo_agent, hypo_world)) = create_hypothetical_snapshot(
         ctx.initial_agent,
         ctx.initial_world,
         &action.requirements,
-    );
+        &branch.bound_provisions,
+    ) else {
+        return 1.0;
+    };
 
     call_get_cost(action.cost_callable_id, &hypo_agent, &hypo_world, ctx.request_tx)
 }
 
+/// Returns true if every requirement has a possible provider action or initial provision.
+fn requirements_have_potential_providers(
+    requirements: &[RequirementSpec],
+    ctx: &SearchContext,
+) -> bool {
+    requirements.iter().all(|requirement| {
+        requirement_satisfied_in_context(
+            requirement,
+            ctx.initial_provisions,
+            ctx.initial_world,
+        ) || ctx.actions.iter().any(|action| {
+            action.provisions.iter().any(|provision| {
+                provision_satisfies_requirement_in_context(
+                    provision,
+                    requirement,
+                    ctx.initial_world,
+                )
+            })
+        })
+    })
+}
+
 /// Update open needs when adding a predecessor action.
 /// This removes needs that the action satisfies and adds the action's own needs.
-fn update_open_needs(branch: &mut PlanBranch, action: &ActionSpec, ctx: &SearchContext) {
-    // Create hypothetical snapshot to test what this action's effect satisfies
-    let (hypo_agent, hypo_world) = create_hypothetical_snapshot(
-        ctx.initial_agent,
-        ctx.initial_world,
-        &action.requirements,
-    );
-    let (after_agent, after_world) = call_apply_effect(
-        action.effect_callable_id,
-        hypo_agent,
-        hypo_world,
-        ctx.request_tx,
-    );
-
+fn update_open_needs(
+    branch: &mut PlanBranch,
+    candidate: &ActionCandidate,
+    action: &ActionSpec,
+    ctx: &SearchContext,
+) -> bool {
     // 1. Remove requirements satisfied by this action's provisions
     branch.open_requirements.retain(|req| {
         !action
@@ -471,25 +568,32 @@ fn update_open_needs(branch: &mut PlanBranch, action: &ActionSpec, ctx: &SearchC
             .any(|prov| provision_satisfies_requirement_in_context(prov, req, ctx.initial_world))
     });
 
-    // 2. Remove preconditions that this action's effect satisfies
-    branch.open_preconditions.retain(|precond| {
-        // Check if precondition is now satisfied after the action's effect
-        let builtin_result = precond.evaluate_builtin(&after_agent, &after_world);
-        let satisfied = match builtin_result {
-            Some(result) => result,
-            None => eval_precondition(precond, &after_agent, &after_world, ctx.request_tx),
-        };
-        !satisfied
-    });
+    for prov in &action.provisions {
+        if !branch.bound_provisions.contains(prov) {
+            branch.bound_provisions.push(prov.clone());
+        }
+    }
 
-    // 3. Add action's requirements as new open needs
+    let claimed_preconditions = remove_preconditions_by_index(
+        &mut branch.open_preconditions,
+        &candidate.satisfied_precondition_indices,
+    );
+
+    if candidate.requires_bound_effect && !claimed_preconditions.is_empty() {
+        branch.pending_effects.push(PendingEffectClaim {
+            action_idx: candidate.action_idx,
+            preconditions: claimed_preconditions,
+        });
+    }
+
+    // 2. Add action's requirements as new open needs
     for req in &action.requirements {
         if !branch.open_requirements.contains(req) {
             branch.open_requirements.push(req.clone());
         }
     }
 
-    // 4. Add action's preconditions as new open needs
+    // 3. Add action's preconditions as new open needs
     for precond in &action.preconditions {
         // Check if this precondition is already satisfied by initial state
         let already_satisfied = precond.evaluate_builtin(
@@ -505,6 +609,57 @@ fn update_open_needs(branch: &mut PlanBranch, action: &ActionSpec, ctx: &SearchC
             }
         }
     }
+
+    resolve_pending_effects(branch, ctx)
+}
+
+/// Removes preconditions by index and returns the removed entries.
+fn remove_preconditions_by_index(
+    preconditions: &mut Vec<PreconditionSpec>,
+    indices: &[usize],
+) -> Vec<PreconditionSpec> {
+    let mut removed = Vec::new();
+    let mut sorted_indices = indices.to_vec();
+    sorted_indices.sort_unstable();
+    sorted_indices.dedup();
+
+    for idx in sorted_indices.into_iter().rev() {
+        if idx < preconditions.len() {
+            removed.push(preconditions.remove(idx));
+        }
+    }
+
+    removed.reverse();
+    removed
+}
+
+/// Re-simulates pending state-effect claims using currently bound concrete provisions.
+fn resolve_pending_effects(branch: &mut PlanBranch, ctx: &SearchContext) -> bool {
+    let mut unresolved_claims = Vec::new();
+
+    for claim in branch.pending_effects.drain(..) {
+        let action = &ctx.actions[claim.action_idx];
+        let satisfied_indices = bound_effect_satisfied_precondition_indices(
+            action,
+            &claim.preconditions,
+            &branch.bound_provisions,
+            ctx,
+        );
+
+        if satisfied_indices.len() == claim.preconditions.len() {
+            continue;
+        }
+
+        let mut remaining_preconditions = claim.preconditions;
+        remove_preconditions_by_index(&mut remaining_preconditions, &satisfied_indices);
+        unresolved_claims.push(PendingEffectClaim {
+            action_idx: claim.action_idx,
+            preconditions: remaining_preconditions,
+        });
+    }
+
+    branch.pending_effects = unresolved_claims;
+    true
 }
 
 /// Check if two preconditions are equal.
@@ -715,15 +870,6 @@ fn binding_value_is_in_set(
             .unwrap_or(false),
         _ => false,
     }
-}
-
-/// Returns the instance ID of the first known world object in a group.
-fn find_world_object_in_group(world: &BlackboardSnapshot, set_name: &str) -> Option<i64> {
-    world
-        .objects
-        .values()
-        .find(|object| object.groups.contains(&set_name.to_string()))
-        .and_then(|object| object.uid.parse::<i64>().ok())
 }
 
 /// Check if action is valid (dependencies exist).
