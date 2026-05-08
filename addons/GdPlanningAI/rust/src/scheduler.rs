@@ -425,21 +425,10 @@ fn dispatch_callback(callable: &Callable, kind: CallbackKind) -> CallbackRespons
         CallbackKind::ApplyEffect { agent, world } => {
             let bb_agent = agent.into_blackboard();
             let bb_world = world.into_blackboard();
-            let agent_keys: Vec<String> = bb_agent.bind().properties.keys().cloned().collect();
-            crate::log_debug!(
-                "dispatch ApplyEffect: agent props={:?}, world objects={}",
-                agent_keys,
-                bb_world.bind().objects.len()
-            );
             callable.call(&[bb_agent.to_variant(), bb_world.to_variant()]);
             // Re-snapshot the (now mutated) blackboards
             let new_agent = BlackboardSnapshot::from_blackboard(&bb_agent.bind());
             let new_world = BlackboardSnapshot::from_blackboard(&bb_world.bind());
-            let new_keys: Vec<String> = new_agent.properties.keys().cloned().collect();
-            crate::log_debug!(
-                "dispatch ApplyEffect done: agent props={:?}",
-                new_keys
-            );
             CallbackResponse::UpdatedSnapshots(new_agent, new_world)
         }
         CallbackKind::EvalCustomPrecond { agent, world } => {

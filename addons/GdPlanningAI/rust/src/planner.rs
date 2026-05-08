@@ -65,30 +65,16 @@ impl PlanBranch {
     /// Returns true if all open needs are satisfied by the accumulated state and provisions.
     fn is_complete(&self, initial_provisions: &[ProvisionSpec], request_tx: &Sender<CallbackRequest>) -> bool {
         if !self.pending_effects.is_empty() {
-            crate::log_debug!(
-                "is_complete: false - {} pending effects remain",
-                self.pending_effects.len()
-            );
             return false;
         }
 
-        // Check if all preconditions are satisfied
         let preconditions_ok = self.open_preconditions.is_empty()
             || self.open_preconditions.iter().all(|p| {
                 eval_precondition(p, &self.accumulated_agent, &self.accumulated_world, request_tx)
             });
 
-        // Check if all requirements are satisfied
         let requirements_ok = self.open_requirements.is_empty()
             || requirements_satisfied_in_context(&self.open_requirements, initial_provisions, &self.accumulated_world);
-
-        crate::log_debug!(
-            "is_complete: preconditions_ok={}, requirements_ok={}, open_preconditions={}, open_requirements={}",
-            preconditions_ok,
-            requirements_ok,
-            self.open_preconditions.len(),
-            self.open_requirements.len()
-        );
 
         preconditions_ok && requirements_ok
     }
@@ -396,20 +382,10 @@ fn action_candidates_for_needs(
 
     // 1. Check if action's provisions satisfy any open requirement
     if !branch.open_requirements.is_empty() {
-        crate::log_debug!(
-            "Action '{}' checking provisions against {} open requirements",
-            action.name,
-            branch.open_requirements.len()
-        );
         let satisfies_req = provisions_satisfy_any_requirement_in_context(
             &action.provisions,
             &branch.open_requirements,
             ctx.initial_world,
-        );
-        crate::log_debug!(
-            "Action '{}' provisions satisfy requirement: {}",
-            action.name,
-            satisfies_req
         );
         if satisfies_req {
             crate::log_debug!("Action '{}' satisfies open requirements via provisions", action.name);
@@ -446,22 +422,12 @@ fn action_candidates_for_needs(
                 });
             }
         } else if !action.requirements.is_empty() {
-            crate::log_debug!(
-                "Action '{}' checking potential bound effects (has {} requirements)",
-                action.name,
-                action.requirements.len()
-            );
             let potential_satisfied_indices = potential_bound_effect_satisfied_precondition_indices(
                 action,
                 &branch.open_preconditions,
                 &branch.bound_provisions,
                 branch,
                 ctx,
-            );
-            crate::log_debug!(
-                "Action '{}' potential bound effects found {} indices",
-                action.name,
-                potential_satisfied_indices.len()
             );
             let estimated_cost = estimate_action_cost(action, branch, ctx);
             if estimated_cost != f64::INFINITY {
@@ -503,11 +469,6 @@ fn bound_effect_satisfied_precondition_indices(
         .map(|precond| precondition_satisfied(precond, &hypo_agent, &hypo_world, ctx))
         .collect();
 
-    crate::log_debug!(
-        "bound_effect: before_satisfied = {:?}",
-        before_satisfied
-    );
-
     // Apply the action's effect
     let (after_agent, after_world) = call_apply_effect(
         action.effect_callable_id,
@@ -519,12 +480,6 @@ fn bound_effect_satisfied_precondition_indices(
     let mut satisfied_indices = Vec::new();
     for (idx, precond) in open_preconditions.iter().enumerate() {
         let after_satisfied = precondition_satisfied(precond, &after_agent, &after_world, ctx);
-        crate::log_debug!(
-            "bound_effect: idx={}, before={}, after={}",
-            idx,
-            before_satisfied[idx],
-            after_satisfied
-        );
         if !before_satisfied[idx] && after_satisfied {
             satisfied_indices.push(idx);
         }
@@ -565,18 +520,8 @@ fn precondition_satisfied(
     ctx: &SearchContext,
 ) -> bool {
     match precondition.evaluate_builtin(agent, world) {
-        Some(result) => {
-            crate::log_debug!(
-                "precondition_satisfied: builtin result={} for {:?}",
-                result,
-                precondition
-            );
-            result
-        }
-        None => {
-            crate::log_debug!("precondition_satisfied: custom callback");
-            eval_precondition(precondition, agent, world, ctx.request_tx)
-        }
+        Some(result) => result,
+        None => eval_precondition(precondition, agent, world, ctx.request_tx),
     }
 }
 
@@ -587,14 +532,7 @@ fn create_hypothetical_snapshot(
     requirements: &[RequirementSpec],
     bound_provisions: &[ProvisionSpec],
 ) -> Option<(BlackboardSnapshot, BlackboardSnapshot)> {
-    crate::log_debug!(
-        "create_hypothetical_snapshot: {} requirements, {} bound provisions, world has {} objects",
-        requirements.len(),
-        bound_provisions.len(),
-        base_world.objects.len()
-    );
     if !requirements_satisfied_in_context(requirements, bound_provisions, base_world) {
-        crate::log_debug!("create_hypothetical_snapshot: requirements not satisfied in context");
         return None;
     }
 
@@ -748,32 +686,14 @@ fn resolve_pending_effects(branch: &mut PlanBranch, ctx: &SearchContext) -> bool
     let mut unresolved_claims = Vec::new();
     let claims: Vec<_> = branch.pending_effects.drain(..).collect();
 
-    crate::log_debug!(
-        "resolve_pending_effects: {} claims, {} bound provisions",
-        claims.len(),
-        branch.bound_provisions.len()
-    );
-
     for claim in claims {
         let action = &ctx.actions[claim.action_idx];
-        crate::log_debug!(
-            "resolve_pending_effects: checking claim for action '{}' with {} preconditions",
-            action.name,
-            claim.preconditions.len()
-        );
         let satisfied_indices = bound_effect_satisfied_precondition_indices(
             action,
             &claim.preconditions,
             &branch.bound_provisions,
             branch,
             ctx,
-        );
-
-        crate::log_debug!(
-            "resolve_pending_effects: action '{}' satisfied {}/{} preconditions",
-            action.name,
-            satisfied_indices.len(),
-            claim.preconditions.len()
         );
 
         if satisfied_indices.len() == claim.preconditions.len() {
@@ -970,17 +890,7 @@ fn provision_satisfies_requirement_in_context(
                 binding_name,
                 set_name,
             },
-        ) => {
-            let name_match = provided_name == binding_name;
-            let in_set = binding_value_is_in_set(value, set_name, world);
-            crate::log_debug!(
-                "provision_satisfies_requirement: BindingInSet name='{}' match={} in_set={}",
-                provided_name,
-                name_match,
-                in_set
-            );
-            name_match && in_set
-        }
+        ) => provided_name == binding_name && binding_value_is_in_set(value, set_name, world),
         (
             ProvisionSpec::Fact {
                 fact_name: provided_name,
@@ -998,44 +908,18 @@ fn binding_value_is_in_set(
     set_name: &str,
     world: &BlackboardSnapshot,
 ) -> bool {
-    let result = match value {
-        VariantSnapshot::ObjectRef(id) => {
-            let found = world
-                .objects
-                .values()
-                .any(|object| object.uid == id.to_string() && object.groups.contains(&set_name.to_string()));
-            crate::log_debug!(
-                "binding_value_is_in_set: ObjectRef({}) in set '{}': {} (world has {} objects)",
-                id,
-                set_name,
-                found,
-                world.objects.len()
-            );
-            found
-        }
-        VariantSnapshot::Str(uid) => {
-            let found = world
-                .objects
-                .get(uid)
-                .map(|object| object.groups.contains(&set_name.to_string()))
-                .unwrap_or(false);
-            crate::log_debug!(
-                "binding_value_is_in_set: Str('{}') in set '{}': {}",
-                uid,
-                set_name,
-                found
-            );
-            found
-        }
-        other => {
-            crate::log_debug!(
-                "binding_value_is_in_set: unsupported variant type {:?}",
-                other
-            );
-            false
-        }
-    };
-    result
+    match value {
+        VariantSnapshot::ObjectRef(id) => world
+            .objects
+            .values()
+            .any(|object| object.uid == id.to_string() && object.groups.contains(&set_name.to_string())),
+        VariantSnapshot::Str(uid) => world
+            .objects
+            .get(uid)
+            .map(|object| object.groups.contains(&set_name.to_string()))
+            .unwrap_or(false),
+        _ => false,
+    }
 }
 
 /// Check if action is valid (dependencies exist).
