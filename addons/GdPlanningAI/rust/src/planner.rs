@@ -58,7 +58,7 @@ impl PlanBranch {
     }
 
     /// Returns true if all open needs are satisfied by the given initial state and provisions.
-    fn is_complete(&self, agent: &BlackboardSnapshot, world: &BlackboardSnapshot, initial_provisions: &[ProvisionSpec]) -> bool {
+    fn is_complete(&self, agent: &BlackboardSnapshot, world: &BlackboardSnapshot, initial_provisions: &[ProvisionSpec], request_tx: &Sender<CallbackRequest>) -> bool {
         if !self.pending_effects.is_empty() {
             return false;
         }
@@ -66,7 +66,7 @@ impl PlanBranch {
         // Check if all preconditions are satisfied
         let preconditions_ok = self.open_preconditions.is_empty()
             || self.open_preconditions.iter().all(|p| {
-                p.evaluate_builtin(agent, world).unwrap_or(false)
+                eval_precondition(p, agent, world, request_tx)
             });
 
         // Check if all requirements are satisfied
@@ -220,7 +220,7 @@ fn backward_search(
     }
 
     // Check if branch is complete - all needs satisfied by initial state
-    if branch.is_complete(ctx.initial_agent, ctx.initial_world, ctx.initial_provisions) {
+    if branch.is_complete(ctx.initial_agent, ctx.initial_world, ctx.initial_provisions, ctx.request_tx) {
         crate::log_debug!("Branch complete with {} actions", branch.action_chain.len());
         // Forward validate the complete chain
         let result = forward_validate(&branch.action_chain, ctx);
@@ -611,10 +611,12 @@ fn update_open_needs(
     // 3. Add action's preconditions as new open needs
     for precond in &action.preconditions {
         // Check if this precondition is already satisfied by initial state
-        let already_satisfied = precond.evaluate_builtin(
+        let already_satisfied = eval_precondition(
+            precond,
             ctx.initial_agent,
             ctx.initial_world,
-        ).unwrap_or(false);
+            ctx.request_tx,
+        );
 
         if !already_satisfied {
             // Check for duplicates

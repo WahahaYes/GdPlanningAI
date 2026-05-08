@@ -148,6 +148,6 @@ func test_real_hunger_example_shakes_tree_then_picks_up_food() -> void:
 		return
 	assert_eq(
 		pickup_plan[0].get_title(),
-		"Pickup",
+		"Pick Up Item",
 		"Second hunger plan should pick up dropped food",
 	)
