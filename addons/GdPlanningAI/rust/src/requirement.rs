@@ -37,6 +37,9 @@ pub enum ProvisionSpec {
         fact_name: String,
         args: Vec<VariantSnapshot>,
     },
+    FactWildcard {
+        fact_name: String,
+    },
 }
 
 impl RequirementSpec {
@@ -120,6 +123,12 @@ impl ProvisionSpec {
                     fact_name,
                     args: extract_variant_snapshots(dict, "args"),
                 })
+            }
+            "fact_wildcard" => {
+                let fact_name = dict
+                    .get("fact_name")
+                    .and_then(|v| v.try_to::<String>().ok())?;
+                Some(Self::FactWildcard { fact_name })
             }
             _ => {
                 log_warn!("ProvisionSpec: unrecognised kind '{}'", kind);
@@ -264,6 +273,12 @@ pub fn provision_satisfies_requirement(
             },
             RequirementSpec::Fact { fact_name, args },
         ) => provided_name == fact_name && provided_args == args,
+        (
+            ProvisionSpec::FactWildcard {
+                fact_name: provided_name,
+            },
+            RequirementSpec::Fact { fact_name, .. },
+        ) => provided_name == fact_name,
         _ => false,
     }
 }

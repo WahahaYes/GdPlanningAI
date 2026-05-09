@@ -579,3 +579,143 @@ func test_binding_in_set_requires_world_group_membership() -> void:
 
 	assert_true(result["success"], "Plan should succeed")
 	assert_eq(result["action_chain"], [1, 0], "Plan should choose the edible item provider")
+
+
+func test_wildcard_fact_provision_matches_specific_requirement() -> void:
+	var scheduler: GdPAIPlanScheduler = _make_scheduler()
+	await get_tree().process_frame
+
+	var cost_goto: Callable = func(_a: GdPAIBlackboard, _w: GdPAIBlackboard) -> float: return 5.0
+	var cost_interact: Callable = func(
+		_a: GdPAIBlackboard,
+		_w: GdPAIBlackboard,
+	) -> float:
+		return 1.0
+	var goto_effect: Callable = func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+		agent.set_property("at_location", true)
+	var interact_effect: Callable = func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+		agent.set_property("interacted", true)
+
+	var actions: Array[Dictionary] = [
+		{
+			"name": "InteractAtLocation",
+			"cost_callable": cost_interact,
+			"effect_callable": interact_effect,
+			"preconditions": [],
+			"validity_checks": [],
+			"requirements": [{"kind": "fact", "fact_name": "at_target", "args": ["location_123"]}],
+			"provisions": []
+		},
+		{
+			"name": "GoToWildcard",
+			"cost_callable": cost_goto,
+			"effect_callable": goto_effect,
+			"preconditions": [],
+			"validity_checks": [],
+			"requirements": [],
+			"provisions": [{"kind": "fact_wildcard", "fact_name": "at_target"}]
+		}
+	]
+	var goals: Array[Dictionary] = [
+		{
+			"name": "Interacted",
+			"reward": 100.0,
+			"desired_state":
+			[
+				{
+					"target": "agent",
+					"operation": "equal",
+					"property_name": "interacted",
+					"value": true
+				}
+			]
+		}
+	]
+	var world: GdPAIBlackboard = _make_blackboard()
+
+	var result: Dictionary = await _submit_plan_and_wait(
+		scheduler, _make_blackboard({"interacted": false}), world, actions, goals, 120, 4
+	)
+
+	assert_true(result["success"], "Plan should succeed")
+	assert_eq(
+		result["action_chain"], [1, 0], "Plan should chain GoToWildcard -> InteractAtLocation"
+	)
+
+
+func test_wildcard_fact_provision_matches_multiple_requirements() -> void:
+	var scheduler: GdPAIPlanScheduler = _make_scheduler()
+	await get_tree().process_frame
+
+	var cost_goto: Callable = func(_a: GdPAIBlackboard, _w: GdPAIBlackboard) -> float: return 5.0
+	var cost_interact_a: Callable = func(
+		_a: GdPAIBlackboard,
+		_w: GdPAIBlackboard,
+	) -> float:
+		return 1.0
+	var cost_interact_b: Callable = func(
+		_a: GdPAIBlackboard,
+		_w: GdPAIBlackboard,
+	) -> float:
+		return 2.0
+	var goto_effect: Callable = func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+		agent.set_property("at_location", true)
+	var interact_a_effect: Callable = func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+		agent.set_property("interacted_a", true)
+	var interact_b_effect: Callable = func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+		agent.set_property("interacted_b", true)
+
+	var actions: Array[Dictionary] = [
+		{
+			"name": "InteractAtA",
+			"cost_callable": cost_interact_a,
+			"effect_callable": interact_a_effect,
+			"preconditions": [],
+			"validity_checks": [],
+			"requirements": [{"kind": "fact", "fact_name": "at_target", "args": ["location_a"]}],
+			"provisions": []
+		},
+		{
+			"name": "InteractAtB",
+			"cost_callable": cost_interact_b,
+			"effect_callable": interact_b_effect,
+			"preconditions": [],
+			"validity_checks": [],
+			"requirements": [{"kind": "fact", "fact_name": "at_target", "args": ["location_b"]}],
+			"provisions": []
+		},
+		{
+			"name": "GoToWildcard",
+			"cost_callable": cost_goto,
+			"effect_callable": goto_effect,
+			"preconditions": [],
+			"validity_checks": [],
+			"requirements": [],
+			"provisions": [{"kind": "fact_wildcard", "fact_name": "at_target"}]
+		}
+	]
+	var goals: Array[Dictionary] = [
+		{
+			"name": "InteractedA",
+			"reward": 100.0,
+			"desired_state":
+			[
+				{
+					"target": "agent",
+					"operation": "equal",
+					"property_name": "interacted_a",
+					"value": true
+				}
+			]
+		}
+	]
+	var world: GdPAIBlackboard = _make_blackboard()
+
+	var result: Dictionary = await _submit_plan_and_wait(
+		scheduler, _make_blackboard({"interacted_a": false}), world, actions, goals, 120, 4
+	)
+
+	assert_true(
+		result["success"], "Plan should succeed with wildcard satisfying location_a requirement"
+	)
+	assert_eq(result["action_chain"], [2, 0], "Plan should chain GoToWildcard -> InteractAtA")

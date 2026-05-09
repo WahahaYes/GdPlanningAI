@@ -13,3 +13,7 @@ static func binding(name: String, value: Variant) -> ProvisionSpec:
 
 static func fact(name: String, args: Array[Variant] = []) -> ProvisionSpec:
 	return ProvisionSpecFact.new(name, args)
+
+
+static func fact_wildcard(name: String) -> ProvisionSpec:
+	return ProvisionSpecFactWildcard.new(name)

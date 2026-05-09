@@ -931,6 +931,12 @@ fn provision_satisfies_requirement_in_context(
             },
             RequirementSpec::Fact { fact_name, args },
         ) => provided_name == fact_name && provided_args == args,
+        (
+            ProvisionSpec::FactWildcard {
+                fact_name: provided_name,
+            },
+            RequirementSpec::Fact { fact_name, .. },
+        ) => provided_name == fact_name,
         _ => false,
     }
 }
