@@ -15,11 +15,40 @@ extends RefCounted
 ## Resolves the [code]action_chain[/code] indices in [param result] back to
 ## the original [Action] objects from [param actions].
 ##
-## Returns an ordered [Array[Action]] ready for execution.
+## Returns an ordered [Array[Action]] ready for execution with bindings injected.
+## Action-specific bindings from the planner are injected into action instances.
 func deserialize_plan_result(result: Dictionary, actions: Array[Action]) -> Array[Action]:
 	var action_chain: Array[Action] = []
+	
+	# Build action_index -> action mapping for binding injection
+	var action_index_map: Dictionary = {}
+	for i in range(actions.size()):
+		action_index_map[i] = actions[i]
+	
+	# First build the action chain
 	for action_index in result.action_chain:
 		action_chain.append(actions[action_index])
+	
+	# Then inject action-specific bindings into action instances
+	if result.has("action_bindings"):
+		var action_bindings: Array = result.action_bindings
+		for binding in action_bindings:
+			# Rust sends [action_index, fact_name, [object_ids]]
+			var action_idx: int = binding[0]
+			var fact_name: String = binding[1]
+			var object_ids: Array = binding[2]
+			
+			# Inject binding into the action instance
+			var action: Action = action_index_map[action_idx]
+			if action.has_method("inject_binding"):
+				# Convert object_ids to actual object references
+				var object_refs = []
+				for id in object_ids:
+					var obj = instance_from_id(id)
+					if obj != null:
+						object_refs.append(obj)
+				action.inject_binding(fact_name, object_refs)
+	
 	return action_chain
 
 
@@ -41,7 +70,7 @@ func _extract_actions(actions: Array[Action]) -> Array[Dictionary]:
 	for action in actions:
 		(
 			extracted
-			. append(
+			.append(
 				{
 					"name": action.get_title(),
 					"cost_callable": Callable(action, "get_action_cost"),
@@ -93,7 +122,7 @@ func _extract_goals(goals: Array[Goal], agent: GdPAIAgent) -> Array[Dictionary]:
 	for goal in goals:
 		(
 			extracted
-			. append(
+			.append(
 				{
 					"name": goal.get_title(),
 					"reward": goal.compute_reward(agent),

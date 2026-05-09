@@ -223,6 +223,7 @@ fn plan_result_can_be_cloned() {
         total_cost: 15.0,
         goal_index: 3,
         deferred_action_indices: vec![],
+        action_bindings: vec![],
     };
 
     let cloned = original.clone();

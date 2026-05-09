@@ -1,5 +1,7 @@
 # Compositional GoTo + Interaction Implementation Plan
 
+**Note:** This document has been superseded by `GOTOACTION_PORT_TODO.md` which contains the current implementation plan. This document is kept for historical reference and design context.
+
 ## Overview
 
 Replace the bundled `SpatialAction` pattern with a compositional approach where:

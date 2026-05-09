@@ -191,6 +191,8 @@ directly, removing the manual `GdPAIUTILS.get_child_of_type` branching in
 This is a framework-layer change that slightly expands the class hierarchy but eliminates
 the duplication cleanly.
 
+**Note:** The broader SpatialAction to GoToAction migration is documented in `GOTOACTION_PORT_TODO.md`. The `NavigatingAction` base class approach may be superseded by the GoToAction pattern.
+
 ---
 
 ### Assets sub-split — confirmed

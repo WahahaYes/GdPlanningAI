@@ -9,6 +9,21 @@ const ARRIVAL_THRESHOLD_2D: float = 8.0
 ## Arrival distance threshold for 3D navigation (meters).
 const ARRIVAL_THRESHOLD_3D: float = 0.1
 
+
+## Returns the [NavigationAgent2D] or [NavigationAgent3D] child of [param entity],
+## or [code]null[/code] if neither is present.
+## Asserts if both are present simultaneously.
+static func find_nav_agent(entity: Node) -> Node:
+	var nav_2d: Node = GdPAIUTILS.get_child_of_type(entity, NavigationAgent2D)
+	var nav_3d: Node = GdPAIUTILS.get_child_of_type(entity, NavigationAgent3D)
+	assert(
+		nav_2d == null or nav_3d == null,
+		"Entity should not have both a NavigationAgent2D and a NavigationAgent3D."
+	)
+	if nav_2d != null:
+		return nav_2d
+	return nav_3d
+
 ## The target location to navigate to. This will be bound during planning
 ## when the action is selected to satisfy an interaction's requirement.
 var target_location: GdPAILocationData
@@ -19,6 +34,16 @@ func _init(p_target_location: GdPAILocationData = null) -> void:
 	target_location = p_target_location
 
 
+## Injects a planner binding into this action instance.
+## Called by the bridge after plan deserialization to set wildcard provision values.
+## For GoToAction, this sets the target_location from the at_target binding.
+func inject_binding(fact_name: String, value: Array) -> void:
+	if fact_name == "at_target" and value.size() > 0:
+		var obj = value[0]
+		if obj is GdPAILocationData:
+			target_location = obj
+
+
 # Override
 func get_action_cost(
 	agent_blackboard: GdPAIBlackboard,
@@ -26,7 +51,8 @@ func get_action_cost(
 ) -> float:
 	var agent_location: SimObjectProxy = agent_blackboard.get_proxy_in_group("GdPAILocationData")
 
-	# If target_location is set, use it. Otherwise, check for binding from planner.
+	# If target_location is set (injected after planning), use it.
+	# Otherwise, check for binding from planner (set during simulation).
 	var actual_target = target_location
 	if actual_target == null:
 		var binding = agent_blackboard.get_property("at_target")
@@ -43,10 +69,12 @@ func get_action_cost(
 				actual_target = obj
 
 	if actual_target == null or not is_instance_valid(actual_target):
-		return INF
+		# During planning before binding, return a reasonable heuristic cost
+		# This allows the planner to consider GoToAction as a candidate
+		return 10.0
 	var sim_location: SimObjectProxy = world_state.get_object_for(actual_target)
 	if sim_location == null:
-		return INF
+		return 10.0
 	# Euclidean distance heuristic
 	var dist: float = (
 		(agent_location.get_property("position") - sim_location.get_property("position")).length()
@@ -59,11 +87,9 @@ func get_validity_checks() -> Array[Precondition]:
 	var checks: Array[Precondition] = []
 	checks.append(Precondition.agent_has_property("entity"))
 	checks.append(Precondition.agent_has_object_data_of_group("GdPAILocationData"))
+	# Only check target_location validity if it's set (during execution, not planning)
 	if target_location != null:
 		checks.append(Precondition.check_is_object_valid(target_location))
-	else:
-		# If target_location is not set, check for at_target binding from planner
-		checks.append(Precondition.agent_has_property("at_target"))
 	return checks
 
 
@@ -83,25 +109,13 @@ func simulate_effect(
 	agent_blackboard: GdPAIBlackboard,
 	_world_state: GdPAIBlackboard,
 ) -> void:
-	# If target_location is set, use it. Otherwise, check for binding from planner.
-	var actual_target = target_location
-	if actual_target == null:
-		var binding = agent_blackboard.get_property("at_target")
-		if binding is Array:
-			# Binding is an array of locations - choose the first one
-			if binding.size() > 0:
-				actual_target = binding[0]
-		elif binding is GdPAILocationData:
-			actual_target = binding
-
-	# Update agent's at_target fact to the target location
-	if actual_target != null and is_instance_valid(actual_target):
-		agent_blackboard.set_property("at_target", actual_target)
+	# Use target_location if set by planner binding
+	if target_location != null and is_instance_valid(target_location):
 		var agent_location: SimObjectProxy = agent_blackboard.get_proxy_in_group(
 			"GdPAILocationData"
 		)
 		if agent_location != null:
-			agent_location.set_property("position", actual_target.position)
+			agent_location.set_property("position", target_location.position)
 
 
 # Override
@@ -110,7 +124,7 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 		return Action.Status.FAILURE
 
 	var entity: Node = agent.entity
-	var nav_agent: Node = SpatialAction.find_nav_agent(entity)
+	var nav_agent: Node = find_nav_agent(entity)
 	if nav_agent == null:
 		return Action.Status.FAILURE
 
@@ -200,3 +214,13 @@ func post_perform_action(agent: GdPAIAgent) -> Action.Status:
 	erase_state(agent, "target_orig_position")
 
 	return Action.Status.SUCCESS
+
+
+# Override
+func get_title() -> String:
+	return "Go To"
+
+
+# Override
+func get_description() -> String:
+	return "Navigate to a target location."

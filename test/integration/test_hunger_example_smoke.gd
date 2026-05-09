@@ -135,6 +135,8 @@ func test_real_hunger_example_shakes_tree_then_picks_up_food() -> void:
 	agent.blackboard.set_property("hunger", 30.0)
 	var shake_plan: Array[Action] = await _start_plan_and_wait(agent)
 	assert_false(shake_plan.is_empty(), "Agent should plan when hungry")
+	# New pattern: GoTo → ShakeTreeInteractionAction chain (once implemented)
+	# For now, ShakeTreeAction still uses SpatialAction, so it's a single action
 	assert_eq(shake_plan[0].get_title(), "Shake Tree", "First hunger plan should shake the tree")
 	await _finish_current_plan(agent)
 
@@ -146,8 +148,8 @@ func test_real_hunger_example_shakes_tree_then_picks_up_food() -> void:
 	assert_false(pickup_plan.is_empty(), "Agent should plan after food drops")
 	if pickup_plan.is_empty():
 		return
-	assert_eq(
-		pickup_plan[0].get_title(),
-		"Pick Up Item",
-		"Second hunger plan should pick up dropped food",
-	)
+	# New pattern: GoTo → PickupInteractionAction → EatHeldFoodAction chain
+	assert_eq(pickup_plan.size(), 3, "Plan should have GoTo → Pickup → Eat chain")
+	assert_eq(pickup_plan[0].get_title(), "Go To", "First action should be GoTo")
+	assert_eq(pickup_plan[1].get_title(), "Pick Up Item", "Second action should be Pickup")
+	assert_eq(pickup_plan[2].get_title(), "Eat Held Food", "Third action should be Eat")

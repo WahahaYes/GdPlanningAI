@@ -26,8 +26,9 @@ struct PlanBranch {
     bound_provisions: Vec<ProvisionSpec>,
     /// State-effect claims that require provider-bound re-simulation before completion.
     pending_effects: Vec<PendingEffectClaim>,
-    /// Wildcard bindings: (fact_name, object_ids) captured when wildcard provisions match requirements
-    wildcard_bindings: Vec<(String, Vec<i64>)>,
+    /// Action-specific bindings: (action_index, fact_name, object_ids)
+    /// Tracks which action each wildcard binding belongs to
+    action_bindings: Vec<(i64, String, Vec<i64>)>,
     /// Accumulated lower bound cost estimate.
     estimated_cost: f64,
     /// State after all actions in this branch have been simulated forward.
@@ -63,7 +64,7 @@ impl PlanBranch {
             action_chain: vec![],
             bound_provisions: initial_provisions.to_vec(),
             pending_effects: vec![],
-            wildcard_bindings: vec![],
+            action_bindings: vec![],
             estimated_cost: 0.0,
             accumulated_agent: initial_agent.clone(),
             accumulated_world: initial_world.clone(),
@@ -160,6 +161,7 @@ pub fn run_plan(
                 total_cost: 0.0,
                 goal_index: goal.original_index as i64,
                 deferred_action_indices: vec![],
+                action_bindings: vec![],
             }));
             return;
         }
@@ -188,7 +190,7 @@ pub fn run_plan(
             return;
         }
 
-        if let Some((action_chain, total_cost)) = result {
+        if let Some((action_chain, total_cost, action_bindings)) = result {
             crate::log_debug!(
                 "Found valid plan for goal '{}' with cost {:.2}",
                 goal.name,
@@ -200,6 +202,7 @@ pub fn run_plan(
                 total_cost,
                 goal_index: goal.original_index as i64,
                 deferred_action_indices: vec![],
+                action_bindings,
             }));
             return;
         }
@@ -227,7 +230,7 @@ fn backward_search(
     ctx: &SearchContext,
     depth: usize,
     best_cost: &mut f64,
-) -> Option<(Vec<i64>, f64)> {
+) -> Option<(Vec<i64>, f64, Vec<(i64, String, Vec<i64>)>)> {
     if ctx.cancel_flag.load(std::sync::atomic::Ordering::Relaxed) {
         return None;
     }
@@ -252,12 +255,13 @@ fn backward_search(
         crate::log_debug!("Branch complete with {} actions", branch.action_chain.len());
         // Forward validate the complete chain
         let result = forward_validate(&branch.action_chain, ctx);
-        if let Some((_, total_cost)) = &result
-            && *total_cost < *best_cost
+        if let Some((action_chain, total_cost)) = result
+            && total_cost < *best_cost
         {
-            *best_cost = *total_cost;
+            *best_cost = total_cost;
+            return Some((action_chain, total_cost, branch.action_bindings.clone()));
         }
-        return result;
+        return None;
     }
 
     // Find candidate actions that can satisfy an open need
@@ -276,7 +280,7 @@ fn backward_search(
         branch.open_requirements.len()
     );
 
-    let mut best_result: Option<(Vec<i64>, f64)> = None;
+    let mut best_result: Option<(Vec<i64>, f64, Vec<(i64, String, Vec<i64>)>)> = None;
 
     // Try each candidate (already sorted by estimated cost)
     for candidate in candidates {
@@ -323,13 +327,14 @@ fn backward_search(
                 &new_branch.accumulated_world,
             );
         if requirements_met {
-            // If we have wildcard bindings, apply them to the blackboard temporarily
+            // If we have action-specific bindings, apply them to the blackboard temporarily
             // so the action's simulate_effect can use the concrete values
             let mut agent_for_sim = new_branch.accumulated_agent.clone();
             let world_for_sim = new_branch.accumulated_world.clone();
 
-            for (fact_name, object_ids) in &new_branch.wildcard_bindings {
-                if !object_ids.is_empty() {
+            // Look up bindings for this specific action
+            for (action_idx, fact_name, object_ids) in &new_branch.action_bindings {
+                if *action_idx == candidate.action_idx as i64 && !object_ids.is_empty() {
                     // Set the binding on the agent blackboard for the action to use
                     let id_variants: Vec<VariantSnapshot> = object_ids
                         .iter()
@@ -356,7 +361,7 @@ fn backward_search(
         if let Some(result) = backward_search(new_branch, ctx, depth + 1, best_cost) {
             let should_update = best_result
                 .as_ref()
-                .map(|(_, best_cost)| result.1 < *best_cost)
+                .map(|(_, best_cost, _)| result.1 < *best_cost)
                 .unwrap_or(true);
             if should_update {
                 crate::log_debug!(
@@ -662,7 +667,7 @@ fn update_open_needs(
     ctx: &SearchContext,
 ) -> bool {
     // 1. Remove requirements satisfied by this action's provisions
-    // Also capture wildcard bindings
+    // Also capture wildcard bindings with action index
     let mut requirements_to_remove = Vec::new();
     let mut new_bindings = Vec::new();
     for (req_idx, req) in branch.open_requirements.iter().enumerate() {
@@ -693,7 +698,8 @@ fn update_open_needs(
                                 })
                                 .collect();
                             if !object_ids.is_empty() {
-                                new_bindings.push((prov_name.clone(), object_ids));
+                                // Track which action this binding belongs to
+                                new_bindings.push((candidate.action_idx as i64, prov_name.clone(), object_ids));
                             }
                         }
                     }
@@ -710,9 +716,9 @@ fn update_open_needs(
         branch.open_requirements.remove(idx);
     }
 
-    // Add new wildcard bindings
-    for (fact_name, object_ids) in new_bindings {
-        branch.wildcard_bindings.push((fact_name, object_ids));
+    // Add new action-specific bindings
+    for (action_idx, fact_name, object_ids) in new_bindings {
+        branch.action_bindings.push((action_idx, fact_name, object_ids));
     }
 
     for prov in &action.provisions {

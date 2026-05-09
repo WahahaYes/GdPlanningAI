@@ -54,7 +54,7 @@ func _ready() -> void:
 	blackboard.set_property("GDPAI_OBJECTS", agent_objects)
 	# Apply behavior configurations.
 	for behavior_config in config.behavior_configs:
-		behavior_config.apply_to_agent(self)
+		behavior_config.apply_to_agent(self )
 	# Try to find a world node.
 	world_node = GdPAIUTILS.get_child_of_type(get_tree().root, GdPAIWorldNode)
 	_bridge = GdPAIRustBridge.new()
@@ -62,7 +62,7 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	for updater in property_updaters:
-		updater.update_properties(self, delta)
+		updater.update_properties(self , delta)
 
 	# Until some goals and actions have been provided, this agent is effectively turned off.
 	if goals.size() == 0:
@@ -152,12 +152,12 @@ func _start_plan_async() -> void:
 
 	(
 		scheduler
-		. submit_plan(
-			self,
+		.submit_plan(
+			self ,
 			blackboard,
 			world_node.get_world_state(),
 			_bridge.serialize_actions(all_actions),
-			_bridge.serialize_goals(goals, self),
+			_bridge.serialize_goals(goals, self ),
 			config.max_recursion,
 		)
 	)
@@ -201,7 +201,7 @@ func _execute_plan(delta: float) -> void:
 	# Pre actions.
 	if _current_plan_step == -1:
 		for action: Action in action_chain:
-			var action_status: Action.Status = action.pre_perform_action(self)
+			var action_status: Action.Status = action.pre_perform_action(self )
 			if action_status == Action.Status.FAILURE:
 				# Abort the plan.
 				_current_plan_step = action_chain.size()
@@ -212,7 +212,7 @@ func _execute_plan(delta: float) -> void:
 	# Actions.
 	if _current_plan_step < action_chain.size():
 		var current_action: Action = action_chain[_current_plan_step]
-		var action_status: Action.Status = current_action.perform_action(self, delta)
+		var action_status: Action.Status = current_action.perform_action(self , delta)
 		if action_status == Action.Status.FAILURE:
 			# Abort the plan.
 			_current_plan_step = action_chain.size()
@@ -224,9 +224,9 @@ func _execute_plan(delta: float) -> void:
 			_current_plan_step += 1
 
 	# Post actions.
-	if _current_plan_step == action_chain.size():  # We just finished, do post actions.
+	if _current_plan_step == action_chain.size(): # We just finished, do post actions.
 		for action: Action in action_chain:
-			action.post_perform_action(self)
+			action.post_perform_action(self )
 		_current_plan_step += 1
 
 
