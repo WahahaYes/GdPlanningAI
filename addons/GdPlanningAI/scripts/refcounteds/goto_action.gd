@@ -61,6 +61,9 @@ func get_validity_checks() -> Array[Precondition]:
 	checks.append(Precondition.agent_has_object_data_of_group("GdPAILocationData"))
 	if target_location != null:
 		checks.append(Precondition.check_is_object_valid(target_location))
+	else:
+		# If target_location is not set, check for at_target binding from planner
+		checks.append(Precondition.agent_has_property("at_target"))
 	return checks
 
 
@@ -94,8 +97,8 @@ func simulate_effect(
 	# Update agent's at_target fact to the target location
 	if actual_target != null and is_instance_valid(actual_target):
 		agent_blackboard.set_property("at_target", actual_target)
-		var agent_location: SimObjectProxy = (
-			agent_blackboard.get_proxy_in_group("GdPAILocationData")
+		var agent_location: SimObjectProxy = agent_blackboard.get_proxy_in_group(
+			"GdPAILocationData"
 		)
 		if agent_location != null:
 			agent_location.set_property("position", actual_target.position)
@@ -116,8 +119,8 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	)
 
 	# Cache the location data.
-	var agent_location_data: GdPAILocationData = (
-		agent.blackboard.get_node_in_group("GdPAILocationData")
+	var agent_location_data: GdPAILocationData = agent.blackboard.get_node_in_group(
+		"GdPAILocationData"
 	)
 
 	# Set up state for navigation.

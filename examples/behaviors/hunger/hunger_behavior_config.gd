@@ -26,6 +26,7 @@ func _populate(
 	updaters: Array[PropertyUpdater],
 ) -> void:
 	goals.append(HungerGoal.new())
+	actions.append(GoToAction.new())
 	(
 		actions
 		. append(
