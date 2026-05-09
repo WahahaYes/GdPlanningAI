@@ -6,21 +6,6 @@ This document tracks pending work items across the project. For completed work, 
 
 ## High Priority
 
-### Backward Planner Optimization
-
-**Document:** `BACKWARD_CHAINING_GOAP_PLANNER_PLAN.md`
-
-**Status:** Phase 6 partially complete, Phase 7 mostly complete
-
-**Remaining Items (Phase 6):**
-- Implement visited state keyed by open needs plus selected suffix for cycle detection
-- Add provision/action indexes for faster lookup during requirement matching
-- Implement more precise lower-bound cost estimates
-
-**Context:** The backward-chaining GOAP planner core is complete (Phases 1-5), but additional pruning and optimization controls remain to improve search efficiency.
-
----
-
 ### Requirements/Provisions Example Migration
 
 **Document:** `PRECONDITIONS_REQUIREMENTS_PROVISIONS_PLAN.md`
@@ -28,9 +13,9 @@ This document tracks pending work items across the project. For completed work, 
 **Status:** Phase 4 complete, Phases 5-6 pending
 
 **Remaining Items (Phase 5 - Migrate Examples):**
-- Remove placeholder hunger reduction from all example actions
-- Declare requirements and provisions explicitly in example actions
-- Validate that examples still plan successfully with requirements/provisions
+- Hunger food chain (Pickup → Eat) already migrated with requirements/provisions
+- ShakeTreeAction cannot be fully migrated - object spawning effects cannot be modeled by requirements/provisions, will retain placeholder hunger gain
+- Focus on compositional GoToAction prototype for remaining migration work
 
 **Remaining Items (Phase 6 - Cleanup and Helper APIs):**
 - Add convenience constructors/helpers for common requirement/provision patterns
@@ -120,6 +105,7 @@ This document tracks pending work items across the project. For completed work, 
 The following documents have been moved to `completed/`:
 
 - `ASYNC_PLANNER_MIGRATION_PLAN.md` - Async planner migration complete
+- `BACKWARD_CHAINING_GOAP_PLANNER_PLAN.md` - Backward-chaining GOAP planner complete (Phases 1-7)
 - `PLACEHOLDER_AND_STATE_DEPENDENCY_CHAINING.md` - Resolved by backward planner implementation
 - `THREADING_PLAN.md` - Superseded by async planner migration
 
@@ -185,7 +171,6 @@ The `notes/` directory is now organized as follows:
 - `bugs/` - Historical bug reports and fix plans
 - `historical/` - Historical analysis and design exploration
 - `superseded/` - Superseded implementation approaches
-- `BACKWARD_CHAINING_GOAP_PLANNER_PLAN.md` - Active plan (Phase 6 remaining)
 - `PRECONDITIONS_REQUIREMENTS_PROVISIONS_PLAN.md` - Active plan (Phases 5-6 pending)
 - `CAMPFIRE_EXAMPLE_PLAN.md` - Active plan (not implemented)
 - `EXAMPLES_PLAN.md` - Active plan (partial implementation)

@@ -400,16 +400,18 @@ This ensures that when `Pickup → Eat` chains are explored, the `Eat` action ge
 
 This allows the planner to explore action chains where earlier actions provide bindings (e.g., `held_item`) that later actions require, without needing placeholder-driven simulation hacks.
 
-### Phase 5: Migrate examples
+### Phase 5: Migrate examples ✅ PARTIALLY COMPLETED
 
 Migrate the hunger example first.
 
 Tasks:
 
-- remove placeholder hunger reduction from `EatHeldFoodAction`
-- stop reducing hunger in `PickupAction` simulation
-- declare requirements and provisions explicitly
-- validate that food chaining still plans successfully
+- remove placeholder hunger reduction from `EatHeldFoodAction` ✅
+- stop reducing hunger in `PickupAction` simulation ✅
+- declare requirements and provisions explicitly ✅
+- validate that food chaining still plans successfully ✅
+
+**Limitation:** ShakeTreeAction cannot be fully migrated to requirements/provisions. Its effect spawns new food objects in the world, which the Rust planner's simulated state cannot model. The current placeholder hunger gain approach is a necessary workaround for this architectural limitation. Requirements/provisions are designed for dependency chaining (e.g., "need held_item before eating"), not for object creation effects.
 
 Then prototype compositional movement.
 
