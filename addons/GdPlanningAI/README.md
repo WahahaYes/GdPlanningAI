@@ -85,7 +85,7 @@ The final major component of this framework, and the most novel improvement over
 
 In addition to an agent's self-actions, which are not dependent on external factors (for example, maybe an agent has the action to rest to regain stamina), these `GdPAIObjectData` broadcast their relevent actions.  A `banana` object may broadcast the `eat_food` action.  The relevant subclass of `GdPAIObjectData` contains a `hunger_restored` attribute that the `eat_food` action references.  Through a validity check, the `eat_food` action ensures that agents have a `hunger` property, to prevent unnecessary computations for agents that don't become hungry.
 
-The templates in `script_templates` and the examples in the project root `examples/` folder are verbosely commented to help with initial understanding of the framework. Using the script templates is highly recommended when creating your own actions, goals, and object data classes.
+The templates in `script_templates` and the examples in the `examples/` folder are verbosely commented to help with initial understanding of the framework. Using the script templates is highly recommended when creating your own actions, goals, and object data classes.
 
 **SpatialAction**
 
@@ -146,7 +146,7 @@ The debugger still lacks some useful features, like listing preconditions or the
 
 ### Examples
 
-Example scenes are available in the `examples/` folder at the project root. See `examples/README.md` for details.
+The `examples/` folder contains demonstration scenes. See `examples/README.md` for setup instructions and detailed documentation.
 
 ### License
 

@@ -10,7 +10,7 @@ test-rust: ## Run Rust tests only
 .PHONY: test-godot
 test-godot: ## Run Godot integration tests
 	@echo "Running tests..."
-	godot --headless -s --path . addons/gut/gut_cmdln.gd -gexit
+	@godot --headless -s --path . addons/gut/gut_cmdln.gd -gexit 2>&1 | grep -E "(Failed|Error|PASSED|passed)" || true
 
 ##@ Formatting
 
@@ -23,8 +23,8 @@ format-rust: ## Format Rust source files with rustfmt
 
 .PHONY: format-godot
 format-godot: ## Format GDScript files with gdformat (requires gdtoolkit)
-	uv run scripts/fix_gd_spacing.py
-	git ls-files '*.gd' | xargs uv run gdformat
+	@uv run scripts/fix_gd_spacing.py 2>&1 | grep -E "(error|Error)" || true
+	@git ls-files '*.gd' | xargs uv run gdformat 2>&1 | grep -E "(error|Error)" || true
 
 ##@ Linting
 

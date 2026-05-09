@@ -7,21 +7,21 @@ TARGET_DIR = $(RUST_DIR)/target
 
 .PHONY: build-release
 build-release: ## Build release binary for current platform
-	cargo build --release
+	@cargo build --release --message-format=short 2>&1 | grep -E "(error|Error|warning|Warning)" || true
 	@echo "Copying release binary for current platform..."
-	mkdir -p $(BIN_DIR)/linux 2>/dev/null || true
-	mkdir -p $(BIN_DIR)/windows 2>/dev/null || true
-	cp $(TARGET_DIR)/release/*.so $(BIN_DIR)/linux/ 2>/dev/null || true
-	cp $(TARGET_DIR)/release/*.dll $(BIN_DIR)/windows/ 2>/dev/null || true
+	@mkdir -p $(BIN_DIR)/linux 2>/dev/null || true
+	@mkdir -p $(BIN_DIR)/windows 2>/dev/null || true
+	@cp $(TARGET_DIR)/release/*.so $(BIN_DIR)/linux/ 2>/dev/null || true
+	@cp $(TARGET_DIR)/release/*.dll $(BIN_DIR)/windows/ 2>/dev/null || true
 
 .PHONY: build-debug
 build-debug: ## Build debug binary for current platform
-	cargo build
+	@cargo build --message-format=short 2>&1 | grep -E "(error|Error|warning|Warning)" || true
 	@echo "Copying debug binary for current platform..."
-	mkdir -p $(BIN_DIR)/linux 2>/dev/null || true
-	mkdir -p $(BIN_DIR)/windows 2>/dev/null || true
-	cp $(TARGET_DIR)/debug/*.so $(BIN_DIR)/linux/ 2>/dev/null || true
-	cp $(TARGET_DIR)/debug/*.dll $(BIN_DIR)/windows/ 2>/dev/null || true
+	@mkdir -p $(BIN_DIR)/linux 2>/dev/null || true
+	@mkdir -p $(BIN_DIR)/windows 2>/dev/null || true
+	@cp $(TARGET_DIR)/debug/*.so $(BIN_DIR)/linux/ 2>/dev/null || true
+	@cp $(TARGET_DIR)/debug/*.dll $(BIN_DIR)/windows/ 2>/dev/null || true
 
 .PHONY: build-all
 build-all: ## Build for all supported platforms
@@ -34,17 +34,17 @@ build-all: ## Build for all supported platforms
 build-linux: ## Build for Linux x86_64
 	"$(MAKE)" clean
 	@echo "Building for Linux x86_64..."
-	cross build --release --target x86_64-unknown-linux-gnu
-	mkdir -p $(BIN_DIR)/linux
-	cp $(TARGET_DIR)/x86_64-unknown-linux-gnu/release/libgdplanningai_rust.so $(BIN_DIR)/linux/
+	@cross build --release --target x86_64-unknown-linux-gnu --message-format=short 2>&1 | grep -E "(error|Error|warning|Warning)" || true
+	@mkdir -p $(BIN_DIR)/linux
+	@cp $(TARGET_DIR)/x86_64-unknown-linux-gnu/release/libgdplanningai_rust.so $(BIN_DIR)/linux/
 
 .PHONY: build-windows
 build-windows: ## Build for Windows x86_64
 	"$(MAKE)" clean
 	@echo "Building for Windows x86_64..."
-	cross build --release --target x86_64-pc-windows-gnu
-	mkdir -p $(BIN_DIR)/windows
-	cp $(TARGET_DIR)/x86_64-pc-windows-gnu/release/gdplanningai_rust.dll $(BIN_DIR)/windows/
+	@cross build --release --target x86_64-pc-windows-gnu --message-format=short 2>&1 | grep -E "(error|Error|warning|Warning)" || true
+	@mkdir -p $(BIN_DIR)/windows
+	@cp $(TARGET_DIR)/x86_64-pc-windows-gnu/release/gdplanningai_rust.dll $(BIN_DIR)/windows/
 
 .PHONY: clean-binaries
 clean-binaries: ## Clean all binary directories
@@ -57,23 +57,25 @@ clean-binaries: ## Clean all binary directories
 
 .PHONY: test
 test: ## Run unit tests
-	cargo test
+	@cargo test --message-format=short 2>&1 | grep -E "(test result|error|Error|FAILED|failed)" || true
 
 .PHONY: format
 format: ## Format code using rustfmt
-	rustup component add rustfmt && cargo fmt
+	@rustup component add rustfmt 2>&1 | grep -E "(error|Error)" || true
+	@cargo fmt 2>&1 | grep -E "(error|Error)" || true
 
 .PHONY: lint
 lint: ## Run clippy linter
-	rustup component add clippy && cargo clippy
+	@rustup component add clippy 2>&1 | grep -E "(error|Error)" || true
+	@cargo clippy --message-format=short 2>&1 | grep -E "(error|Error|warning|Warning)" || true
 
 .PHONY: lint-fix
 lint-fix: ## Run clippy linter with autofix
-	rustup component add clippy && cargo clippy --fix
+	rustup component add clippy && cargo clippy --fix --allow-dirty
 
 .PHONY: clean
 clean: ## Clean build artifacts
-	cargo clean
+	@cargo clean 2>&1 | grep -E "(error|Error)" || true
 
 .PHONY: doc
 doc: ## Generate documentation

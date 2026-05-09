@@ -249,10 +249,10 @@ fn backward_search(
         crate::log_debug!("Branch complete with {} actions", branch.action_chain.len());
         // Forward validate the complete chain
         let result = forward_validate(&branch.action_chain, ctx);
-        if let Some((_, total_cost)) = &result {
-            if *total_cost < *best_cost {
-                *best_cost = *total_cost;
-            }
+        if let Some((_, total_cost)) = &result
+            && *total_cost < *best_cost
+        {
+            *best_cost = *total_cost;
         }
         return result;
     }
@@ -979,19 +979,18 @@ fn eval_precondition(
 ) -> bool {
     match spec.evaluate_builtin(agent, world) {
         Some(result) => {
-            if !result {
-                if let PreconditionSpec::Builtin {
+            if !result
+                && let PreconditionSpec::Builtin {
                     operation,
                     property_name,
                     ..
                 } = spec
-                {
-                    crate::log_debug!(
-                        "Builtin precondition failed: op={:?}, property='{}'",
-                        operation,
-                        property_name
-                    );
-                }
+            {
+                crate::log_debug!(
+                    "Builtin precondition failed: op={:?}, property='{}'",
+                    operation,
+                    property_name
+                );
             }
             result
         }
