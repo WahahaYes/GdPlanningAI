@@ -17,6 +17,8 @@ This document tracks pending work items across the project. For completed work, 
 - ShakeTreeAction cannot be fully migrated - object spawning effects cannot be modeled by requirements/provisions, will retain placeholder hunger gain
 - Focus on compositional GoToAction prototype for remaining migration work
 
+**Implementation Guide:** See `COMPOSITIONAL_GOTO_INTERACTION_PLAN.md` for detailed implementation steps
+
 **Remaining Items (Phase 6 - Cleanup and Helper APIs):**
 - Add convenience constructors/helpers for common requirement/provision patterns
 - Add documentation for common patterns
