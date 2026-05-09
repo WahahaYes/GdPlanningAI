@@ -26,6 +26,8 @@ pub enum VariantSnapshot {
     Bytes(Vec<u8>),
     /// Tier 3: Godot instance-ID of a live object (opaque handle).
     ObjectRef(i64),
+    /// Array of VariantSnapshot values.
+    Array(Vec<VariantSnapshot>),
 }
 
 impl VariantSnapshot {
@@ -47,13 +49,22 @@ impl VariantSnapshot {
             return Self::Str(s);
         }
 
+        // Handle arrays - recursively snapshot each element
+        if let Ok(array) = v.try_to::<Array<Variant>>() {
+            let elements: Vec<VariantSnapshot> = array
+                .iter_shared()
+                .map(|elem| Self::from_variant(&elem))
+                .collect();
+            return Self::Array(elements);
+        }
+
         // Tier 3: live Object — store instance ID BEFORE attempting var_to_bytes
         // (var_to_bytes succeeds on Objects but encodes them as EncodedObjectAsID)
         if let Ok(obj) = v.try_to::<Gd<Object>>() {
             return Self::ObjectRef(obj.instance_id().to_i64());
         }
 
-        // Tier 2: Godot binary serialiser (for Vector2/3, Color, Array, Dictionary, Resources, etc.)
+        // Tier 2: Godot binary serialiser (for Vector2/3, Color, Dictionary, Resources, etc.)
         let bytes: PackedByteArray = godot::global::var_to_bytes(&v.clone());
         if !bytes.is_empty() {
             return Self::Bytes(bytes.to_vec());
@@ -90,6 +101,13 @@ impl VariantSnapshot {
                         Variant::nil()
                     }
                 }
+            }
+            Self::Array(elements) => {
+                let mut array = Array::<Variant>::new();
+                for elem in elements {
+                    array.push(&elem.to_variant());
+                }
+                array.to_variant()
             }
         }
     }

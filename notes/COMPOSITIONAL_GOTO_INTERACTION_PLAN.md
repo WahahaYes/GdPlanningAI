@@ -185,6 +185,82 @@ How does GoToAction resolve target_id to GdPAILocationData? Options:
 2. GoToAction looks up location from world_state using target_id
 3. Objects include location_data in their action requirements
 
+## Fact Wildcard Provision
+
+### What is a Fact Wildcard?
+
+A `ProvisionSpec.fact_wildcard(fact_name)` is a provision that can satisfy ANY requirement with the same `fact_name`, regardless of the requirement's arguments. This is different from regular fact provisions which require exact argument match.
+
+**Comparison with bindings:**
+
+| Type | Provision | Requirement | Direction |
+|------|-----------|-------------|-----------|
+| **Binding** | `binding("held_item", "banana")` | `binding_exists("held_item")` | Provision → Requirement (provision has concrete value) |
+| **Fact** | `fact("at_target", [loc1])` | `fact("at_target", [loc1])` | Exact match required |
+| **Fact Wildcard** | `fact_wildcard("at_target")` | `fact("at_target", [loc1])` | Requirement → Provision (provision captures args from requirement) |
+
+**Key distinction:**
+- For bindings and regular facts: The provision already knows its value/args when created
+- For fact wildcards: The provision has no args, but captures them from the requirement it satisfies
+
+### Why Fact Wildcards Enable Compositional GoTo
+
+The fact wildcard allows a **single GoToAction instance** to satisfy different location requirements:
+
+1. **PickupInteractionAction** requires `fact("at_target", [food_location])`
+2. **ShakeTreeInteractionAction** requires `fact("at_target", [tree_location])`
+3. **Agent's GoToAction** provides `fact_wildcard("at_target")`
+
+When the planner chains actions:
+- If PickupInteractionAction is selected, it introduces requirement `at_target(food_location)`
+- GoToAction's wildcard provision matches this requirement
+- GoToAction captures `food_location` as its target
+- The planner chains: `GoToAction(food_location) → PickupInteractionAction → EatHeldFoodAction`
+
+This eliminates the need for per-object GoToAction instances. The agent provides one generic GoToAction that dynamically adapts to whichever location requirement it needs to satisfy.
+
+### Implementation Status
+
+**Completed:**
+- `ProvisionSpecFactWildcard` class in GDScript
+- `FactWildcard` variant in Rust `ProvisionSpec` enum
+- Matching logic in `provision_satisfies_requirement_in_context`
+- Integration tests verifying wildcard matching
+
+**Remaining:**
+- **Dynamic action parameterization mechanism**: When a wildcard provision matches a requirement, the planner needs to:
+  1. Capture the requirement's arguments (e.g., `[food_location]`)
+  2. Store these bindings in the `PlanBranch` during planning
+  3. Include bindings in `PlanResult` so GDScript can access them
+  4. Pass bindings to actions during execution (e.g., set GoToAction's `target_location`)
+
+### Proposed Planner Changes
+
+To enable dynamic action parameterization:
+
+1. **Add `bound_fact_args` to `PlanBranch`**:
+   ```rust
+   bound_fact_args: HashMap<(String, usize), Vec<VariantSnapshot>>
+   // Key: (fact_name, action_index), Value: args from requirement
+   ```
+
+2. **Update `update_open_needs`** to capture fact arg bindings when wildcard provisions match requirements
+
+3. **Extend `PlanResult`** to include action parameter bindings:
+   ```rust
+   pub struct PlanResult {
+       // ... existing fields
+       pub action_bindings: HashMap<usize, Vec<VariantSnapshot>>,
+       // action_index → bound arguments
+   }
+   ```
+
+4. **Update GDScript bridge** to pass bindings to actions during execution
+
+5. **Update GoToAction** to accept location from plan result bindings
+
+This approach mirrors the existing `bound_provisions` mechanism used for binding requirements, extending it to handle fact argument binding for wildcards.
+
 ## Potential Issues
 
 ### Initialization Timing

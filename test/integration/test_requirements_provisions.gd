@@ -719,3 +719,93 @@ func test_wildcard_fact_provision_matches_multiple_requirements() -> void:
 		result["success"], "Plan should succeed with wildcard satisfying location_a requirement"
 	)
 	assert_eq(result["action_chain"], [2, 0], "Plan should chain GoToWildcard -> InteractAtA")
+
+
+## Test GoToAction with wildcard provision chains to PickupInteractionAction
+## This tests using dictionary format to simulate the actual Action classes
+func test_goto_action_wildcard_chains_to_pickup_interaction() -> void:
+	var scheduler: GdPAIPlanScheduler = _make_scheduler()
+	await get_tree().process_frame
+
+	# Create mock location data for testing
+	var location_data: GdPAILocationData = GdPAILocationData.new()
+	location_data.position = Vector3(10.0, 0.0, 5.0)
+	add_child_autofree(location_data)
+
+	var cost_goto: Callable = func(_a: GdPAIBlackboard, _w: GdPAIBlackboard) -> float: return 5.0
+	var cost_pickup: Callable = func(_a: GdPAIBlackboard, _w: GdPAIBlackboard) -> float: return 1.0
+	var cost_eat: Callable = func(_a: GdPAIBlackboard, _w: GdPAIBlackboard) -> float: return 1.5
+
+	var goto_effect: Callable = func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+		agent.set_property("at_location", true)
+	var pickup_effect: Callable = func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+		agent.set_property("held_item", "test_item")
+	var eat_effect: Callable = func(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> void:
+		var hunger = agent.get_property("hunger")
+		var held_item = agent.get_property("held_item")
+		if hunger != null and held_item != null and held_item != "":
+			agent.set_property("hunger", max(0.0, float(hunger) - 20.0))
+			agent.set_property("held_item", "")
+
+	var actions: Array[Dictionary] = [
+		{
+			"name": "EatHeldFood",
+			"cost_callable": cost_eat,
+			"effect_callable": eat_effect,
+			"preconditions": [],
+			"validity_checks": [],
+			"requirements": [{"kind": "binding_exists", "binding_name": "held_item"}],
+			"provisions": []
+		},
+		{
+			"name": "PickupInteraction",
+			"cost_callable": cost_pickup,
+			"effect_callable": pickup_effect,
+			"preconditions": [],
+			"validity_checks": [],
+			"requirements": [{"kind": "fact", "fact_name": "at_target", "args": [location_data]}],
+			"provisions": [{"kind": "binding", "binding_name": "held_item", "value": "test_item"}]
+		},
+		{
+			"name": "GoTo",
+			"cost_callable": cost_goto,
+			"effect_callable": goto_effect,
+			"preconditions": [],
+			"validity_checks": [],
+			"requirements": [],
+			"provisions": [{"kind": "fact_wildcard", "fact_name": "at_target"}]
+		}
+	]
+
+	var goals: Array[Dictionary] = [
+		{
+			"name": "NotHungry",
+			"reward": 100.0,
+			"desired_state":
+			[
+				{
+					"target": "agent",
+					"operation": "less_than_or_equal",
+					"property_name": "hunger",
+					"value": 10.0
+				}
+			]
+		}
+	]
+
+	var result: Dictionary = await _submit_plan_and_wait(
+		scheduler,
+		_make_blackboard({"hunger": 30.0, "held_item": ""}),
+		_make_blackboard(),
+		actions,
+		goals,
+		120,
+		6
+	)
+
+	assert_true(result["success"], "Plan should succeed with GoTo -> Pickup -> Eat chain")
+	# Should chain: GoTo (index 2) -> Pickup (index 1) -> Eat (index 0)
+	assert_eq(result["action_chain"].size(), 3, "Plan should have 3 actions")
+	assert_eq(result["action_chain"][0], 2, "First action should be GoTo")
+	assert_eq(result["action_chain"][1], 1, "Second action should be Pickup")
+	assert_eq(result["action_chain"][2], 0, "Third action should be Eat")

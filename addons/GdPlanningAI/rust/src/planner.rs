@@ -26,6 +26,8 @@ struct PlanBranch {
     bound_provisions: Vec<ProvisionSpec>,
     /// State-effect claims that require provider-bound re-simulation before completion.
     pending_effects: Vec<PendingEffectClaim>,
+    /// Wildcard bindings: (fact_name, object_ids) captured when wildcard provisions match requirements
+    wildcard_bindings: Vec<(String, Vec<i64>)>,
     /// Accumulated lower bound cost estimate.
     estimated_cost: f64,
     /// State after all actions in this branch have been simulated forward.
@@ -61,6 +63,7 @@ impl PlanBranch {
             action_chain: vec![],
             bound_provisions: initial_provisions.to_vec(),
             pending_effects: vec![],
+            wildcard_bindings: vec![],
             estimated_cost: 0.0,
             accumulated_agent: initial_agent.clone(),
             accumulated_world: initial_world.clone(),
@@ -218,7 +221,7 @@ struct SearchContext<'a> {
 }
 
 /// Core backward chaining search.
-/// Returns (action_chain, total_cost) if a valid plan is found.
+/// Returns (action_chain, total_cost, action_bindings) if a valid plan is found.
 fn backward_search(
     branch: PlanBranch,
     ctx: &SearchContext,
@@ -320,10 +323,29 @@ fn backward_search(
                 &new_branch.accumulated_world,
             );
         if requirements_met {
+            // If we have wildcard bindings, apply them to the blackboard temporarily
+            // so the action's simulate_effect can use the concrete values
+            let mut agent_for_sim = new_branch.accumulated_agent.clone();
+            let world_for_sim = new_branch.accumulated_world.clone();
+
+            for (fact_name, object_ids) in &new_branch.wildcard_bindings {
+                if !object_ids.is_empty() {
+                    // Set the binding on the agent blackboard for the action to use
+                    let id_variants: Vec<VariantSnapshot> = object_ids
+                        .iter()
+                        .map(|id| VariantSnapshot::ObjectRef(*id))
+                        .collect();
+                    let binding_value = VariantSnapshot::Array(id_variants);
+                    agent_for_sim
+                        .properties
+                        .insert(fact_name.clone(), binding_value);
+                }
+            }
+
             let (after_agent, after_world) = call_apply_effect(
                 action.effect_callable_id,
-                new_branch.accumulated_agent.clone(),
-                new_branch.accumulated_world.clone(),
+                agent_for_sim,
+                world_for_sim,
                 ctx.request_tx,
             );
             new_branch.accumulated_agent = after_agent;
@@ -640,12 +662,58 @@ fn update_open_needs(
     ctx: &SearchContext,
 ) -> bool {
     // 1. Remove requirements satisfied by this action's provisions
-    branch.open_requirements.retain(|req| {
-        !action
-            .provisions
-            .iter()
-            .any(|prov| provision_satisfies_requirement_in_context(prov, req, ctx.initial_world))
-    });
+    // Also capture wildcard bindings
+    let mut requirements_to_remove = Vec::new();
+    let mut new_bindings = Vec::new();
+    for (req_idx, req) in branch.open_requirements.iter().enumerate() {
+        for prov in &action.provisions {
+            if provision_satisfies_requirement_in_context(prov, req, ctx.initial_world) {
+                requirements_to_remove.push(req_idx);
+                // If this is a wildcard provision matching a specific fact requirement, capture the binding
+                if let ProvisionSpec::FactWildcard {
+                    fact_name: prov_name,
+                } = prov
+                {
+                    if let RequirementSpec::Fact {
+                        fact_name: req_name,
+                        args,
+                    } = req
+                    {
+                        if prov_name == req_name {
+                            let object_ids: Vec<i64> = args
+                                .iter()
+                                .filter_map(|v| {
+                                    if let VariantSnapshot::ObjectRef(id) = v {
+                                        Some(*id)
+                                    } else if let VariantSnapshot::Str(uid) = v {
+                                        uid.parse::<i64>().ok()
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .collect();
+                            if !object_ids.is_empty() {
+                                new_bindings.push((prov_name.clone(), object_ids));
+                            }
+                        }
+                    }
+                }
+                break;
+            }
+        }
+    }
+
+    // Remove satisfied requirements (in reverse order to preserve indices)
+    requirements_to_remove.sort();
+    requirements_to_remove.reverse();
+    for idx in requirements_to_remove {
+        branch.open_requirements.remove(idx);
+    }
+
+    // Add new wildcard bindings
+    for (fact_name, object_ids) in new_bindings {
+        branch.wildcard_bindings.push((fact_name, object_ids));
+    }
 
     for prov in &action.provisions {
         if !branch.bound_provisions.contains(prov) {
@@ -854,6 +922,7 @@ fn forward_validate(action_chain: &[i64], ctx: &SearchContext) -> Option<(Vec<i6
         "Forward validation succeeded, total cost: {:.2}",
         total_cost
     );
+
     Some((action_chain.to_vec(), total_cost))
 }
 
