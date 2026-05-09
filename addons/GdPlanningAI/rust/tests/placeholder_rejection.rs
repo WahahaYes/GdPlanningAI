@@ -29,7 +29,8 @@ fn plan_with_no_deferred_actions_is_valid() {
     let plan = extract_best_plan(&root);
 
     // Verify no deferred actions in the extracted plan
-    assert!(plan.deferred_indices.is_empty(),
+    assert!(
+        plan.deferred_indices.is_empty(),
         "Valid plan should have no deferred actions, but got: {:?}",
         plan.deferred_indices
     );

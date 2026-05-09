@@ -63,7 +63,7 @@ func _start_plan_and_wait(agent: GdPAIAgent, timeout_frames: int = 180) -> Array
 	var scheduler: GdPAIPlanScheduler = _scheduler()
 	var previous_plan: Array[Action] = agent.get_current_plan()
 	agent.manually_start_plan()
-	var saw_job := scheduler.active_job_count() > 0
+	var saw_job: bool = scheduler.active_job_count() > 0
 	for i in range(timeout_frames):
 		scheduler.process_callbacks()
 		saw_job = saw_job or scheduler.active_job_count() > 0

@@ -7,7 +7,7 @@
 
 use crate::plan_tree::PlanResult;
 use crate::plan_types::*;
-use crate::requirement::{extract_initial_provisions, ProvisionSpec, RequirementSpec};
+use crate::requirement::{ProvisionSpec, RequirementSpec, extract_initial_provisions};
 use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, atomic::AtomicBool};
@@ -49,7 +49,12 @@ struct ActionCandidate {
 }
 
 impl PlanBranch {
-    fn new(goal_preconditions: &[PreconditionSpec], initial_provisions: &[ProvisionSpec], initial_agent: &BlackboardSnapshot, initial_world: &BlackboardSnapshot) -> Self {
+    fn new(
+        goal_preconditions: &[PreconditionSpec],
+        initial_provisions: &[ProvisionSpec],
+        initial_agent: &BlackboardSnapshot,
+        initial_world: &BlackboardSnapshot,
+    ) -> Self {
         Self {
             open_preconditions: goal_preconditions.to_vec(),
             open_requirements: vec![],
@@ -63,18 +68,31 @@ impl PlanBranch {
     }
 
     /// Returns true if all open needs are satisfied by the accumulated state and provisions.
-    fn is_complete(&self, initial_provisions: &[ProvisionSpec], request_tx: &Sender<CallbackRequest>) -> bool {
+    fn is_complete(
+        &self,
+        initial_provisions: &[ProvisionSpec],
+        request_tx: &Sender<CallbackRequest>,
+    ) -> bool {
         if !self.pending_effects.is_empty() {
             return false;
         }
 
         let preconditions_ok = self.open_preconditions.is_empty()
             || self.open_preconditions.iter().all(|p| {
-                eval_precondition(p, &self.accumulated_agent, &self.accumulated_world, request_tx)
+                eval_precondition(
+                    p,
+                    &self.accumulated_agent,
+                    &self.accumulated_world,
+                    request_tx,
+                )
             });
 
         let requirements_ok = self.open_requirements.is_empty()
-            || requirements_satisfied_in_context(&self.open_requirements, initial_provisions, &self.accumulated_world);
+            || requirements_satisfied_in_context(
+                &self.open_requirements,
+                initial_provisions,
+                &self.accumulated_world,
+            );
 
         preconditions_ok && requirements_ok
     }
@@ -168,7 +186,11 @@ pub fn run_plan(
         }
 
         if let Some((action_chain, total_cost)) = result {
-            crate::log_debug!("Found valid plan for goal '{}' with cost {:.2}", goal.name, total_cost);
+            crate::log_debug!(
+                "Found valid plan for goal '{}' with cost {:.2}",
+                goal.name,
+                total_cost
+            );
             let _ = result_tx.send(Some(PlanResult {
                 success: true,
                 action_chain,
@@ -272,7 +294,9 @@ fn backward_search(
         let mut new_branch = branch.clone();
 
         // Insert action at front of chain (execution order)
-        new_branch.action_chain.insert(0, candidate.action_idx as i64);
+        new_branch
+            .action_chain
+            .insert(0, candidate.action_idx as i64);
         new_branch.estimated_cost += candidate.estimated_cost;
 
         // Update open needs: remove satisfied needs, add action's requirements/preconditions
@@ -328,10 +352,7 @@ fn backward_search(
 
 /// Find actions that can satisfy at least one open need in the branch.
 /// Returns vector of (action_index, estimated_cost) sorted by cost.
-fn find_candidate_actions(
-    branch: &PlanBranch,
-    ctx: &SearchContext,
-) -> Vec<ActionCandidate> {
+fn find_candidate_actions(branch: &PlanBranch, ctx: &SearchContext) -> Vec<ActionCandidate> {
     let mut candidates: Vec<ActionCandidate> = vec![];
 
     crate::log_debug!(
@@ -363,7 +384,8 @@ fn find_candidate_actions(
 
     // Sort by estimated cost (lower bound), then by action index for deterministic ordering
     candidates.sort_by(|a, b| {
-        a.estimated_cost.partial_cmp(&b.estimated_cost)
+        a.estimated_cost
+            .partial_cmp(&b.estimated_cost)
             .unwrap_or(std::cmp::Ordering::Equal)
             .then_with(|| a.action_idx.cmp(&b.action_idx))
     });
@@ -388,7 +410,10 @@ fn action_candidates_for_needs(
             ctx.initial_world,
         );
         if satisfies_req {
-            crate::log_debug!("Action '{}' satisfies open requirements via provisions", action.name);
+            crate::log_debug!(
+                "Action '{}' satisfies open requirements via provisions",
+                action.name
+            );
             let estimated_cost = estimate_action_cost(action, branch, ctx);
             if estimated_cost != f64::INFINITY {
                 candidates.push(ActionCandidate {
@@ -411,7 +436,10 @@ fn action_candidates_for_needs(
             ctx,
         );
         if !satisfied_indices.is_empty() {
-            crate::log_debug!("Action '{}' satisfies open preconditions via effect", action.name);
+            crate::log_debug!(
+                "Action '{}' satisfies open preconditions via effect",
+                action.name
+            );
             let estimated_cost = estimate_action_cost(action, branch, ctx);
             if estimated_cost != f64::INFINITY {
                 candidates.push(ActionCandidate {
@@ -545,13 +573,15 @@ fn create_hypothetical_snapshot(
                 let value = bound_value_for_requirement(req, bound_provisions, base_world)?;
                 hypo_agent.properties.insert(binding_name.clone(), value);
             }
-            RequirementSpec::BindingEquals { binding_name, value } => {
-                hypo_agent.properties.insert(binding_name.clone(), value.clone());
-            }
-            RequirementSpec::BindingInSet {
+            RequirementSpec::BindingEquals {
                 binding_name,
-                ..
+                value,
             } => {
+                hypo_agent
+                    .properties
+                    .insert(binding_name.clone(), value.clone());
+            }
+            RequirementSpec::BindingInSet { binding_name, .. } => {
                 let value = bound_value_for_requirement(req, bound_provisions, base_world)?;
                 hypo_agent.properties.insert(binding_name.clone(), value);
             }
@@ -570,22 +600,20 @@ fn bound_value_for_requirement(
     bound_provisions: &[ProvisionSpec],
     world: &BlackboardSnapshot,
 ) -> Option<VariantSnapshot> {
-    bound_provisions.iter().find_map(|provision| match provision {
-        ProvisionSpec::Binding { value, .. }
-            if provision_satisfies_requirement_in_context(provision, requirement, world) =>
-        {
-            Some(value.clone())
-        }
-        _ => None,
-    })
+    bound_provisions
+        .iter()
+        .find_map(|provision| match provision {
+            ProvisionSpec::Binding { value, .. }
+                if provision_satisfies_requirement_in_context(provision, requirement, world) =>
+            {
+                Some(value.clone())
+            }
+            _ => None,
+        })
 }
 
 /// Estimate action cost using hypothetical simulation from accumulated state.
-fn estimate_action_cost(
-    action: &ActionSpec,
-    branch: &PlanBranch,
-    ctx: &SearchContext,
-) -> f64 {
+fn estimate_action_cost(action: &ActionSpec, branch: &PlanBranch, ctx: &SearchContext) -> f64 {
     let Some((hypo_agent, hypo_world)) = create_hypothetical_snapshot(
         &branch.accumulated_agent,
         &branch.accumulated_world,
@@ -595,7 +623,12 @@ fn estimate_action_cost(
         return 1.0;
     };
 
-    call_get_cost(action.cost_callable_id, &hypo_agent, &hypo_world, ctx.request_tx)
+    call_get_cost(
+        action.cost_callable_id,
+        &hypo_agent,
+        &hypo_world,
+        ctx.request_tx,
+    )
 }
 
 /// Update open needs when adding a predecessor action.
@@ -651,7 +684,10 @@ fn update_open_needs(
 
         if !already_satisfied {
             // Check for duplicates
-            let is_duplicate = branch.open_preconditions.iter().any(|p| preconditions_equal(p, precond));
+            let is_duplicate = branch
+                .open_preconditions
+                .iter()
+                .any(|p| preconditions_equal(p, precond));
             if !is_duplicate {
                 branch.open_preconditions.push(precond.clone());
             }
@@ -728,25 +764,23 @@ fn preconditions_equal(a: &PreconditionSpec, b: &PreconditionSpec) -> bool {
                 property_name: p2,
                 value: v2,
             },
-        ) => {
-            t1 == t2 && o1 == o2 && p1 == p2 && v1 == v2
-        }
+        ) => t1 == t2 && o1 == o2 && p1 == p2 && v1 == v2,
         _ => false,
     }
 }
 
 /// Validate a complete action chain by forward simulation.
 /// Returns (action_chain, total_cost) if valid, None otherwise.
-fn forward_validate(
-    action_chain: &[i64],
-    ctx: &SearchContext,
-) -> Option<(Vec<i64>, f64)> {
+fn forward_validate(action_chain: &[i64], ctx: &SearchContext) -> Option<(Vec<i64>, f64)> {
     let mut agent = ctx.initial_agent.clone();
     let mut world = ctx.initial_world.clone();
     let mut accumulated_provisions: Vec<ProvisionSpec> = ctx.initial_provisions.to_vec();
     let mut total_cost: f64 = 0.0;
 
-    crate::log_debug!("Forward validating chain with {} actions", action_chain.len());
+    crate::log_debug!(
+        "Forward validating chain with {} actions",
+        action_chain.len()
+    );
 
     for action_idx in action_chain {
         let action = &ctx.actions[*action_idx as usize];
@@ -776,12 +810,12 @@ fn forward_validate(
         }
 
         // 4. Check requirements satisfied by accumulated provisions
-        if !requirements_satisfied_in_context(
-            &action.requirements,
-            &accumulated_provisions,
-            &world,
-        ) {
-            crate::log_debug!("Action '{}' failed: requirements not satisfied", action.name);
+        if !requirements_satisfied_in_context(&action.requirements, &accumulated_provisions, &world)
+        {
+            crate::log_debug!(
+                "Action '{}' failed: requirements not satisfied",
+                action.name
+            );
             return None;
         }
 
@@ -794,12 +828,8 @@ fn forward_validate(
         total_cost += cost;
 
         // 6. Apply effect
-        let (new_agent, new_world) = call_apply_effect(
-            action.effect_callable_id,
-            agent,
-            world,
-            ctx.request_tx,
-        );
+        let (new_agent, new_world) =
+            call_apply_effect(action.effect_callable_id, agent, world, ctx.request_tx);
         agent = new_agent;
         world = new_world;
 
@@ -820,7 +850,10 @@ fn forward_validate(
         return None;
     }
 
-    crate::log_debug!("Forward validation succeeded, total cost: {:.2}", total_cost);
+    crate::log_debug!(
+        "Forward validation succeeded, total cost: {:.2}",
+        total_cost
+    );
     Some((action_chain.to_vec(), total_cost))
 }
 
@@ -909,10 +942,9 @@ fn binding_value_is_in_set(
     world: &BlackboardSnapshot,
 ) -> bool {
     match value {
-        VariantSnapshot::ObjectRef(id) => world
-            .objects
-            .values()
-            .any(|object| object.uid == id.to_string() && object.groups.contains(&set_name.to_string())),
+        VariantSnapshot::ObjectRef(id) => world.objects.values().any(|object| {
+            object.uid == id.to_string() && object.groups.contains(&set_name.to_string())
+        }),
         VariantSnapshot::Str(uid) => world
             .objects
             .get(uid)

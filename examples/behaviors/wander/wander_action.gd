@@ -52,8 +52,8 @@ func simulate_effect(
 func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	var location_data: GdPAILocationData = (
 		agent
-		.blackboard
-		.get_node_in_group(
+		. blackboard
+		. get_node_in_group(
 			"GdPAILocationData",
 		)
 	)

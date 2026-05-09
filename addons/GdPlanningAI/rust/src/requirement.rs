@@ -208,9 +208,11 @@ pub fn get_unsatisfied_requirements(
 ///
 /// This allows existing bindings in the agent state to satisfy requirements
 /// without needing explicit action provisions.
-pub fn extract_initial_provisions(agent: &crate::snapshot::BlackboardSnapshot) -> Vec<ProvisionSpec> {
+pub fn extract_initial_provisions(
+    agent: &crate::snapshot::BlackboardSnapshot,
+) -> Vec<ProvisionSpec> {
     let mut provisions = Vec::new();
-    
+
     // Extract all non-null agent properties as binding provisions
     for (key, value) in &agent.properties {
         // Skip null/empty values that don't represent meaningful bindings
@@ -221,7 +223,7 @@ pub fn extract_initial_provisions(agent: &crate::snapshot::BlackboardSnapshot) -
             });
         }
     }
-    
+
     provisions
 }
 
