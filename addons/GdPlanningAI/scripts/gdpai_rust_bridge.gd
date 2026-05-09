@@ -37,7 +37,7 @@ func deserialize_plan_result(result: Dictionary, actions: Array[Action]) -> Arra
 			var action_idx: int = binding[0]
 			var fact_name: String = binding[1]
 			var object_ids: Array = binding[2]
-			
+
 			# Inject binding into the action instance
 			var action: Action = action_index_map[action_idx]
 			if action.has_method("inject_binding"):
@@ -48,7 +48,7 @@ func deserialize_plan_result(result: Dictionary, actions: Array[Action]) -> Arra
 					if obj != null:
 						object_refs.append(obj)
 				action.inject_binding(fact_name, object_refs)
-	
+
 	return action_chain
 
 
