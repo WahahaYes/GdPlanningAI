@@ -1,0 +1,46 @@
+[gd_scene format=3 uid="uid://cx8k4mam2n5p1"]
+
+[ext_resource type="Script" path="res://examples/objects/wood_pile/wood_pile_object.gd" id="1_abcde"]
+[ext_resource type="Script" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_interactable.gd" id="2_bcdef"]
+[ext_resource type="Script" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_location_data.gd" id="3_cdefg"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
+size = Vector2(32, 16)
+
+[sub_resource type="LabelSettings" id="LabelSettings_1"]
+font_size = 16
+
+[node name="WoodPile" type="Node2D"]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_1")
+
+[node name="ColorRect" type="ColorRect" parent="."]
+offset_left = -16.0
+offset_top = -8.0
+offset_right = 16.0
+offset_bottom = 8.0
+color = Color(0.545098, 0.411765, 0.0784312, 1)
+
+[node name="Label" type="Label" parent="."]
+offset_left = -32.0
+offset_top = -24.0
+offset_right = 32.0
+offset_bottom = -8.0
+text = "Wood Pile"
+label_settings = SubResource("LabelSettings_1")
+horizontal_alignment = 1
+
+[node name="GdPAIObjectData" type="Node" parent="." node_paths=PackedStringArray("entity")]
+script = ExtResource("1_abcde")
+entity = NodePath("..")
+interactable_attribs = NodePath("../GdPAIInteractable")
+location_data = NodePath("../GdPAILocationData")
+
+[node name="GdPAIInteractable" type="Node" parent="."]
+script = ExtResource("2_bcdef")
+
+[node name="GdPAILocationData" type="Node" parent="." node_paths=PackedStringArray("location_node_2d", "entity")]
+script = ExtResource("3_cdefg")
+location_node_2d = NodePath("..")
+entity = NodePath("..")

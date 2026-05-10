@@ -21,4 +21,5 @@ func _populate(
 	_updaters: Array[PropertyUpdater],
 ) -> void:
 	goals.append(MaintainFireGoal.new(fire_goal_reward, desired_fuel_level))
+	actions.append(GoToAction.new())
 	actions.append(DropItemAction.new(drop_duration))

@@ -1,0 +1,42 @@
+[gd_scene format=3 uid="uid://ea2n8p3r6t9u5"]
+
+[ext_resource type="Script" path="res://examples/objects/potato/potato_object.gd" id="1_pqrst"]
+[ext_resource type="Script" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_interactable.gd" id="2_qrstu"]
+[ext_resource type="Script" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_location_data.gd" id="3_rstuv"]
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_1"]
+radius = 0.3
+
+[sub_resource type="BoxMesh" id="BoxMesh_1"]
+size = Vector3(0.5, 0.5, 0.5)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_1"]
+albedo_color = Color(0.823529, 0.705882, 0.54902, 1)
+
+[node name="Potato" type="Node3D"]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("SphereShape3D_1")
+
+[node name="CSGSphere3D" type="CSGSphere3D" parent="."]
+radius = 0.25
+material = SubResource("StandardMaterial3D_1")
+
+[node name="Label3D" type="Label3D" parent="."]
+text = "Potato"
+pixel_size = 0.01
+position = Vector3(0, 0.5, 0)
+
+[node name="GdPAIObjectData" type="Node" parent="." node_paths=PackedStringArray("entity")]
+script = ExtResource("1_pqrst")
+entity = NodePath("..")
+interactable_attribs = NodePath("../GdPAIInteractable")
+location_data = NodePath("../GdPAILocationData")
+
+[node name="GdPAIInteractable" type="Node" parent="."]
+script = ExtResource("2_qrstu")
+
+[node name="GdPAILocationData" type="Node" parent="." node_paths=PackedStringArray("location_node_3d", "entity")]
+script = ExtResource("3_rstuv")
+location_node_3d = NodePath("..")
+entity = NodePath("..")

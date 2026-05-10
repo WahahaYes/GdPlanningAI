@@ -1,0 +1,39 @@
+[gd_scene format=3 uid="uid://gotoo7knn45f"]
+
+[ext_resource type="Script" uid="uid://ud624pp3ym82" path="res://examples/objects/wood_pile/wood_pile_object.gd" id="1_rstuv"]
+[ext_resource type="Script" uid="uid://buur1dj8yvfc1" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_interactable.gd" id="2_stuvw"]
+[ext_resource type="Script" uid="uid://b4nu0eehv0waq" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_location_data.gd" id="3_tuvwx"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_1"]
+size = Vector3(1, 0.5, 1)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_1"]
+albedo_color = Color(0.545098, 0.411765, 0.0784312, 1)
+
+[node name="WoodPile" type="Node3D" unique_id=117062979]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=738325746]
+shape = SubResource("BoxShape3D_1")
+
+[node name="CSGBox3D" type="CSGBox3D" parent="." unique_id=321620217]
+size = Vector3(1, 0.5, 1)
+material = SubResource("StandardMaterial3D_1")
+
+[node name="Label3D" type="Label3D" parent="." unique_id=1048973144]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+pixel_size = 0.01
+text = "Wood Pile"
+
+[node name="GdPAIObjectData" type="Node" parent="." unique_id=1298890973 node_paths=PackedStringArray("entity")]
+script = ExtResource("1_rstuv")
+interactable_attribs = NodePath("../GdPAIInteractable")
+location_data = NodePath("../GdPAILocationData")
+entity = NodePath("..")
+
+[node name="GdPAIInteractable" type="Node" parent="." unique_id=919214529]
+script = ExtResource("2_stuvw")
+
+[node name="GdPAILocationData" type="Node" parent="." unique_id=143285387 node_paths=PackedStringArray("location_node_3d", "entity")]
+script = ExtResource("3_tuvwx")
+location_node_3d = NodePath("..")
+entity = NodePath("..")

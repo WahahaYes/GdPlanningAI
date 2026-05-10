@@ -1,0 +1,63 @@
+[gd_scene format=3 uid="uid://hpufp8koo56g"]
+
+[ext_resource type="Script" path="res://examples/objects/campfire/campfire_object.gd" id="1_stuvw"]
+[ext_resource type="Script" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_interactable.gd" id="2_tuvwx"]
+[ext_resource type="Script" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_location_data.gd" id="3_uvwxy"]
+[ext_resource type="Script" path="res://examples/objects/campfire/campfire_runtime.gd" id="4_vwxyz"]
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_1"]
+height = 0.3
+radius = 0.8
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_1"]
+albedo_color = Color(0.909804, 0.364706, 0.247059, 1)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_2"]
+albedo_color = Color(0.360784, 0.227451, 0.117647, 1)
+
+[node name="Campfire" type="Node3D" unique_id=1256060839]
+script = ExtResource("4_vwxyz")
+campfire_object = NodePath("./GdPAIObjectData")
+label_node = NodePath("./Label3D")
+fire_primitive = NodePath("./FireGlow")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1108298127]
+shape = SubResource("CylinderShape3D_1")
+
+[node name="FireGlow" type="CSGSphere3D" parent="." unique_id=25863351]
+radius = 0.6
+material = SubResource("StandardMaterial3D_1")
+
+[node name="Log1" type="CSGCylinder3D" parent="." unique_id=242383621]
+radius = 0.15
+height = 0.8
+material = SubResource("StandardMaterial3D_2")
+
+[node name="Log2" type="CSGCylinder3D" parent="." unique_id=2037797755]
+transform = Transform3D(0.8660254, 0, 0.5, 0, 1, 0, -0.5, 0, 0.8660254, 0, 0, 0)
+radius = 0.15
+height = 0.8
+material = SubResource("StandardMaterial3D_2")
+
+[node name="OmniLight3D" type="OmniLight3D" parent="." unique_id=641049415]
+light_color = Color(1, 0.647059, 0, 1)
+shadow_enabled = true
+
+[node name="Label3D" type="Label3D" parent="." unique_id=14321593]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
+pixel_size = 0.01
+text = "Campfire (100%)"
+
+[node name="GdPAIObjectData" type="Node" parent="." unique_id=947345135 node_paths=PackedStringArray("entity")]
+script = ExtResource("1_stuvw")
+interactable_attribs = NodePath("../GdPAIInteractable")
+location_data = NodePath("../GdPAILocationData")
+entity = NodePath("..")
+
+[node name="GdPAIInteractable" type="Node" parent="." unique_id=417493456]
+script = ExtResource("2_tuvwx")
+
+[node name="GdPAILocationData" type="Node" parent="." unique_id=1193053903 node_paths=PackedStringArray("location_node_3d", "entity")]
+script = ExtResource("3_uvwxy")
+location_node_3d = NodePath("..")
+entity = NodePath("..")

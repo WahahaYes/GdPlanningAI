@@ -1,0 +1,66 @@
+[gd_scene format=3 uid="uid://dy0l6n1o4p7r3"]
+
+[ext_resource type="Script" path="res://examples/objects/campfire/campfire_object.gd" id="1_ghijk"]
+[ext_resource type="Script" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_interactable.gd" id="2_hijkl"]
+[ext_resource type="Script" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_location_data.gd" id="3_ijklm"]
+[ext_resource type="Script" path="res://examples/objects/campfire/campfire_runtime.gd" id="4_jklmn"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_1"]
+radius = 24.0
+
+[sub_resource type="LabelSettings" id="LabelSettings_1"]
+font_size = 16
+
+[node name="Campfire" type="Node2D"]
+script = ExtResource("4_jklmn")
+campfire_object = NodePath("./GdPAIObjectData")
+label_node = NodePath("./Label")
+fire_primitive = NodePath("./FireGlow")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_1")
+
+[node name="FireGlow" type="ColorRect" parent="."]
+offset_left = -20.0
+offset_top = -20.0
+offset_right = 20.0
+offset_bottom = 20.0
+color = Color(0.909804, 0.364706, 0.247059, 1)
+
+[node name="Log1" type="ColorRect" parent="."]
+offset_left = -4.0
+offset_top = -16.0
+offset_right = 4.0
+offset_bottom = 0.0
+color = Color(0.360784, 0.227451, 0.117647, 1)
+
+[node name="Log2" type="ColorRect" parent="."]
+offset_left = -8.0
+offset_top = -14.0
+offset_right = 0.0
+offset_bottom = 2.0
+rotation = 0.523599
+color = Color(0.360784, 0.227451, 0.117647, 1)
+
+[node name="Label" type="Label" parent="."]
+offset_left = -48.0
+offset_top = -32.0
+offset_right = 48.0
+offset_bottom = -16.0
+text = "Campfire (100%)"
+label_settings = SubResource("LabelSettings_1")
+horizontal_alignment = 1
+
+[node name="GdPAIObjectData" type="Node" parent="." node_paths=PackedStringArray("entity")]
+script = ExtResource("1_ghijk")
+entity = NodePath("..")
+interactable_attribs = NodePath("../GdPAIInteractable")
+location_data = NodePath("../GdPAILocationData")
+
+[node name="GdPAIInteractable" type="Node" parent="."]
+script = ExtResource("2_hijkl")
+
+[node name="GdPAILocationData" type="Node" parent="." node_paths=PackedStringArray("location_node_2d", "entity")]
+script = ExtResource("3_ijklm")
+location_node_2d = NodePath("..")
+entity = NodePath("..")
