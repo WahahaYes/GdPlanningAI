@@ -10,10 +10,10 @@
 ## Agreed v1 Implementation Scope
 
 - **Primary target:** Implement **both 2D and 3D demo scenes**. All gameplay logic (goals, actions, object data, spawner) is dimension-agnostic and shared. Only the prefab/scene layer differs between 2D and 3D — this showcases that the planning system is completely independent of the rendering dimension.
-- **Fire maintenance reward:** `MaintainFireGoal` uses a **simple exported/parameterized reward value** in v1 rather than computing a dynamic reward from fire fuel.
+- **Fire maintenance reward:** `MaintainFireGoal` uses a **dynamic reward**: returns the configured `fire_goal_reward` when any campfire's fuel is below `desired_fuel_level`, and returns `0.0` when all campfires are already above the threshold. This prevents the goal from competing with hunger when fire maintenance is not needed.
 - **Fire fuel access:** Campfire-related actions may **query the referenced campfire object directly** for runtime/planning validity and cost checks in the first pass.
 - **Inventory flexibility:** `DropItemAction` (already implemented) lets agents recover from plans where they must switch from holding food to holding wood.
-- **Eating action ownership:** Resource objects provide pickup/interaction actions, but eating is an **agent-provided action**. `EatHeldFoodAction` (already implemented) lives on `HungerBehaviorConfig` and restores hunger from a configurable per-item dictionary keyed by held item id.
+- **Eating action ownership:** Resource objects provide pickup/interaction actions, but eating is an **agent-provided action**. `EatHeldFoodAction` (already implemented) lives on `HungerBehaviorConfig` and restores hunger from a configurable per-item dictionary keyed by held item id. For v1, only `{"cooked_potato": 50.0}` is configured — agents cannot eat raw potatoes or non-food items.
 - **Object data responsibility:** `GdPAIObjectData` remains focused on **planning-system integration only**. Any campfire fuel visuals, labels, or scene presentation live in separate scene nodes/scripts.
 - **UI scope:** Keep the initial UI/visual feedback **minimal** and prioritize a working end-to-end implementation.
 
@@ -33,7 +33,7 @@ This example demonstrates **maintenance/proactive planning with resource transfo
 7. **Threshold-based goals** — goal reward scales as resource depletes
 8. **Dynamic respawning** — potatoes respawn at randomized locations
 
-**Note for v1:** Uses a **parameterized fixed reward** for fire maintenance. All gameplay code is shared between 2D and 3D — the planning system is dimension-agnostic.
+**Note for v1:** Fire maintenance uses a **dynamic reward** (returns 0 when fire is already above threshold). All gameplay code is shared between 2D and 3D — the planning system is dimension-agnostic.
 
 ---
 
@@ -83,6 +83,7 @@ All new interaction actions follow this pattern:
 | `GoToAction` | Agent-provided navigation; chains with all interaction actions via `at_target` |
 | `HungerBehaviorConfig` | Provides `HungerGoal`, `GoToAction`, `EatHeldFoodAction`, `HungerPropertyUpdater` |
 | `CampfireBehaviorConfig` | Provides `MaintainFireGoal`, `DropItemAction` |
+| `MaintainFireGoal` | **Needs update:** change `compute_reward()` to return `0.0` when all campfires are above `desired_fuel_level` (currently always returns `reward_value`). See [Agreed v1 Implementation Scope](#agreed-v1-implementation-scope). |
 | `HoldableObject` / `PickupAction` | Reusable pickup contract (used by food objects; wood/potato use their own interaction actions) |
 | `DropItemAction` | Agent-provided self action to clear `held_item` |
 | `EatHeldFoodAction` | Agent-provided self action; requires `held_item` binding, restores hunger from dictionary |
@@ -90,7 +91,7 @@ All new interaction actions follow this pattern:
 | `PropertyUpdater` | `HungerPropertyUpdater` decays hunger over time |
 | `Precondition` builtins | `agent_has_property`, `agent_property_equal_to`, `agent_property_not_equal_to`, `check_is_object_valid`, `custom`, etc. |
 
-**Net new code:** Three object types (`WoodPileObject`, `CampfireObject`, `PotatoObject`), four interaction actions (`PickUpWoodAction`, `AddFuelAction`, `CookPotatoAction`, `DigPotatoAction`), one spawner system (`PotatoSpawner`), and the demo scene + prefabs.
+**Net new code:** Three object types (`WoodPileObject`, `CampfireObject`, `PotatoObject`), four interaction actions (`PickUpWoodAction`, `AddFuelAction`, `CookPotatoAction`, `DigPotatoAction`), two spawner scripts (`PotatoSpawner2D`, `PotatoSpawner3D`), one update to `MaintainFireGoal.compute_reward()`, and the demo scene + prefabs.
 
 ---
 
@@ -151,6 +152,10 @@ func get_requirements() -> Array[RequirementSpec]:
     if object_location != null:
         return [RequirementSpec.fact("at_target", [object_location])]
     return []
+
+
+func get_provisions() -> Array[ProvisionSpec]:
+    return [ProvisionSpec.binding("held_item", "wood")]
 
 
 func get_action_cost(
@@ -260,6 +265,10 @@ func get_requirements() -> Array[RequirementSpec]:
     return []
 
 
+func get_provisions() -> Array[ProvisionSpec]:
+    return [ProvisionSpec.binding("held_item", "")]
+
+
 func get_action_cost(
     _agent_blackboard: GdPAIBlackboard,
     _world_state: GdPAIBlackboard,
@@ -352,6 +361,10 @@ func get_requirements() -> Array[RequirementSpec]:
     if object_location != null:
         return [RequirementSpec.fact("at_target", [object_location])]
     return []
+
+
+func get_provisions() -> Array[ProvisionSpec]:
+    return [ProvisionSpec.binding("held_item", "cooked_potato")]
 
 
 func get_action_cost(
@@ -469,6 +482,10 @@ func get_requirements() -> Array[RequirementSpec]:
     return []
 
 
+func get_provisions() -> Array[ProvisionSpec]:
+    return [ProvisionSpec.binding("held_item", "potato")]
+
+
 func get_action_cost(
     _agent_blackboard: GdPAIBlackboard,
     _world_state: GdPAIBlackboard,
@@ -501,11 +518,15 @@ func get_description() -> String:
 
 ---
 
-### 4. Potato Spawner — `examples/shared/systems/potato_spawner/`
+### 4. Potato Spawners
 
-**`potato_spawner.gd`** (`PotatoSpawner extends Node`)
+Separate 2D and 3D spawner scripts since spawn areas differ by dimension.
+
+#### 2D — `examples/shared/systems/potato_spawner/potato_spawner_2d.gd`
+
+**`potato_spawner_2d.gd`** (`PotatoSpawner2D extends Node`)
 ```gdscript
-class_name PotatoSpawner
+class_name PotatoSpawner2D
 extends Node
 
 @export var potato_scene: PackedScene
@@ -542,6 +563,54 @@ func _spawn_potato() -> void:
     )
 
     if potato is Node2D:
+        potato.position = random_pos
+
+    get_parent().add_child(potato)
+    _active_potatoes.append(potato)
+```
+
+#### 3D — `examples/shared/systems/potato_spawner/potato_spawner_3d.gd`
+
+**`potato_spawner_3d.gd`** (`PotatoSpawner3D extends Node`)
+```gdscript
+class_name PotatoSpawner3D
+extends Node
+
+@export var potato_scene: PackedScene
+@export var spawn_area: AABB
+@export var max_potatoes: int = 5
+@export var respawn_time: float = 10.0
+
+var _active_potatoes: Array[Node] = []
+var _respawn_timer: float = 0.0
+
+
+func _ready() -> void:
+    for i in range(max_potatoes):
+        _spawn_potato()
+
+
+func _process(delta: float) -> void:
+    _active_potatoes = _active_potatoes.filter(func(p): return is_instance_valid(p))
+
+    _respawn_timer += delta
+    if _active_potatoes.size() < max_potatoes and _respawn_timer >= respawn_time:
+        _spawn_potato()
+        _respawn_timer = 0.0
+
+
+func _spawn_potato() -> void:
+    if not potato_scene:
+        return
+
+    var potato: Node = potato_scene.instantiate()
+    var random_pos: Vector3 = Vector3(
+        randf_range(spawn_area.position.x, spawn_area.position.x + spawn_area.size.x),
+        spawn_area.position.y,
+        randf_range(spawn_area.position.z, spawn_area.position.z + spawn_area.size.z),
+    )
+
+    if potato is Node3D:
         potato.position = random_pos
 
     get_parent().add_child(potato)
@@ -658,7 +727,8 @@ Agent balances competing goals based on configured reward values.
 - `examples/objects/campfire/cook_potato_action.gd`
 - `examples/objects/potato/potato_object.gd`
 - `examples/objects/potato/dig_potato_action.gd`
-- `examples/shared/systems/potato_spawner/potato_spawner.gd`
+- `examples/shared/systems/potato_spawner/potato_spawner_2d.gd`
+- `examples/shared/systems/potato_spawner/potato_spawner_3d.gd`
 - `examples/campfire_2d.tscn`
 - `examples/campfire_3d.tscn`
 
@@ -810,7 +880,7 @@ Node2D (root)
 ├── NavigationRegion2D (covers play area, e.g. 800×600)
 ├── Campfire (instance of campfire_2d.tscn, positioned at center)
 ├── WoodPile × 4 (instances, positioned around the map)
-├── PotatoSpawner (node with PotatoSpawner script, spawn_area covering map)
+├── PotatoSpawner2D (node with PotatoSpawner2D script, spawn_area covering map)
 ├── Agent × 2–4 (instances of agent_2d.tscn, scattered around)
 └── (optional) TileMap or ColorRect background for ground
 ```
@@ -824,7 +894,7 @@ Node3D (root)
 ├── DirectionalLight3D + Camera3D (overhead or angled view)
 ├── Campfire (instance of campfire_3d.tscn, positioned at center)
 ├── WoodPile × 4 (instances, positioned around the map)
-├── PotatoSpawner (node with PotatoSpawner script, spawn_area covering map)
+├── PotatoSpawner3D (node with PotatoSpawner3D script, spawn_area covering map)
 ├── Agent × 2–4 (instances of agent_3d.tscn, scattered around)
 ```
 
@@ -1225,7 +1295,7 @@ godot --headless --path . -s addons/gut/gut_cmdln.gd -gtest=test/integration/tes
 - WoodPileObject + PickUpWoodAction: 0.5 hours
 - CampfireObject + AddFuelAction + CookPotatoAction: 1.5 hours
 - PotatoObject + DigPotatoAction: 0.5 hours
-- PotatoSpawner: 0.5 hours
+- PotatoSpawner2D + PotatoSpawner3D: 0.75 hours
 - CampfireBehaviorConfig update (add GoToAction): 5 minutes
 
 **2D + 3D Demo:**
