@@ -1207,7 +1207,10 @@ fn eval_precondition(
                 return false;
             }
 
-            let callable_id = spec.callable_id().unwrap();
+            let Some(callable_id) = spec.callable_id() else {
+                crate::log_warn!("Custom precondition spec missing callable_id");
+                return false;
+            };
             let result = call_eval_custom_precond(callable_id, agent, world, request_tx);
             if !result {
                 crate::log_debug!("Custom precondition callback returned false");

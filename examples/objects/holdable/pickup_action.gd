@@ -71,16 +71,27 @@ func simulate_effect(
 	agent_blackboard: GdPAIBlackboard,
 	_world_state: GdPAIBlackboard,
 ) -> void:
+	# Ensure the holdable item is still valid
+	if not is_instance_valid(holdable_item) or not is_instance_valid(holdable_item.entity):
+		return
+	
 	agent_blackboard.set_property("held_item", holdable_item.item_id)
 
 
 # Override
-func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
+func pre_perform_action(_agent: GdPAIAgent) -> Action.Status:
+	# Check if the holdable item is still valid
+	if not is_instance_valid(holdable_item) or not is_instance_valid(holdable_item.entity):
+		return Action.Status.FAILURE
 	return Action.Status.SUCCESS
 
 
 # Override
-func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
+func perform_action(agent: GdPAIAgent, _delta: float) -> Action.Status:
+	# Check if the holdable item is still valid
+	if not is_instance_valid(holdable_item) or not is_instance_valid(holdable_item.entity):
+		return Action.Status.FAILURE
+	
 	# Agent should already be at the location (GoToAction handled navigation)
 	# Just pick up the item
 	agent.blackboard.set_property("held_item", holdable_item.item_id)

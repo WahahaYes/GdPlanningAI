@@ -124,6 +124,7 @@ Action: [Value]"
 label_settings = SubResource("LabelSettings_6mdly")
 script = ExtResource("3_3tmg3")
 gdpai_agent = NodePath("../GdPAIAgent")
+debug_properties = Array[String](["hunger"])
 
 [node name="AgentAnimator" type="Node" parent="." unique_id=782907474 node_paths=PackedStringArray("entity", "animated_sprite")]
 script = ExtResource("4_6mdly")

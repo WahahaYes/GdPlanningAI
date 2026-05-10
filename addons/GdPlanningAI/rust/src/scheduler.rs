@@ -64,9 +64,10 @@ impl INode for GdPAIPlanScheduler {
                 .expect("GdPAIPlanScheduler: failed to build Rayon thread pool"),
         );
         godot::prelude::godot_print!("[GdPAI] Direct print from scheduler ready - logging works");
+        let num_threads = self.thread_pool.as_ref().map(|tp| tp.current_num_threads()).unwrap_or(0);
         log_info!(
             "GdPAIPlanScheduler ready — {} worker thread(s)",
-            self.thread_pool.as_ref().unwrap().current_num_threads()
+            num_threads
         );
         log_debug!("Log channel initialized and ready for planner thread logging");
     }
@@ -96,7 +97,11 @@ impl GdPAIPlanScheduler {
                     continue;
                 }
 
-                let result = result.unwrap();
+                let Some(result) = result else {
+                    log_warn!("Plan job returned None result");
+                    continue;
+                };
+
                 if job.agent.is_instance_valid() {
                     log_info!(
                         "Plan complete: success={}, actions={}, cost={:.1}",

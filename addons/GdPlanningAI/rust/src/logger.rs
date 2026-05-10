@@ -50,7 +50,10 @@ pub fn process_logs() {
     if let Some((_, rx)) = LOG_CHANNEL.get() {
         loop {
             let log_msg = {
-                let receiver = rx.lock().unwrap();
+                let Ok(receiver) = rx.lock() else {
+                    // Mutex poisoned, stop processing
+                    break;
+                };
                 receiver.try_recv()
             };
             match log_msg {
@@ -119,10 +122,12 @@ macro_rules! log_error {
         {
             let message = format!($($arg)*);
             if let Some(sender) = $crate::logger::get_log_sender() {
-                let _ = sender.lock().unwrap().send($crate::logger::LogMessage {
-                    level: $crate::logger::LogLevel::Error,
-                    message,
-                });
+                if let Ok(sender) = sender.lock() {
+                    let _ = sender.send($crate::logger::LogMessage {
+                        level: $crate::logger::LogLevel::Error,
+                        message,
+                    });
+                }
             } else {
                 // Fallback to direct print if channel not initialized (main thread)
                 godot::prelude::godot_error!("[GdPAI] {}", message);
@@ -139,10 +144,12 @@ macro_rules! log_warn {
         if $crate::logger::get_log_level() >= $crate::logger::LogLevel::Warn {
             let message = format!($($arg)*);
             if let Some(sender) = $crate::logger::get_log_sender() {
-                let _ = sender.lock().unwrap().send($crate::logger::LogMessage {
-                    level: $crate::logger::LogLevel::Warn,
-                    message,
-                });
+                if let Ok(sender) = sender.lock() {
+                    let _ = sender.send($crate::logger::LogMessage {
+                        level: $crate::logger::LogLevel::Warn,
+                        message,
+                    });
+                }
             } else {
                 // Fallback to direct print if channel not initialized (main thread)
                 godot::prelude::godot_warn!("[GdPAI] {}", message);
@@ -159,10 +166,12 @@ macro_rules! log_info {
         if $crate::logger::get_log_level() >= $crate::logger::LogLevel::Info {
             let message = format!($($arg)*);
             if let Some(sender) = $crate::logger::get_log_sender() {
-                let _ = sender.lock().unwrap().send($crate::logger::LogMessage {
-                    level: $crate::logger::LogLevel::Info,
-                    message,
-                });
+                if let Ok(sender) = sender.lock() {
+                    let _ = sender.send($crate::logger::LogMessage {
+                        level: $crate::logger::LogLevel::Info,
+                        message,
+                    });
+                }
             } else {
                 // Fallback to direct print if channel not initialized (main thread)
                 godot::prelude::godot_print!("[GdPAI] {}", message);
@@ -179,10 +188,12 @@ macro_rules! log_debug {
         if $crate::logger::get_log_level() >= $crate::logger::LogLevel::Debug {
             let message = format!($($arg)*);
             if let Some(sender) = $crate::logger::get_log_sender() {
-                let _ = sender.lock().unwrap().send($crate::logger::LogMessage {
-                    level: $crate::logger::LogLevel::Debug,
-                    message,
-                });
+                if let Ok(sender) = sender.lock() {
+                    let _ = sender.send($crate::logger::LogMessage {
+                        level: $crate::logger::LogLevel::Debug,
+                        message,
+                    });
+                }
             } else {
                 // Fallback to direct print if channel not initialized (main thread)
                 godot::prelude::godot_print!("[GdPAI | debug] {}", message);

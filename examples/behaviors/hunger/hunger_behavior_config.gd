@@ -7,7 +7,7 @@ extends GdPAIBehaviorConfig
 ## Configurable via [member hunger_decay] and [member initial_hunger].
 
 ## How much hunger drops per second.
-@export var hunger_decay: float = 2.5
+@export var hunger_decay: float = 1.25
 ## Starting hunger value on agent initialization.
 @export var initial_hunger: float = 0.0
 ## Maps held food item ids to the hunger they restore when consumed.
@@ -29,10 +29,10 @@ func _populate(
 	actions.append(GoToAction.new())
 	(
 		actions
-		. append(
+		.append(
 			(
 				EatHeldFoodAction
-				. new(
+				.new(
 					hunger_restored_by_item,
 					eat_duration,
 				)

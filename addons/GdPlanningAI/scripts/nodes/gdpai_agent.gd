@@ -201,6 +201,9 @@ func _execute_plan(delta: float) -> void:
 	# Pre actions.
 	if _current_plan_step == -1:
 		for action: Action in action_chain:
+			if not is_instance_valid(action):
+				_current_plan_step = action_chain.size()
+				break
 			var action_status: Action.Status = action.pre_perform_action(self )
 			if action_status == Action.Status.FAILURE:
 				# Abort the plan.
@@ -212,21 +215,25 @@ func _execute_plan(delta: float) -> void:
 	# Actions.
 	if _current_plan_step < action_chain.size():
 		var current_action: Action = action_chain[_current_plan_step]
-		var action_status: Action.Status = current_action.perform_action(self , delta)
-		if action_status == Action.Status.FAILURE:
-			# Abort the plan.
+		if not is_instance_valid(current_action):
 			_current_plan_step = action_chain.size()
-		elif action_status == Action.Status.RUNNING:
-			# Continue performing this action.
-			pass
-		elif action_status == Action.Status.SUCCESS:
-			# Progress to the next action.
-			_current_plan_step += 1
+		else:
+			var action_status: Action.Status = current_action.perform_action(self , delta)
+			if action_status == Action.Status.FAILURE:
+				# Abort the plan.
+				_current_plan_step = action_chain.size()
+			elif action_status == Action.Status.RUNNING:
+				# Continue performing this action.
+				pass
+			elif action_status == Action.Status.SUCCESS:
+				# Progress to the next action.
+				_current_plan_step += 1
 
 	# Post actions.
 	if _current_plan_step == action_chain.size(): # We just finished, do post actions.
 		for action: Action in action_chain:
-			action.post_perform_action(self )
+			if is_instance_valid(action):
+				action.post_perform_action(self )
 		_current_plan_step += 1
 
 
