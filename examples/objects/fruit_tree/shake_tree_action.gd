@@ -1,11 +1,8 @@
-class_name ShakeTreeInteractionAction
+class_name ShakeTreeAction
 extends Action
-## An interaction-only action that shakes a fruit tree to drop fruit.
+## An action that shakes a fruit tree to drop fruit.
 ## This action requires the agent to be at the target location (via at_target fact)
 ## and does NOT handle navigation itself - that's handled by GoToAction.
-##[br]
-##[br]
-## This is the new compositional approach replacing SpatialAction.
 
 ## Duration of the shaking animation in seconds.
 const SHAKE_DURATION: float = 0.5

@@ -1,11 +1,8 @@
-class_name PickupInteractionAction
+class_name PickupAction
 extends Action
-## An interaction-only action that picks up a holdable item.
+## An action that picks up a holdable item.
 ## This action requires the agent to be at the target location (via at_target fact)
 ## and does NOT handle navigation itself - that's handled by GoToAction.
-##[br]
-##[br]
-## This is the new compositional approach replacing SpatialAction.
 
 ## Reference to the holdable item that provided this action.
 var holdable_item: HoldableObject

@@ -21,7 +21,7 @@ func get_group_labels() -> Array[String]:
 
 # Override
 func get_provided_actions() -> Array[Action]:
-	return [PickupInteractionAction.new(location_data, interactable_attribs, self)]
+	return [PickupAction.new(location_data, interactable_attribs, self )]
 
 
 # Override

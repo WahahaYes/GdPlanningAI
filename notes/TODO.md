@@ -6,34 +6,6 @@ This document tracks pending work items across the project. For completed work, 
 
 ## High Priority
 
-### Requirements/Provisions Example Migration
-
-**Document:** `PRECONDITIONS_REQUIREMENTS_PROVISIONS_PLAN.md`
-
-**Status:** Phase 4 complete, Phase 5 (Migrate Examples) complete
-
-**Phase 5 - Migrate Examples to GoToAction Pattern:**
-
-Detailed implementation plan: `GOTOACTION_PORT_TODO.md`
-
-**Pattern Change:**
-- Old: `SpatialAction` = navigation + interaction (single bundled action)
-- New: `GoToAction` (navigation) → `InteractionAction` (interaction) - separate chained actions
-
-**Completed Tasks:**
-- Update FoodObject to provide PickupInteractionAction (inherited from HoldableObject)
-- Create ShakeTreeInteractionAction
-- Update FruitTreeObject to provide ShakeTreeInteractionAction
-- Update hunger behavior config with GoToAction
-- Update test expectations to expect action chains instead of single actions
-- Delete old ShakeTreeAction file
-- Update WanderAction to use extracted navigation helpers
-- Delete old PickupAction file
-- Delete SpatialAction file and script template
-- Test and verify all changes (40/40 tests pass)
-
-**Context:** The requirements/provisions system is implemented and working for the hunger example. The compositional GoToAction pattern separates navigation from interaction logic, making actions more reusable. Wildcard provisions enable a single agent GoToAction to dynamically satisfy different location requirements.
-
 ---
 
 ## Medium Priority

@@ -56,8 +56,8 @@
 |---|---|
 | `behaviors/hunger/` | `Goal`, `PropertyUpdater`, `GdPAIBehaviorConfig` |
 | `behaviors/wander/` | `Goal`, `Action`, `GdPAIBehaviorConfig` |
-| `objects/food/` | `GdPAIObjectData`, `SpatialAction` |
-| `objects/fruit_tree/` | `GdPAIObjectData`, `SpatialAction`, validity checks with external state |
+| `objects/food/` | `GdPAIObjectData`, interaction actions |
+| `objects/fruit_tree/` | `GdPAIObjectData`, interaction actions, validity checks with external state |
 
 ---
 

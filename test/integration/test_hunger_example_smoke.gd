@@ -148,7 +148,7 @@ func test_real_hunger_example_shakes_tree_then_picks_up_food() -> void:
 	assert_false(pickup_plan.is_empty(), "Agent should plan after food drops")
 	if pickup_plan.is_empty():
 		return
-	# New pattern: GoTo → PickupInteractionAction → EatHeldFoodAction chain
+	# New pattern: GoTo → PickupAction → EatHeldFoodAction chain
 	assert_eq(pickup_plan.size(), 3, "Plan should have GoTo → Pickup → Eat chain")
 	assert_eq(pickup_plan[0].get_title(), "Go To", "First action should be GoTo")
 	assert_eq(pickup_plan[1].get_title(), "Pick Up Item", "Second action should be Pickup")

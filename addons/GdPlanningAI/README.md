@@ -87,13 +87,13 @@ In addition to an agent's self-actions, which are not dependent on external fact
 
 The templates in `script_templates` and the examples in the `examples/` folder are verbosely commented to help with initial understanding of the framework. Using the script templates is highly recommended when creating your own actions, goals, and object data classes.
 
-**SpatialAction**
+**GoToAction and Interaction Actions**
 
-To streamline object interactions, the `SpatialAction` class bundles agent movement to an interactable object with a concrete action.  This is a helper subclass which aims to overcome an issue brought up with the original GOAP implementation - without careful design, actions which are **strongly coupled** might explode the planning complexity.  In GOAP, the issue they ran into was with `readying` and `firing` a weapon.  A weapon **always has to be ready before it can be fired**, so having these as separate actions greatly expanded the search space.  In prototyping, I noticed the same for `goto` and `object interactions`.  The agent must be near the object first, but with the option to *simulate movement anywhere during planning*, it became very slow for the agent to determine where it should be.  `SpatialAction` handles the logic for movement, then the subclass's implementation kicks in when the agent arrives at the object.
+The framework uses a compositional approach for object interactions: navigation is handled by a generic `GoToAction` provided by the agent, while interaction-specific actions are provided by world objects. This separates concerns and makes actions more reusable.
 
-![Illustration of Action inheritence.  Spatial Actions are a subclass of action related to object interaction.](https://raw.githubusercontent.com/WahahaYes/GdPlanningAI/refs/heads/main/media/spatial_actions_hierarchy.png)
+The `GoToAction` provides a wildcard `at_target` provision that can satisfy any interaction action's location requirement. The planner automatically chains `GoToAction` → `InteractionAction` when needed. For example, to pick up a banana, the planner chains: `GoToAction` → `PickupAction` → `EatHeldFoodAction`.
 
-The `SpatialAction` class adapts to 2D or 3D depending on the location node specified on the object's `GdPAILocationData`.  `SpatialAction` has its own `script_template` that is expanded for this behavior; it is highly recommended to use the template.
+Interaction actions (like `PickupAction` or `ShakeTreeAction`) extend `Action` and declare their location dependencies via `get_requirements()`. They handle only the interaction logic, not navigation.
 
 ### Agent Configuration
 
@@ -182,7 +182,7 @@ Here is a running list of todo items *(if anyone wants to claim one, like logo o
 
 - Making a true project logo!  I quickly threw something together, but welcome a more professional looking logo.
 - Making icons for the custom nodes that have been introduced.  Not that important for functionality, but they'd look nice!
-- More varied and complex demo scenes.  Because the current demo uses `SpatialActions`, which bundle movement in with eating, the actual planning is quite simple, and most plans consist of a single action.
-- Increased number of baseline action templates (like `SpatialAction`, extendable starting points that handle the common functionality of many actions).
+- More varied and complex demo scenes.
+- Increased number of baseline action templates (externable starting points that handle common functionality of many actions).
 - Tutorial video.
 - Extending configuration for agents (such as planning strategy (continuous, on interval, etc.), how the world state is sourced, etc.).

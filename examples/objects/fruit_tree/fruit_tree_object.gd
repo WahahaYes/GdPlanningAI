@@ -75,7 +75,7 @@ func get_group_labels() -> Array[String]:
 
 # Override
 func get_provided_actions() -> Array[Action]:
-	return [ShakeTreeInteractionAction.new(self )]
+	return [ShakeTreeAction.new(self )]
 
 
 # Override
