@@ -13,7 +13,7 @@ var _respawn_timer: float = 0.0
 
 func _ready() -> void:
 	for i in range(max_potatoes):
-		_spawn_potato()
+		_spawn_potato_deferred()
 
 
 func _process(delta: float) -> void:
@@ -40,4 +40,22 @@ func _spawn_potato() -> void:
 		potato.position = random_pos
 
 	get_parent().add_child(potato)
+	_active_potatoes.append(potato)
+
+
+func _spawn_potato_deferred() -> void:
+	if not potato_scene:
+		return
+
+	var potato: Node = potato_scene.instantiate()
+	var random_pos: Vector3 = Vector3(
+		randf_range(spawn_area_position.x, spawn_area_position.x + spawn_area_size.x),
+		spawn_area_position.y,
+		randf_range(spawn_area_position.z, spawn_area_position.z + spawn_area_size.z),
+	)
+
+	if potato is Node3D:
+		potato.position = random_pos
+
+	get_parent().call_deferred("add_child", potato)
 	_active_potatoes.append(potato)

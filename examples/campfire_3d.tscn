@@ -1,34 +1,43 @@
 [gd_scene format=3 uid="uid://bksyiucohq878"]
 
-[ext_resource type="PackedScene" uid="uid://hpufp8koo56g" path="res://examples/source_3d/prefabs/campfire_3d.tscn" id="1_abcde"]
-[ext_resource type="PackedScene" uid="uid://gotoo7knn45f" path="res://examples/source_3d/prefabs/wood_pile_3d.tscn" id="2_bcdef"]
-[ext_resource type="Script" uid="uid://xe8dqi12ddyo" path="res://examples/shared/systems/potato_spawner/potato_spawner_3d.gd" id="3_cdefg"]
-[ext_resource type="PackedScene" uid="uid://fnsnn6jmne4e" path="res://examples/source_3d/prefabs/potato_3d.tscn" id="4_defgh"]
-[ext_resource type="PackedScene" uid="uid://iqvgqalpp67h" path="res://examples/source_3d/prefabs/agent_3d.tscn" id="5_efghi"]
+[ext_resource type="Script" uid="uid://cu134mwsik6n5" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_world_node.gd" id="1_abcde"]
+[ext_resource type="Script" uid="uid://cvie3m6t7c0hd" path="res://addons/GdPlanningAI/scripts/gdpai_blackboard_plan.gd" id="2_bcdef"]
+[ext_resource type="PackedScene" uid="uid://hpufp8koo56g" path="res://examples/source_3d/prefabs/campfire_3d.tscn" id="3_cdefg"]
+[ext_resource type="PackedScene" uid="uid://gotoo7knn45f" path="res://examples/source_3d/prefabs/wood_pile_3d.tscn" id="4_defgh"]
+[ext_resource type="Script" uid="uid://xe8dqi12ddyo" path="res://examples/shared/systems/potato_spawner/potato_spawner_3d.gd" id="5_efghi"]
+[ext_resource type="PackedScene" uid="uid://fnsnn6jmne4e" path="res://examples/source_3d/prefabs/potato_3d.tscn" id="6_fghij"]
+[ext_resource type="PackedScene" uid="uid://iqvgqalpp67h" path="res://examples/source_3d/prefabs/agent_3d.tscn" id="7_hijkl"]
+
+[sub_resource type="Resource" id="Resource_u0rx4"]
+script = ExtResource("2_bcdef")
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_1"]
 albedo_color = Color(0.2, 0.3, 0.2, 1)
 
 [node name="Campfire3D" type="Node3D" unique_id=189768251]
 
-[node name="Campfire" parent="." unique_id=30708794 instance=ExtResource("1_abcde")]
+[node name="GdPAIWorldNode" type="Node" parent="." unique_id=1532273511]
+script = ExtResource("1_abcde")
+blackboard_plan = SubResource("Resource_u0rx4")
+
+[node name="Campfire" parent="." unique_id=30708794 instance=ExtResource("3_cdefg")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 0)
 
-[node name="WoodPile1" parent="." unique_id=2142889551 instance=ExtResource("2_bcdef")]
+[node name="WoodPile1" parent="." unique_id=2142889551 instance=ExtResource("4_defgh")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0.25, -2.5)
 
-[node name="WoodPile2" parent="." unique_id=530384723 instance=ExtResource("2_bcdef")]
+[node name="WoodPile2" parent="." unique_id=530384723 instance=ExtResource("4_defgh")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0.25, -2.5)
 
-[node name="WoodPile3" parent="." unique_id=89832337 instance=ExtResource("2_bcdef")]
+[node name="WoodPile3" parent="." unique_id=89832337 instance=ExtResource("4_defgh")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0.25, 2.5)
 
-[node name="WoodPile4" parent="." unique_id=1826155487 instance=ExtResource("2_bcdef")]
+[node name="WoodPile4" parent="." unique_id=1826155487 instance=ExtResource("4_defgh")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0.25, 2.5)
 
 [node name="PotatoSpawner" type="Node" parent="." unique_id=1964126581]
-script = ExtResource("3_cdefg")
-potato_scene = ExtResource("4_defgh")
+script = ExtResource("5_efghi")
+potato_scene = ExtResource("6_fghij")
 spawn_area_position = Vector3(-8, 0.5, -8)
 
 [node name="Ground" type="CSGBox3D" parent="." unique_id=408015396]
@@ -40,16 +49,16 @@ transform = Transform3D(0.707107, 0, -0.707107, 0, 1, 0, 0.707107, 0, 0.707107, 
 shadow_enabled = true
 
 [node name="Camera3D" type="Camera3D" parent="." unique_id=1772953435]
-transform = Transform3D(0.707107, 0, -0.707107, 0, 1, 0, 0.707107, 0, 0.707107, 0, 15, 20)
+transform = Transform3D(0.7160584, 0.5216535, -0.46382985, -2.9802322e-08, 0.6644742, 0.74731123, 0.6980405, -0.5351184, 0.47580233, -5.6666384, 5.92255, 4.1651907)
 
-[node name="Agent1" parent="." unique_id=1104944090 instance=ExtResource("5_efghi")]
+[node name="Agent1" parent="." unique_id=1104944090 instance=ExtResource("7_hijkl")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0.5, -3)
 
-[node name="Agent2" parent="." unique_id=1030342757 instance=ExtResource("5_efghi")]
+[node name="Agent2" parent="." unique_id=1030342757 instance=ExtResource("7_hijkl")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0.5, -3)
 
-[node name="Agent3" parent="." unique_id=991980746 instance=ExtResource("5_efghi")]
+[node name="Agent3" parent="." unique_id=991980746 instance=ExtResource("7_hijkl")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0.5, 3)
 
-[node name="Agent4" parent="." unique_id=1070294765 instance=ExtResource("5_efghi")]
+[node name="Agent4" parent="." unique_id=1070294765 instance=ExtResource("7_hijkl")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0.5, 3)

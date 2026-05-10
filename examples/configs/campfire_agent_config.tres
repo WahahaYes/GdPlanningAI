@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="GdPAIAgentConfig" format=3 uid="uid://dx8k4mam2n5p2"]
+
+[ext_resource type="Script" uid="uid://bprnw0w0wdswr" path="res://addons/GdPlanningAI/scripts/resources/gdpai_behavior_config.gd" id="1_oyipl"]
+[ext_resource type="Script" uid="uid://dp2pooisdl5g2" path="res://examples/behaviors/hunger/hunger_behavior_config.gd" id="2_t1m4h"]
+[ext_resource type="Script" uid="uid://c6vwhk2effk8i" path="res://examples/behaviors/campfire/campfire_behavior_config.gd" id="3_ymf1b"]
+[ext_resource type="Script" uid="uid://b8bjqnbsl1gr7" path="res://addons/GdPlanningAI/scripts/resources/gdpai_agent_config.gd" id="4_bjvph"]
+
+[sub_resource type="Resource" id="Resource_ctvl8"]
+script = ExtResource("2_t1m4h")
+
+[sub_resource type="Resource" id="Resource_cfkli"]
+script = ExtResource("3_ymf1b")
+
+[resource]
+script = ExtResource("4_bjvph")
+planning_strategy = 1
+planning_interval = 1.0
+max_recursion = 4
+behavior_configs = Array[ExtResource("1_oyipl")]([SubResource("Resource_ctvl8"), SubResource("Resource_cfkli")])
+metadata/_custom_type_script = "uid://b8bjqnbsl1gr7"

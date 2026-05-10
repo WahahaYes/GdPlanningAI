@@ -1,9 +1,9 @@
-extends Label
+extends Label3D
 ## Displays the current goal, active action, and specified
-## properties of a [GdPAIAgent] as a heads-up label.
+## properties of a [GdPAIAgent] as a heads-up label for 3D scenes.
 ##[br]
 ##[br]
-## Drop this script onto a [Label] node and assign [member gdpai_agent].
+## Drop this script onto a [Label3D] node and assign [member gdpai_agent].
 ## The label updates every frame with the agent's current goal title,
 ## the title of the action currently being executed, and any properties
 ## specified in [member debug_properties].

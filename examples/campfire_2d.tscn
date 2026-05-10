@@ -1,14 +1,23 @@
 [gd_scene format=3 uid="uid://bjrxhtbngr8ai"]
 
-[ext_resource type="PackedScene" uid="uid://dy0l6n1o4p7r3" path="res://examples/source_2d/prefabs/campfire_2d.tscn" id="1_zabcd"]
-[ext_resource type="PackedScene" uid="uid://cx8k4mam2n5p1" path="res://examples/source_2d/prefabs/wood_pile_2d.tscn" id="2_abcde"]
-[ext_resource type="PackedScene" uid="uid://d01m7o2q5s8t4" path="res://examples/source_2d/prefabs/agent_2d.tscn" id="3_bcdef"]
-[ext_resource type="Script" uid="uid://b6narlglj2q5e" path="res://examples/shared/systems/potato_spawner/potato_spawner_2d.gd" id="4_cdefg"]
-[ext_resource type="PackedScene" uid="uid://dyak5m0n3p6q2" path="res://examples/source_2d/prefabs/potato_2d.tscn" id="5_defgh"]
+[ext_resource type="Script" uid="uid://cu134mwsik6n5" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_world_node.gd" id="1_zabcd"]
+[ext_resource type="Script" uid="uid://cvie3m6t7c0hd" path="res://addons/GdPlanningAI/scripts/gdpai_blackboard_plan.gd" id="2_abcde"]
+[ext_resource type="PackedScene" uid="uid://dy0l6n1o4p7r3" path="res://examples/source_2d/prefabs/campfire_2d.tscn" id="3_bcdef"]
+[ext_resource type="PackedScene" uid="uid://cx8k4mam2n5p1" path="res://examples/source_2d/prefabs/wood_pile_2d.tscn" id="4_cdefg"]
+[ext_resource type="PackedScene" uid="uid://d01m7o2q5s8t4" path="res://examples/source_2d/prefabs/agent_2d.tscn" id="5_defgh"]
+[ext_resource type="Script" uid="uid://b6narlglj2q5e" path="res://examples/shared/systems/potato_spawner/potato_spawner_2d.gd" id="6_efghi"]
+[ext_resource type="PackedScene" uid="uid://dyak5m0n3p6q2" path="res://examples/source_2d/prefabs/potato_2d.tscn" id="7_fghij"]
+
+[sub_resource type="Resource" id="Resource_u0rx4"]
+script = ExtResource("2_abcde")
 
 [sub_resource type="NavigationPolygon" id="NavigationPolygon_1"]
 
 [node name="Campfire2D" type="Node2D" unique_id=2136786495]
+
+[node name="GdPAIWorldNode" type="Node" parent="." unique_id=1532273511]
+script = ExtResource("1_zabcd")
+blackboard_plan = SubResource("Resource_u0rx4")
 
 [node name="NavigationRegion2D" type="NavigationRegion2D" parent="." unique_id=1563550840]
 navigation_polygon = SubResource("NavigationPolygon_1")
@@ -20,33 +29,35 @@ offset_right = 400.0
 offset_bottom = 300.0
 color = Color(0.2, 0.3, 0.2, 1)
 
-[node name="Campfire" parent="." unique_id=407632779 instance=ExtResource("1_zabcd")]
+[node name="Campfire" parent="." unique_id=407632779 instance=ExtResource("3_bcdef")]
 
-[node name="WoodPile1" parent="." unique_id=1028771713 instance=ExtResource("2_abcde")]
+[node name="WoodPile1" parent="." unique_id=1028771713 instance=ExtResource("4_cdefg")]
 position = Vector2(-200, -100)
 
-[node name="WoodPile2" parent="." unique_id=980621805 instance=ExtResource("2_abcde")]
+[node name="WoodPile2" parent="." unique_id=980621805 instance=ExtResource("4_cdefg")]
 position = Vector2(200, -100)
 
-[node name="WoodPile3" parent="." unique_id=438193179 instance=ExtResource("2_abcde")]
+[node name="WoodPile3" parent="." unique_id=438193179 instance=ExtResource("4_cdefg")]
 position = Vector2(-200, 100)
 
-[node name="WoodPile4" parent="." unique_id=1403935332 instance=ExtResource("2_abcde")]
+[node name="WoodPile4" parent="." unique_id=1403935332 instance=ExtResource("4_cdefg")]
 position = Vector2(200, 100)
 
 [node name="PotatoSpawner" type="Node" parent="." unique_id=1236636321]
-script = ExtResource("4_cdefg")
-potato_scene = ExtResource("5_defgh")
+script = ExtResource("6_efghi")
+potato_scene = ExtResource("7_fghij")
 spawn_area = Rect2(-350, -250, 700, 500)
 
-[node name="Agent1" parent="." unique_id=1655664018 instance=ExtResource("3_bcdef")]
+[node name="Agent1" parent="." unique_id=1655664018 instance=ExtResource("5_defgh")]
 position = Vector2(-150, -150)
 
-[node name="Agent2" parent="." unique_id=1396964126 instance=ExtResource("3_bcdef")]
+[node name="Agent2" parent="." unique_id=1396964126 instance=ExtResource("5_defgh")]
 position = Vector2(150, -150)
 
-[node name="Agent3" parent="." unique_id=2060762859 instance=ExtResource("3_bcdef")]
+[node name="Agent3" parent="." unique_id=2060762859 instance=ExtResource("5_defgh")]
 position = Vector2(-150, 150)
 
-[node name="Agent4" parent="." unique_id=1921731991 instance=ExtResource("3_bcdef")]
+[node name="Agent4" parent="." unique_id=1921731991 instance=ExtResource("5_defgh")]
 position = Vector2(150, 150)
+
+[node name="Camera2D" type="Camera2D" parent="." unique_id=385257113]

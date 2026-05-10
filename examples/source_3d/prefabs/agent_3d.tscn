@@ -2,9 +2,8 @@
 
 [ext_resource type="Script" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_agent.gd" id="1_uvwx"]
 [ext_resource type="Script" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_location_data.gd" id="2_vwxy"]
-[ext_resource type="Script" path="res://examples/shared/ui/agent_debug_label.gd" id="3_wxyz"]
-[ext_resource type="Script" path="res://examples/behaviors/hunger/hunger_behavior_config.gd" id="4_xyzab"]
-[ext_resource type="Script" path="res://examples/behaviors/campfire/campfire_behavior_config.gd" id="5_yzabc"]
+[ext_resource type="Script" path="res://examples/shared/ui/agent_debug_label_3d.gd" id="3_wxyz"]
+[ext_resource type="Resource" uid="uid://dx8k4mam2n5p2" path="res://examples/configs/campfire_agent_config.tres" id="4_xyzab"]
 
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_1"]
 radius = 0.5
@@ -32,18 +31,15 @@ text = "Agent"
 pixel_size = 0.01
 position = Vector3(0, 1.0, 0)
 script = ExtResource("3_wxyz")
+gdpai_agent = NodePath("../GdPAIAgent")
+debug_properties = Array[String](["hunger", "fire_fuel"])
 
 [node name="GdPAIAgent" type="Node" parent="." node_paths=PackedStringArray("entity")]
 script = ExtResource("1_uvwx")
 entity = NodePath("..")
+config = ExtResource("4_xyzab")
 
 [node name="GdPAILocationData" type="Node" parent="." node_paths=PackedStringArray("location_node_3d", "entity")]
 script = ExtResource("2_vwxy")
 location_node_3d = NodePath("..")
 entity = NodePath("..")
-
-[node name="HungerBehaviorConfig" type="Node" parent="."]
-script = ExtResource("4_xyzab")
-
-[node name="CampfireBehaviorConfig" type="Node" parent="."]
-script = ExtResource("5_yzabc")

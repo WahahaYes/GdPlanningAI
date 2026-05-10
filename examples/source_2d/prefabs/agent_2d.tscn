@@ -1,10 +1,9 @@
 [gd_scene format=3 uid="uid://d01m7o2q5s8t4"]
 
-[ext_resource type="Script" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_agent.gd" id="1_klmno"]
-[ext_resource type="Script" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_location_data.gd" id="2_lmnop"]
-[ext_resource type="Script" path="res://examples/shared/ui/agent_debug_label.gd" id="3_mnopq"]
-[ext_resource type="Script" path="res://examples/behaviors/hunger/hunger_behavior_config.gd" id="4_nopqr"]
-[ext_resource type="Script" path="res://examples/behaviors/campfire/campfire_behavior_config.gd" id="5_opqrs"]
+[ext_resource type="Script" uid="uid://dadt3s5cpl0e5" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_agent.gd" id="1_klmno"]
+[ext_resource type="Script" uid="uid://b4nu0eehv0waq" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_location_data.gd" id="2_lmnop"]
+[ext_resource type="Script" uid="uid://bt7mjof754vo2" path="res://examples/shared/ui/agent_debug_label.gd" id="3_mnopq"]
+[ext_resource type="Resource" uid="uid://dx8k4mam2n5p2" path="res://examples/configs/campfire_agent_config.tres" id="4_nopqr"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_1"]
 radius = 16.0
@@ -12,21 +11,21 @@ radius = 16.0
 [sub_resource type="LabelSettings" id="LabelSettings_1"]
 font_size = 20
 
-[node name="Agent" type="CharacterBody2D"]
+[node name="Agent" type="CharacterBody2D" unique_id=202757577]
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=576780903]
 shape = SubResource("CircleShape2D_1")
 
-[node name="NavigationAgent2D" type="NavigationAgent2D" parent="."]
+[node name="NavigationAgent2D" type="NavigationAgent2D" parent="." unique_id=187020547]
 
-[node name="ColorRect" type="ColorRect" parent="."]
+[node name="ColorRect" type="ColorRect" parent="." unique_id=271314339]
 offset_left = -12.0
 offset_top = -12.0
 offset_right = 12.0
 offset_bottom = 12.0
 color = Color(0, 0.501961, 1, 1)
 
-[node name="Label" type="Label" parent="."]
+[node name="Label" type="Label" parent="." unique_id=740604716 node_paths=PackedStringArray("gdpai_agent")]
 offset_left = -40.0
 offset_top = -40.0
 offset_right = 40.0
@@ -35,18 +34,15 @@ text = "Agent"
 label_settings = SubResource("LabelSettings_1")
 horizontal_alignment = 1
 script = ExtResource("3_mnopq")
+gdpai_agent = NodePath("../GdPAIAgent")
+debug_properties = Array[String](["hunger", "fire_fuel"])
 
-[node name="GdPAIAgent" type="Node" parent="." node_paths=PackedStringArray("entity")]
+[node name="GdPAIAgent" type="Node" parent="." unique_id=1589804243 node_paths=PackedStringArray("entity")]
 script = ExtResource("1_klmno")
 entity = NodePath("..")
+config = ExtResource("4_nopqr")
 
-[node name="GdPAILocationData" type="Node" parent="." node_paths=PackedStringArray("location_node_2d", "entity")]
+[node name="GdPAILocationData" type="Node" parent="." unique_id=1312363220 node_paths=PackedStringArray("location_node_2d", "entity")]
 script = ExtResource("2_lmnop")
 location_node_2d = NodePath("..")
 entity = NodePath("..")
-
-[node name="HungerBehaviorConfig" type="Node" parent="."]
-script = ExtResource("4_nopqr")
-
-[node name="CampfireBehaviorConfig" type="Node" parent="."]
-script = ExtResource("5_opqrs")
