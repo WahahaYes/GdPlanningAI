@@ -9,7 +9,7 @@
 
 ## Agreed v1 Implementation Scope
 
-- **Primary target:** Implement the **2D version first**. Shared gameplay logic should be written so it can be reused by a later 3D pass, but 3D scene/prefab work is deferred.
+- **Primary target:** Implement **both 2D and 3D demo scenes**. All gameplay logic (goals, actions, object data, spawner) is dimension-agnostic and shared. Only the prefab/scene layer differs between 2D and 3D — this showcases that the planning system is completely independent of the rendering dimension.
 - **Fire maintenance reward:** `MaintainFireGoal` uses a **simple exported/parameterized reward value** in v1 rather than computing a dynamic reward from fire fuel.
 - **Fire fuel access:** Campfire-related actions may **query the referenced campfire object directly** for runtime/planning validity and cost checks in the first pass.
 - **Inventory flexibility:** `DropItemAction` (already implemented) lets agents recover from plans where they must switch from holding food to holding wood.
@@ -33,7 +33,7 @@ This example demonstrates **maintenance/proactive planning with resource transfo
 7. **Threshold-based goals** — goal reward scales as resource depletes
 8. **Dynamic respawning** — potatoes respawn at randomized locations
 
-**Note for v1:** The first implementation uses a **parameterized fixed reward** for fire maintenance and focuses on proving the core planning loop in 2D.
+**Note for v1:** Uses a **parameterized fixed reward** for fire maintenance. All gameplay code is shared between 2D and 3D — the planning system is dimension-agnostic.
 
 ---
 
@@ -660,6 +660,7 @@ Agent balances competing goals based on configured reward values.
 - `examples/objects/potato/dig_potato_action.gd`
 - `examples/shared/systems/potato_spawner/potato_spawner.gd`
 - `examples/campfire_2d.tscn`
+- `examples/campfire_3d.tscn`
 
 **New 2D prefabs:**
 - `examples/source_2d/prefabs/wood_pile_2d.tscn`
@@ -667,9 +668,11 @@ Agent balances competing goals based on configured reward values.
 - `examples/source_2d/prefabs/potato_2d.tscn`
 - `examples/source_2d/prefabs/agent_2d.tscn`
 
-**Deferred to a later pass:**
-- `examples/campfire_3d.tscn`
-- 3D prefabs for all objects + agents
+**New 3D prefabs:**
+- `examples/source_3d/prefabs/wood_pile_3d.tscn`
+- `examples/source_3d/prefabs/campfire_3d.tscn`
+- `examples/source_3d/prefabs/potato_3d.tscn`
+- `examples/source_3d/prefabs/agent_3d.tscn`
 
 ---
 
@@ -679,7 +682,12 @@ All prototype prefabs use **Godot primitive nodes only** — no imported assets,
 This makes it trivial to swap in real art later by replacing the primitive children while keeping
 the script, collision, and label structure intact.
 
-### Agent — `examples/source_2d/prefabs/agent_2d.tscn`
+All gameplay scripts are **shared between 2D and 3D**. The only difference is the node hierarchy
+in each prefab. This showcases that the planning system is completely dimension-agnostic.
+
+### 2D Prefabs
+
+#### Agent — `examples/source_2d/prefabs/agent_2d.tscn`
 
 ```
 CharacterBody2D (root)
@@ -692,7 +700,7 @@ CharacterBody2D (root)
 └── HungerBehaviorConfig + CampfireBehaviorConfig (exported children)
 ```
 
-### Wood Pile — `examples/source_2d/prefabs/wood_pile_2d.tscn`
+#### Wood Pile — `examples/source_2d/prefabs/wood_pile_2d.tscn`
 
 ```
 Node2D (root)
@@ -704,7 +712,7 @@ Node2D (root)
 └── GdPAILocationData (script)
 ```
 
-### Campfire — `examples/source_2d/prefabs/campfire_2d.tscn`
+#### Campfire — `examples/source_2d/prefabs/campfire_2d.tscn`
 
 ```
 Node2D (root)
@@ -718,12 +726,7 @@ Node2D (root)
 └── GdPAILocationData (script)
 ```
 
-The campfire scene also needs a small runtime script (separate from `CampfireObject`) to:
-- Decay `campfire_object.current_fuel` each frame
-- Update the Label text to show current fuel percentage
-- Optionally scale/tint the fire Circle based on fuel level
-
-### Potato — `examples/source_2d/prefabs/potato_2d.tscn`
+#### Potato — `examples/source_2d/prefabs/potato_2d.tscn`
 
 ```
 Node2D (root)
@@ -735,7 +738,72 @@ Node2D (root)
 └── GdPAILocationData (script)
 ```
 
-### Demo Scene Assembly — `examples/campfire_2d.tscn`
+### 3D Prefabs
+
+Same scripts, same structure — just 3D node types and CSG primitives.
+
+#### Agent — `examples/source_3d/prefabs/agent_3d.tscn`
+
+```
+CharacterBody3D (root)
+├── CollisionShape3D (CylinderShape3D, radius ~0.5, height ~1.0)
+├── NavigationAgent3D
+├── CSGBox3D (0.8×0.8×1.6, centered, material: blue or per-agent tint)
+├── Label3D ("Agent" above head, existing AgentDebugLabel script)
+├── GdPAIAgent (script)
+├── GdPAILocationData (script)
+└── HungerBehaviorConfig + CampfireBehaviorConfig (exported children)
+```
+
+#### Wood Pile — `examples/source_3d/prefabs/wood_pile_3d.tscn`
+
+```
+Node3D (root)
+├── CollisionShape3D (BoxShape3D, ~1.0×0.5×1.0, for interaction radius)
+├── CSGBox3D (1.0×0.5×1.0, material: brown #8B6914)
+├── Label3D ("Wood Pile" above)
+├── GdPAIObjectData → WoodPileObject (script)
+├── GdPAIInteractable (script)
+└── GdPAILocationData (script)
+```
+
+#### Campfire — `examples/source_3d/prefabs/campfire_3d.tscn`
+
+```
+Node3D (root)
+├── CollisionShape3D (CylinderShape3D, radius ~0.8, height ~0.3, for interaction radius)
+├── CSGSphere3D (radius 0.6, material: orange-red #E85D3F)       ← fire glow
+├── CSGCylinder3D (radius 0.15, height 0.8, brown #5C3A1E)       ← log 1
+├── CSGCylinder3D (radius 0.15, height 0.8, rotated, brown)      ← log 2
+├── OmniLight3D (warm orange, small range, flicker optional)
+├── Label3D ("Campfire (100%)" above, updated by scene script)
+├── GdPAIObjectData → CampfireObject (script)
+├── GdPAIInteractable (script)
+└── GdPAILocationData (script)
+```
+
+#### Potato — `examples/source_3d/prefabs/potato_3d.tscn`
+
+```
+Node3D (root)
+├── CollisionShape3D (SphereShape3D, radius ~0.3, for interaction radius)
+├── CSGSphere3D (radius 0.25, material: tan #D2B48C)
+├── Label3D ("Potato" above)
+├── GdPAIObjectData → PotatoObject (script)
+├── GdPAIInteractable (script)
+└── GdPAILocationData (script)
+```
+
+### Campfire Runtime Scene Script
+
+Both 2D and 3D campfire prefabs need a small runtime script (separate from `CampfireObject`) to:
+- Decay `campfire_object.current_fuel` each frame
+- Update the Label/Label3D text to show current fuel percentage
+- Optionally scale/tint the fire primitive based on fuel level
+
+### Demo Scene Assembly
+
+#### 2D — `examples/campfire_2d.tscn`
 
 ```
 Node2D (root)
@@ -745,6 +813,19 @@ Node2D (root)
 ├── PotatoSpawner (node with PotatoSpawner script, spawn_area covering map)
 ├── Agent × 2–4 (instances of agent_2d.tscn, scattered around)
 └── (optional) TileMap or ColorRect background for ground
+```
+
+#### 3D — `examples/campfire_3d.tscn`
+
+```
+Node3D (root)
+├── NavigationRegion3D (with baked NavMesh, covers play area)
+├── CSGBox3D (ground plane, large flat box, material: dark green/brown)
+├── DirectionalLight3D + Camera3D (overhead or angled view)
+├── Campfire (instance of campfire_3d.tscn, positioned at center)
+├── WoodPile × 4 (instances, positioned around the map)
+├── PotatoSpawner (node with PotatoSpawner script, spawn_area covering map)
+├── Agent × 2–4 (instances of agent_3d.tscn, scattered around)
 ```
 
 ---
@@ -840,6 +921,304 @@ Node2D (root)
 
 ---
 
+## Integration Tests
+
+Tests follow the same pattern as `test/integration/test_hunger_example_smoke.gd`:
+instantiate real prefabs, set blackboard state, trigger planning, and verify action chain titles.
+
+### Test file: `test/integration/test_campfire_example_smoke.gd`
+
+```gdscript
+extends GutTest
+
+const AGENT_2D_PREFAB: PackedScene = preload("res://examples/source_2d/prefabs/agent_2d.tscn")
+const WOOD_PILE_2D_PREFAB: PackedScene = preload("res://examples/source_2d/prefabs/wood_pile_2d.tscn")
+const CAMPFIRE_2D_PREFAB: PackedScene = preload("res://examples/source_2d/prefabs/campfire_2d.tscn")
+const POTATO_2D_PREFAB: PackedScene = preload("res://examples/source_2d/prefabs/potato_2d.tscn")
+const WORLD_NODE_SCRIPT: Script = preload(
+    "res://addons/GdPlanningAI/scripts/nodes/gdpai_world_node.gd"
+)
+const BLACKBOARD_PLAN_SCRIPT: Script = preload(
+    "res://addons/GdPlanningAI/scripts/gdpai_blackboard_plan.gd"
+)
+
+
+func after_each() -> void:
+    for node in get_tree().get_nodes_in_group("GdPAIObjectData"):
+        if is_instance_valid(node.entity):
+            node.entity.queue_free()
+    await _drain_scheduler()
+
+
+func _drain_scheduler(timeout_frames: int = 120) -> void:
+    var scheduler: GdPAIPlanScheduler = _scheduler()
+    if scheduler == null:
+        return
+    for i in range(timeout_frames):
+        scheduler.process_callbacks()
+        if scheduler.active_job_count() == 0:
+            return
+        await get_tree().process_frame
+
+
+func _make_world_node() -> GdPAIWorldNode:
+    var world_node: GdPAIWorldNode = WORLD_NODE_SCRIPT.new()
+    world_node.name = "GdPAIWorldNode"
+    world_node.blackboard_plan = BLACKBOARD_PLAN_SCRIPT.new()
+    add_child_autofree(world_node)
+    return world_node
+
+
+func _pump_frames(frames: int) -> void:
+    for i in range(frames):
+        await get_tree().physics_frame
+        await get_tree().process_frame
+
+
+func _scheduler() -> GdPAIPlanScheduler:
+    return GdPAIAutoload.get_scheduler()
+
+
+func _start_plan_and_wait(agent: GdPAIAgent, timeout_frames: int = 300) -> Array[Action]:
+    var scheduler: GdPAIPlanScheduler = _scheduler()
+    var previous_plan: Array[Action] = agent.get_current_plan()
+    agent.manually_start_plan()
+    var saw_job: bool = scheduler.active_job_count() > 0
+    for i in range(timeout_frames):
+        scheduler.process_callbacks()
+        saw_job = saw_job or scheduler.active_job_count() > 0
+        if saw_job and scheduler.active_job_count() == 0:
+            return agent.get_current_plan()
+        if agent.get_current_plan() != previous_plan:
+            return agent.get_current_plan()
+        await get_tree().process_frame
+    fail_test("Timed out waiting for submitted agent plan")
+    return []
+
+
+func _plan_titles(plan: Array[Action]) -> String:
+    var titles: Array[String] = []
+    for action in plan:
+        titles.append(action.get_title())
+    return " -> ".join(titles)
+
+
+func _setup_campfire_scene() -> Dictionary:
+    """Create world node, campfire, wood piles, and potatoes. Returns {agent, campfire}."""
+    _make_world_node()
+
+    # Campfire at center
+    var campfire_entity: Node2D = CAMPFIRE_2D_PREFAB.instantiate()
+    add_child_autofree(campfire_entity)
+    campfire_entity.global_position = Vector2(400, 300)
+    var campfire: CampfireObject = GdPAIUTILS.get_child_of_type(campfire_entity, CampfireObject)
+
+    # Wood piles around the map
+    var wood_positions: Array[Vector2] = [
+        Vector2(200, 200), Vector2(600, 200),
+        Vector2(200, 400), Vector2(600, 400),
+    ]
+    for pos in wood_positions:
+        var wood_entity: Node2D = WOOD_PILE_2D_PREFAB.instantiate()
+        add_child_autofree(wood_entity)
+        wood_entity.global_position = pos
+
+    # Potatoes scattered around
+    var potato_positions: Array[Vector2] = [
+        Vector2(300, 150), Vector2(500, 150),
+        Vector2(150, 350), Vector2(650, 350),
+        Vector2(400, 450),
+    ]
+    for pos in potato_positions:
+        var potato_entity: Node2D = POTATO_2D_PREFAB.instantiate()
+        add_child_autofree(potato_entity)
+        potato_entity.global_position = pos
+
+    # Agent
+    var agent_entity: Node2D = AGENT_2D_PREFAB.instantiate()
+    add_child_autofree(agent_entity)
+    agent_entity.global_position = Vector2(100, 100)
+    var agent: GdPAIAgent = GdPAIUTILS.get_child_of_type(agent_entity, GdPAIAgent)
+    agent.config.planning_strategy = GdPAIAgentConfig.PlanningStrategy.ON_DEMAND
+
+    return {"agent": agent, "campfire": campfire}
+
+
+# ── Scenario Tests ─────────────────────────────────────────────
+
+
+func test_full_cooking_chain() -> void:
+    """Hunger=70, Fire=80, empty hands → GoTo potato → Dig → GoTo campfire → Cook → Eat"""
+    var setup: Dictionary = _setup_campfire_scene()
+    var agent: GdPAIAgent = setup["agent"]
+    var campfire: CampfireObject = setup["campfire"]
+
+    campfire.current_fuel = 80.0
+    agent.blackboard.set_property("hunger", 70.0)
+    agent.blackboard.set_property("held_item", "")
+    await _pump_frames(3)
+
+    var plan: Array[Action] = await _start_plan_and_wait(agent)
+    assert_false(plan.is_empty(), "Agent should plan when hungry with fire available")
+
+    # Expected: GoTo(potato) → Dig Potato → GoTo(campfire) → Cook Potato → Eat Held Food
+    assert_eq(plan.size(), 5, "Plan should have 5 actions: %s" % _plan_titles(plan))
+    assert_eq(plan[0].get_title(), "Go To")
+    assert_eq(plan[1].get_title(), "Dig Potato")
+    assert_eq(plan[2].get_title(), "Go To")
+    assert_eq(plan[3].get_title(), "Cook Potato")
+    assert_eq(plan[4].get_title(), "Eat Held Food")
+
+
+func test_fire_too_low_to_cook() -> void:
+    """Hunger=60, Fire=10, holding potato → Drop → refuel → re-dig → cook → eat"""
+    var setup: Dictionary = _setup_campfire_scene()
+    var agent: GdPAIAgent = setup["agent"]
+    var campfire: CampfireObject = setup["campfire"]
+
+    campfire.current_fuel = 10.0
+    agent.blackboard.set_property("hunger", 60.0)
+    agent.blackboard.set_property("held_item", "potato")
+    await _pump_frames(3)
+
+    var plan: Array[Action] = await _start_plan_and_wait(agent)
+    assert_false(plan.is_empty(), "Agent should plan when fire is too low to cook")
+
+    # Expected: Drop → GoTo(wood) → Pick Up Wood → GoTo(campfire) → Add Fuel
+    #           → GoTo(potato) → Dig Potato → GoTo(campfire) → Cook Potato → Eat
+    assert_eq(plan[0].get_title(), "Drop Item",
+        "First action should be Drop, got: %s" % _plan_titles(plan))
+    assert_eq(plan[1].get_title(), "Go To")
+    assert_eq(plan[2].get_title(), "Pick Up Wood")
+    assert_eq(plan[3].get_title(), "Go To")
+    assert_eq(plan[4].get_title(), "Add Fuel")
+    # After refueling, the chain continues with dig → cook → eat
+    var titles: Array[String] = []
+    for a in plan:
+        titles.append(a.get_title())
+    assert_true(titles.has("Dig Potato"), "Plan should include Dig Potato after refueling")
+    assert_true(titles.has("Cook Potato"), "Plan should include Cook Potato after refueling")
+    assert_true(titles.has("Eat Held Food"), "Plan should include Eat Held Food")
+
+
+func test_preemptive_fire_maintenance() -> void:
+    """Hunger=20, Fire=35, empty hands → wood first, then food"""
+    var setup: Dictionary = _setup_campfire_scene()
+    var agent: GdPAIAgent = setup["agent"]
+    var campfire: CampfireObject = setup["campfire"]
+
+    campfire.current_fuel = 35.0
+    agent.blackboard.set_property("hunger", 20.0)
+    agent.blackboard.set_property("held_item", "")
+    await _pump_frames(3)
+
+    var plan: Array[Action] = await _start_plan_and_wait(agent)
+    assert_false(plan.is_empty(), "Agent should plan when fire is moderate and hunger is low")
+
+    # Fire reward (40) > hunger (20), so fire maintenance should come first
+    # Expected: GoTo(wood) → Pick Up Wood → GoTo(campfire) → Add Fuel
+    #           → GoTo(potato) → Dig Potato → GoTo(campfire) → Cook Potato → Eat
+    var titles: Array[String] = []
+    for a in plan:
+        titles.append(a.get_title())
+    var wood_idx: int = titles.find("Pick Up Wood")
+    var dig_idx: int = titles.find("Dig Potato")
+    assert_true(wood_idx >= 0, "Plan should include Pick Up Wood")
+    assert_true(dig_idx >= 0, "Plan should include Dig Potato")
+    assert_true(wood_idx < dig_idx,
+        "Wood gathering should come before potato digging when fire reward > hunger")
+
+
+func test_competing_priorities_hunger_wins() -> void:
+    """Hunger=95, Fire=15, empty hands → hunger (95) > fire reward (40) → food first"""
+    var setup: Dictionary = _setup_campfire_scene()
+    var agent: GdPAIAgent = setup["agent"]
+    var campfire: CampfireObject = setup["campfire"]
+
+    campfire.current_fuel = 15.0
+    agent.blackboard.set_property("hunger", 95.0)
+    agent.blackboard.set_property("held_item", "")
+    await _pump_frames(3)
+
+    var plan: Array[Action] = await _start_plan_and_wait(agent)
+    assert_false(plan.is_empty(), "Agent should plan when both hunger and fire are critical")
+
+    # Hunger reward (95) > fire reward (40), so food should come first
+    var titles: Array[String] = []
+    for a in plan:
+        titles.append(a.get_title())
+    var dig_idx: int = titles.find("Dig Potato")
+    var wood_idx: int = titles.find("Pick Up Wood")
+    assert_true(dig_idx >= 0, "Plan should include Dig Potato")
+    assert_true(wood_idx >= 0, "Plan should include Pick Up Wood")
+    assert_true(dig_idx < wood_idx,
+        "Food gathering should come before wood when hunger > fire reward")
+
+
+func test_cannot_add_fuel_when_full() -> void:
+    """Fire=100, holding wood → AddFuel should be invalid (cost=INF)"""
+    var setup: Dictionary = _setup_campfire_scene()
+    var agent: GdPAIAgent = setup["agent"]
+    var campfire: CampfireObject = setup["campfire"]
+
+    campfire.current_fuel = 100.0
+    agent.blackboard.set_property("hunger", 10.0)
+    agent.blackboard.set_property("held_item", "wood")
+    await _pump_frames(3)
+
+    var plan: Array[Action] = await _start_plan_and_wait(agent)
+    # Agent should not plan AddFuel when fire is full
+    # It should either wander or drop wood and do something else
+    var titles: Array[String] = []
+    for a in plan:
+        titles.append(a.get_title())
+    assert_false(titles.has("Add Fuel"),
+        "Should not plan Add Fuel when fire is full, got: %s" % _plan_titles(plan))
+
+
+func test_cannot_cook_without_potato() -> void:
+    """Fire=80, holding wood → CookPotato should be invalid (wrong held_item)"""
+    var setup: Dictionary = _setup_campfire_scene()
+    var agent: GdPAIAgent = setup["agent"]
+    var campfire: CampfireObject = setup["campfire"]
+
+    campfire.current_fuel = 80.0
+    agent.blackboard.set_property("hunger", 70.0)
+    agent.blackboard.set_property("held_item", "wood")
+    await _pump_frames(3)
+
+    var plan: Array[Action] = await _start_plan_and_wait(agent)
+    var titles: Array[String] = []
+    for a in plan:
+        titles.append(a.get_title())
+    # CookPotato requires held_item="potato", so it should not appear when holding wood
+    # But AddFuel should be valid
+    assert_false(titles.has("Cook Potato"),
+        "Should not plan Cook Potato when holding wood, got: %s" % _plan_titles(plan))
+```
+
+### What Each Test Validates
+
+| Test | Validates |
+|---|---|
+| `test_full_cooking_chain` | GoTo→Dig→GoTo→Cook→Eat chain when fire is adequate |
+| `test_fire_too_low_to_cook` | Drop→refuel→re-dig chain when fire blocks cooking |
+| `test_preemptive_fire_maintenance` | Fire maintenance ordered before food when fire reward > hunger |
+| `test_competing_priorities_hunger_wins` | Food ordered before fire when hunger reward > fire reward |
+| `test_cannot_add_fuel_when_full` | `AddFuelAction.get_action_cost()` returns INF when fire=100 |
+| `test_cannot_cook_without_potato` | `CookPotatoAction` precondition blocks when not holding potato |
+
+### Running
+
+```bash
+# Build Rust binary first, then:
+make test-godot
+# Or run specific test:
+godot --headless --path . -s addons/gut/gut_cmdln.gd -gtest=test/integration/test_campfire_example_smoke.gd
+```
+
+---
+
 ## Estimated Implementation Time
 
 **New gameplay code:**
@@ -849,13 +1228,14 @@ Node2D (root)
 - PotatoSpawner: 0.5 hours
 - CampfireBehaviorConfig update (add GoToAction): 5 minutes
 
-**2D Demo:**
-- Prefabs (campfire, wood, potato, agent) with primitive shapes + labels: 1 hour
-- Campfire runtime scene script (fuel decay + label update): 0.5 hours
-- Demo scene assembly + PotatoSpawner setup: 0.5 hours
-- Navigation setup: 0.5 hours
+**2D + 3D Demo:**
+- 2D prefabs (4×) with primitive shapes + labels: 0.75 hours
+- 3D prefabs (4×) with CSG primitives + Label3D: 0.75 hours
+- Campfire runtime scene script (shared, fuel decay + label update): 0.5 hours
+- 2D demo scene assembly + PotatoSpawner setup: 0.5 hours
+- 3D demo scene assembly + NavMesh bake: 0.75 hours
 
-**Integration tests:** 1 hour
+**Integration tests:** 1.5 hours (test file + debug against implementation)
 **Testing + bug fixes:** 1-1.5 hours
 
-**Total:** ~7-8 hours
+**Total:** ~9-10 hours
