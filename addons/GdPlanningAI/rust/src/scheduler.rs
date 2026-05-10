@@ -440,6 +440,7 @@ fn dispatch_callback(callable: &Callable, kind: CallbackKind) -> CallbackRespons
     }
 }
 
+/// Converts a [`PlanResult`] to a [`VarDictionary`] for GDScript serialization.
 fn result_to_dict(result: &PlanResult) -> VarDictionary {
     let mut dict = VarDictionary::new();
     dict.set("success", result.success);

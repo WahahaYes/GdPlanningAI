@@ -34,9 +34,11 @@ func _init(p_target_location: GdPAILocationData = null) -> void:
 	target_location = p_target_location
 
 
-## Injects a planner binding into this action instance.
-## Called by the bridge after plan deserialization to set wildcard provision values.
-## For GoToAction, this sets the target_location from the at_target binding.
+## Injects a planner-provided binding into this action instance.
+##[br]
+##[br]
+## Called by the bridge after planning to set concrete values for wildcard provisions.
+## For [code]at_target[/code], sets the [member target_location] to the provided location data.
 func inject_binding(fact_name: String, value: Array) -> void:
 	if fact_name == "at_target" and value.size() > 0:
 		var obj = value[0]
