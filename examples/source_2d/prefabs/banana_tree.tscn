@@ -123,6 +123,7 @@ entity = NodePath("..")
 [node name="FruitTreeObject" type="Node" parent="." unique_id=209626684 node_paths=PackedStringArray("cooldown_display", "interactable_attribs", "location_data", "entity")]
 script = ExtResource("4_d15qn")
 fruit_prefab = ExtResource("4_13ry2")
+cooldown_window = 60.0
 cooldown_display = NodePath("../Label")
 interactable_attribs = NodePath("../GdPAIInteractable")
 location_data = NodePath("../GdPAILocationData")

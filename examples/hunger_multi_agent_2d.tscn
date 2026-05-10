@@ -114,7 +114,7 @@ lock_rotation = true
 position = Vector2(947, 209)
 lock_rotation = true
 
-[node name="AnimatedSprite2D" parent="Agent2" index="1"]
+[node name="AnimatedSprite2D" parent="Agent2" index="1" unique_id=831837777]
 sprite_frames = SubResource("SpriteFrames_guyou")
 frame_progress = 0.0
 

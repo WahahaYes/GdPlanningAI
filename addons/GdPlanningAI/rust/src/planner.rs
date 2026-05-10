@@ -253,8 +253,8 @@ fn backward_search(
     // Check if branch is complete - all needs satisfied by accumulated state
     if branch.is_complete(ctx.initial_provisions, ctx.request_tx) {
         crate::log_debug!("Branch complete with {} actions", branch.action_chain.len());
-        // Forward validate the complete chain
-        let result = forward_validate(&branch.action_chain, ctx);
+        // Forward validate the complete chain with bindings to recalculate true costs
+        let result = forward_validate(&branch.action_chain, &branch.action_bindings, ctx);
         if let Some((action_chain, total_cost)) = result
             && total_cost < *best_cost
         {
@@ -431,24 +431,34 @@ fn action_candidates_for_needs(
 
     // 1. Check if action's provisions satisfy any open requirement
     if !branch.open_requirements.is_empty() {
-        let satisfies_req = provisions_satisfy_any_requirement_in_context(
-            &action.provisions,
-            &branch.open_requirements,
-            ctx.initial_world,
-        );
-        if satisfies_req {
-            crate::log_debug!(
-                "Action '{}' satisfies open requirements via provisions",
-                action.name
-            );
-            let estimated_cost = estimate_action_cost(action, branch, ctx);
-            if estimated_cost != f64::INFINITY {
-                candidates.push(ActionCandidate {
-                    action_idx,
-                    estimated_cost,
-                    satisfied_precondition_indices: vec![],
-                    requires_bound_effect: false,
-                });
+        // For wildcard provisions, evaluate cost separately for each requirement
+        // to ensure the planner chooses the nearest target
+        for req in &branch.open_requirements {
+            for prov in &action.provisions {
+                if provision_satisfies_requirement_in_context(prov, req, ctx.initial_world) {
+                    // Extract binding that would be created if this provision satisfies this requirement
+                    let binding = extract_binding_for_requirement(prov, req);
+                    
+                    crate::log_debug!(
+                        "Action '{}' satisfies requirement via provision",
+                        action.name
+                    );
+                    let estimated_cost = estimate_action_cost_with_binding(
+                        action,
+                        branch,
+                        ctx,
+                        &binding,
+                    );
+                    if estimated_cost != f64::INFINITY {
+                        candidates.push(ActionCandidate {
+                            action_idx,
+                            estimated_cost,
+                            satisfied_precondition_indices: vec![],
+                            requires_bound_effect: false,
+                        });
+                    }
+                    break;
+                }
             }
         }
     }
@@ -641,6 +651,16 @@ fn bound_value_for_requirement(
 
 /// Estimate action cost using hypothetical simulation from accumulated state.
 fn estimate_action_cost(action: &ActionSpec, branch: &PlanBranch, ctx: &SearchContext) -> f64 {
+    estimate_action_cost_with_binding(action, branch, ctx, &None)
+}
+
+/// Estimate action cost using hypothetical simulation with a specific binding applied.
+fn estimate_action_cost_with_binding(
+    action: &ActionSpec,
+    branch: &PlanBranch,
+    ctx: &SearchContext,
+    binding: &Option<(String, Vec<i64>)>,
+) -> f64 {
     let Some((hypo_agent, hypo_world)) = create_hypothetical_snapshot(
         &branch.accumulated_agent,
         &branch.accumulated_world,
@@ -650,12 +670,62 @@ fn estimate_action_cost(action: &ActionSpec, branch: &PlanBranch, ctx: &SearchCo
         return 1.0;
     };
 
+    // Apply the binding if provided (for wildcard provisions)
+    let mut agent_for_cost = hypo_agent;
+    if let Some((fact_name, object_ids)) = binding {
+        let id_variants: Vec<VariantSnapshot> = object_ids
+            .iter()
+            .map(|id| VariantSnapshot::ObjectRef(*id))
+            .collect();
+        let binding_value = VariantSnapshot::Array(id_variants);
+        agent_for_cost
+            .properties
+            .insert(fact_name.clone(), binding_value);
+    }
+
     call_get_cost(
         action.cost_callable_id,
-        &hypo_agent,
+        &agent_for_cost,
         &hypo_world,
         ctx.request_tx,
     )
+}
+
+/// Extract the binding that would be created when a provision satisfies a requirement.
+fn extract_binding_for_requirement(
+    provision: &ProvisionSpec,
+    requirement: &RequirementSpec,
+) -> Option<(String, Vec<i64>)> {
+    match (provision, requirement) {
+        (
+            ProvisionSpec::FactWildcard {
+                fact_name: prov_name,
+            },
+            RequirementSpec::Fact {
+                fact_name: req_name,
+                args,
+            },
+        ) if prov_name == req_name => {
+            let object_ids: Vec<i64> = args
+                .iter()
+                .filter_map(|v| {
+                    if let VariantSnapshot::ObjectRef(id) = v {
+                        Some(*id)
+                    } else if let VariantSnapshot::Str(uid) = v {
+                        uid.parse::<i64>().ok()
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            if !object_ids.is_empty() {
+                Some((prov_name.clone(), object_ids))
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
 }
 
 /// Update open needs when adding a predecessor action.
@@ -845,7 +915,11 @@ fn preconditions_equal(a: &PreconditionSpec, b: &PreconditionSpec) -> bool {
 
 /// Validate a complete action chain by forward simulation.
 /// Returns (action_chain, total_cost) if valid, None otherwise.
-fn forward_validate(action_chain: &[i64], ctx: &SearchContext) -> Option<(Vec<i64>, f64)> {
+fn forward_validate(
+    action_chain: &[i64],
+    action_bindings: &[(i64, String, Vec<i64>)],
+    ctx: &SearchContext,
+) -> Option<(Vec<i64>, f64)> {
     let mut agent = ctx.initial_agent.clone();
     let mut world = ctx.initial_world.clone();
     let mut accumulated_provisions: Vec<ProvisionSpec> = ctx.initial_provisions.to_vec();
@@ -860,6 +934,31 @@ fn forward_validate(action_chain: &[i64], ctx: &SearchContext) -> Option<(Vec<i6
         let action = &ctx.actions[*action_idx as usize];
 
         crate::log_debug!("Validating action '{}'", action.name);
+
+        // Apply action-specific bindings before calculating cost
+        // Bindings are associated with the action that provides the provision,
+        // but they need to be applied to the agent blackboard for later actions
+        // that have requirements satisfied by those provisions.
+        for (binding_action_idx, fact_name, object_ids) in action_bindings {
+            // Apply binding if this action is the one that provides the provision
+            // This sets the binding on the agent for subsequent actions to use
+            if *binding_action_idx == *action_idx && !object_ids.is_empty() {
+                let id_variants: Vec<VariantSnapshot> = object_ids
+                    .iter()
+                    .map(|id| VariantSnapshot::ObjectRef(*id))
+                    .collect();
+                let binding_value = VariantSnapshot::Array(id_variants);
+                agent
+                    .properties
+                    .insert(fact_name.clone(), binding_value);
+                crate::log_debug!(
+                    "Applied binding '{}' with {} objects (action_bindings) for action '{}'",
+                    fact_name,
+                    object_ids.len(),
+                    action.name
+                );
+            }
+        }
 
         // 1. Check dependencies valid
         if !check_dependencies_valid(&action.dependent_object_ids) {
@@ -893,8 +992,34 @@ fn forward_validate(action_chain: &[i64], ctx: &SearchContext) -> Option<(Vec<i6
             return None;
         }
 
+        // 4.5. For actions with wildcard provisions, if this action provides a binding
+        // that satisfies a later action's requirement, apply it now so this action's cost
+        // can be calculated with the true target location
+        if action.provisions.iter().any(|p| matches!(p, ProvisionSpec::FactWildcard { .. })) {
+            // Look for bindings where this action is the provider
+            for (binding_action_idx, fact_name, object_ids) in action_bindings {
+                if *binding_action_idx == *action_idx && !object_ids.is_empty() {
+                    let id_variants: Vec<VariantSnapshot> = object_ids
+                        .iter()
+                        .map(|id| VariantSnapshot::ObjectRef(*id))
+                        .collect();
+                    let binding_value = VariantSnapshot::Array(id_variants);
+                    agent
+                        .properties
+                        .insert(fact_name.clone(), binding_value);
+                    crate::log_debug!(
+                        "Applied binding '{}' with {} objects for cost calculation of '{}'",
+                        fact_name,
+                        object_ids.len(),
+                        action.name
+                    );
+                }
+            }
+        }
+
         // 5. Get cost
         let cost = call_get_cost(action.cost_callable_id, &agent, &world, ctx.request_tx);
+        crate::log_debug!("Action '{}' cost: {:.2}", action.name, cost);
         if cost == f64::INFINITY {
             crate::log_debug!("Action '{}' has infinite cost", action.name);
             return None;
