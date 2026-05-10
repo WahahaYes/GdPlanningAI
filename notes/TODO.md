@@ -12,17 +12,21 @@ This document tracks pending work items across the project. For completed work, 
 
 ### Campfire Example Implementation
 
-**Document:** `CAMPFIRE_EXAMPLE_PLAN.md`
+**Document:** `CAMPFIRE_EXAMPLE_PLAN.md` (updated 2026-05-10 for GoToAction architecture)
 
-**Status:** Not implemented
+**Status:** Plan refreshed, ready for implementation
 
-**Required Components:**
-- `examples/behaviors/campfire/` - partially exists (has behavior config and eat action)
-- `examples/objects/wood_pile/` - missing
-- `examples/objects/campfire/` - missing
-- `examples/objects/potato/` - missing
-- `examples/shared/systems/potato_spawner/` - missing
-- `examples/campfire_2d.tscn` - missing demo scene
+**Already exists:**
+- `examples/behaviors/campfire/` — `CampfireBehaviorConfig`, `MaintainFireGoal`, `EatHeldFoodAction` (needs `GoToAction` added)
+- `examples/behaviors/hunger/` — `HungerBehaviorConfig`, `HungerGoal`, `HungerPropertyUpdater`
+- `examples/objects/holdable/` — `HoldableObject`, `PickupAction`, `DropItemAction`
+
+**New files to create:**
+- `examples/objects/wood_pile/` — `wood_pile_object.gd`, `pick_up_wood_action.gd`
+- `examples/objects/campfire/` — `campfire_object.gd`, `add_fuel_action.gd`, `cook_potato_action.gd`
+- `examples/objects/potato/` — `potato_object.gd`, `dig_potato_action.gd`
+- `examples/shared/systems/potato_spawner/` — `potato_spawner.gd`
+- `examples/campfire_2d.tscn` — demo scene
 - 2D prefabs for campfire, wood piles, potatoes, agents
 
 **Concepts to Demonstrate:**
@@ -33,8 +37,9 @@ This document tracks pending work items across the project. For completed work, 
 - Inventory management (single held_item slot)
 - Task switching (drop held items when priorities change)
 - Threshold-based actions (cooking requires fire fuel >= threshold)
+- GoToAction chaining pattern (navigation + interaction as separate actions)
 
-**Context:** This is a major planned example that would demonstrate advanced planning patterns. The plan is detailed and ready for implementation.
+**Estimated:** ~6-7 hours
 
 ---
 

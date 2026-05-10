@@ -21,8 +21,6 @@ func get_desired_state(agent: GdPAIAgent) -> Array[Precondition]:
 	print("[HungerGoal] get_desired_state - current_hunger: ", current_hunger)
 
 	# Require hunger to be reduced by at least 15 to satisfy the goal
-	# This ensures the planner must chain pickup + eat, since eat alone
-	# only provides a 5.0 placeholder during planning
 	var required_hunger: float = max(0.0, current_hunger - 15.0)
 
 	var check_hunger_less_than = func(
