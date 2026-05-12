@@ -8,6 +8,7 @@
 use crate::debug_tree::{TreeDump, TreeEvent};
 use crate::plan_tree::PlanResult;
 use crate::plan_types::*;
+use crate::precondition::PreconditionTarget;
 use crate::requirement::{ProvisionSpec, RequirementSpec, extract_initial_provisions};
 use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use std::cell::RefCell;
@@ -157,6 +158,17 @@ pub fn run_plan(
 
         if goal_satisfied {
             crate::log_debug!("Goal '{}' already satisfied", goal.name);
+            let tree_dump = RefCell::new(TreeDump::new());
+            tree_dump.borrow_mut().record(
+                0,
+                TreeEvent::GoalAlreadySatisfied {
+                    goal_name: goal.name.clone(),
+                },
+            );
+            let tree_output = tree_dump.borrow().format();
+            if !tree_output.is_empty() {
+                crate::log_debug!("{}", tree_output);
+            }
             let _ = result_tx.send(Some(PlanResult {
                 success: true,
                 action_chain: vec![],
@@ -336,7 +348,9 @@ fn backward_search(
                 ctx.tree_dump.borrow_mut().record(
                     depth,
                     TreeEvent::ForwardValidationFailed {
-                        reason: format!("cost {:.2} not better than best {:.2}", total_cost, *best_cost),
+                        failed_action: "chain".to_string(),
+                        failed_step: "cost".to_string(),
+                        detail: format!("cost {:.2} not better than best {:.2}", total_cost, *best_cost),
                     },
                 );
             }
@@ -344,7 +358,9 @@ fn backward_search(
                 ctx.tree_dump.borrow_mut().record(
                     depth,
                     TreeEvent::ForwardValidationFailed {
-                        reason: "validation failed".to_string(),
+                        failed_action: "chain".to_string(),
+                        failed_step: "validation".to_string(),
+                        detail: "see forward validation steps above".to_string(),
                     },
                 );
             }
@@ -512,6 +528,13 @@ fn find_candidate_actions(branch: &PlanBranch, ctx: &SearchContext) -> Vec<Actio
         // Check if action is valid (dependencies exist)
         if !action_is_valid(action, ctx) {
             crate::log_debug!("Action '{}' invalid (dependencies)", action.name);
+            ctx.tree_dump.borrow_mut().record(
+                branch.action_chain.len(),
+                TreeEvent::ActionExcluded {
+                    action_name: action.name.clone(),
+                    reason: "dependencies invalid (object freed)".to_string(),
+                },
+            );
             continue;
         }
 
@@ -523,6 +546,26 @@ fn find_candidate_actions(branch: &PlanBranch, ctx: &SearchContext) -> Vec<Actio
             candidates.extend(action_candidates);
         } else {
             crate::log_debug!("Action '{}' cannot satisfy any open need", action.name);
+            let reason = if branch.open_preconditions.is_empty() && branch.open_requirements.is_empty() {
+                "no open needs to satisfy".to_string()
+            } else if !branch.open_requirements.is_empty() && action.provisions.is_empty() {
+                "no provisions to satisfy open requirements".to_string()
+            } else if !branch.open_preconditions.is_empty() && action.effect_callable_id == 0 {
+                "no effect to satisfy open preconditions".to_string()
+            } else {
+                format!(
+                    "effect/provisions don't match open needs ({} pre, {} req)",
+                    branch.open_preconditions.len(),
+                    branch.open_requirements.len()
+                )
+            };
+            ctx.tree_dump.borrow_mut().record(
+                branch.action_chain.len(),
+                TreeEvent::ActionExcluded {
+                    action_name: action.name.clone(),
+                    reason,
+                },
+            );
         }
     }
 
@@ -1055,12 +1098,7 @@ fn forward_validate(
         crate::log_debug!("Validating action '{}'", action.name);
 
         // Apply action-specific bindings before calculating cost
-        // Bindings are associated with the action that provides the provision,
-        // but they need to be applied to the agent blackboard for later actions
-        // that have requirements satisfied by those provisions.
         for (binding_action_idx, fact_name, object_ids) in action_bindings {
-            // Apply binding if this action is the one that provides the provision
-            // This sets the binding on the agent for subsequent actions to use
             if *binding_action_idx == *action_idx && !object_ids.is_empty() {
                 let id_variants: Vec<VariantSnapshot> = object_ids
                     .iter()
@@ -1081,41 +1119,126 @@ fn forward_validate(
 
         // 1. Check dependencies valid
         if !check_dependencies_valid(&action.dependent_object_ids) {
+            let detail = "dependent objects have been freed".to_string();
             crate::log_debug!("Action '{}' failed: dependencies invalid", action.name);
+            ctx.tree_dump.borrow_mut().record(
+                action_chain.len(),
+                TreeEvent::ForwardValidationStep {
+                    action_name: action.name.clone(),
+                    step: "dependencies".to_string(),
+                    detail: detail.clone(),
+                    ok: false,
+                },
+            );
             return None;
         }
+        ctx.tree_dump.borrow_mut().record(
+            action_chain.len(),
+            TreeEvent::ForwardValidationStep {
+                action_name: action.name.clone(),
+                step: "dependencies".to_string(),
+                detail: "valid".to_string(),
+                ok: true,
+            },
+        );
 
         // 2. Check validity checks
         for (i, check) in action.validity_checks.iter().enumerate() {
             if !eval_precondition(check, &agent, &world, ctx.request_tx) {
+                let detail = format!("validity check #{} failed", i);
                 crate::log_debug!("Action '{}' failed validity check {}", action.name, i);
+                ctx.tree_dump.borrow_mut().record(
+                    action_chain.len(),
+                    TreeEvent::ForwardValidationStep {
+                        action_name: action.name.clone(),
+                        step: "validity".to_string(),
+                        detail: detail.clone(),
+                        ok: false,
+                    },
+                );
                 return None;
             }
+        }
+        if !action.validity_checks.is_empty() {
+            ctx.tree_dump.borrow_mut().record(
+                action_chain.len(),
+                TreeEvent::ForwardValidationStep {
+                    action_name: action.name.clone(),
+                    step: "validity".to_string(),
+                    detail: format!("{} checks passed", action.validity_checks.len()),
+                    ok: true,
+                },
+            );
         }
 
         // 3. Check preconditions
         for precond in &action.preconditions {
             if !eval_precondition(precond, &agent, &world, ctx.request_tx) {
+                let detail = format!("precondition {:?}", precond);
                 crate::log_debug!("Action '{}' failed precondition", action.name);
+                ctx.tree_dump.borrow_mut().record(
+                    action_chain.len(),
+                    TreeEvent::ForwardValidationStep {
+                        action_name: action.name.clone(),
+                        step: "precondition".to_string(),
+                        detail: detail.clone(),
+                        ok: false,
+                    },
+                );
                 return None;
             }
+        }
+        if !action.preconditions.is_empty() {
+            ctx.tree_dump.borrow_mut().record(
+                action_chain.len(),
+                TreeEvent::ForwardValidationStep {
+                    action_name: action.name.clone(),
+                    step: "precondition".to_string(),
+                    detail: format!("{} checks passed", action.preconditions.len()),
+                    ok: true,
+                },
+            );
         }
 
         // 4. Check requirements satisfied by accumulated provisions
         if !requirements_satisfied_in_context(&action.requirements, &accumulated_provisions, &world)
         {
+            let unmet: Vec<String> = action
+                .requirements
+                .iter()
+                .filter(|r| !requirement_satisfied_in_context(r, &accumulated_provisions, &world))
+                .map(|r| format!("{:?}", r))
+                .collect();
+            let detail = format!("unmet: [{}]", unmet.join(", "));
             crate::log_debug!(
                 "Action '{}' failed: requirements not satisfied",
                 action.name
             );
+            ctx.tree_dump.borrow_mut().record(
+                action_chain.len(),
+                TreeEvent::ForwardValidationStep {
+                    action_name: action.name.clone(),
+                    step: "requirements".to_string(),
+                    detail: detail.clone(),
+                    ok: false,
+                },
+            );
             return None;
         }
+        if !action.requirements.is_empty() {
+            ctx.tree_dump.borrow_mut().record(
+                action_chain.len(),
+                TreeEvent::ForwardValidationStep {
+                    action_name: action.name.clone(),
+                    step: "requirements".to_string(),
+                    detail: "all met".to_string(),
+                    ok: true,
+                },
+            );
+        }
 
-        // 4.5. For actions with wildcard provisions, if this action provides a binding
-        // that satisfies a later action's requirement, apply it now so this action's cost
-        // can be calculated with the true target location
+        // 4.5. For actions with wildcard provisions, apply bindings for cost calculation
         if action.provisions.iter().any(|p| matches!(p, ProvisionSpec::FactWildcard { .. })) {
-            // Look for bindings where this action is the provider
             for (binding_action_idx, fact_name, object_ids) in action_bindings {
                 if *binding_action_idx == *action_idx && !object_ids.is_empty() {
                     let id_variants: Vec<VariantSnapshot> = object_ids
@@ -1141,8 +1264,26 @@ fn forward_validate(
         crate::log_debug!("Action '{}' cost: {:.2}", action.name, cost);
         if cost == f64::INFINITY {
             crate::log_debug!("Action '{}' has infinite cost", action.name);
+            ctx.tree_dump.borrow_mut().record(
+                action_chain.len(),
+                TreeEvent::ForwardValidationStep {
+                    action_name: action.name.clone(),
+                    step: "cost".to_string(),
+                    detail: "infinite".to_string(),
+                    ok: false,
+                },
+            );
             return None;
         }
+        ctx.tree_dump.borrow_mut().record(
+            action_chain.len(),
+            TreeEvent::ForwardValidationStep {
+                action_name: action.name.clone(),
+                step: "cost".to_string(),
+                detail: format!("{:.2}", cost),
+                ok: true,
+            },
+        );
         total_cost += cost;
 
         // 6. Apply effect
@@ -1164,9 +1305,33 @@ fn forward_validate(
         .iter()
         .all(|precond| eval_precondition(precond, &agent, &world, ctx.request_tx))
     {
+        let failed: Vec<String> = ctx
+            .goal_preconditions
+            .iter()
+            .filter(|p| !eval_precondition(p, &agent, &world, ctx.request_tx))
+            .map(|p| format!("{:?}", p))
+            .collect();
         crate::log_debug!("Forward validation failed: final goal not satisfied");
+        ctx.tree_dump.borrow_mut().record(
+            action_chain.len(),
+            TreeEvent::ForwardValidationStep {
+                action_name: "GOAL".to_string(),
+                step: "goal_check".to_string(),
+                detail: format!("failed preconditions: [{}]", failed.join(", ")),
+                ok: false,
+            },
+        );
         return None;
     }
+    ctx.tree_dump.borrow_mut().record(
+        action_chain.len(),
+        TreeEvent::ForwardValidationStep {
+            action_name: "GOAL".to_string(),
+            step: "goal_check".to_string(),
+            detail: "all satisfied".to_string(),
+            ok: true,
+        },
+    );
 
     crate::log_debug!(
         "Forward validation succeeded, total cost: {:.2}",
@@ -1308,13 +1473,25 @@ fn eval_precondition(
                 && let PreconditionSpec::Builtin {
                     operation,
                     property_name,
-                    ..
+                    target,
+                    value: expected,
                 } = spec
             {
+                let actual = match target {
+                    PreconditionTarget::Agent => {
+                        agent.properties.get(property_name.as_str())
+                    }
+                    PreconditionTarget::WorldState => {
+                        world.properties.get(property_name.as_str())
+                    }
+                };
                 crate::log_debug!(
-                    "Builtin precondition failed: op={:?}, property='{}'",
+                    "Builtin precondition failed: {:?} {:?} {:?} (actual={:?}, target={:?})",
+                    property_name,
                     operation,
-                    property_name
+                    expected,
+                    actual,
+                    target
                 );
             }
             result
@@ -1332,7 +1509,10 @@ fn eval_precondition(
             };
             let result = call_eval_custom_precond(callable_id, agent, world, request_tx);
             if !result {
-                crate::log_debug!("Custom precondition callback returned false");
+                crate::log_debug!(
+                    "Custom precondition callback #{} returned false",
+                    callable_id
+                );
             }
             result
         }

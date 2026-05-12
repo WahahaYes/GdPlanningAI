@@ -36,13 +36,31 @@ pub enum TreeEvent {
     },
     /// Forward validation failed for a completed branch.
     ForwardValidationFailed {
-        reason: String,
+        failed_action: String,
+        failed_step: String,
+        detail: String,
+    },
+    /// A step during forward validation of a completed chain.
+    ForwardValidationStep {
+        action_name: String,
+        step: String,
+        detail: String,
+        ok: bool,
     },
     /// Root node — planning start.
     Root {
         goal_name: String,
         goal_reward: f64,
         goal_preconditions: Vec<String>,
+    },
+    /// An action was excluded from candidates with a reason.
+    ActionExcluded {
+        action_name: String,
+        reason: String,
+    },
+    /// Goal was already satisfied before planning.
+    GoalAlreadySatisfied {
+        goal_name: String,
     },
     /// Planning result.
     Result {
@@ -175,10 +193,41 @@ impl TreeDump {
                         prefix, chain_len, total_cost
                     ));
                 }
-                TreeEvent::ForwardValidationFailed { reason } => {
+                TreeEvent::ForwardValidationStep {
+                    action_name,
+                    step,
+                    detail,
+                    ok,
+                } => {
+                    let status = if *ok { "OK" } else { "FAIL" };
                     output.push_str(&format!(
-                        "{}FWD VALIDATION FAILED: {}\n",
-                        prefix, reason
+                        "{}FWD [{}] '{}' {}: {}\n",
+                        prefix, status, action_name, step, detail
+                    ));
+                }
+                TreeEvent::ForwardValidationFailed {
+                    failed_action,
+                    failed_step,
+                    detail,
+                } => {
+                    output.push_str(&format!(
+                        "{}FWD VALIDATION FAILED: '{}' {} — {}\n",
+                        prefix, failed_action, failed_step, detail
+                    ));
+                }
+                TreeEvent::ActionExcluded {
+                    action_name,
+                    reason,
+                } => {
+                    output.push_str(&format!(
+                        "{}EXCLUDE '{}': {}\n",
+                        prefix, action_name, reason
+                    ));
+                }
+                TreeEvent::GoalAlreadySatisfied { goal_name } => {
+                    output.push_str(&format!(
+                        "{}GOAL SATISFIED: '{}' already met\n",
+                        prefix, goal_name
                     ));
                 }
                 TreeEvent::Result { success, message } => {
