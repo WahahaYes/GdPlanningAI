@@ -5,10 +5,12 @@
 //! simulate_effect for state-based goal progress. GDScript callables are
 //! invoked indirectly via [`CallbackRequest`] / [`CallbackResponse`] channels.
 
+use crate::debug_tree::{TreeDump, TreeEvent};
 use crate::plan_tree::PlanResult;
 use crate::plan_types::*;
 use crate::requirement::{ProvisionSpec, RequirementSpec, extract_initial_provisions};
 use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
+use std::cell::RefCell;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, atomic::AtomicBool};
 
@@ -169,6 +171,23 @@ pub fn run_plan(
         // Extract initial provisions from agent state
         let initial_provisions = extract_initial_provisions(&agent);
 
+        let tree_dump = RefCell::new(TreeDump::new());
+
+        // Record root node
+        let goal_precond_names: Vec<String> = goal
+            .desired_state
+            .iter()
+            .map(|p| format!("{:?}", p))
+            .collect();
+        tree_dump.borrow_mut().record(
+            0,
+            TreeEvent::Root {
+                goal_name: goal.name.clone(),
+                goal_reward: goal.reward,
+                goal_preconditions: goal_precond_names,
+            },
+        );
+
         let ctx = SearchContext {
             actions: &actions,
             initial_agent: &agent,
@@ -178,6 +197,7 @@ pub fn run_plan(
             max_depth: max_recursion,
             request_tx: &request_tx,
             cancel_flag: &cancel_flag,
+            tree_dump,
         };
 
         // Start backward search from goal
@@ -196,6 +216,22 @@ pub fn run_plan(
                 goal.name,
                 total_cost
             );
+            ctx.tree_dump.borrow_mut().record(
+                0,
+                TreeEvent::Result {
+                    success: true,
+                    message: format!(
+                        "{} actions, cost={:.2}",
+                        action_chain.len(),
+                        total_cost
+                    ),
+                },
+            );
+            // Dump the full search tree
+            let tree_output = ctx.tree_dump.borrow().format();
+            if !tree_output.is_empty() {
+                crate::log_debug!("{}", tree_output);
+            }
             let _ = result_tx.send(Some(PlanResult {
                 success: true,
                 action_chain,
@@ -205,6 +241,19 @@ pub fn run_plan(
                 action_bindings,
             }));
             return;
+        }
+
+        // Record failure for this goal
+        ctx.tree_dump.borrow_mut().record(
+            0,
+            TreeEvent::Result {
+                success: false,
+                message: format!("No plan found for goal '{}'", goal.name),
+            },
+        );
+        let tree_output = ctx.tree_dump.borrow().format();
+        if !tree_output.is_empty() {
+            crate::log_debug!("{}", tree_output);
         }
     }
 
@@ -221,6 +270,7 @@ struct SearchContext<'a> {
     max_depth: usize,
     request_tx: &'a Sender<CallbackRequest>,
     cancel_flag: &'a Arc<AtomicBool>,
+    tree_dump: RefCell<TreeDump>,
 }
 
 /// Core backward chaining search.
@@ -242,11 +292,26 @@ fn backward_search(
             branch.estimated_cost,
             *best_cost
         );
+        ctx.tree_dump.borrow_mut().record(
+            depth,
+            TreeEvent::Prune {
+                reason: format!(
+                    "cost {:.2} >= best {:.2}",
+                    branch.estimated_cost, *best_cost
+                ),
+            },
+        );
         return None;
     }
 
     if depth > ctx.max_depth {
         crate::log_debug!("Max depth {} reached", ctx.max_depth);
+        ctx.tree_dump.borrow_mut().record(
+            depth,
+            TreeEvent::Prune {
+                reason: format!("max depth {} reached", ctx.max_depth),
+            },
+        );
         return None;
     }
 
@@ -254,12 +319,35 @@ fn backward_search(
     if branch.is_complete(ctx.initial_provisions, ctx.request_tx) {
         crate::log_debug!("Branch complete with {} actions", branch.action_chain.len());
         // Forward validate the complete chain with bindings to recalculate true costs
-        let result = forward_validate(&branch.action_chain, &branch.action_bindings, ctx);
-        if let Some((action_chain, total_cost)) = result
-            && total_cost < *best_cost
-        {
-            *best_cost = total_cost;
-            return Some((action_chain, total_cost, branch.action_bindings.clone()));
+        let fwd_result = forward_validate(&branch.action_chain, &branch.action_bindings, ctx);
+        match fwd_result {
+            Some((action_chain, total_cost)) if total_cost < *best_cost => {
+                ctx.tree_dump.borrow_mut().record(
+                    depth,
+                    TreeEvent::Complete {
+                        chain_len: action_chain.len(),
+                        total_cost,
+                    },
+                );
+                *best_cost = total_cost;
+                return Some((action_chain, total_cost, branch.action_bindings.clone()));
+            }
+            Some((_, total_cost)) => {
+                ctx.tree_dump.borrow_mut().record(
+                    depth,
+                    TreeEvent::ForwardValidationFailed {
+                        reason: format!("cost {:.2} not better than best {:.2}", total_cost, *best_cost),
+                    },
+                );
+            }
+            None => {
+                ctx.tree_dump.borrow_mut().record(
+                    depth,
+                    TreeEvent::ForwardValidationFailed {
+                        reason: "validation failed".to_string(),
+                    },
+                );
+            }
         }
         return None;
     }
@@ -269,6 +357,7 @@ fn backward_search(
 
     if candidates.is_empty() {
         crate::log_debug!("No candidate actions found at depth {}", depth);
+        ctx.tree_dump.borrow_mut().record(depth, TreeEvent::NoCandidates);
         return None;
     }
 
@@ -289,6 +378,29 @@ fn backward_search(
         }
 
         let action = &ctx.actions[candidate.action_idx];
+
+        // Build open precondition/requirement names for tree dump
+        let open_precond_names: Vec<String> = branch
+            .open_preconditions
+            .iter()
+            .map(|p| format!("{:?}", p))
+            .collect();
+        let open_req_names: Vec<String> = branch
+            .open_requirements
+            .iter()
+            .map(|r| format!("{:?}", r))
+            .collect();
+
+        ctx.tree_dump.borrow_mut().record(
+            depth,
+            TreeEvent::EnterAction {
+                action_name: action.name.clone(),
+                cost: candidate.estimated_cost,
+                accumulated_cost: branch.estimated_cost + candidate.estimated_cost,
+                open_preconditions: open_precond_names,
+                open_requirements: open_req_names,
+            },
+        );
 
         crate::log_debug!(
             "Trying action '{}' at depth {} (cost {:.2})",
@@ -311,6 +423,13 @@ fn backward_search(
             crate::log_debug!(
                 "Action '{}' could not resolve pending provider-bound effects",
                 action.name
+            );
+            ctx.tree_dump.borrow_mut().record(
+                depth + 1,
+                TreeEvent::CandidateSkipped {
+                    action_name: action.name.clone(),
+                    reason: "could not resolve pending effects".to_string(),
+                },
             );
             continue;
         }

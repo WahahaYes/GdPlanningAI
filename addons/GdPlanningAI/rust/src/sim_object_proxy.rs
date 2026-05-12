@@ -77,26 +77,17 @@ impl SimObjectProxy {
 
     /// Constructs a [`SimObjectProxy`] from a live `GdPAIObjectData` node.
     ///
-    /// Calls `get_group_labels()` and `get_sim_properties()` on `obj` via dynamic
-    /// dispatch to snapshot group membership and simulation-relevant properties.
+    /// Calls `get_groups()` on the Godot Node to capture group membership,
+    /// and `get_sim_properties()` to snapshot simulation-relevant properties.
     /// The resulting proxy is fully independent of the source node.
     pub fn from_object_data(mut obj: Gd<Node>) -> Option<Gd<SimObjectProxy>> {
         let uid = obj.instance_id().to_i64().to_string();
         let name = obj.get_name().to_string();
 
         let mut groups = Vec::new();
-        match obj.call("get_group_labels", &[]).try_to::<Array<StringName>>() {
-            Ok(groups_arr) => {
-                for g in groups_arr.iter_shared() {
-                    groups.push(g.to_string());
-                }
-            }
-            Err(_) => {
-                log_warn!(
-                    "SimObjectProxy: get_group_labels() call failed for object {}",
-                    name
-                );
-            }
+        let groups_arr = obj.get_groups();
+        for g in groups_arr.iter_shared() {
+            groups.push(g.to_string());
         }
 
         let mut properties = HashMap::new();

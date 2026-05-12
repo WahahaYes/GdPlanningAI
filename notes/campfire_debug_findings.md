@@ -37,5 +37,7 @@ In the planner, when checking if an action's provisions satisfy open requirement
 ### Option C: Ensure `GoToAction` validity checks pass
 `GoToAction.get_validity_checks()` includes `agent_has_object_data_of_group("GdPAILocationData")` which calls `bb.get_proxies_in_group("GdPAILocationData")` on the agent blackboard. Verify the agent blackboard snapshot correctly preserves `GdPAILocationData` objects with proper group labels.
 
-## Next Step
-Try **Option A** first — it's the simplest and most likely fix. Change `goto_action.gd:76` from `return 10.0` to `return 0.1`.
+## Option A Attempted
+Changed `goto_action.gd` lines 76 & 79: `return 10.0` → `return 0.1`. Now `GoToAction`'s heuristic cost (0.1) is lower than all other actions (0.5–2.0), so the planner should try it first.
+
+**To test:** Run campfire example and check planner trace. If `GoToAction` now appears at depth 3 instead of `AddFuelAction`, Option A works. If not, move to Option B.
