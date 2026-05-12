@@ -35,7 +35,7 @@ label_settings = SubResource("LabelSettings_1")
 horizontal_alignment = 1
 script = ExtResource("3_mnopq")
 gdpai_agent = NodePath("../GdPAIAgent")
-debug_properties = Array[String](["hunger", "fire_fuel"])
+debug_properties = Array[String](["hunger", "held_item"])
 
 [node name="GdPAIAgent" type="Node" parent="." unique_id=1589804243 node_paths=PackedStringArray("entity")]
 script = ExtResource("1_klmno")

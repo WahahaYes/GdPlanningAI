@@ -66,27 +66,20 @@ func simulate_effect(
 ) -> void:
 	var hunger = agent_blackboard.get_property("hunger")
 	var held_item = agent_blackboard.get_property("held_item")
-	print("[EatHeldFoodAction] simulate_effect - hunger: ", hunger, ", held_item: ", held_item)
 	if hunger == null:
-		print("[EatHeldFoodAction] hunger is null, returning")
 		return
 
 	var hunger_restored: float
 	var held_item_id: String
 
-	# Extract held_item_id if present
 	if held_item != null and (held_item is String or held_item is StringName):
 		held_item_id = String(held_item)
 
-	# Only reduce hunger if we have a valid held item
-	# (this happens when requirements are satisfied via re-simulation)
 	if held_item_id.is_empty() or not hunger_restored_by_item.has(held_item_id):
-		print("[EatHeldFoodAction] No valid held item, skipping hunger reduction")
 		return
 
 	hunger_restored = float(hunger_restored_by_item[held_item_id])
 	var new_hunger = max(0.0, float(hunger) - hunger_restored)
-	print("[EatHeldFoodAction] hunger_restored: ", hunger_restored, ", new hunger: ", new_hunger)
 	agent_blackboard.set_property("hunger", new_hunger)
 	agent_blackboard.set_property("held_item", "")
 

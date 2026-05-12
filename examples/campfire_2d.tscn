@@ -12,6 +12,8 @@
 script = ExtResource("2_abcde")
 
 [sub_resource type="NavigationPolygon" id="NavigationPolygon_1"]
+vertices = PackedVector2Array(-380, -280, 380, -280, 380, 280, -380, 280)
+polygons = [PackedInt32Array(0, 1, 2, 3)]
 
 [node name="Campfire2D" type="Node2D" unique_id=2136786495]
 

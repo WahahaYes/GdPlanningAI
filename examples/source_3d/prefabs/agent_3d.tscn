@@ -32,7 +32,7 @@ pixel_size = 0.01
 position = Vector3(0, 1.0, 0)
 script = ExtResource("3_wxyz")
 gdpai_agent = NodePath("../GdPAIAgent")
-debug_properties = Array[String](["hunger", "fire_fuel"])
+debug_properties = Array[String](["hunger", "held_item"])
 
 [node name="GdPAIAgent" type="Node" parent="." node_paths=PackedStringArray("entity")]
 script = ExtResource("1_uvwx")

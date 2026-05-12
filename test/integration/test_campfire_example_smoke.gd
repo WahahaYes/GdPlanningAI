@@ -25,6 +25,11 @@ func after_each() -> void:
 		if is_instance_valid(node.entity):
 			node.entity.queue_free()
 	await _drain_scheduler()
+	for child in get_children():
+		if child.is_in_group("GdPAIObjectData"):
+			child.queue_free()
+		elif child.name == "GdPAIWorldNode":
+			child.queue_free()
 
 
 func _drain_scheduler(timeout_frames: int = 120) -> void:
@@ -85,7 +90,7 @@ func _setup_campfire_scene() -> Dictionary:
 
 	# Campfire at center
 	var campfire_entity: Node2D = CAMPFIRE_2D_PREFAB.instantiate()
-	add_child_autofree(campfire_entity)
+	add_child(campfire_entity)
 	campfire_entity.global_position = Vector2(400, 300)
 	var campfire: CampfireObject = GdPAIUTILS.get_child_of_type(campfire_entity, CampfireObject)
 
@@ -96,7 +101,7 @@ func _setup_campfire_scene() -> Dictionary:
 	]
 	for pos in wood_positions:
 		var wood_entity: Node2D = WOOD_PILE_2D_PREFAB.instantiate()
-		add_child_autofree(wood_entity)
+		add_child(wood_entity)
 		wood_entity.global_position = pos
 
 	# Potatoes scattered around
@@ -107,15 +112,16 @@ func _setup_campfire_scene() -> Dictionary:
 	]
 	for pos in potato_positions:
 		var potato_entity: Node2D = POTATO_2D_PREFAB.instantiate()
-		add_child_autofree(potato_entity)
+		add_child(potato_entity)
 		potato_entity.global_position = pos
 
 	# Agent
 	var agent_entity: Node2D = AGENT_2D_PREFAB.instantiate()
-	add_child_autofree(agent_entity)
+	add_child(agent_entity)
 	agent_entity.global_position = Vector2(100, 100)
 	var agent: GdPAIAgent = GdPAIUTILS.get_child_of_type(agent_entity, GdPAIAgent)
 	agent.config.planning_strategy = GdPAIAgentConfig.PlanningStrategy.ON_DEMAND
+	await _pump_frames(3) # Wait for agent _ready() to complete
 
 	return {"agent": agent, "campfire": campfire}
 
@@ -124,9 +130,12 @@ func _setup_campfire_scene() -> Dictionary:
 
 
 func test_full_cooking_chain() -> void:
-	var setup: Dictionary = _setup_campfire_scene()
+	var setup: Dictionary = await _setup_campfire_scene()
 	var agent: GdPAIAgent = setup["agent"]
 	var campfire: CampfireObject = setup["campfire"]
+
+	assert_true(agent.goals.size() > 0, "Agent should have goals after setup")
+	assert_true(agent.self_actions.size() > 0, "Agent should have self_actions after setup")
 
 	campfire.current_fuel = 80.0
 	agent.blackboard.set_property("hunger", 70.0)
@@ -146,7 +155,7 @@ func test_full_cooking_chain() -> void:
 
 
 func test_fire_too_low_to_cook() -> void:
-	var setup: Dictionary = _setup_campfire_scene()
+	var setup: Dictionary = await _setup_campfire_scene()
 	var agent: GdPAIAgent = setup["agent"]
 	var campfire: CampfireObject = setup["campfire"]
 
@@ -176,7 +185,7 @@ func test_fire_too_low_to_cook() -> void:
 
 
 func test_preemptive_fire_maintenance() -> void:
-	var setup: Dictionary = _setup_campfire_scene()
+	var setup: Dictionary = await _setup_campfire_scene()
 	var agent: GdPAIAgent = setup["agent"]
 	var campfire: CampfireObject = setup["campfire"]
 
@@ -203,7 +212,7 @@ func test_preemptive_fire_maintenance() -> void:
 
 
 func test_competing_priorities_hunger_wins() -> void:
-	var setup: Dictionary = _setup_campfire_scene()
+	var setup: Dictionary = await _setup_campfire_scene()
 	var agent: GdPAIAgent = setup["agent"]
 	var campfire: CampfireObject = setup["campfire"]
 
@@ -228,7 +237,7 @@ func test_competing_priorities_hunger_wins() -> void:
 
 
 func test_cannot_add_fuel_when_full() -> void:
-	var setup: Dictionary = _setup_campfire_scene()
+	var setup: Dictionary = await _setup_campfire_scene()
 	var agent: GdPAIAgent = setup["agent"]
 	var campfire: CampfireObject = setup["campfire"]
 
@@ -248,7 +257,7 @@ func test_cannot_add_fuel_when_full() -> void:
 
 
 func test_cannot_cook_without_potato() -> void:
-	var setup: Dictionary = _setup_campfire_scene()
+	var setup: Dictionary = await _setup_campfire_scene()
 	var agent: GdPAIAgent = setup["agent"]
 	var campfire: CampfireObject = setup["campfire"]
 

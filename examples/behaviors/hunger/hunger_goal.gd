@@ -18,9 +18,7 @@ func compute_reward(agent: GdPAIAgent) -> float:
 # Override
 func get_desired_state(agent: GdPAIAgent) -> Array[Precondition]:
 	var current_hunger: float = agent.blackboard.get_property("hunger")
-	print("[HungerGoal] get_desired_state - current_hunger: ", current_hunger)
 
-	# Require hunger to be reduced by at least 15 to satisfy the goal
 	var required_hunger: float = max(0.0, current_hunger - 15.0)
 
 	var check_hunger_less_than = func(
@@ -28,10 +26,7 @@ func get_desired_state(agent: GdPAIAgent) -> Array[Precondition]:
 		_world_state: GdPAIBlackboard,
 	) -> bool:
 		var hunger: Variant = blackboard.get_property("hunger")
-		var result = hunger < required_hunger
-		print("[HungerGoal] Custom precondition check")
-		print("  hunger: ", hunger, ", threshold: ", required_hunger, ", result: ", result)
-		return result
+		return hunger < required_hunger
 
 	return [Precondition.custom(check_hunger_less_than)]
 

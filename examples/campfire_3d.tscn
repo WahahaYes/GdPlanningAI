@@ -11,6 +11,8 @@
 [sub_resource type="Resource" id="Resource_u0rx4"]
 script = ExtResource("2_bcdef")
 
+[sub_resource type="NavigationMesh" id="NavigationMesh_1"]
+
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_1"]
 albedo_color = Color(0.2, 0.3, 0.2, 1)
 
@@ -19,6 +21,9 @@ albedo_color = Color(0.2, 0.3, 0.2, 1)
 [node name="GdPAIWorldNode" type="Node" parent="." unique_id=1532273511]
 script = ExtResource("1_abcde")
 blackboard_plan = SubResource("Resource_u0rx4")
+
+[node name="NavigationRegion3D" type="NavigationRegion3D" parent="." unique_id=987654321]
+navigation_mesh = SubResource("NavigationMesh_1")
 
 [node name="Campfire" parent="." unique_id=30708794 instance=ExtResource("3_cdefg")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 0)

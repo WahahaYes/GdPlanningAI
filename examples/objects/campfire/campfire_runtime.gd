@@ -40,19 +40,12 @@ func _update_label() -> void:
 func _update_fire_visuals() -> void:
 	if not is_instance_valid(fire_primitive):
 		return
-	
+
 	var fuel_ratio: float = campfire_object.current_fuel / 100.0
-	
-	# Scale primitive based on fuel level
-	if fire_primitive.has_method("set_scale"):
-		var base_scale: Vector2 = Vector2(1.0, 1.0)
-		if fire_primitive is Node3D:
-			var current_scale: Vector3 = fire_primitive.scale
-			fire_primitive.scale = Vector3(
-				current_scale.x * fuel_ratio,
-				current_scale.y * fuel_ratio,
-				current_scale.z * fuel_ratio
-			)
-		elif fire_primitive is Node2D:
-			var current_scale: Vector2 = fire_primitive.scale
-			fire_primitive.scale = current_scale * fuel_ratio
+
+	if fire_primitive is Node3D:
+		var prim_3d: Node3D = fire_primitive as Node3D
+		prim_3d.scale = Vector3(fuel_ratio, fuel_ratio, fuel_ratio)
+	elif fire_primitive is Node2D:
+		var prim_2d: Node2D = fire_primitive as Node2D
+		prim_2d.scale = Vector2(fuel_ratio, fuel_ratio)
