@@ -77,7 +77,7 @@ impl SimObjectProxy {
 
     /// Constructs a [`SimObjectProxy`] from a live `GdPAIObjectData` node.
     ///
-    /// Calls `get_groups()` and `get_sim_properties()` on `obj` via dynamic
+    /// Calls `get_group_labels()` and `get_sim_properties()` on `obj` via dynamic
     /// dispatch to snapshot group membership and simulation-relevant properties.
     /// The resulting proxy is fully independent of the source node.
     pub fn from_object_data(mut obj: Gd<Node>) -> Option<Gd<SimObjectProxy>> {
@@ -85,7 +85,7 @@ impl SimObjectProxy {
         let name = obj.get_name().to_string();
 
         let mut groups = Vec::new();
-        match obj.call("get_groups", &[]).try_to::<Array<StringName>>() {
+        match obj.call("get_group_labels", &[]).try_to::<Array<StringName>>() {
             Ok(groups_arr) => {
                 for g in groups_arr.iter_shared() {
                     groups.push(g.to_string());
@@ -93,7 +93,7 @@ impl SimObjectProxy {
             }
             Err(_) => {
                 log_warn!(
-                    "SimObjectProxy: get_groups() call failed for object {}",
+                    "SimObjectProxy: get_group_labels() call failed for object {}",
                     name
                 );
             }
@@ -214,7 +214,7 @@ mod tests {
 
     #[test]
     fn from_object_data_handles_empty_groups_gracefully() {
-        // Test the error recovery path when get_groups() fails
+        // Test the error recovery path when get_group_labels() fails
         // The implementation logs a warning and continues with empty groups vec
         let groups: Vec<String> = Vec::new();
         assert!(groups.is_empty());
