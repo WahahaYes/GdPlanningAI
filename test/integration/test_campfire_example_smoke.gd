@@ -21,15 +21,7 @@ const BLACKBOARD_PLAN_SCRIPT: Script = preload(
 
 
 func after_each() -> void:
-	for node in get_tree().get_nodes_in_group("GdPAIObjectData"):
-		if is_instance_valid(node.entity):
-			node.entity.queue_free()
 	await _drain_scheduler()
-	for child in get_children():
-		if child.is_in_group("GdPAIObjectData"):
-			child.queue_free()
-		elif child.name == "GdPAIWorldNode":
-			child.queue_free()
 
 
 func _drain_scheduler(timeout_frames: int = 120) -> void:
@@ -90,7 +82,7 @@ func _setup_campfire_scene() -> Dictionary:
 
 	# Campfire at center
 	var campfire_entity: Node2D = CAMPFIRE_2D_PREFAB.instantiate()
-	add_child(campfire_entity)
+	add_child_autofree(campfire_entity)
 	campfire_entity.global_position = Vector2(400, 300)
 	var campfire: CampfireObject = GdPAIUTILS.get_child_of_type(campfire_entity, CampfireObject)
 
@@ -101,7 +93,7 @@ func _setup_campfire_scene() -> Dictionary:
 	]
 	for pos in wood_positions:
 		var wood_entity: Node2D = WOOD_PILE_2D_PREFAB.instantiate()
-		add_child(wood_entity)
+		add_child_autofree(wood_entity)
 		wood_entity.global_position = pos
 
 	# Potatoes scattered around
@@ -112,12 +104,12 @@ func _setup_campfire_scene() -> Dictionary:
 	]
 	for pos in potato_positions:
 		var potato_entity: Node2D = POTATO_2D_PREFAB.instantiate()
-		add_child(potato_entity)
+		add_child_autofree(potato_entity)
 		potato_entity.global_position = pos
 
 	# Agent
 	var agent_entity: Node2D = AGENT_2D_PREFAB.instantiate()
-	add_child(agent_entity)
+	add_child_autofree(agent_entity)
 	agent_entity.global_position = Vector2(100, 100)
 	var agent: GdPAIAgent = GdPAIUTILS.get_child_of_type(agent_entity, GdPAIAgent)
 	agent.config.planning_strategy = GdPAIAgentConfig.PlanningStrategy.ON_DEMAND

@@ -5,7 +5,7 @@
 //! simulate_effect for state-based goal progress. GDScript callables are
 //! invoked indirectly via [`CallbackRequest`] / [`CallbackResponse`] channels.
 
-use crate::debug_tree::{TreeDump, TreeEvent};
+use crate::debug_tree::{NodeOutcome, TreeDump};
 use crate::plan_tree::PlanResult;
 use crate::plan_types::*;
 use crate::precondition::PreconditionTarget;
@@ -136,6 +136,8 @@ pub fn run_plan(
             .unwrap_or(std::cmp::Ordering::Equal)
     });
 
+    let tree_dump = RefCell::new(TreeDump::new());
+
     for goal in &sorted_goals {
         if cancel_flag.load(std::sync::atomic::Ordering::Relaxed) {
             let _ = result_tx.send(None);
@@ -148,23 +150,25 @@ pub fn run_plan(
             goal.reward
         );
 
+        let goal_precond_names: Vec<String> = goal
+            .desired_state
+            .iter()
+            .map(|p| format!("{:?}", p))
+            .collect();
+
+        tree_dump.borrow_mut().begin_goal(&goal.name, goal.reward, &goal_precond_names);
+
         // Check if goal is already satisfied
         let goal_satisfied = goal.desired_state.iter().all(|p| {
             p.evaluate_builtin(&agent, &world).unwrap_or_else(|| {
-                // Custom precondition - check via callback
                 eval_precondition(p, &agent, &world, &request_tx)
             })
         });
 
         if goal_satisfied {
             crate::log_debug!("Goal '{}' already satisfied", goal.name);
-            let tree_dump = RefCell::new(TreeDump::new());
-            tree_dump.borrow_mut().record(
-                0,
-                TreeEvent::GoalAlreadySatisfied {
-                    goal_name: goal.name.clone(),
-                },
-            );
+            tree_dump.borrow_mut().goal_already_satisfied();
+            tree_dump.borrow_mut().end_goal(true, &[], 0.0);
             let tree_output = tree_dump.borrow().format();
             if !tree_output.is_empty() {
                 crate::log_debug!("{}", tree_output);
@@ -183,21 +187,13 @@ pub fn run_plan(
         // Extract initial provisions from agent state
         let initial_provisions = extract_initial_provisions(&agent);
 
-        let tree_dump = RefCell::new(TreeDump::new());
-
-        // Record root node
-        let goal_precond_names: Vec<String> = goal
-            .desired_state
-            .iter()
-            .map(|p| format!("{:?}", p))
-            .collect();
-        tree_dump.borrow_mut().record(
-            0,
-            TreeEvent::Root {
-                goal_name: goal.name.clone(),
-                goal_reward: goal.reward,
-                goal_preconditions: goal_precond_names,
-            },
+        // Enter root node
+        tree_dump.borrow_mut().enter_node(
+            None,
+            0.0,
+            0.0,
+            &goal_precond_names,
+            &[],
         );
 
         let ctx = SearchContext {
@@ -209,7 +205,7 @@ pub fn run_plan(
             max_depth: max_recursion,
             request_tx: &request_tx,
             cancel_flag: &cancel_flag,
-            tree_dump,
+            tree_dump: &tree_dump,
         };
 
         // Start backward search from goal
@@ -228,19 +224,12 @@ pub fn run_plan(
                 goal.name,
                 total_cost
             );
-            ctx.tree_dump.borrow_mut().record(
-                0,
-                TreeEvent::Result {
-                    success: true,
-                    message: format!(
-                        "{} actions, cost={:.2}",
-                        action_chain.len(),
-                        total_cost
-                    ),
-                },
-            );
-            // Dump the full search tree
-            let tree_output = ctx.tree_dump.borrow().format();
+            let plan_action_names: Vec<String> = action_chain
+                .iter()
+                .map(|&idx| actions[idx as usize].name.clone())
+                .collect();
+            tree_dump.borrow_mut().end_goal(true, &plan_action_names, total_cost);
+            let tree_output = tree_dump.borrow().format();
             if !tree_output.is_empty() {
                 crate::log_debug!("{}", tree_output);
             }
@@ -256,14 +245,8 @@ pub fn run_plan(
         }
 
         // Record failure for this goal
-        ctx.tree_dump.borrow_mut().record(
-            0,
-            TreeEvent::Result {
-                success: false,
-                message: format!("No plan found for goal '{}'", goal.name),
-            },
-        );
-        let tree_output = ctx.tree_dump.borrow().format();
+        tree_dump.borrow_mut().end_goal(false, &[], 0.0);
+        let tree_output = tree_dump.borrow().format();
         if !tree_output.is_empty() {
             crate::log_debug!("{}", tree_output);
         }
@@ -282,7 +265,7 @@ struct SearchContext<'a> {
     max_depth: usize,
     request_tx: &'a Sender<CallbackRequest>,
     cancel_flag: &'a Arc<AtomicBool>,
-    tree_dump: RefCell<TreeDump>,
+    tree_dump: &'a RefCell<TreeDump>,
 }
 
 /// Core backward chaining search.
@@ -304,26 +287,20 @@ fn backward_search(
             branch.estimated_cost,
             *best_cost
         );
-        ctx.tree_dump.borrow_mut().record(
-            depth,
-            TreeEvent::Prune {
-                reason: format!(
-                    "cost {:.2} >= best {:.2}",
-                    branch.estimated_cost, *best_cost
-                ),
-            },
-        );
+        ctx.tree_dump.borrow_mut().exit_node(NodeOutcome::Pruned {
+            reason: format!(
+                "cost {:.2} >= best {:.2}",
+                branch.estimated_cost, *best_cost
+            ),
+        });
         return None;
     }
 
     if depth > ctx.max_depth {
         crate::log_debug!("Max depth {} reached", ctx.max_depth);
-        ctx.tree_dump.borrow_mut().record(
-            depth,
-            TreeEvent::Prune {
-                reason: format!("max depth {} reached", ctx.max_depth),
-            },
-        );
+        ctx.tree_dump.borrow_mut().exit_node(NodeOutcome::Pruned {
+            reason: format!("max depth {} reached", ctx.max_depth),
+        });
         return None;
     }
 
@@ -334,35 +311,27 @@ fn backward_search(
         let fwd_result = forward_validate(&branch.action_chain, &branch.action_bindings, ctx);
         match fwd_result {
             Some((action_chain, total_cost)) if total_cost < *best_cost => {
-                ctx.tree_dump.borrow_mut().record(
-                    depth,
-                    TreeEvent::Complete {
-                        chain_len: action_chain.len(),
-                        total_cost,
-                    },
-                );
+                ctx.tree_dump.borrow_mut().exit_node(NodeOutcome::Complete {
+                    chain_len: action_chain.len(),
+                    total_cost,
+                    fwd_ok: true,
+                });
                 *best_cost = total_cost;
                 return Some((action_chain, total_cost, branch.action_bindings.clone()));
             }
             Some((_, total_cost)) => {
-                ctx.tree_dump.borrow_mut().record(
-                    depth,
-                    TreeEvent::ForwardValidationFailed {
-                        failed_action: "chain".to_string(),
-                        failed_step: "cost".to_string(),
-                        detail: format!("cost {:.2} not better than best {:.2}", total_cost, *best_cost),
-                    },
-                );
+                ctx.tree_dump.borrow_mut().exit_node(NodeOutcome::Complete {
+                    chain_len: branch.action_chain.len(),
+                    total_cost,
+                    fwd_ok: false,
+                });
             }
             None => {
-                ctx.tree_dump.borrow_mut().record(
-                    depth,
-                    TreeEvent::ForwardValidationFailed {
-                        failed_action: "chain".to_string(),
-                        failed_step: "validation".to_string(),
-                        detail: "see forward validation steps above".to_string(),
-                    },
-                );
+                ctx.tree_dump.borrow_mut().exit_node(NodeOutcome::Complete {
+                    chain_len: branch.action_chain.len(),
+                    total_cost: f64::INFINITY,
+                    fwd_ok: false,
+                });
             }
         }
         return None;
@@ -373,7 +342,7 @@ fn backward_search(
 
     if candidates.is_empty() {
         crate::log_debug!("No candidate actions found at depth {}", depth);
-        ctx.tree_dump.borrow_mut().record(depth, TreeEvent::NoCandidates);
+        ctx.tree_dump.borrow_mut().exit_node(NodeOutcome::DeadEnd);
         return None;
     }
 
@@ -407,15 +376,12 @@ fn backward_search(
             .map(|r| format!("{:?}", r))
             .collect();
 
-        ctx.tree_dump.borrow_mut().record(
-            depth,
-            TreeEvent::EnterAction {
-                action_name: action.name.clone(),
-                cost: candidate.estimated_cost,
-                accumulated_cost: branch.estimated_cost + candidate.estimated_cost,
-                open_preconditions: open_precond_names,
-                open_requirements: open_req_names,
-            },
+        ctx.tree_dump.borrow_mut().enter_node(
+            Some(&action.name),
+            candidate.estimated_cost,
+            branch.estimated_cost + candidate.estimated_cost,
+            &open_precond_names,
+            &open_req_names,
         );
 
         crate::log_debug!(
@@ -440,13 +406,9 @@ fn backward_search(
                 "Action '{}' could not resolve pending provider-bound effects",
                 action.name
             );
-            ctx.tree_dump.borrow_mut().record(
-                depth + 1,
-                TreeEvent::CandidateSkipped {
-                    action_name: action.name.clone(),
-                    reason: "could not resolve pending effects".to_string(),
-                },
-            );
+            ctx.tree_dump.borrow_mut().exit_node(NodeOutcome::Skipped {
+                reason: "could not resolve pending effects".to_string(),
+            });
             continue;
         }
 
@@ -509,6 +471,7 @@ fn backward_search(
         }
     }
 
+    ctx.tree_dump.borrow_mut().exit_node(NodeOutcome::Expanded);
     best_result
 }
 
@@ -528,12 +491,9 @@ fn find_candidate_actions(branch: &PlanBranch, ctx: &SearchContext) -> Vec<Actio
         // Check if action is valid (dependencies exist)
         if !action_is_valid(action, ctx) {
             crate::log_debug!("Action '{}' invalid (dependencies)", action.name);
-            ctx.tree_dump.borrow_mut().record(
-                branch.action_chain.len(),
-                TreeEvent::ActionExcluded {
-                    action_name: action.name.clone(),
-                    reason: "dependencies invalid (object freed)".to_string(),
-                },
+            ctx.tree_dump.borrow_mut().exclude_action(
+                &action.name,
+                "dependencies invalid (object freed)",
             );
             continue;
         }
@@ -559,12 +519,9 @@ fn find_candidate_actions(branch: &PlanBranch, ctx: &SearchContext) -> Vec<Actio
                     branch.open_requirements.len()
                 )
             };
-            ctx.tree_dump.borrow_mut().record(
-                branch.action_chain.len(),
-                TreeEvent::ActionExcluded {
-                    action_name: action.name.clone(),
-                    reason,
-                },
+            ctx.tree_dump.borrow_mut().exclude_action(
+                &action.name,
+                &reason,
             );
         }
     }
@@ -1121,54 +1078,23 @@ fn forward_validate(
         if !check_dependencies_valid(&action.dependent_object_ids) {
             let detail = "dependent objects have been freed".to_string();
             crate::log_debug!("Action '{}' failed: dependencies invalid", action.name);
-            ctx.tree_dump.borrow_mut().record(
-                action_chain.len(),
-                TreeEvent::ForwardValidationStep {
-                    action_name: action.name.clone(),
-                    step: "dependencies".to_string(),
-                    detail: detail.clone(),
-                    ok: false,
-                },
-            );
+            ctx.tree_dump.borrow_mut().add_fwd_step(&action.name, "dependencies", &detail, false);
             return None;
         }
-        ctx.tree_dump.borrow_mut().record(
-            action_chain.len(),
-            TreeEvent::ForwardValidationStep {
-                action_name: action.name.clone(),
-                step: "dependencies".to_string(),
-                detail: "valid".to_string(),
-                ok: true,
-            },
-        );
+        ctx.tree_dump.borrow_mut().add_fwd_step(&action.name, "dependencies", "valid", true);
 
         // 2. Check validity checks
         for (i, check) in action.validity_checks.iter().enumerate() {
             if !eval_precondition(check, &agent, &world, ctx.request_tx) {
                 let detail = format!("validity check #{} failed", i);
                 crate::log_debug!("Action '{}' failed validity check {}", action.name, i);
-                ctx.tree_dump.borrow_mut().record(
-                    action_chain.len(),
-                    TreeEvent::ForwardValidationStep {
-                        action_name: action.name.clone(),
-                        step: "validity".to_string(),
-                        detail: detail.clone(),
-                        ok: false,
-                    },
-                );
+                ctx.tree_dump.borrow_mut().add_fwd_step(&action.name, "validity", &detail, false);
                 return None;
             }
         }
         if !action.validity_checks.is_empty() {
-            ctx.tree_dump.borrow_mut().record(
-                action_chain.len(),
-                TreeEvent::ForwardValidationStep {
-                    action_name: action.name.clone(),
-                    step: "validity".to_string(),
-                    detail: format!("{} checks passed", action.validity_checks.len()),
-                    ok: true,
-                },
-            );
+            let detail = format!("{} checks passed", action.validity_checks.len());
+            ctx.tree_dump.borrow_mut().add_fwd_step(&action.name, "validity", &detail, true);
         }
 
         // 3. Check preconditions
@@ -1176,28 +1102,13 @@ fn forward_validate(
             if !eval_precondition(precond, &agent, &world, ctx.request_tx) {
                 let detail = format!("precondition {:?}", precond);
                 crate::log_debug!("Action '{}' failed precondition", action.name);
-                ctx.tree_dump.borrow_mut().record(
-                    action_chain.len(),
-                    TreeEvent::ForwardValidationStep {
-                        action_name: action.name.clone(),
-                        step: "precondition".to_string(),
-                        detail: detail.clone(),
-                        ok: false,
-                    },
-                );
+                ctx.tree_dump.borrow_mut().add_fwd_step(&action.name, "precondition", &detail, false);
                 return None;
             }
         }
         if !action.preconditions.is_empty() {
-            ctx.tree_dump.borrow_mut().record(
-                action_chain.len(),
-                TreeEvent::ForwardValidationStep {
-                    action_name: action.name.clone(),
-                    step: "precondition".to_string(),
-                    detail: format!("{} checks passed", action.preconditions.len()),
-                    ok: true,
-                },
-            );
+            let detail = format!("{} checks passed", action.preconditions.len());
+            ctx.tree_dump.borrow_mut().add_fwd_step(&action.name, "precondition", &detail, true);
         }
 
         // 4. Check requirements satisfied by accumulated provisions
@@ -1214,27 +1125,11 @@ fn forward_validate(
                 "Action '{}' failed: requirements not satisfied",
                 action.name
             );
-            ctx.tree_dump.borrow_mut().record(
-                action_chain.len(),
-                TreeEvent::ForwardValidationStep {
-                    action_name: action.name.clone(),
-                    step: "requirements".to_string(),
-                    detail: detail.clone(),
-                    ok: false,
-                },
-            );
+            ctx.tree_dump.borrow_mut().add_fwd_step(&action.name, "requirements", &detail, false);
             return None;
         }
         if !action.requirements.is_empty() {
-            ctx.tree_dump.borrow_mut().record(
-                action_chain.len(),
-                TreeEvent::ForwardValidationStep {
-                    action_name: action.name.clone(),
-                    step: "requirements".to_string(),
-                    detail: "all met".to_string(),
-                    ok: true,
-                },
-            );
+            ctx.tree_dump.borrow_mut().add_fwd_step(&action.name, "requirements", "all met", true);
         }
 
         // 4.5. For actions with wildcard provisions, apply bindings for cost calculation
@@ -1264,26 +1159,11 @@ fn forward_validate(
         crate::log_debug!("Action '{}' cost: {:.2}", action.name, cost);
         if cost == f64::INFINITY {
             crate::log_debug!("Action '{}' has infinite cost", action.name);
-            ctx.tree_dump.borrow_mut().record(
-                action_chain.len(),
-                TreeEvent::ForwardValidationStep {
-                    action_name: action.name.clone(),
-                    step: "cost".to_string(),
-                    detail: "infinite".to_string(),
-                    ok: false,
-                },
-            );
+            ctx.tree_dump.borrow_mut().add_fwd_step(&action.name, "cost", "infinite", false);
             return None;
         }
-        ctx.tree_dump.borrow_mut().record(
-            action_chain.len(),
-            TreeEvent::ForwardValidationStep {
-                action_name: action.name.clone(),
-                step: "cost".to_string(),
-                detail: format!("{:.2}", cost),
-                ok: true,
-            },
-        );
+        let detail = format!("{:.2}", cost);
+        ctx.tree_dump.borrow_mut().add_fwd_step(&action.name, "cost", &detail, true);
         total_cost += cost;
 
         // 6. Apply effect
@@ -1312,26 +1192,11 @@ fn forward_validate(
             .map(|p| format!("{:?}", p))
             .collect();
         crate::log_debug!("Forward validation failed: final goal not satisfied");
-        ctx.tree_dump.borrow_mut().record(
-            action_chain.len(),
-            TreeEvent::ForwardValidationStep {
-                action_name: "GOAL".to_string(),
-                step: "goal_check".to_string(),
-                detail: format!("failed preconditions: [{}]", failed.join(", ")),
-                ok: false,
-            },
-        );
+        let detail = format!("failed preconditions: [{}]", failed.join(", "));
+        ctx.tree_dump.borrow_mut().add_fwd_step("GOAL", "goal_check", &detail, false);
         return None;
     }
-    ctx.tree_dump.borrow_mut().record(
-        action_chain.len(),
-        TreeEvent::ForwardValidationStep {
-            action_name: "GOAL".to_string(),
-            step: "goal_check".to_string(),
-            detail: "all satisfied".to_string(),
-            ok: true,
-        },
-    );
+    ctx.tree_dump.borrow_mut().add_fwd_step("GOAL", "goal_check", "all satisfied", true);
 
     crate::log_debug!(
         "Forward validation succeeded, total cost: {:.2}",

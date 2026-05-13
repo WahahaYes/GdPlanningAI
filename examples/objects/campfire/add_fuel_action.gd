@@ -56,8 +56,16 @@ func get_action_cost(
 
 func simulate_effect(
 	agent_blackboard: GdPAIBlackboard,
-	_world_state: GdPAIBlackboard,
+	world_state: GdPAIBlackboard,
 ) -> void:
+	# Update campfire fuel in world state so planner can see the effect
+	var campfires: Array[SimObjectProxy] = world_state.get_proxies_in_group("CampfireObject")
+	for campfire in campfires:
+		var current_fuel: Variant = campfire.get_property("current_fuel")
+		if current_fuel != null:
+			var new_fuel = min(100.0, float(current_fuel) + fuel_per_wood)
+			campfire.set_property("current_fuel", new_fuel)
+	# Clear held_item
 	agent_blackboard.set_property("held_item", "")
 
 

@@ -1,308 +1,238 @@
 //! Structured debug tree for planner search visualization.
 //!
-//! When log level is [`LogLevel::Debug`], the planner records every branch
-//! explored during backward search and dumps a formatted tree at completion.
-//! This makes it possible to see the full search space: which branches were
-//! tried, why they were pruned, and which path succeeded.
+//! When log level is [`LogLevel::Debug`], the planner builds a full search tree
+//! during backward search. The tree can be formatted as human-readable text or
+//! serialized for Godot-side debug tooling.
 
 use crate::logger::LogLevel;
 
-/// A single event in the search tree.
-#[derive(Clone)]
-pub enum TreeEvent {
-    /// Entering a new search node for an action.
-    EnterAction {
-        action_name: String,
-        cost: f64,
-        accumulated_cost: f64,
-        open_preconditions: Vec<String>,
-        open_requirements: Vec<String>,
-    },
-    /// Branch was pruned (cost too high, max depth, etc.).
-    Prune {
-        reason: String,
-    },
-    /// No candidate actions found at this depth.
-    NoCandidates,
-    /// A candidate was skipped (e.g., couldn't resolve pending effects).
-    CandidateSkipped {
-        action_name: String,
-        reason: String,
-    },
-    /// Branch completed successfully.
+// ── Tree data structures ───────────────────────────────────────────
+
+/// Top-level container for a planning run.
+#[derive(Clone, Debug)]
+pub struct SearchTree {
+    pub goal_attempts: Vec<GoalAttempt>,
+    pub elapsed_ms: f64,
+    pub branches_explored: usize,
+}
+
+/// One goal the planner tried to satisfy.
+#[derive(Clone, Debug)]
+pub struct GoalAttempt {
+    pub goal_name: String,
+    pub goal_reward: f64,
+    pub goal_preconditions: Vec<String>,
+    pub already_satisfied: bool,
+    pub root: Option<SearchNode>,
+    pub success: bool,
+    pub plan_actions: Vec<String>,
+    pub plan_cost: f64,
+}
+
+/// A single node in the search tree.
+#[derive(Clone, Debug)]
+pub struct SearchNode {
+    /// `None` for the root node of a goal attempt.
+    pub action_name: Option<String>,
+    pub estimated_cost: f64,
+    pub accumulated_cost: f64,
+    pub open_preconditions: Vec<String>,
+    pub open_requirements: Vec<String>,
+    pub excluded_actions: Vec<ExcludedAction>,
+    pub outcome: NodeOutcome,
+    pub forward_validation: Vec<FwdStep>,
+    pub children: Vec<SearchNode>,
+}
+
+/// An action that was considered but excluded from candidates.
+#[derive(Clone, Debug)]
+pub struct ExcludedAction {
+    pub action_name: String,
+    pub reason: String,
+}
+
+/// What happened at this search node.
+#[derive(Clone, Debug)]
+pub enum NodeOutcome {
+    /// Node was expanded — children contain the results.
+    Expanded,
+    /// Pruned before expansion (cost, depth, cancellation).
+    Pruned { reason: String },
+    /// No candidates could satisfy the open needs.
+    DeadEnd,
+    /// Candidate was skipped (e.g. pending effects couldn't resolve).
+    Skipped { reason: String },
+    /// Branch completed — forward validation ran.
     Complete {
         chain_len: usize,
         total_cost: f64,
-    },
-    /// Forward validation failed for a completed branch.
-    ForwardValidationFailed {
-        failed_action: String,
-        failed_step: String,
-        detail: String,
-    },
-    /// A step during forward validation of a completed chain.
-    ForwardValidationStep {
-        action_name: String,
-        step: String,
-        detail: String,
-        ok: bool,
-    },
-    /// Root node — planning start.
-    Root {
-        goal_name: String,
-        goal_reward: f64,
-        goal_preconditions: Vec<String>,
-    },
-    /// An action was excluded from candidates with a reason.
-    ActionExcluded {
-        action_name: String,
-        reason: String,
-    },
-    /// Goal was already satisfied before planning.
-    GoalAlreadySatisfied {
-        goal_name: String,
-    },
-    /// Planning result.
-    Result {
-        success: bool,
-        message: String,
+        fwd_ok: bool,
     },
 }
 
-/// A node in the debug tree.
-#[derive(Clone)]
-pub struct TreeEntry {
-    pub depth: usize,
-    pub event: TreeEvent,
+/// One step in forward validation of a completed chain.
+#[derive(Clone, Debug)]
+pub struct FwdStep {
+    pub action_name: String,
+    pub step: String,
+    pub detail: String,
+    pub ok: bool,
 }
 
-/// Accumulates tree entries during planning and formats them for output.
+// ── Stack-based tree builder ───────────────────────────────────────
+
+/// Builds a [`SearchTree`] during planning via push/pop operations.
 pub struct TreeDump {
-    entries: Vec<TreeEntry>,
     enabled: bool,
+    tree: SearchTree,
+    /// Stack of node indices navigating to the current cursor position.
+    node_stack: Vec<usize>,
+    /// Owning reference to the current node's children list (index into node_stack).
+    start_time: std::time::Instant,
 }
 
 impl TreeDump {
     pub fn new() -> Self {
         let enabled = crate::logger::get_log_level() >= LogLevel::Debug;
         Self {
-            entries: Vec::new(),
             enabled,
+            tree: SearchTree { goal_attempts: Vec::new(), elapsed_ms: 0.0, branches_explored: 0 },
+            node_stack: Vec::new(),
+            start_time: std::time::Instant::now(),
         }
     }
 
-    pub fn is_enabled(&self) -> bool {
-        self.enabled
+    pub fn is_enabled(&self) -> bool { self.enabled }
+
+    pub fn begin_goal(&mut self, name: &str, reward: f64, preconditions: &[String]) {
+        if !self.enabled { return; }
+        self.tree.goal_attempts.push(GoalAttempt {
+            goal_name: name.to_string(), goal_reward: reward,
+            goal_preconditions: preconditions.to_vec(), already_satisfied: false,
+            root: None, success: false, plan_actions: Vec::new(), plan_cost: 0.0,
+        });
     }
 
-    pub fn record(&mut self, depth: usize, event: TreeEvent) {
-        if self.enabled {
-            self.entries.push(TreeEntry { depth, event });
+    pub fn goal_already_satisfied(&mut self) {
+        if !self.enabled { return; }
+        if let Some(ga) = self.tree.goal_attempts.last_mut() { ga.already_satisfied = true; ga.success = true; }
+    }
+
+    pub fn end_goal(&mut self, success: bool, plan_actions: &[String], plan_cost: f64) {
+        if !self.enabled { return; }
+        if let Some(ga) = self.tree.goal_attempts.last_mut() {
+            ga.success = success; ga.plan_actions = plan_actions.to_vec(); ga.plan_cost = plan_cost;
         }
     }
 
-    /// Format the recorded tree as a human-readable string.
+    pub fn enter_node(&mut self, action_name: Option<&str>, estimated_cost: f64, accumulated_cost: f64, open_pre: &[String], open_req: &[String]) {
+        if !self.enabled { return; }
+        let node = SearchNode {
+            action_name: action_name.map(|s| s.to_string()), estimated_cost, accumulated_cost,
+            open_preconditions: open_pre.to_vec(), open_requirements: open_req.to_vec(),
+            excluded_actions: Vec::new(), outcome: NodeOutcome::Expanded,
+            forward_validation: Vec::new(), children: Vec::new(),
+        };
+        if self.node_stack.is_empty() {
+            self.tree.goal_attempts.last_mut().unwrap().root = Some(node);
+        } else {
+            let parent = self.current_node_mut();
+            parent.children.push(node);
+        }
+        self.node_stack.push(0);
+        self.tree.branches_explored += 1;
+    }
+
+    pub fn exit_node(&mut self, outcome: NodeOutcome) {
+        if !self.enabled { return; }
+        self.current_node_mut().outcome = outcome;
+        self.node_stack.pop();
+    }
+
+    pub fn exclude_action(&mut self, action_name: &str, reason: &str) {
+        if !self.enabled { return; }
+        self.current_node_mut().excluded_actions.push(ExcludedAction { action_name: action_name.to_string(), reason: reason.to_string() });
+    }
+
+    pub fn add_fwd_step(&mut self, action_name: &str, step: &str, detail: &str, ok: bool) {
+        if !self.enabled { return; }
+        self.current_node_mut().forward_validation.push(FwdStep { action_name: action_name.to_string(), step: step.to_string(), detail: detail.to_string(), ok });
+    }
+
+    pub fn finish(mut self) -> SearchTree {
+        self.tree.elapsed_ms = self.start_time.elapsed().as_secs_f64() * 1000.0;
+        self.tree
+    }
+
     pub fn format(&self) -> String {
-        if self.entries.is_empty() {
-            return String::new();
-        }
-
+        if !self.enabled || self.tree.goal_attempts.is_empty() { return String::new(); }
         let mut output = String::new();
         output.push_str("\n========== PLANNER SEARCH TREE ==========\n");
-
-        // Track which depth levels have "continuation" lines for tree drawing
-        let mut depth_has_more: Vec<bool> = vec![false; 64];
-
-        // Pre-compute: for each entry, does a sibling follow at the same depth?
-        // We need to know this to draw "├──" vs "└──".
-        let _total = self.entries.len();
-        for (i, entry) in self.entries.iter().enumerate() {
-            let has_sibling = self.entries[i + 1..]
-                .iter()
-                .any(|e| e.depth == entry.depth);
-
-            // Update depth_has_more for this depth
-            if entry.depth < depth_has_more.len() {
-                depth_has_more[entry.depth] = has_sibling;
-                // Clear deeper levels
-                for d in entry.depth + 1..depth_has_more.len() {
-                    depth_has_more[d] = false;
-                }
-            }
-
-            // Build the tree prefix
-            let prefix = build_tree_prefix(entry.depth, &depth_has_more, !has_sibling);
-
-            match &entry.event {
-                TreeEvent::Root {
-                    goal_name,
-                    goal_reward,
-                    goal_preconditions,
-                } => {
-                    output.push_str(&format!(
-                        "{}ROOT: goal='{}' (reward={:.1}) preconditions=[{}]\n",
-                        prefix,
-                        goal_name,
-                        goal_reward,
-                        goal_preconditions.join(", ")
-                    ));
-                }
-                TreeEvent::EnterAction {
-                    action_name,
-                    cost,
-                    accumulated_cost,
-                    open_preconditions,
-                    open_requirements,
-                } => {
-                    let precond_str = if open_preconditions.is_empty() {
-                        "[]".to_string()
-                    } else {
-                        format!("[{}]", open_preconditions.join(", "))
-                    };
-                    let req_str = if open_requirements.is_empty() {
-                        "[]".to_string()
-                    } else {
-                        format!("[{}]", open_requirements.join(", "))
-                    };
-                    output.push_str(&format!(
-                        "{}Try '{}' (cost=+{:.2}, total={:.2}) open_pre={} open_req={}\n",
-                        prefix, action_name, cost, accumulated_cost, precond_str, req_str
-                    ));
-                }
-                TreeEvent::Prune { reason } => {
-                    output.push_str(&format!("{}PRUNE: {}\n", prefix, reason));
-                }
-                TreeEvent::NoCandidates => {
-                    output.push_str(&format!("{}DEAD END: no candidates\n", prefix));
-                }
-                TreeEvent::CandidateSkipped {
-                    action_name,
-                    reason,
-                } => {
-                    output.push_str(&format!(
-                        "{}SKIP '{}': {}\n",
-                        prefix, action_name, reason
-                    ));
-                }
-                TreeEvent::Complete {
-                    chain_len,
-                    total_cost,
-                } => {
-                    output.push_str(&format!(
-                        "{}COMPLETE: {} actions, cost={:.2}\n",
-                        prefix, chain_len, total_cost
-                    ));
-                }
-                TreeEvent::ForwardValidationStep {
-                    action_name,
-                    step,
-                    detail,
-                    ok,
-                } => {
-                    let status = if *ok { "OK" } else { "FAIL" };
-                    output.push_str(&format!(
-                        "{}FWD [{}] '{}' {}: {}\n",
-                        prefix, status, action_name, step, detail
-                    ));
-                }
-                TreeEvent::ForwardValidationFailed {
-                    failed_action,
-                    failed_step,
-                    detail,
-                } => {
-                    output.push_str(&format!(
-                        "{}FWD VALIDATION FAILED: '{}' {} — {}\n",
-                        prefix, failed_action, failed_step, detail
-                    ));
-                }
-                TreeEvent::ActionExcluded {
-                    action_name,
-                    reason,
-                } => {
-                    output.push_str(&format!(
-                        "{}EXCLUDE '{}': {}\n",
-                        prefix, action_name, reason
-                    ));
-                }
-                TreeEvent::GoalAlreadySatisfied { goal_name } => {
-                    output.push_str(&format!(
-                        "{}GOAL SATISFIED: '{}' already met\n",
-                        prefix, goal_name
-                    ));
-                }
-                TreeEvent::Result { success, message } => {
-                    let status = if *success { "SUCCESS" } else { "FAILURE" };
-                    output.push_str(&format!(
-                        "{}RESULT: {} — {}\n",
-                        prefix, status, message
-                    ));
-                }
-            }
+        for ga in &self.tree.goal_attempts {
+            output.push_str(&format!("Goal: '{}' (reward={:.1}) pre=[{}]\n", ga.goal_name, ga.goal_reward, ga.goal_preconditions.join(", ")));
+            if ga.already_satisfied { output.push_str("  └── ALREADY SATISFIED\n"); }
+            else if let Some(ref root) = ga.root { format_node(&mut output, root, 1, &mut vec![false; 32]); }
+            else { output.push_str("  └── (no search)\n"); }
+            let status = if ga.success { "SUCCESS" } else { "FAILURE" };
+            if ga.success && !ga.plan_actions.is_empty() {
+                output.push_str(&format!("  RESULT: {} — [{}] cost={:.2}\n", status, ga.plan_actions.join(" → "), ga.plan_cost));
+            } else if ga.success { output.push_str(&format!("  RESULT: {} — (empty plan)\n", status)); }
+            else { output.push_str(&format!("  RESULT: {} — no plan found\n", status)); }
         }
-
+        output.push_str(&format!("Branches: {} | Time: {:.1}ms\n", self.tree.branches_explored, self.tree.elapsed_ms));
         output.push_str("==========================================\n");
         output
     }
+
+    fn current_node_mut(&mut self) -> &mut SearchNode {
+        let ga = self.tree.goal_attempts.last_mut().unwrap();
+        let root = ga.root.as_mut().unwrap();
+        let mut cursor = root;
+        for _ in 1..self.node_stack.len() { cursor = cursor.children.last_mut().unwrap(); }
+        cursor
+    }
 }
 
-/// Build the tree-drawing prefix for a given depth.
-/// `depth_has_more[d]` is true if there are more siblings at depth d.
-/// `is_last` is true if this is the last child at this depth.
-fn build_tree_prefix(depth: usize, depth_has_more: &[bool], is_last: bool) -> String {
-    if depth == 0 {
-        return String::new();
-    }
+fn format_node(output: &mut String, node: &SearchNode, depth: usize, has_more: &mut [bool]) {
+    let indent: String = (0..depth - 1).map(|d| if has_more[d] { "│   " } else { "    " }).collect();
+    let branch = if depth == 0 { "" } else if has_more[depth - 1] { "├── " } else { "└── " };
+    let prefix = format!("{}{}", indent, branch);
 
-    let mut prefix = String::new();
-    for d in 0..depth {
-        if d == depth - 1 {
-            // This is the connector to the current node
-            if is_last {
-                prefix.push_str("└── ");
-            } else {
-                prefix.push_str("├── ");
+    match &node.outcome {
+        NodeOutcome::Expanded | NodeOutcome::Complete { .. } => {
+            let label = if let Some(ref name) = node.action_name {
+                format!("Try '{}' (cost=+{:.2}, total={:.2})", name, node.estimated_cost, node.accumulated_cost)
+            } else { "ROOT".to_string() };
+            output.push_str(&format!("{}{}\n", prefix, label));
+            if !node.open_preconditions.is_empty() || !node.open_requirements.is_empty() {
+                output.push_str(&format!("{}  open_pre=[{}] open_req=[{}]\n", indent, node.open_preconditions.join(", "), node.open_requirements.join(", ")));
             }
-        } else if depth_has_more[d] {
-            prefix.push_str("│   ");
-        } else {
-            prefix.push_str("    ");
+        }
+        NodeOutcome::Pruned { reason } => {
+            let name = node.action_name.as_deref().unwrap_or("?");
+            output.push_str(&format!("{}'{}' PRUNED: {}\n", prefix, name, reason));
+        }
+        NodeOutcome::DeadEnd => {
+            output.push_str(&format!("{}DEAD END (no candidates)\n", prefix));
+        }
+        NodeOutcome::Skipped { reason } => {
+            let name = node.action_name.as_deref().unwrap_or("?");
+            output.push_str(&format!("{}'{}' SKIPPED: {}\n", prefix, name, reason));
         }
     }
-    prefix
-}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn empty_tree_produces_empty_output() {
-        let dump = TreeDump::new();
-        assert!(dump.format().is_empty() || !dump.is_enabled());
+    for ex in &node.excluded_actions {
+        output.push_str(&format!("{}  EXCLUDE '{}': {}\n", indent, ex.action_name, ex.reason));
     }
 
-    #[test]
-    fn tree_prefix_root_is_empty() {
-        let has_more = vec![false; 64];
-        assert_eq!(build_tree_prefix(0, &has_more, false), "");
+    for step in &node.forward_validation {
+        let status = if step.ok { "OK" } else { "FAIL" };
+        output.push_str(&format!("{}  FWD [{}] '{}' {}: {}\n", indent, status, step.action_name, step.step, step.detail));
     }
 
-    #[test]
-    fn tree_prefix_depth1_last() {
-        let has_more = vec![false; 64];
-        assert_eq!(build_tree_prefix(1, &has_more, true), "└── ");
-    }
-
-    #[test]
-    fn tree_prefix_depth1_not_last() {
-        let has_more = vec![false; 64];
-        assert_eq!(build_tree_prefix(1, &has_more, false), "├── ");
-    }
-
-    #[test]
-    fn tree_prefix_depth2_with_continuation() {
-        let mut has_more = vec![false; 64];
-        has_more[0] = true;
-        assert_eq!(build_tree_prefix(2, &has_more, true), "│   └── ");
+    let n = node.children.len();
+    for (i, child) in node.children.iter().enumerate() {
+        has_more[depth] = i + 1 < n;
+        format_node(output, child, depth + 1, has_more);
     }
 }

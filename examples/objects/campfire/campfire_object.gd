@@ -16,8 +16,8 @@ func get_group_labels() -> Array[String]:
 
 func get_provided_actions() -> Array[Action]:
 	return [
-		AddFuelAction.new(self, location_data, interactable_attribs, fuel_per_wood),
-		CookPotatoAction.new(self, location_data, interactable_attribs, min_fuel_to_cook),
+		AddFuelAction.new(self , location_data, interactable_attribs, fuel_per_wood),
+		CookPotatoAction.new(self , location_data, interactable_attribs, min_fuel_to_cook),
 	]
 
 
