@@ -92,8 +92,19 @@ pub struct TreeDump {
 }
 
 impl TreeDump {
+    /// Create a TreeDump that is enabled only when the log level is Debug or higher.
     pub fn new() -> Self {
         let enabled = crate::logger::get_log_level() >= LogLevel::Debug;
+        Self::with_enabled(enabled)
+    }
+
+    /// Create a TreeDump that is always enabled, regardless of log level.
+    /// Useful for tests and programmatic tree inspection.
+    pub fn new_forced() -> Self {
+        Self::with_enabled(true)
+    }
+
+    fn with_enabled(enabled: bool) -> Self {
         Self {
             enabled,
             tree: SearchTree { goal_attempts: Vec::new(), elapsed_ms: 0.0, branches_explored: 0 },
@@ -102,8 +113,10 @@ impl TreeDump {
         }
     }
 
+    /// Returns true if tree recording is active.
     pub fn is_enabled(&self) -> bool { self.enabled }
 
+    /// Start a new goal attempt. Must be called before any node operations.
     pub fn begin_goal(&mut self, name: &str, reward: f64, preconditions: &[String]) {
         if !self.enabled { return; }
         self.tree.goal_attempts.push(GoalAttempt {
@@ -113,11 +126,13 @@ impl TreeDump {
         });
     }
 
+    /// Mark the current goal as already satisfied (no search needed).
     pub fn goal_already_satisfied(&mut self) {
         if !self.enabled { return; }
         if let Some(ga) = self.tree.goal_attempts.last_mut() { ga.already_satisfied = true; ga.success = true; }
     }
 
+    /// Finalize the current goal attempt with its result.
     pub fn end_goal(&mut self, success: bool, plan_actions: &[String], plan_cost: f64) {
         if !self.enabled { return; }
         if let Some(ga) = self.tree.goal_attempts.last_mut() {
@@ -125,6 +140,9 @@ impl TreeDump {
         }
     }
 
+    /// Push a new node as a child of the current cursor.
+    ///
+    /// Pass `None` for `action_name` to create the root node of a goal attempt.
     pub fn enter_node(&mut self, action_name: Option<&str>, estimated_cost: f64, accumulated_cost: f64, open_pre: &[String], open_req: &[String]) {
         if !self.enabled { return; }
         let node = SearchNode {
@@ -143,27 +161,32 @@ impl TreeDump {
         self.tree.branches_explored += 1;
     }
 
+    /// Pop the current node, setting its outcome.
     pub fn exit_node(&mut self, outcome: NodeOutcome) {
         if !self.enabled { return; }
         self.current_node_mut().outcome = outcome;
         self.node_stack.pop();
     }
 
+    /// Record an action that was excluded from candidates at the current node.
     pub fn exclude_action(&mut self, action_name: &str, reason: &str) {
         if !self.enabled { return; }
         self.current_node_mut().excluded_actions.push(ExcludedAction { action_name: action_name.to_string(), reason: reason.to_string() });
     }
 
+    /// Append a forward-validation step to the current node.
     pub fn add_fwd_step(&mut self, action_name: &str, step: &str, detail: &str, ok: bool) {
         if !self.enabled { return; }
         self.current_node_mut().forward_validation.push(FwdStep { action_name: action_name.to_string(), step: step.to_string(), detail: detail.to_string(), ok });
     }
 
+    /// Consume the builder and return the completed [`SearchTree`].
     pub fn finish(mut self) -> SearchTree {
         self.tree.elapsed_ms = self.start_time.elapsed().as_secs_f64() * 1000.0;
         self.tree
     }
 
+    /// Format the tree as a human-readable string.
     pub fn format(&self) -> String {
         if !self.enabled || self.tree.goal_attempts.is_empty() { return String::new(); }
         let mut output = String::new();
