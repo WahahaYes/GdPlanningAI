@@ -22,11 +22,7 @@ func _init(
 
 
 func get_validity_checks() -> Array[Precondition]:
-	return [
-		Precondition.check_is_object_valid(campfire_ref),
-		Precondition.check_is_object_valid(object_location),
-		Precondition.check_is_object_valid(interactable_attribs),
-	]
+	return []
 
 
 func get_preconditions() -> Array[Precondition]:
@@ -45,11 +41,15 @@ func get_provisions() -> Array[ProvisionSpec]:
 
 func get_action_cost(
 	_agent_blackboard: GdPAIBlackboard,
-	_world_state: GdPAIBlackboard,
+	world_state: GdPAIBlackboard,
 ) -> float:
 	if not is_instance_valid(campfire_ref):
 		return INF
-	if campfire_ref.current_fuel < min_fuel_to_cook:
+	var campfire: SimObjectProxy = world_state.get_object_for(campfire_ref)
+	if campfire == null:
+		return INF
+	var current_fuel: Variant = campfire.get_property("current_fuel")
+	if current_fuel == null or float(current_fuel) < min_fuel_to_cook:
 		return INF
 	return COOK_DURATION
 

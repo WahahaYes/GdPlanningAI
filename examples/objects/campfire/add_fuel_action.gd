@@ -22,11 +22,7 @@ func _init(
 
 
 func get_validity_checks() -> Array[Precondition]:
-	return [
-		Precondition.check_is_object_valid(campfire_ref),
-		Precondition.check_is_object_valid(object_location),
-		Precondition.check_is_object_valid(interactable_attribs),
-	]
+	return []
 
 
 func get_preconditions() -> Array[Precondition]:
@@ -40,16 +36,20 @@ func get_requirements() -> Array[RequirementSpec]:
 
 
 func get_provisions() -> Array[ProvisionSpec]:
-	return [ProvisionSpec.binding("held_item", "")]
+	return []
 
 
 func get_action_cost(
 	_agent_blackboard: GdPAIBlackboard,
-	_world_state: GdPAIBlackboard,
+	world_state: GdPAIBlackboard,
 ) -> float:
 	if not is_instance_valid(campfire_ref):
 		return INF
-	if campfire_ref.current_fuel >= 100.0:
+	var campfire: SimObjectProxy = world_state.get_object_for(campfire_ref)
+	if campfire == null:
+		return INF
+	var current_fuel: Variant = campfire.get_property("current_fuel")
+	if current_fuel == null or float(current_fuel) >= 100.0:
 		return INF
 	return ADD_FUEL_DURATION
 
@@ -58,14 +58,11 @@ func simulate_effect(
 	agent_blackboard: GdPAIBlackboard,
 	world_state: GdPAIBlackboard,
 ) -> void:
-	# Update campfire fuel in world state so planner can see the effect
-	var campfires: Array[SimObjectProxy] = world_state.get_proxies_in_group("CampfireObject")
-	for campfire in campfires:
+	var campfire: SimObjectProxy = world_state.get_object_for(campfire_ref)
+	if campfire != null:
 		var current_fuel: Variant = campfire.get_property("current_fuel")
 		if current_fuel != null:
-			var new_fuel = min(100.0, float(current_fuel) + fuel_per_wood)
-			campfire.set_property("current_fuel", new_fuel)
-	# Clear held_item
+			campfire.set_property("current_fuel", min(100.0, float(current_fuel) + fuel_per_wood))
 	agent_blackboard.set_property("held_item", "")
 
 

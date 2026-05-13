@@ -23,6 +23,8 @@ struct PlanBranch {
     open_preconditions: Vec<PreconditionSpec>,
     /// Requirement specs that must be satisfied (binding/fact needs).
     open_requirements: Vec<RequirementSpec>,
+    /// Action index that introduced each open requirement.
+    open_requirement_consumers: Vec<i64>,
     /// Action indices in execution order (first = execute first).
     action_chain: Vec<i64>,
     /// Concrete provisions supplied by initial state and selected predecessor actions.
@@ -51,6 +53,7 @@ struct ActionCandidate {
     action_idx: usize,
     estimated_cost: f64,
     satisfied_precondition_indices: Vec<usize>,
+    satisfied_requirement_indices: Vec<usize>,
     requires_bound_effect: bool,
 }
 
@@ -64,6 +67,7 @@ impl PlanBranch {
         Self {
             open_preconditions: goal_preconditions.to_vec(),
             open_requirements: vec![],
+            open_requirement_consumers: vec![],
             action_chain: vec![],
             bound_provisions: initial_provisions.to_vec(),
             pending_effects: vec![],
@@ -77,7 +81,7 @@ impl PlanBranch {
     /// Returns true if all open needs are satisfied by the accumulated state and provisions.
     fn is_complete(
         &self,
-        initial_provisions: &[ProvisionSpec],
+        _initial_provisions: &[ProvisionSpec],
         request_tx: &Sender<CallbackRequest>,
     ) -> bool {
         if !self.pending_effects.is_empty() {
@@ -97,7 +101,7 @@ impl PlanBranch {
         let requirements_ok = self.open_requirements.is_empty()
             || requirements_satisfied_in_context(
                 &self.open_requirements,
-                initial_provisions,
+                &self.bound_provisions,
                 &self.accumulated_world,
             );
 
@@ -394,10 +398,10 @@ fn backward_search(
         // Create new branch with this action as predecessor
         let mut new_branch = branch.clone();
 
-        // Insert action at front of chain (execution order)
+        let insert_pos = insertion_index_for_candidate(&new_branch, &candidate);
         new_branch
             .action_chain
-            .insert(0, candidate.action_idx as i64);
+            .insert(insert_pos, candidate.action_idx as i64);
         new_branch.estimated_cost += candidate.estimated_cost;
 
         // Update open needs: remove satisfied needs, add action's requirements/preconditions
@@ -539,6 +543,25 @@ fn find_candidate_actions(branch: &PlanBranch, ctx: &SearchContext) -> Vec<Actio
     candidates
 }
 
+fn insertion_index_for_candidate(branch: &PlanBranch, candidate: &ActionCandidate) -> usize {
+    if candidate.satisfied_requirement_indices.is_empty() {
+        return 0;
+    }
+
+    candidate
+        .satisfied_requirement_indices
+        .iter()
+        .filter_map(|idx| branch.open_requirement_consumers.get(*idx))
+        .filter_map(|consumer_idx| {
+            branch
+                .action_chain
+                .iter()
+                .position(|action_idx| action_idx == consumer_idx)
+        })
+        .min()
+        .unwrap_or(0)
+}
+
 /// Returns candidates for the needs an action can satisfy.
 fn action_candidates_for_needs(
     action_idx: usize,
@@ -552,7 +575,7 @@ fn action_candidates_for_needs(
     if !branch.open_requirements.is_empty() {
         // For wildcard provisions, evaluate cost separately for each requirement
         // to ensure the planner chooses the nearest target
-        for req in &branch.open_requirements {
+        for (req_idx, req) in branch.open_requirements.iter().enumerate() {
             for prov in &action.provisions {
                 if provision_satisfies_requirement_in_context(prov, req, ctx.initial_world) {
                     // Extract binding that would be created if this provision satisfies this requirement
@@ -573,6 +596,7 @@ fn action_candidates_for_needs(
                             action_idx,
                             estimated_cost,
                             satisfied_precondition_indices: vec![],
+                            satisfied_requirement_indices: vec![req_idx],
                             requires_bound_effect: false,
                         });
                     }
@@ -602,6 +626,7 @@ fn action_candidates_for_needs(
                     action_idx,
                     estimated_cost,
                     satisfied_precondition_indices: satisfied_indices,
+                    satisfied_requirement_indices: vec![],
                     requires_bound_effect: false,
                 });
             }
@@ -620,6 +645,7 @@ fn action_candidates_for_needs(
                         action_idx,
                         estimated_cost,
                         satisfied_precondition_indices: vec![precondition_idx],
+                        satisfied_requirement_indices: vec![],
                         requires_bound_effect: true,
                     });
                 }
@@ -859,39 +885,51 @@ fn update_open_needs(
     // Also capture wildcard bindings with action index
     let mut requirements_to_remove = Vec::new();
     let mut new_bindings = Vec::new();
+    let mut newly_bound_provisions = Vec::new();
     for (req_idx, req) in branch.open_requirements.iter().enumerate() {
+        if !candidate.satisfied_requirement_indices.is_empty()
+            && !candidate.satisfied_requirement_indices.contains(&req_idx)
+        {
+            continue;
+        }
         for prov in &action.provisions {
             if provision_satisfies_requirement_in_context(prov, req, ctx.initial_world) {
                 requirements_to_remove.push(req_idx);
-                // If this is a wildcard provision matching a specific fact requirement, capture the binding
-                if let ProvisionSpec::FactWildcard {
-                    fact_name: prov_name,
-                } = prov
-                {
-                    if let RequirementSpec::Fact {
-                        fact_name: req_name,
-                        args,
-                    } = req
-                    {
-                        if prov_name == req_name {
-                            let object_ids: Vec<i64> = args
-                                .iter()
-                                .filter_map(|v| {
-                                    if let VariantSnapshot::ObjectRef(id) = v {
-                                        Some(*id)
-                                    } else if let VariantSnapshot::Str(uid) = v {
-                                        uid.parse::<i64>().ok()
-                                    } else {
-                                        None
-                                    }
-                                })
-                                .collect();
-                            if !object_ids.is_empty() {
-                                // Track which action this binding belongs to
-                                new_bindings.push((candidate.action_idx as i64, prov_name.clone(), object_ids));
-                            }
+                match (prov, req) {
+                    (
+                        ProvisionSpec::FactWildcard {
+                            fact_name: prov_name,
+                        },
+                        RequirementSpec::Fact {
+                            fact_name: req_name,
+                            args,
+                        },
+                    ) if prov_name == req_name => {
+                        newly_bound_provisions.push(ProvisionSpec::Fact {
+                            fact_name: prov_name.clone(),
+                            args: args.clone(),
+                        });
+                        let object_ids: Vec<i64> = args
+                            .iter()
+                            .filter_map(|v| {
+                                if let VariantSnapshot::ObjectRef(id) = v {
+                                    Some(*id)
+                                } else if let VariantSnapshot::Str(uid) = v {
+                                    uid.parse::<i64>().ok()
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect();
+                        if !object_ids.is_empty() {
+                            new_bindings.push((
+                                candidate.action_idx as i64,
+                                prov_name.clone(),
+                                object_ids,
+                            ));
                         }
                     }
+                    _ => newly_bound_provisions.push(prov.clone()),
                 }
                 break;
             }
@@ -903,6 +941,7 @@ fn update_open_needs(
     requirements_to_remove.reverse();
     for idx in requirements_to_remove {
         branch.open_requirements.remove(idx);
+        branch.open_requirement_consumers.remove(idx);
     }
 
     // Add new action-specific bindings
@@ -910,7 +949,16 @@ fn update_open_needs(
         branch.action_bindings.push((action_idx, fact_name, object_ids));
     }
 
+    for prov in newly_bound_provisions {
+        if !branch.bound_provisions.contains(&prov) {
+            branch.bound_provisions.push(prov);
+        }
+    }
+
     for prov in &action.provisions {
+        if matches!(prov, ProvisionSpec::FactWildcard { .. }) {
+            continue;
+        }
         if !branch.bound_provisions.contains(prov) {
             branch.bound_provisions.push(prov.clone());
         }
@@ -932,6 +980,7 @@ fn update_open_needs(
     for req in &action.requirements {
         if !branch.open_requirements.contains(req) {
             branch.open_requirements.push(req.clone());
+            branch.open_requirement_consumers.push(candidate.action_idx as i64);
         }
     }
 
@@ -1174,8 +1223,34 @@ fn forward_validate(
 
         // 7. Accumulate provisions
         for prov in &action.provisions {
+            if matches!(prov, ProvisionSpec::FactWildcard { .. }) {
+                let has_concrete_binding = action_bindings
+                    .iter()
+                    .any(|(binding_action_idx, _, object_ids)| {
+                        *binding_action_idx == *action_idx && !object_ids.is_empty()
+                    });
+                if !has_concrete_binding && !accumulated_provisions.contains(prov) {
+                    accumulated_provisions.push(prov.clone());
+                }
+                continue;
+            }
             if !accumulated_provisions.contains(prov) {
                 accumulated_provisions.push(prov.clone());
+            }
+        }
+        for (binding_action_idx, fact_name, object_ids) in action_bindings {
+            if *binding_action_idx == *action_idx && !object_ids.is_empty() {
+                let args: Vec<VariantSnapshot> = object_ids
+                    .iter()
+                    .map(|id| VariantSnapshot::ObjectRef(*id))
+                    .collect();
+                let prov = ProvisionSpec::Fact {
+                    fact_name: fact_name.clone(),
+                    args,
+                };
+                if !accumulated_provisions.contains(&prov) {
+                    accumulated_provisions.push(prov);
+                }
             }
         }
     }
@@ -1226,17 +1301,6 @@ fn requirement_satisfied_in_context(
     provisions
         .iter()
         .any(|provision| provision_satisfies_requirement_in_context(provision, requirement, world))
-}
-
-/// Returns true when any provision satisfies at least one requirement.
-fn provisions_satisfy_any_requirement_in_context(
-    provisions: &[ProvisionSpec],
-    requirements: &[RequirementSpec],
-    world: &BlackboardSnapshot,
-) -> bool {
-    requirements
-        .iter()
-        .any(|requirement| requirement_satisfied_in_context(requirement, provisions, world))
 }
 
 /// Returns true when a provision satisfies a requirement with world-aware checks.

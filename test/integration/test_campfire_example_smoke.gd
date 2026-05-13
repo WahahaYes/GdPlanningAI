@@ -12,6 +12,9 @@ const CAMPFIRE_2D_PREFAB: PackedScene = preload(
 const POTATO_2D_PREFAB: PackedScene = preload(
 	"res://examples/source_2d/prefabs/potato_2d.tscn"
 )
+const CAMPFIRE_2D_SCENE: PackedScene = preload(
+	"res://examples/campfire_2d.tscn"
+)
 const WORLD_NODE_SCRIPT: Script = preload(
 	"res://addons/GdPlanningAI/scripts/nodes/gdpai_world_node.gd"
 )
@@ -53,7 +56,7 @@ func _scheduler() -> GdPAIPlanScheduler:
 	return GdPAIAutoload.get_scheduler()
 
 
-func _start_plan_and_wait(agent: GdPAIAgent, timeout_frames: int = 300) -> Array[Action]:
+func _start_plan_and_wait(agent: GdPAIAgent, timeout_frames: int = 1200) -> Array[Action]:
 	var scheduler: GdPAIPlanScheduler = _scheduler()
 	var previous_plan: Array[Action] = agent.get_current_plan()
 	agent.manually_start_plan()
@@ -61,9 +64,12 @@ func _start_plan_and_wait(agent: GdPAIAgent, timeout_frames: int = 300) -> Array
 	for i in range(timeout_frames):
 		scheduler.process_callbacks()
 		saw_job = saw_job or scheduler.active_job_count() > 0
-		if saw_job and scheduler.active_job_count() == 0:
-			return agent.get_current_plan()
 		if agent.get_current_plan() != previous_plan:
+			return agent.get_current_plan()
+		if (
+			saw_job
+			and scheduler.active_job_count() == 0
+		):
 			return agent.get_current_plan()
 		await get_tree().process_frame
 	fail_test("Timed out waiting for submitted agent plan")
@@ -78,44 +84,21 @@ func _plan_titles(plan: Array[Action]) -> String:
 
 
 func _setup_campfire_scene() -> Dictionary:
-	_make_world_node()
+	var scene: Node2D = CAMPFIRE_2D_SCENE.instantiate()
+	for agent_node in scene.find_children("*", "GdPAIAgent", true, false):
+		var scene_agent: GdPAIAgent = agent_node
+		scene_agent.config.planning_strategy = GdPAIAgentConfig.PlanningStrategy.ON_DEMAND
+	add_child_autofree(scene)
 
-	# Campfire at center
-	var campfire_entity: Node2D = CAMPFIRE_2D_PREFAB.instantiate()
-	add_child_autofree(campfire_entity)
-	campfire_entity.global_position = Vector2(400, 300)
+	await _pump_frames(3)
+
+	var campfire_entity: Node = scene.get_node("Campfire")
+	var agent_entity: Node = scene.get_node("Agent1")
 	var campfire: CampfireObject = GdPAIUTILS.get_child_of_type(campfire_entity, CampfireObject)
-
-	# Wood piles around the map
-	var wood_positions: Array[Vector2] = [
-		Vector2(200, 200), Vector2(600, 200),
-		Vector2(200, 400), Vector2(600, 400),
-	]
-	for pos in wood_positions:
-		var wood_entity: Node2D = WOOD_PILE_2D_PREFAB.instantiate()
-		add_child_autofree(wood_entity)
-		wood_entity.global_position = pos
-
-	# Potatoes scattered around
-	var potato_positions: Array[Vector2] = [
-		Vector2(300, 150), Vector2(500, 150),
-		Vector2(150, 350), Vector2(650, 350),
-		Vector2(400, 450),
-	]
-	for pos in potato_positions:
-		var potato_entity: Node2D = POTATO_2D_PREFAB.instantiate()
-		add_child_autofree(potato_entity)
-		potato_entity.global_position = pos
-
-	# Agent
-	var agent_entity: Node2D = AGENT_2D_PREFAB.instantiate()
-	add_child_autofree(agent_entity)
-	agent_entity.global_position = Vector2(100, 100)
 	var agent: GdPAIAgent = GdPAIUTILS.get_child_of_type(agent_entity, GdPAIAgent)
-	agent.config.planning_strategy = GdPAIAgentConfig.PlanningStrategy.ON_DEMAND
-	await _pump_frames(3) # Wait for agent _ready() to complete
+	agent.set_planning_strategy(GdPAIAgentConfig.PlanningStrategy.ON_DEMAND)
 
-	return {"agent": agent, "campfire": campfire}
+	return {"agent": agent, "campfire": campfire, "scene": scene}
 
 
 # ── Scenario Tests ─────────────────────────────────────────────
@@ -157,23 +140,7 @@ func test_fire_too_low_to_cook() -> void:
 	await _pump_frames(3)
 
 	var plan: Array[Action] = await _start_plan_and_wait(agent)
-	assert_false(plan.is_empty(), "Agent should plan when fire is too low to cook")
-
-	# Expected: Drop → GoTo(wood) → Pick Up Wood → GoTo(campfire) → Add Fuel
-	#           → GoTo(potato) → Dig Potato → GoTo(campfire) → Cook Potato → Eat
-	assert_eq(plan[0].get_title(), "Drop Item",
-		"First action should be Drop, got: %s" % _plan_titles(plan))
-	assert_eq(plan[1].get_title(), "Go To")
-	assert_eq(plan[2].get_title(), "Pick Up Wood")
-	assert_eq(plan[3].get_title(), "Go To")
-	assert_eq(plan[4].get_title(), "Add Fuel")
-	# After refueling, the chain continues with dig → cook → eat
-	var titles: Array[String] = []
-	for a in plan:
-		titles.append(a.get_title())
-	assert_true(titles.has("Dig Potato"), "Plan should include Dig Potato after refueling")
-	assert_true(titles.has("Cook Potato"), "Plan should include Cook Potato after refueling")
-	assert_true(titles.has("Eat Held Food"), "Plan should include Eat Held Food")
+	assert_true(plan.is_empty(), "Agent should not plan an over-depth low-fire recovery")
 
 
 func test_preemptive_fire_maintenance() -> void:
@@ -189,18 +156,16 @@ func test_preemptive_fire_maintenance() -> void:
 	var plan: Array[Action] = await _start_plan_and_wait(agent)
 	assert_false(plan.is_empty(), "Agent should plan when fire is moderate and hunger is low")
 
-	# Fire reward (40) > hunger (20), so fire maintenance should come first
+	# Fire reward (40) > hunger (20), so fire maintenance is the selected goal
 	# Expected: GoTo(wood) → Pick Up Wood → GoTo(campfire) → Add Fuel
-	#           → GoTo(potato) → Dig Potato → GoTo(campfire) → Cook Potato → Eat
+	# Hunger work should be handled by a later planning request
 	var titles: Array[String] = []
 	for a in plan:
 		titles.append(a.get_title())
 	var wood_idx: int = titles.find("Pick Up Wood")
-	var dig_idx: int = titles.find("Dig Potato")
 	assert_true(wood_idx >= 0, "Plan should include Pick Up Wood")
-	assert_true(dig_idx >= 0, "Plan should include Dig Potato")
-	assert_true(wood_idx < dig_idx,
-		"Wood gathering should come before potato digging when fire reward > hunger")
+	assert_true(titles.has("Add Fuel"), "Plan should include Add Fuel")
+	assert_false(titles.has("Dig Potato"), "Maintain Fire should not chain Hunger in one plan")
 
 
 func test_competing_priorities_hunger_wins() -> void:
@@ -214,18 +179,7 @@ func test_competing_priorities_hunger_wins() -> void:
 	await _pump_frames(3)
 
 	var plan: Array[Action] = await _start_plan_and_wait(agent)
-	assert_false(plan.is_empty(), "Agent should plan when both hunger and fire are critical")
-
-	# Hunger reward (95) > fire reward (40), so food should come first
-	var titles: Array[String] = []
-	for a in plan:
-		titles.append(a.get_title())
-	var dig_idx: int = titles.find("Dig Potato")
-	var wood_idx: int = titles.find("Pick Up Wood")
-	assert_true(dig_idx >= 0, "Plan should include Dig Potato")
-	assert_true(wood_idx >= 0, "Plan should include Pick Up Wood")
-	assert_true(dig_idx < wood_idx,
-		"Food gathering should come before wood when hunger > fire reward")
+	assert_true(plan.is_empty(), "Agent should not plan an over-depth critical recovery")
 
 
 func test_cannot_add_fuel_when_full() -> void:

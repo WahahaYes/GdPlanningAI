@@ -11,7 +11,7 @@ radius = 24.0
 [sub_resource type="LabelSettings" id="LabelSettings_1"]
 font_size = 16
 
-[node name="Campfire" type="Node2D"]
+[node name="Campfire" type="Node2D" node_paths=PackedStringArray("campfire_object", "label_node", "fire_primitive")]
 script = ExtResource("4_jklmn")
 campfire_object = NodePath("./GdPAIObjectData")
 label_node = NodePath("./Label")
@@ -51,7 +51,7 @@ text = "Campfire (100%)"
 label_settings = SubResource("LabelSettings_1")
 horizontal_alignment = 1
 
-[node name="GdPAIObjectData" type="Node" parent="." node_paths=PackedStringArray("entity")]
+[node name="GdPAIObjectData" type="Node" parent="." node_paths=PackedStringArray("entity", "interactable_attribs", "location_data")]
 script = ExtResource("1_ghijk")
 entity = NodePath("..")
 interactable_attribs = NodePath("../GdPAIInteractable")

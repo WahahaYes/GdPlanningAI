@@ -17,11 +17,7 @@ func _init(
 
 
 func get_validity_checks() -> Array[Precondition]:
-	return [
-		Precondition.check_is_object_valid(object_location),
-		Precondition.check_is_object_valid(interactable_attribs),
-		Precondition.check_is_object_valid(potato_ref),
-	]
+	return []
 
 
 func get_preconditions() -> Array[Precondition]:

@@ -22,13 +22,7 @@ func get_validity_checks() -> Array[Precondition]:
 
 # Override
 func get_preconditions() -> Array[Precondition]:
-	var is_holding_item = func(
-		blackboard: GdPAIBlackboard,
-		_world_state: GdPAIBlackboard,
-	) -> bool:
-		var held_item: Variant = blackboard.get_property("held_item")
-		return held_item != null and held_item != ""
-	return [Precondition.custom(is_holding_item)]
+	return [Precondition.agent_property_not_equal_to("held_item", "")]
 
 
 # Override

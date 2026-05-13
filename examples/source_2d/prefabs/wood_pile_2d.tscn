@@ -31,7 +31,7 @@ text = "Wood Pile"
 label_settings = SubResource("LabelSettings_1")
 horizontal_alignment = 1
 
-[node name="GdPAIObjectData" type="Node" parent="." node_paths=PackedStringArray("entity")]
+[node name="GdPAIObjectData" type="Node" parent="." node_paths=PackedStringArray("entity", "interactable_attribs", "location_data")]
 script = ExtResource("1_abcde")
 entity = NodePath("..")
 interactable_attribs = NodePath("../GdPAIInteractable")

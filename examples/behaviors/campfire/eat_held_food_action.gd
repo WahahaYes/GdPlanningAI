@@ -29,20 +29,7 @@ func get_validity_checks() -> Array[Precondition]:
 
 # Override
 func get_preconditions() -> Array[Precondition]:
-	var preconditions: Array[Precondition] = []
-
-	# Require hunger > 0 (don't eat when not hungry)
-	var has_hunger = func(
-		blackboard: GdPAIBlackboard,
-		_world_state: GdPAIBlackboard,
-	) -> bool:
-		var hunger = blackboard.get_property("hunger")
-		if hunger == null:
-			return false
-		return float(hunger) > 0.0
-	preconditions.append(Precondition.custom(has_hunger))
-
-	return preconditions
+	return [Precondition.agent_property_greater_than("hunger", 0.0)]
 
 
 # Override
