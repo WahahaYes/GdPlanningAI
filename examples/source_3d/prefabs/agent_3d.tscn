@@ -4,6 +4,7 @@
 [ext_resource type="Script" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_location_data.gd" id="2_vwxy"]
 [ext_resource type="Script" path="res://examples/shared/ui/agent_debug_label_3d.gd" id="3_wxyz"]
 [ext_resource type="Resource" uid="uid://dx8k4mam2n5p2" path="res://examples/configs/campfire_agent_config.tres" id="4_xyzab"]
+[ext_resource type="Script" path="res://examples/source_3d/assets/agent/nav_controller_3d.gd" id="5_yzabc"]
 
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_1"]
 radius = 0.5
@@ -26,7 +27,7 @@ shape = SubResource("CylinderShape3D_1")
 size = Vector3(0.8, 0.8, 1.6)
 material = SubResource("StandardMaterial3D_1")
 
-[node name="Label3D" type="Label3D" parent="."]
+[node name="Label3D" type="Label3D" parent="." node_paths=PackedStringArray("gdpai_agent")]
 text = "Agent"
 pixel_size = 0.01
 position = Vector3(0, 1.0, 0)
@@ -43,3 +44,8 @@ config = ExtResource("4_xyzab")
 script = ExtResource("2_vwxy")
 location_node_3d = NodePath("..")
 entity = NodePath("..")
+
+[node name="NavController3D" type="Node" parent="." node_paths=PackedStringArray("entity", "nav_agent")]
+script = ExtResource("5_yzabc")
+entity = NodePath("..")
+nav_agent = NodePath("../NavigationAgent3D")

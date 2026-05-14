@@ -4,6 +4,7 @@
 [ext_resource type="Script" uid="uid://b4nu0eehv0waq" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_location_data.gd" id="2_lmnop"]
 [ext_resource type="Script" uid="uid://bt7mjof754vo2" path="res://examples/shared/ui/agent_debug_label.gd" id="3_mnopq"]
 [ext_resource type="Resource" uid="uid://dx8k4mam2n5p2" path="res://examples/configs/campfire_agent_config.tres" id="4_nopqr"]
+[ext_resource type="Script" uid="uid://bgo110tgx4jqg" path="res://examples/source_2d/assets/agent/nav_controller.gd" id="5_pqrst"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_1"]
 radius = 16.0
@@ -11,7 +12,10 @@ radius = 16.0
 [sub_resource type="LabelSettings" id="LabelSettings_1"]
 font_size = 20
 
-[node name="Agent" type="CharacterBody2D" unique_id=202757577]
+[node name="Agent" type="RigidBody2D" unique_id=202757577]
+collision_layer = 0
+collision_mask = 0
+gravity_scale = 0.0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=576780903]
 shape = SubResource("CircleShape2D_1")
@@ -46,3 +50,8 @@ config = ExtResource("4_nopqr")
 script = ExtResource("2_lmnop")
 location_node_2d = NodePath("..")
 entity = NodePath("..")
+
+[node name="NavController" type="Node" parent="." unique_id=1491158842 node_paths=PackedStringArray("entity", "nav_agent")]
+script = ExtResource("5_pqrst")
+entity = NodePath("..")
+nav_agent = NodePath("../NavigationAgent2D")

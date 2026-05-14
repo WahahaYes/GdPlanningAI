@@ -24,7 +24,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
 pixel_size = 0.01
 text = "Wood Pile"
 
-[node name="GdPAIObjectData" type="Node" parent="." unique_id=1298890973 node_paths=PackedStringArray("entity")]
+[node name="GdPAIObjectData" type="Node" parent="." unique_id=1298890973 node_paths=PackedStringArray("entity", "interactable_attribs", "location_data")]
 script = ExtResource("1_rstuv")
 interactable_attribs = NodePath("../GdPAIInteractable")
 location_data = NodePath("../GdPAILocationData")

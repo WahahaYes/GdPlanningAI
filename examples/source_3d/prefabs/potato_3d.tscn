@@ -24,7 +24,7 @@ text = "Potato"
 pixel_size = 0.01
 position = Vector3(0, 0.5, 0)
 
-[node name="GdPAIObjectData" type="Node" parent="." node_paths=PackedStringArray("entity")]
+[node name="GdPAIObjectData" type="Node" parent="." node_paths=PackedStringArray("entity", "interactable_attribs", "location_data")]
 script = ExtResource("1_pqrst")
 entity = NodePath("..")
 interactable_attribs = NodePath("../GdPAIInteractable")

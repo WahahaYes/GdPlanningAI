@@ -15,7 +15,7 @@ albedo_color = Color(0.909804, 0.364706, 0.247059, 1)
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_2"]
 albedo_color = Color(0.360784, 0.227451, 0.117647, 1)
 
-[node name="Campfire" type="Node3D" unique_id=1256060839]
+[node name="Campfire" type="Node3D" unique_id=1256060839 node_paths=PackedStringArray("campfire_object", "label_node", "fire_primitive")]
 script = ExtResource("4_vwxyz")
 campfire_object = NodePath("./GdPAIObjectData")
 label_node = NodePath("./Label3D")
@@ -48,7 +48,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
 pixel_size = 0.01
 text = "Campfire (100%)"
 
-[node name="GdPAIObjectData" type="Node" parent="." unique_id=947345135 node_paths=PackedStringArray("entity")]
+[node name="GdPAIObjectData" type="Node" parent="." unique_id=947345135 node_paths=PackedStringArray("entity", "interactable_attribs", "location_data")]
 script = ExtResource("1_stuvw")
 interactable_attribs = NodePath("../GdPAIInteractable")
 location_data = NodePath("../GdPAILocationData")
