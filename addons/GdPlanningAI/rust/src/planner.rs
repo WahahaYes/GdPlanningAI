@@ -31,8 +31,10 @@ struct PlanBranch {
     bound_provisions: Vec<ProvisionSpec>,
     /// State-effect claims that require provider-bound re-simulation before completion.
     pending_effects: Vec<PendingEffectClaim>,
-    /// Action-specific bindings: (action_index, fact_name, object_ids)
-    /// Tracks which action each wildcard binding belongs to
+    /// Action-specific bindings: (action_index, fact_name, object_ids).
+    ///
+    /// Each entry records the concrete object arguments selected when an action's
+    /// wildcard fact provision satisfied a specific fact requirement.
     action_bindings: Vec<(i64, String, Vec<i64>)>,
     /// Accumulated lower bound cost estimate.
     estimated_cost: f64,
@@ -44,16 +46,23 @@ struct PlanBranch {
 /// A state effect selected before all of its requirements were bound.
 #[derive(Clone)]
 struct PendingEffectClaim {
+    /// Action whose state effect must be re-simulated after its requirements are bound.
     action_idx: usize,
+    /// Open state preconditions this action claimed it can satisfy.
     preconditions: Vec<PreconditionSpec>,
 }
 
-/// Candidate action plus the open preconditions it can satisfy.
+/// Candidate action plus the open needs it can satisfy.
 struct ActionCandidate {
+    /// Index of the action in the planning context action list.
     action_idx: usize,
+    /// Lower-bound cost used for search ordering.
     estimated_cost: f64,
+    /// Indices of open state preconditions satisfied by this action.
     satisfied_precondition_indices: Vec<usize>,
+    /// Indices of open symbolic requirements satisfied by this action.
     satisfied_requirement_indices: Vec<usize>,
+    /// Whether this action's state effect depends on requirements bound later.
     requires_bound_effect: bool,
 }
 
@@ -79,11 +88,7 @@ impl PlanBranch {
     }
 
     /// Returns true if all open needs are satisfied by the accumulated state and provisions.
-    fn is_complete(
-        &self,
-        _initial_provisions: &[ProvisionSpec],
-        request_tx: &Sender<CallbackRequest>,
-    ) -> bool {
+    fn is_complete(&self, request_tx: &Sender<CallbackRequest>) -> bool {
         if !self.pending_effects.is_empty() {
             return false;
         }
@@ -309,7 +314,7 @@ fn backward_search(
     }
 
     // Check if branch is complete - all needs satisfied by accumulated state
-    if branch.is_complete(ctx.initial_provisions, ctx.request_tx) {
+    if branch.is_complete(ctx.request_tx) {
         crate::log_debug!("Branch complete with {} actions", branch.action_chain.len());
         // Forward validate the complete chain with bindings to recalculate true costs
         let fwd_result = forward_validate(&branch.action_chain, &branch.action_bindings, ctx);
@@ -543,6 +548,11 @@ fn find_candidate_actions(branch: &PlanBranch, ctx: &SearchContext) -> Vec<Actio
     candidates
 }
 
+/// Returns where a predecessor action should be inserted in execution order.
+///
+/// State-effect providers are inserted at the front of the current suffix. Requirement
+/// providers are inserted immediately before the consumer that introduced the satisfied
+/// requirement so independent providers do not leapfrog unrelated actions.
 fn insertion_index_for_candidate(branch: &PlanBranch, candidate: &ActionCandidate) -> usize {
     if candidate.satisfied_requirement_indices.is_empty() {
         return 0;

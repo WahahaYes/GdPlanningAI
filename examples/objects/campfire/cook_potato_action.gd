@@ -22,7 +22,11 @@ func _init(
 
 
 func get_validity_checks() -> Array[Precondition]:
-	return []
+	return [
+		Precondition.check_is_object_valid(campfire_ref),
+		Precondition.check_is_object_valid(object_location),
+		Precondition.check_is_object_valid(interactable_attribs),
+	]
 
 
 func get_preconditions() -> Array[Precondition]:
