@@ -1,20 +1,12 @@
 extends GutTest
 
-const AGENT_2D_PREFAB: PackedScene = preload(
-	"res://examples/source_2d/prefabs/agent_2d.tscn"
-)
+const AGENT_2D_PREFAB: PackedScene = preload("res://examples/source_2d/prefabs/agent_2d.tscn")
 const WOOD_PILE_2D_PREFAB: PackedScene = preload(
 	"res://examples/source_2d/prefabs/wood_pile_2d.tscn"
 )
-const CAMPFIRE_2D_PREFAB: PackedScene = preload(
-	"res://examples/source_2d/prefabs/campfire_2d.tscn"
-)
-const POTATO_2D_PREFAB: PackedScene = preload(
-	"res://examples/source_2d/prefabs/potato_2d.tscn"
-)
-const CAMPFIRE_2D_SCENE: PackedScene = preload(
-	"res://examples/campfire_2d.tscn"
-)
+const CAMPFIRE_2D_PREFAB: PackedScene = preload("res://examples/source_2d/prefabs/campfire_2d.tscn")
+const POTATO_2D_PREFAB: PackedScene = preload("res://examples/source_2d/prefabs/potato_2d.tscn")
+const CAMPFIRE_2D_SCENE: PackedScene = preload("res://examples/campfire_2d.tscn")
 const WORLD_NODE_SCRIPT: Script = preload(
 	"res://addons/GdPlanningAI/scripts/nodes/gdpai_world_node.gd"
 )
@@ -66,10 +58,7 @@ func _start_plan_and_wait(agent: GdPAIAgent, timeout_frames: int = 1200) -> Arra
 		saw_job = saw_job or scheduler.active_job_count() > 0
 		if agent.get_current_plan() != previous_plan:
 			return agent.get_current_plan()
-		if (
-			saw_job
-			and scheduler.active_job_count() == 0
-		):
+		if saw_job and scheduler.active_job_count() == 0:
 			return agent.get_current_plan()
 		await get_tree().process_frame
 	fail_test("Timed out waiting for submitted agent plan")
@@ -102,8 +91,6 @@ func _setup_campfire_scene() -> Dictionary:
 
 
 # ── Scenario Tests ─────────────────────────────────────────────
-
-
 func test_full_cooking_chain() -> void:
 	var setup: Dictionary = await _setup_campfire_scene()
 	var agent: GdPAIAgent = setup["agent"]
@@ -198,8 +185,10 @@ func test_cannot_add_fuel_when_full() -> void:
 	var titles: Array[String] = []
 	for a in plan:
 		titles.append(a.get_title())
-	assert_false(titles.has("Add Fuel"),
-		"Should not plan Add Fuel when fire is full, got: %s" % _plan_titles(plan))
+	assert_false(
+		titles.has("Add Fuel"),
+		"Should not plan Add Fuel when fire is full, got: %s" % _plan_titles(plan)
+	)
 
 
 func test_cannot_cook_without_potato() -> void:
@@ -218,5 +207,7 @@ func test_cannot_cook_without_potato() -> void:
 		titles.append(a.get_title())
 	# CookPotato requires held_item="potato", so it should not appear when holding wood
 	# But AddFuel should be valid
-	assert_false(titles.has("Cook Potato"),
-		"Should not plan Cook Potato when holding wood, got: %s" % _plan_titles(plan))
+	assert_false(
+		titles.has("Cook Potato"),
+		"Should not plan Cook Potato when holding wood, got: %s" % _plan_titles(plan)
+	)

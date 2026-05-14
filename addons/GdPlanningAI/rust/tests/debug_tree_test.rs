@@ -4,17 +4,11 @@
 //! correct SearchTree with proper parent-child relationships, outcomes,
 //! excluded actions, and forward-validation steps.
 
-use gdplanningai_rust::debug_tree::{
-    FwdStep, NodeOutcome, SearchNode, SearchTree, TreeDump,
-};
+use gdplanningai_rust::debug_tree::{FwdStep, NodeOutcome, SearchNode, SearchTree, TreeDump};
 
 // ── Helpers ────────────────────────────────────────────────────────
 
-fn assert_node(
-    node: &SearchNode,
-    expected_name: Option<&str>,
-    expected_children: usize,
-) {
+fn assert_node(node: &SearchNode, expected_name: Option<&str>, expected_children: usize) {
     assert_eq!(
         node.action_name.as_deref(),
         expected_name,
@@ -154,7 +148,10 @@ fn excluded_actions_attached_to_node() {
     dump.begin_goal("goal", 10.0, &["need_x".to_string()]);
     dump.enter_node(None, 0.0, 0.0, &["need_x".to_string()], &[]);
 
-    dump.exclude_action("no_effect_action", "no effect to satisfy open preconditions");
+    dump.exclude_action(
+        "no_effect_action",
+        "no effect to satisfy open preconditions",
+    );
     dump.exclude_action("freed_action", "dependencies invalid (object freed)");
 
     dump.exit_node(NodeOutcome::DeadEnd);
@@ -293,7 +290,13 @@ fn nested_candidates_build_correct_tree() {
     dump.enter_node(None, 0.0, 0.0, &["deep_need".to_string()], &[]);
 
     // First-level candidate
-    dump.enter_node(Some("outer_action"), 2.0, 2.0, &["inner_need".to_string()], &[]);
+    dump.enter_node(
+        Some("outer_action"),
+        2.0,
+        2.0,
+        &["inner_need".to_string()],
+        &[],
+    );
 
     // Second-level candidate (child of outer_action)
     dump.enter_node(Some("inner_action"), 1.0, 3.0, &[], &[]);
@@ -305,7 +308,11 @@ fn nested_candidates_build_correct_tree() {
 
     dump.exit_node(NodeOutcome::Expanded);
     dump.exit_node(NodeOutcome::Expanded);
-    dump.end_goal(true, &["inner_action".to_string(), "outer_action".to_string()], 3.0);
+    dump.end_goal(
+        true,
+        &["inner_action".to_string(), "outer_action".to_string()],
+        3.0,
+    );
 
     let tree = dump.finish();
     let root = tree.goal_attempts[0].root.as_ref().unwrap();

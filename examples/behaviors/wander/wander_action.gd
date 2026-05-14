@@ -16,7 +16,7 @@ var _wander_target_location: GdPAILocationData
 
 
 func _init(p_wander_distance: float) -> void:
-	super ()
+	super()
 	wander_distance = p_wander_distance
 
 
@@ -67,16 +67,16 @@ func simulate_effect(
 func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	# Compute random wander target position
 	var location_data: GdPAILocationData = agent.blackboard.get_node_in_group("GdPAILocationData")
-	
+
 	var random_dir: Vector2 = Vector2.from_angle(deg_to_rad(randf_range(-180, 180)))
 	var target_pos: Variant
-	
+
 	if location_data.position is Vector2:
 		target_pos = location_data.position + random_dir * wander_distance
 	else:
 		var random_dir_3d: Vector3 = Vector3(random_dir.x, 0, random_dir.y)
 		target_pos = location_data.position + random_dir_3d * wander_distance
-	
+
 	# Create temporary node for the target location
 	if target_pos is Vector2:
 		_wander_target_node = Node2D.new()
@@ -84,10 +84,10 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	else:
 		_wander_target_node = Node3D.new()
 		(_wander_target_node as Node3D).position = target_pos
-	
+
 	# Add to scene tree so GdPAILocationData can reference it
 	agent.entity.get_tree().root.add_child(_wander_target_node)
-	
+
 	# Create location data for the temporary node
 	_wander_target_location = GdPAILocationData.new()
 	if target_pos is Vector2:
@@ -95,15 +95,15 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	else:
 		_wander_target_location.location_node_3d = _wander_target_node as Node3D
 	target_location = _wander_target_location
-	
+
 	# Call parent to handle navigation setup
-	return super (agent)
+	return super(agent)
 
 
 # Override
 func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 	# Delegate navigation to parent GoToAction
-	return super (agent, delta)
+	return super(agent, delta)
 
 
 # Override
@@ -113,9 +113,9 @@ func post_perform_action(agent: GdPAIAgent) -> Action.Status:
 		_wander_target_node.queue_free()
 		_wander_target_node = null
 	_wander_target_location = null
-	
+
 	# Call parent to handle navigation cleanup
-	return super (agent)
+	return super(agent)
 
 
 # Override

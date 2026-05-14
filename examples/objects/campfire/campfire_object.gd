@@ -1,9 +1,13 @@
 class_name CampfireObject
 extends GdPAIObjectData
 
+## Interactable metadata used by actions that target this campfire.
 @export var interactable_attribs: GdPAIInteractable
+## Location metadata used by navigation requirements.
 @export var location_data: GdPAILocationData
+## Fuel added to the campfire when one wood item is consumed.
 @export var fuel_per_wood: float = 30.0
+## Minimum fuel required before food can be cooked.
 @export var min_fuel_to_cook: float = 20.0
 
 var current_fuel: float = 100.0
@@ -16,8 +20,8 @@ func get_group_labels() -> Array[String]:
 
 func get_provided_actions() -> Array[Action]:
 	return [
-		AddFuelAction.new(self , location_data, interactable_attribs, fuel_per_wood),
-		CookPotatoAction.new(self , location_data, interactable_attribs, min_fuel_to_cook),
+		AddFuelAction.new(self, location_data, interactable_attribs, fuel_per_wood),
+		CookPotatoAction.new(self, location_data, interactable_attribs, min_fuel_to_cook),
 	]
 
 

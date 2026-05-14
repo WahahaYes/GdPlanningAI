@@ -5,15 +5,14 @@
 
 use gdplanningai_rust::plan_tree::PlanResult;
 use gdplanningai_rust::plan_types::{
-    ActionSpec, CallbackKind, CallbackRequest, CallbackResponse, GoalSpec,
-    PreconditionSpec,
+    ActionSpec, CallbackKind, CallbackRequest, CallbackResponse, GoalSpec, PreconditionSpec,
 };
 use gdplanningai_rust::precondition::{PreconditionOp, PreconditionTarget};
 use gdplanningai_rust::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use std::collections::HashMap;
-use std::sync::mpsc;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
+use std::sync::mpsc;
 use std::thread;
 
 // ── Helpers ────────────────────────────────────────────────────────
@@ -48,10 +47,7 @@ fn hunger_less_than(threshold: i64) -> PreconditionSpec {
 fn spawn_callback_responder(
     cost_value: f64,
     hunger_reduction: i64,
-) -> (
-    mpsc::Sender<CallbackRequest>,
-    thread::JoinHandle<()>,
-) {
+) -> (mpsc::Sender<CallbackRequest>, thread::JoinHandle<()>) {
     let (req_tx, req_rx) = mpsc::channel::<CallbackRequest>();
 
     let handle = thread::spawn(move || {

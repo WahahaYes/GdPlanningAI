@@ -64,7 +64,11 @@ impl INode for GdPAIPlanScheduler {
                 .expect("GdPAIPlanScheduler: failed to build Rayon thread pool"),
         );
         godot::prelude::godot_print!("[GdPAI] Direct print from scheduler ready - logging works");
-        let num_threads = self.thread_pool.as_ref().map(|tp| tp.current_num_threads()).unwrap_or(0);
+        let num_threads = self
+            .thread_pool
+            .as_ref()
+            .map(|tp| tp.current_num_threads())
+            .unwrap_or(0);
         log_info!(
             "GdPAIPlanScheduler ready — {} worker thread(s)",
             num_threads

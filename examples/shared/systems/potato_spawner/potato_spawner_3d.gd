@@ -1,10 +1,15 @@
 class_name PotatoSpawner3D
 extends Node
 
+## Potato scene instantiated by this spawner.
 @export var potato_scene: PackedScene
+## Minimum corner of the spawn volume.
 @export var spawn_area_position: Vector3 = Vector3.ZERO
+## Size of the spawn volume.
 @export var spawn_area_size: Vector3 = Vector3(16, 1, 16)
+## Maximum number of active potatoes to keep in the scene.
 @export var max_potatoes: int = 5
+## Seconds to wait before replacing missing potatoes.
 @export var respawn_time: float = 10.0
 
 var _active_potatoes: Array[Node] = []

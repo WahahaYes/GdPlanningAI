@@ -74,7 +74,7 @@ func simulate_effect(
 	# Ensure the holdable item is still valid
 	if not is_instance_valid(holdable_item) or not is_instance_valid(holdable_item.entity):
 		return
-	
+
 	agent_blackboard.set_property("held_item", holdable_item.item_id)
 
 
@@ -91,7 +91,7 @@ func perform_action(agent: GdPAIAgent, _delta: float) -> Action.Status:
 	# Check if the holdable item is still valid
 	if not is_instance_valid(holdable_item) or not is_instance_valid(holdable_item.entity):
 		return Action.Status.FAILURE
-	
+
 	# Agent should already be at the location (GoToAction handled navigation)
 	# Just pick up the item
 	agent.blackboard.set_property("held_item", holdable_item.item_id)

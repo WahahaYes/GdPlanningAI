@@ -165,13 +165,14 @@ pub fn run_plan(
             .map(|p| format!("{:?}", p))
             .collect();
 
-        tree_dump.borrow_mut().begin_goal(&goal.name, goal.reward, &goal_precond_names);
+        tree_dump
+            .borrow_mut()
+            .begin_goal(&goal.name, goal.reward, &goal_precond_names);
 
         // Check if goal is already satisfied
         let goal_satisfied = goal.desired_state.iter().all(|p| {
-            p.evaluate_builtin(&agent, &world).unwrap_or_else(|| {
-                eval_precondition(p, &agent, &world, &request_tx)
-            })
+            p.evaluate_builtin(&agent, &world)
+                .unwrap_or_else(|| eval_precondition(p, &agent, &world, &request_tx))
         });
 
         if goal_satisfied {
@@ -197,13 +198,9 @@ pub fn run_plan(
         let initial_provisions = extract_initial_provisions(&agent);
 
         // Enter root node
-        tree_dump.borrow_mut().enter_node(
-            None,
-            0.0,
-            0.0,
-            &goal_precond_names,
-            &[],
-        );
+        tree_dump
+            .borrow_mut()
+            .enter_node(None, 0.0, 0.0, &goal_precond_names, &[]);
 
         let ctx = SearchContext {
             actions: &actions,
@@ -237,7 +234,9 @@ pub fn run_plan(
                 .iter()
                 .map(|&idx| actions[idx as usize].name.clone())
                 .collect();
-            tree_dump.borrow_mut().end_goal(true, &plan_action_names, total_cost);
+            tree_dump
+                .borrow_mut()
+                .end_goal(true, &plan_action_names, total_cost);
             let tree_output = tree_dump.borrow().format();
             if !tree_output.is_empty() {
                 crate::log_debug!("{}", tree_output);
@@ -500,10 +499,9 @@ fn find_candidate_actions(branch: &PlanBranch, ctx: &SearchContext) -> Vec<Actio
         // Check if action is valid (dependencies exist)
         if !action_is_valid(action, ctx) {
             crate::log_debug!("Action '{}' invalid (dependencies)", action.name);
-            ctx.tree_dump.borrow_mut().exclude_action(
-                &action.name,
-                "dependencies invalid (object freed)",
-            );
+            ctx.tree_dump
+                .borrow_mut()
+                .exclude_action(&action.name, "dependencies invalid (object freed)");
             continue;
         }
 
@@ -515,23 +513,23 @@ fn find_candidate_actions(branch: &PlanBranch, ctx: &SearchContext) -> Vec<Actio
             candidates.extend(action_candidates);
         } else {
             crate::log_debug!("Action '{}' cannot satisfy any open need", action.name);
-            let reason = if branch.open_preconditions.is_empty() && branch.open_requirements.is_empty() {
-                "no open needs to satisfy".to_string()
-            } else if !branch.open_requirements.is_empty() && action.provisions.is_empty() {
-                "no provisions to satisfy open requirements".to_string()
-            } else if !branch.open_preconditions.is_empty() && action.effect_callable_id == 0 {
-                "no effect to satisfy open preconditions".to_string()
-            } else {
-                format!(
-                    "effect/provisions don't match open needs ({} pre, {} req)",
-                    branch.open_preconditions.len(),
-                    branch.open_requirements.len()
-                )
-            };
-            ctx.tree_dump.borrow_mut().exclude_action(
-                &action.name,
-                &reason,
-            );
+            let reason =
+                if branch.open_preconditions.is_empty() && branch.open_requirements.is_empty() {
+                    "no open needs to satisfy".to_string()
+                } else if !branch.open_requirements.is_empty() && action.provisions.is_empty() {
+                    "no provisions to satisfy open requirements".to_string()
+                } else if !branch.open_preconditions.is_empty() && action.effect_callable_id == 0 {
+                    "no effect to satisfy open preconditions".to_string()
+                } else {
+                    format!(
+                        "effect/provisions don't match open needs ({} pre, {} req)",
+                        branch.open_preconditions.len(),
+                        branch.open_requirements.len()
+                    )
+                };
+            ctx.tree_dump
+                .borrow_mut()
+                .exclude_action(&action.name, &reason);
         }
     }
 
@@ -590,17 +588,13 @@ fn action_candidates_for_needs(
                 if provision_satisfies_requirement_in_context(prov, req, ctx.initial_world) {
                     // Extract binding that would be created if this provision satisfies this requirement
                     let binding = extract_binding_for_requirement(prov, req);
-                    
+
                     crate::log_debug!(
                         "Action '{}' satisfies requirement via provision",
                         action.name
                     );
-                    let estimated_cost = estimate_action_cost_with_binding(
-                        action,
-                        branch,
-                        ctx,
-                        &binding,
-                    );
+                    let estimated_cost =
+                        estimate_action_cost_with_binding(action, branch, ctx, &binding);
                     if estimated_cost != f64::INFINITY {
                         candidates.push(ActionCandidate {
                             action_idx,
@@ -956,7 +950,9 @@ fn update_open_needs(
 
     // Add new action-specific bindings
     for (action_idx, fact_name, object_ids) in new_bindings {
-        branch.action_bindings.push((action_idx, fact_name, object_ids));
+        branch
+            .action_bindings
+            .push((action_idx, fact_name, object_ids));
     }
 
     for prov in newly_bound_provisions {
@@ -990,7 +986,9 @@ fn update_open_needs(
     for req in &action.requirements {
         if !branch.open_requirements.contains(req) {
             branch.open_requirements.push(req.clone());
-            branch.open_requirement_consumers.push(candidate.action_idx as i64);
+            branch
+                .open_requirement_consumers
+                .push(candidate.action_idx as i64);
         }
     }
 
@@ -1121,9 +1119,7 @@ fn forward_validate(
                     .map(|id| VariantSnapshot::ObjectRef(*id))
                     .collect();
                 let binding_value = VariantSnapshot::Array(id_variants);
-                agent
-                    .properties
-                    .insert(fact_name.clone(), binding_value);
+                agent.properties.insert(fact_name.clone(), binding_value);
                 crate::log_debug!(
                     "Applied binding '{}' with {} objects (action_bindings) for action '{}'",
                     fact_name,
@@ -1137,23 +1133,31 @@ fn forward_validate(
         if !check_dependencies_valid(&action.dependent_object_ids) {
             let detail = "dependent objects have been freed".to_string();
             crate::log_debug!("Action '{}' failed: dependencies invalid", action.name);
-            ctx.tree_dump.borrow_mut().add_fwd_step(&action.name, "dependencies", &detail, false);
+            ctx.tree_dump
+                .borrow_mut()
+                .add_fwd_step(&action.name, "dependencies", &detail, false);
             return None;
         }
-        ctx.tree_dump.borrow_mut().add_fwd_step(&action.name, "dependencies", "valid", true);
+        ctx.tree_dump
+            .borrow_mut()
+            .add_fwd_step(&action.name, "dependencies", "valid", true);
 
         // 2. Check validity checks
         for (i, check) in action.validity_checks.iter().enumerate() {
             if !eval_precondition(check, &agent, &world, ctx.request_tx) {
                 let detail = format!("validity check #{} failed", i);
                 crate::log_debug!("Action '{}' failed validity check {}", action.name, i);
-                ctx.tree_dump.borrow_mut().add_fwd_step(&action.name, "validity", &detail, false);
+                ctx.tree_dump
+                    .borrow_mut()
+                    .add_fwd_step(&action.name, "validity", &detail, false);
                 return None;
             }
         }
         if !action.validity_checks.is_empty() {
             let detail = format!("{} checks passed", action.validity_checks.len());
-            ctx.tree_dump.borrow_mut().add_fwd_step(&action.name, "validity", &detail, true);
+            ctx.tree_dump
+                .borrow_mut()
+                .add_fwd_step(&action.name, "validity", &detail, true);
         }
 
         // 3. Check preconditions
@@ -1161,13 +1165,20 @@ fn forward_validate(
             if !eval_precondition(precond, &agent, &world, ctx.request_tx) {
                 let detail = format!("precondition {:?}", precond);
                 crate::log_debug!("Action '{}' failed precondition", action.name);
-                ctx.tree_dump.borrow_mut().add_fwd_step(&action.name, "precondition", &detail, false);
+                ctx.tree_dump.borrow_mut().add_fwd_step(
+                    &action.name,
+                    "precondition",
+                    &detail,
+                    false,
+                );
                 return None;
             }
         }
         if !action.preconditions.is_empty() {
             let detail = format!("{} checks passed", action.preconditions.len());
-            ctx.tree_dump.borrow_mut().add_fwd_step(&action.name, "precondition", &detail, true);
+            ctx.tree_dump
+                .borrow_mut()
+                .add_fwd_step(&action.name, "precondition", &detail, true);
         }
 
         // 4. Check requirements satisfied by accumulated provisions
@@ -1184,15 +1195,23 @@ fn forward_validate(
                 "Action '{}' failed: requirements not satisfied",
                 action.name
             );
-            ctx.tree_dump.borrow_mut().add_fwd_step(&action.name, "requirements", &detail, false);
+            ctx.tree_dump
+                .borrow_mut()
+                .add_fwd_step(&action.name, "requirements", &detail, false);
             return None;
         }
         if !action.requirements.is_empty() {
-            ctx.tree_dump.borrow_mut().add_fwd_step(&action.name, "requirements", "all met", true);
+            ctx.tree_dump
+                .borrow_mut()
+                .add_fwd_step(&action.name, "requirements", "all met", true);
         }
 
         // 4.5. For actions with wildcard provisions, apply bindings for cost calculation
-        if action.provisions.iter().any(|p| matches!(p, ProvisionSpec::FactWildcard { .. })) {
+        if action
+            .provisions
+            .iter()
+            .any(|p| matches!(p, ProvisionSpec::FactWildcard { .. }))
+        {
             for (binding_action_idx, fact_name, object_ids) in action_bindings {
                 if *binding_action_idx == *action_idx && !object_ids.is_empty() {
                     let id_variants: Vec<VariantSnapshot> = object_ids
@@ -1200,9 +1219,7 @@ fn forward_validate(
                         .map(|id| VariantSnapshot::ObjectRef(*id))
                         .collect();
                     let binding_value = VariantSnapshot::Array(id_variants);
-                    agent
-                        .properties
-                        .insert(fact_name.clone(), binding_value);
+                    agent.properties.insert(fact_name.clone(), binding_value);
                     crate::log_debug!(
                         "Applied binding '{}' with {} objects for cost calculation of '{}'",
                         fact_name,
@@ -1218,11 +1235,15 @@ fn forward_validate(
         crate::log_debug!("Action '{}' cost: {:.2}", action.name, cost);
         if cost == f64::INFINITY {
             crate::log_debug!("Action '{}' has infinite cost", action.name);
-            ctx.tree_dump.borrow_mut().add_fwd_step(&action.name, "cost", "infinite", false);
+            ctx.tree_dump
+                .borrow_mut()
+                .add_fwd_step(&action.name, "cost", "infinite", false);
             return None;
         }
         let detail = format!("{:.2}", cost);
-        ctx.tree_dump.borrow_mut().add_fwd_step(&action.name, "cost", &detail, true);
+        ctx.tree_dump
+            .borrow_mut()
+            .add_fwd_step(&action.name, "cost", &detail, true);
         total_cost += cost;
 
         // 6. Apply effect
@@ -1234,11 +1255,12 @@ fn forward_validate(
         // 7. Accumulate provisions
         for prov in &action.provisions {
             if matches!(prov, ProvisionSpec::FactWildcard { .. }) {
-                let has_concrete_binding = action_bindings
-                    .iter()
-                    .any(|(binding_action_idx, _, object_ids)| {
-                        *binding_action_idx == *action_idx && !object_ids.is_empty()
-                    });
+                let has_concrete_binding =
+                    action_bindings
+                        .iter()
+                        .any(|(binding_action_idx, _, object_ids)| {
+                            *binding_action_idx == *action_idx && !object_ids.is_empty()
+                        });
                 if !has_concrete_binding && !accumulated_provisions.contains(prov) {
                     accumulated_provisions.push(prov.clone());
                 }
@@ -1278,10 +1300,14 @@ fn forward_validate(
             .collect();
         crate::log_debug!("Forward validation failed: final goal not satisfied");
         let detail = format!("failed preconditions: [{}]", failed.join(", "));
-        ctx.tree_dump.borrow_mut().add_fwd_step("GOAL", "goal_check", &detail, false);
+        ctx.tree_dump
+            .borrow_mut()
+            .add_fwd_step("GOAL", "goal_check", &detail, false);
         return None;
     }
-    ctx.tree_dump.borrow_mut().add_fwd_step("GOAL", "goal_check", "all satisfied", true);
+    ctx.tree_dump
+        .borrow_mut()
+        .add_fwd_step("GOAL", "goal_check", "all satisfied", true);
 
     crate::log_debug!(
         "Forward validation succeeded, total cost: {:.2}",
@@ -1417,12 +1443,8 @@ fn eval_precondition(
                 } = spec
             {
                 let actual = match target {
-                    PreconditionTarget::Agent => {
-                        agent.properties.get(property_name.as_str())
-                    }
-                    PreconditionTarget::WorldState => {
-                        world.properties.get(property_name.as_str())
-                    }
+                    PreconditionTarget::Agent => agent.properties.get(property_name.as_str()),
+                    PreconditionTarget::WorldState => world.properties.get(property_name.as_str()),
                 };
                 crate::log_debug!(
                     "Builtin precondition failed: {:?} {:?} {:?} (actual={:?}, target={:?})",

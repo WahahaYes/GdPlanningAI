@@ -1,9 +1,13 @@
 class_name PotatoSpawner2D
 extends Node
 
+## Potato scene instantiated by this spawner.
 @export var potato_scene: PackedScene
+## Area in which potatoes may spawn.
 @export var spawn_area: Rect2
+## Maximum number of active potatoes to keep in the scene.
 @export var max_potatoes: int = 5
+## Seconds to wait before replacing missing potatoes.
 @export var respawn_time: float = 10.0
 
 var _active_potatoes: Array[Node] = []

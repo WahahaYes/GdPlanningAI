@@ -1,7 +1,9 @@
 class_name WoodPileObject
 extends GdPAIObjectData
 
+## Interactable metadata used by actions that target this wood pile.
 @export var interactable_attribs: GdPAIInteractable
+## Location metadata used by navigation requirements.
 @export var location_data: GdPAILocationData
 
 

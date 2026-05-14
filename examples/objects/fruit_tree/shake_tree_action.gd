@@ -75,7 +75,7 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	# Check if the fruit tree is still valid
 	if not is_instance_valid(fruit_tree):
 		return Action.Status.FAILURE
-		
+
 	set_state(agent, "shake_elapsed", 0.0)
 	return Action.Status.SUCCESS
 
@@ -85,7 +85,7 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 	# Check if the fruit tree is still valid
 	if not is_instance_valid(fruit_tree):
 		return Action.Status.FAILURE
-	
+
 	if fruit_tree.is_on_cooldown:
 		return Action.Status.FAILURE
 

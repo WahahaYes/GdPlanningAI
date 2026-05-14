@@ -19,16 +19,16 @@ extends RefCounted
 ## Action-specific bindings from the planner are injected into action instances.
 func deserialize_plan_result(result: Dictionary, actions: Array[Action]) -> Array[Action]:
 	var action_chain: Array[Action] = []
-	
+
 	# Build action_index -> action mapping for binding injection
 	var action_index_map: Dictionary = {}
 	for i in range(actions.size()):
 		action_index_map[i] = actions[i]
-	
+
 	# First build the action chain
 	for action_index in result.action_chain:
 		action_chain.append(actions[action_index])
-	
+
 	# Then inject action-specific bindings into action instances
 	if result.has("action_bindings"):
 		var action_bindings: Array = result.action_bindings
@@ -70,7 +70,7 @@ func _extract_actions(actions: Array[Action]) -> Array[Dictionary]:
 	for action in actions:
 		(
 			extracted
-			.append(
+			. append(
 				{
 					"name": action.get_title(),
 					"cost_callable": Callable(action, "get_action_cost"),
@@ -122,7 +122,7 @@ func _extract_goals(goals: Array[Goal], agent: GdPAIAgent) -> Array[Dictionary]:
 	for goal in goals:
 		(
 			extracted
-			.append(
+			. append(
 				{
 					"name": goal.get_title(),
 					"reward": goal.compute_reward(agent),

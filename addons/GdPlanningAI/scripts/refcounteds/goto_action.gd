@@ -24,6 +24,7 @@ static func find_nav_agent(entity: Node) -> Node:
 		return nav_2d
 	return nav_3d
 
+
 ## The target location to navigate to. This will be bound during planning
 ## when the action is selected to satisfy an interaction's requirement.
 var target_location: GdPAILocationData
