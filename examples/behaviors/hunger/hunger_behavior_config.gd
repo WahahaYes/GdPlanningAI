@@ -17,6 +17,8 @@ extends GdPAIBehaviorConfig
 }
 ## How long the self-eating action should take in seconds.
 @export var eat_duration: float = 1.5
+## Planning-only hunger restore assumed before a held item provider is bound.
+@export var optimistic_unbound_restore: float = 20.0
 
 
 # Override
@@ -29,12 +31,13 @@ func _populate(
 	actions.append(GoToAction.new())
 	(
 		actions
-		. append(
+		.append(
 			(
 				EatHeldFoodAction
-				. new(
+				.new(
 					hunger_restored_by_item,
 					eat_duration,
+					optimistic_unbound_restore,
 				)
 			)
 		)

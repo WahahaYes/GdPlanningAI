@@ -464,9 +464,9 @@ fn result_to_dict(result: &PlanResult) -> VarDictionary {
 
     // Add action-specific bindings
     let mut action_bindings = Array::<Variant>::new();
-    for (action_idx, fact_name, object_ids) in &result.action_bindings {
+    for (chain_position, fact_name, object_ids) in &result.action_bindings {
         let mut binding_tuple = Array::<Variant>::new();
-        binding_tuple.push(&action_idx.to_variant());
+        binding_tuple.push(&chain_position.to_variant());
         binding_tuple.push(&fact_name.to_variant());
         let mut ids_array = Array::<Variant>::new();
         for id in object_ids {

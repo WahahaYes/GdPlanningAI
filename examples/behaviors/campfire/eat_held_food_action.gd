@@ -10,14 +10,18 @@ extends Action
 var hunger_restored_by_item: Dictionary = {}
 ## How long the eating action should take in seconds.
 var eat_duration: float = 1.5
+## Hunger restored during planning before a held item provider has been bound.
+var optimistic_unbound_restore: float = 20.0
 
 
 func _init(
 	p_hunger_restored_by_item: Dictionary = {},
 	p_eat_duration: float = 1.5,
+	p_optimistic_unbound_restore: float = 20.0,
 ) -> void:
 	hunger_restored_by_item = p_hunger_restored_by_item.duplicate(true)
 	eat_duration = p_eat_duration
+	optimistic_unbound_restore = p_optimistic_unbound_restore
 
 
 # Override
@@ -62,10 +66,16 @@ func simulate_effect(
 	if held_item != null and (held_item is String or held_item is StringName):
 		held_item_id = String(held_item)
 
-	if held_item_id.is_empty() or not hunger_restored_by_item.has(held_item_id):
+	# During backward planning, this action may be considered before its
+	# held_item requirement has been satisfied. Use a conservative optimistic
+	# restore so the planner can recognize the action as relevant, then rely on
+	# get_requirements() and forward validation to require a real provided item.
+	if held_item_id.is_empty():
+		hunger_restored = optimistic_unbound_restore
+	elif not hunger_restored_by_item.has(held_item_id):
 		return
-
-	hunger_restored = float(hunger_restored_by_item[held_item_id])
+	else:
+		hunger_restored = float(hunger_restored_by_item[held_item_id])
 	var new_hunger = max(0.0, float(hunger) - hunger_restored)
 	agent_blackboard.set_property("hunger", new_hunger)
 	agent_blackboard.set_property("held_item", "")

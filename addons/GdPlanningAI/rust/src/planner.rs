@@ -23,7 +23,7 @@ struct PlanBranch {
     open_preconditions: Vec<PreconditionSpec>,
     /// Requirement specs that must be satisfied (binding/fact needs).
     open_requirements: Vec<RequirementSpec>,
-    /// Action index that introduced each open requirement.
+    /// Chain position that introduced each open requirement.
     open_requirement_consumers: Vec<i64>,
     /// Action indices in execution order (first = execute first).
     action_chain: Vec<i64>,
@@ -31,7 +31,7 @@ struct PlanBranch {
     bound_provisions: Vec<ProvisionSpec>,
     /// State-effect claims that require provider-bound re-simulation before completion.
     pending_effects: Vec<PendingEffectClaim>,
-    /// Action-specific bindings: (action_index, fact_name, object_ids).
+    /// Action-specific bindings: (chain_position, fact_name, object_ids).
     ///
     /// Each entry records the concrete object arguments selected when an action's
     /// wildcard fact provision satisfied a specific fact requirement.
@@ -403,13 +403,14 @@ fn backward_search(
         let mut new_branch = branch.clone();
 
         let insert_pos = insertion_index_for_candidate(&new_branch, &candidate);
+        shift_branch_positions_for_insert(&mut new_branch, insert_pos);
         new_branch
             .action_chain
             .insert(insert_pos, candidate.action_idx as i64);
         new_branch.estimated_cost += candidate.estimated_cost;
 
         // Update open needs: remove satisfied needs, add action's requirements/preconditions
-        if !update_open_needs(&mut new_branch, &candidate, action, ctx) {
+        if !update_open_needs(&mut new_branch, &candidate, action, insert_pos, ctx) {
             crate::log_debug!(
                 "Action '{}' could not resolve pending provider-bound effects",
                 action.name
@@ -438,8 +439,8 @@ fn backward_search(
             let world_for_sim = new_branch.accumulated_world.clone();
 
             // Look up bindings for this specific action
-            for (action_idx, fact_name, object_ids) in &new_branch.action_bindings {
-                if *action_idx == candidate.action_idx as i64 && !object_ids.is_empty() {
+            for (chain_position, fact_name, object_ids) in &new_branch.action_bindings {
+                if *chain_position == insert_pos as i64 && !object_ids.is_empty() {
                     // Set the binding on the agent blackboard for the action to use
                     let id_variants: Vec<VariantSnapshot> = object_ids
                         .iter()
@@ -560,14 +561,24 @@ fn insertion_index_for_candidate(branch: &PlanBranch, candidate: &ActionCandidat
         .satisfied_requirement_indices
         .iter()
         .filter_map(|idx| branch.open_requirement_consumers.get(*idx))
-        .filter_map(|consumer_idx| {
-            branch
-                .action_chain
-                .iter()
-                .position(|action_idx| action_idx == consumer_idx)
-        })
+        .map(|consumer_position| *consumer_position as usize)
         .min()
+        .map(|position| position.min(branch.action_chain.len()))
         .unwrap_or(0)
+}
+
+fn shift_branch_positions_for_insert(branch: &mut PlanBranch, insert_pos: usize) {
+    let insert_pos = insert_pos as i64;
+    for (chain_position, _, _) in &mut branch.action_bindings {
+        if *chain_position >= insert_pos {
+            *chain_position += 1;
+        }
+    }
+    for consumer_position in &mut branch.open_requirement_consumers {
+        if *consumer_position >= insert_pos {
+            *consumer_position += 1;
+        }
+    }
 }
 
 /// Returns candidates for the needs an action can satisfy.
@@ -883,6 +894,7 @@ fn update_open_needs(
     branch: &mut PlanBranch,
     candidate: &ActionCandidate,
     action: &ActionSpec,
+    action_position: usize,
     ctx: &SearchContext,
 ) -> bool {
     // 1. Remove requirements satisfied by this action's provisions
@@ -927,7 +939,7 @@ fn update_open_needs(
                             .collect();
                         if !object_ids.is_empty() {
                             new_bindings.push((
-                                candidate.action_idx as i64,
+                                action_position as i64,
                                 prov_name.clone(),
                                 object_ids,
                             ));
@@ -949,10 +961,10 @@ fn update_open_needs(
     }
 
     // Add new action-specific bindings
-    for (action_idx, fact_name, object_ids) in new_bindings {
+    for (chain_position, fact_name, object_ids) in new_bindings {
         branch
             .action_bindings
-            .push((action_idx, fact_name, object_ids));
+            .push((chain_position, fact_name, object_ids));
     }
 
     for prov in newly_bound_provisions {
@@ -988,7 +1000,7 @@ fn update_open_needs(
             branch.open_requirements.push(req.clone());
             branch
                 .open_requirement_consumers
-                .push(candidate.action_idx as i64);
+                .push(action_position as i64);
         }
     }
 
@@ -1106,14 +1118,14 @@ fn forward_validate(
         action_chain.len()
     );
 
-    for action_idx in action_chain {
+    for (chain_position, action_idx) in action_chain.iter().enumerate() {
         let action = &ctx.actions[*action_idx as usize];
 
         crate::log_debug!("Validating action '{}'", action.name);
 
         // Apply action-specific bindings before calculating cost
-        for (binding_action_idx, fact_name, object_ids) in action_bindings {
-            if *binding_action_idx == *action_idx && !object_ids.is_empty() {
+        for (binding_chain_position, fact_name, object_ids) in action_bindings {
+            if *binding_chain_position == chain_position as i64 && !object_ids.is_empty() {
                 let id_variants: Vec<VariantSnapshot> = object_ids
                     .iter()
                     .map(|id| VariantSnapshot::ObjectRef(*id))
@@ -1212,8 +1224,8 @@ fn forward_validate(
             .iter()
             .any(|p| matches!(p, ProvisionSpec::FactWildcard { .. }))
         {
-            for (binding_action_idx, fact_name, object_ids) in action_bindings {
-                if *binding_action_idx == *action_idx && !object_ids.is_empty() {
+            for (binding_chain_position, fact_name, object_ids) in action_bindings {
+                if *binding_chain_position == chain_position as i64 && !object_ids.is_empty() {
                     let id_variants: Vec<VariantSnapshot> = object_ids
                         .iter()
                         .map(|id| VariantSnapshot::ObjectRef(*id))
@@ -1258,8 +1270,9 @@ fn forward_validate(
                 let has_concrete_binding =
                     action_bindings
                         .iter()
-                        .any(|(binding_action_idx, _, object_ids)| {
-                            *binding_action_idx == *action_idx && !object_ids.is_empty()
+                        .any(|(binding_chain_position, _, object_ids)| {
+                            *binding_chain_position == chain_position as i64
+                                && !object_ids.is_empty()
                         });
                 if !has_concrete_binding && !accumulated_provisions.contains(prov) {
                     accumulated_provisions.push(prov.clone());
@@ -1270,8 +1283,8 @@ fn forward_validate(
                 accumulated_provisions.push(prov.clone());
             }
         }
-        for (binding_action_idx, fact_name, object_ids) in action_bindings {
-            if *binding_action_idx == *action_idx && !object_ids.is_empty() {
+        for (binding_chain_position, fact_name, object_ids) in action_bindings {
+            if *binding_chain_position == chain_position as i64 && !object_ids.is_empty() {
                 let args: Vec<VariantSnapshot> = object_ids
                     .iter()
                     .map(|id| VariantSnapshot::ObjectRef(*id))

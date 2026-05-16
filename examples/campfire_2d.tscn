@@ -13,7 +13,7 @@ script = ExtResource("2_abcde")
 
 [sub_resource type="NavigationPolygon" id="NavigationPolygon_1"]
 vertices = PackedVector2Array(-380, -280, 380, -280, 380, 280, -380, 280)
-polygons = [PackedInt32Array(0, 1, 2, 3)]
+polygons = Array[PackedInt32Array]([PackedInt32Array(0, 1, 2, 3)])
 
 [node name="Campfire2D" type="Node2D" unique_id=2136786495]
 
@@ -52,14 +52,5 @@ spawn_area = Rect2(-350, -250, 700, 500)
 
 [node name="Agent1" parent="." unique_id=1655664018 instance=ExtResource("5_defgh")]
 position = Vector2(-150, -150)
-
-[node name="Agent2" parent="." unique_id=1396964126 instance=ExtResource("5_defgh")]
-position = Vector2(150, -150)
-
-[node name="Agent3" parent="." unique_id=2060762859 instance=ExtResource("5_defgh")]
-position = Vector2(-150, 150)
-
-[node name="Agent4" parent="." unique_id=1921731991 instance=ExtResource("5_defgh")]
-position = Vector2(150, 150)
 
 [node name="Camera2D" type="Camera2D" parent="." unique_id=385257113]

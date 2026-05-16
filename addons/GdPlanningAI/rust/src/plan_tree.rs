@@ -11,8 +11,8 @@ pub struct PlanResult {
     /// Indices of actions that used placeholder simulation (requirements unresolved at eval time).
     /// These may need re-simulation with actual cost/effects for accurate planning.
     pub deferred_action_indices: Vec<i64>,
-    /// Action-specific bindings: action_index -> (fact_name, object_ids)
-    /// Each action gets its own bound values from wildcard provisions during planning.
+    /// Action-specific bindings: chain_position -> (fact_name, object_ids)
+    /// Each action occurrence gets its own bound values from wildcard provisions during planning.
     pub action_bindings: Vec<(i64, String, Vec<i64>)>,
 }
 
