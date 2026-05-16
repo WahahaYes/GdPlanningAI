@@ -362,7 +362,7 @@ fn backward_search(
         branch.open_requirements.len()
     );
 
-    let mut best_result: Option<(Vec<i64>, f64, Vec<(i64, String, Vec<i64>)>)> = None;
+    let best_result: Option<(Vec<i64>, f64, Vec<(i64, String, Vec<i64>)>)> = None;
 
     // Try each candidate (already sorted by estimated cost)
     for candidate in candidates {
@@ -463,20 +463,10 @@ fn backward_search(
             new_branch.accumulated_world = after_world;
         }
 
-        // Recurse
+        // Recurse — temporarily exit on the first valid plan found
+        // instead of exploring all branches to find the cheapest.
         if let Some(result) = backward_search(new_branch, ctx, depth + 1, best_cost) {
-            let should_update = best_result
-                .as_ref()
-                .map(|(_, best_cost, _)| result.1 < *best_cost)
-                .unwrap_or(true);
-            if should_update {
-                crate::log_debug!(
-                    "New best branch at depth {} with cost {:.2}",
-                    depth,
-                    result.1
-                );
-                best_result = Some(result);
-            }
+            return Some(result);
         }
     }
 

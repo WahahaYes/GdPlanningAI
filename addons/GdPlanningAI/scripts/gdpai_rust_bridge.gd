@@ -17,7 +17,7 @@ extends RefCounted
 ##
 ## Returns an ordered [Array[Action]] ready for execution with bindings injected.
 ## Action-specific bindings from the planner are injected into action instances.
-func deserialize_plan_result(result: Dictionary, actions: Array[Action]) -> Array[Action]:
+func deserialize_plan_result(result: Dictionary, actions: Array[Action]) -> Dictionary:
 	var action_chain: Array[Action] = []
 
 	var bindings_by_position: Dictionary = {}
@@ -34,19 +34,10 @@ func deserialize_plan_result(result: Dictionary, actions: Array[Action]) -> Arra
 		var action: Action = actions[action_index]
 		action_chain.append(action)
 
-		if bindings_by_position.has(chain_position):
-			for binding in bindings_by_position[chain_position]:
-				var fact_name: String = binding[1]
-				var object_ids: Array = binding[2]
-				var object_refs = []
-				for id in object_ids:
-					var obj = instance_from_id(id)
-					if obj != null:
-						object_refs.append(obj)
-				if action.has_method("inject_binding"):
-					action.inject_binding(fact_name, object_refs)
-
-	return action_chain
+	return {
+		"action_chain": action_chain,
+		"bindings_by_position": bindings_by_position,
+	}
 
 
 ## Public accessor for action serialisation.

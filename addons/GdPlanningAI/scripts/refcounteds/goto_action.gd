@@ -204,7 +204,8 @@ func post_perform_action(agent: GdPAIAgent) -> Action.Status:
 	var agent_location_data: GdPAILocationData = get_state(agent, "agent_location")
 
 	# Clear the navigation target.
-	nav_agent.target_position = agent_location_data.position
+	if nav_agent != null and agent_location_data != null and is_instance_valid(agent_location_data):
+		nav_agent.target_position = agent_location_data.position
 
 	# Clean up state.
 	erase_state(agent, "nav_agent")
