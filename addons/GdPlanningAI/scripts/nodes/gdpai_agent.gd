@@ -264,6 +264,7 @@ func _execute_plan(delta: float) -> void:
 			var action: Action = action_chain[i]
 			if is_instance_valid(action):
 				action.chain_position = i
+				_inject_bindings_for_position(i, action)
 				action.post_perform_action(self )
 				action.chain_position = -1
 		_current_plan_step += 1

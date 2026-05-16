@@ -362,7 +362,7 @@ fn backward_search(
         branch.open_requirements.len()
     );
 
-    let best_result: Option<(Vec<i64>, f64, Vec<(i64, String, Vec<i64>)>)> = None;
+    let mut best_result: Option<(Vec<i64>, f64, Vec<(i64, String, Vec<i64>)>)> = None;
 
     // Try each candidate (already sorted by estimated cost)
     for candidate in candidates {
@@ -463,10 +463,12 @@ fn backward_search(
             new_branch.accumulated_world = after_world;
         }
 
-        // Recurse — temporarily exit on the first valid plan found
-        // instead of exploring all branches to find the cheapest.
+        // Recurse — track the cheapest valid plan across all branches.
         if let Some(result) = backward_search(new_branch, ctx, depth + 1, best_cost) {
-            return Some(result);
+            if result.1 <= *best_cost {
+                *best_cost = result.1;
+                best_result = Some(result);
+            }
         }
     }
 
