@@ -187,9 +187,19 @@ impl GdPAIBlackboard {
     }
 
     /// Returns the [SimObjectProxy] whose UID matches the instance ID of [param node], or [code]null[/code] if not found.
+    /// [param node_or_id] can be a [Node] instance, an [int] instance ID, or a [String] UID.
     #[func]
-    pub fn get_object_for(&self, node: Gd<Node>) -> Variant {
-        let uid = node.instance_id().to_i64().to_string();
+    pub fn get_object_for(&self, node_or_id: Variant) -> Variant {
+        let uid = if let Ok(node) = node_or_id.clone().try_to::<Gd<Node>>() {
+            node.instance_id().to_i64().to_string()
+        } else if let Ok(id) = node_or_id.clone().try_to::<i64>() {
+            id.to_string()
+        } else if let Ok(uid_str) = node_or_id.clone().try_to::<GString>() {
+            uid_str.to_string()
+        } else {
+            return Variant::nil();
+        };
+
         if let Some(obj) = self.objects.get(&uid) {
             obj.clone().to_variant()
         } else {

@@ -16,7 +16,7 @@ var _wander_target_location: GdPAILocationData
 
 
 func _init(p_wander_distance: float) -> void:
-	super()
+	super ()
 	wander_distance = p_wander_distance
 
 
@@ -97,13 +97,13 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	target_location = _wander_target_location
 
 	# Call parent to handle navigation setup
-	return super(agent)
+	return super (agent)
 
 
 # Override
 func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 	# Delegate navigation to parent GoToAction
-	return super(agent, delta)
+	return super (agent, delta)
 
 
 # Override
@@ -115,7 +115,7 @@ func post_perform_action(agent: GdPAIAgent) -> Action.Status:
 	_wander_target_location = null
 
 	# Call parent to handle navigation cleanup
-	return super(agent)
+	return super (agent)
 
 
 # Override

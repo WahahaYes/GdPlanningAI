@@ -54,30 +54,36 @@ func get_action_cost(
 ) -> float:
 	var agent_location: SimObjectProxy = agent_blackboard.get_proxy_in_group("GdPAILocationData")
 
-	# If target_location is set (injected after planning), use it.
-	# Otherwise, check for binding from planner (set during simulation).
-	var actual_target = target_location
-	if actual_target == null:
-		var binding = agent_blackboard.get_property("at_target")
+	# During planning, the planner injects the binding into the blackboard.
+	# We should prefer this over any previously stored target_location.
+	var actual_target = null
+	var binding = agent_blackboard.get_property("at_target")
+	
+	if binding != null:
 		if binding is Array:
-			# Binding is an array of locations - choose the first one
 			if binding.size() > 0:
 				actual_target = binding[0]
-		elif binding is GdPAILocationData:
+		else:
 			actual_target = binding
-		elif binding is Object:
-			# Binding might be passed as ObjectRef
-			var obj = instance_from_id(binding)
-			if obj is GdPAILocationData:
-				actual_target = obj
+	
+	# Fallback to stored target_location if no binding was found in blackboard.
+	if actual_target == null:
+		actual_target = target_location
 
-	if actual_target == null or not is_instance_valid(actual_target):
-		# During planning before binding, return a reasonable heuristic cost
+	if actual_target == null:
+		# During planning before any binding is considered, return a reasonable heuristic cost
 		# This allows the planner to consider GoToAction as a candidate
 		return 10.0
+		
 	var sim_location: SimObjectProxy = world_state.get_object_for(actual_target)
 	if sim_location == null:
+		# If it's an ID, try to resolve it from the world state anyway.
+		# GdPAIBlackboard.get_object_for now handles IDs.
 		return 10.0
+
+	if agent_location == null:
+		return 10.0
+
 	# Euclidean distance heuristic
 	var dist: float = (
 		(agent_location.get_property("position") - sim_location.get_property("position")).length()
@@ -110,15 +116,31 @@ func get_requirements() -> Array[RequirementSpec]:
 # Override
 func simulate_effect(
 	agent_blackboard: GdPAIBlackboard,
-	_world_state: GdPAIBlackboard,
+	world_state: GdPAIBlackboard,
 ) -> void:
-	# Use target_location if set by planner binding
-	if target_location != null and is_instance_valid(target_location):
+	# Prefer blackboard binding during planning.
+	var actual_target = null
+	var binding = agent_blackboard.get_property("at_target")
+	if binding != null:
+		if binding is Array:
+			if binding.size() > 0:
+				actual_target = binding[0]
+		else:
+			actual_target = binding
+	
+	if actual_target == null:
+		actual_target = target_location
+
+	if actual_target == null:
+		return
+
+	var sim_location: SimObjectProxy = world_state.get_object_for(actual_target)
+	if sim_location != null:
 		var agent_location: SimObjectProxy = agent_blackboard.get_proxy_in_group(
 			"GdPAILocationData"
 		)
 		if agent_location != null:
-			agent_location.set_property("position", target_location.position)
+			agent_location.set_property("position", sim_location.get_property("position"))
 
 
 # Override
