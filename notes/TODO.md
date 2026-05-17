@@ -6,6 +6,15 @@ This document tracks pending work items across the project. For completed work, 
 
 ## High Priority
 
+### Phase 2: Modular Search Retry
+**Document:** `PHASE_2_RETRY_LEARNINGS.md`
+**Status:** Resetting after failed attempt.
+**Key Goals:**
+- Unify backward expansion and forward validation simulation logic.
+- Robust state pruning (Visited Set) that ignores "noisy" simulation data.
+- Scale heuristics and action costs to consistent magnitudes.
+- Improved symbolic requirements for better branch pruning.
+
 ---
 
 ## Medium Priority
