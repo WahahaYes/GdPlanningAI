@@ -1,4 +1,4 @@
-use crate::debug_tree::{NodeOutcome, TreeDump};
+use crate::debug_tree::TreeDump;
 use crate::plan_types::*;
 use crate::precondition::PreconditionTarget;
 use crate::requirement::{ProvisionSpec, RequirementSpec};
@@ -95,7 +95,7 @@ impl<'ctx> BranchExpander<'ctx> {
             return vec![];
         }
 
-        let candidates = find_candidate_actions(&node.branch, self.ctx);
+        let candidates = find_candidate_actions(&node.branch, node.tree_node_id, self.ctx);
         if candidates.is_empty() {
             crate::log_debug!("No candidate actions found at depth {}", node.depth);
             return vec![];
@@ -175,10 +175,29 @@ impl<'ctx> BranchExpander<'ctx> {
                 min_provision_cost,
             );
 
+            let open_precond_names: Vec<String> = new_branch
+                .open_preconditions
+                .iter()
+                .map(|p| format!("{:?}", p))
+                .collect();
+            let open_req_names: Vec<String> = new_branch
+                .open_requirements
+                .iter()
+                .map(|r| format!("{:?}", r))
+                .collect();
+            let child_id = self.ctx.tree_dump.borrow_mut().add_child(
+                node.tree_node_id,
+                &action.name,
+                candidate.estimated_cost,
+                new_branch.estimated_cost,
+                &open_precond_names,
+                &open_req_names,
+            );
             successors.push(SearchNode {
                 branch: new_branch,
                 depth: node.depth + 1,
                 estimated_remaining,
+                tree_node_id: child_id,
             });
         }
 
@@ -188,15 +207,15 @@ impl<'ctx> BranchExpander<'ctx> {
 
 pub fn find_candidate_actions(
     branch: &PlanBranch,
+    tree_node_id: usize,
     ctx: &SearchContext,
 ) -> Vec<ActionCandidate> {
     let mut candidates: Vec<ActionCandidate> = vec![];
-
     for (idx, action) in ctx.actions.iter().enumerate() {
         if !super::action_is_valid(action, ctx) {
             ctx.tree_dump
                 .borrow_mut()
-                .exclude_action(&action.name, "dependencies invalid (object freed)");
+                .exclude_action(tree_node_id, &action.name, "dependencies invalid (object freed)");
             continue;
         }
 
@@ -221,7 +240,7 @@ pub fn find_candidate_actions(
                 };
             ctx.tree_dump
                 .borrow_mut()
-                .exclude_action(&action.name, &reason);
+                .exclude_action(tree_node_id, &action.name, &reason);
         }
     }
 
@@ -498,7 +517,12 @@ fn estimate_action_cost_with_binding(
         &action.requirements,
         &branch.bound_provisions,
     ) else {
-        return 1.0;
+        return super::call_get_cost(
+            action.cost_callable_id,
+            &branch.accumulated_agent,
+            &branch.accumulated_world,
+            ctx.request_tx,
+        );
     };
 
     let mut agent_for_cost = hypo_agent;

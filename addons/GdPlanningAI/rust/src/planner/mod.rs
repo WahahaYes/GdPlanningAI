@@ -6,7 +6,7 @@ pub mod heuristic;
 pub mod policy;
 pub mod stats;
 
-use crate::debug_tree::{NodeOutcome, TreeDump};
+use crate::debug_tree::TreeDump;
 use crate::plan_tree::PlanResult;
 use crate::plan_types::*;
 use crate::precondition::PreconditionTarget;

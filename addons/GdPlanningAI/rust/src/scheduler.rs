@@ -88,7 +88,6 @@ impl GdPAIPlanScheduler {
 
         let active_count = self.active_jobs.iter().filter(|j| !j.done).count();
         let total_count = self.active_jobs.len();
-        log_debug!("process_callbacks: {} active, {} total jobs", active_count, total_count);
 
         // Process each job's pending callbacks using its own callable registry.
         for job in self.active_jobs.iter_mut().filter(|j| !j.done) {
@@ -98,9 +97,6 @@ impl GdPAIPlanScheduler {
                 let callable = &job.callable_registry[req.callable_id];
                 let response = dispatch_callback(callable, req.kind);
                 let _ = req.response_tx.send(response);
-            }
-            if callback_count > 0 {
-                log_debug!("process_callbacks: processed {} callbacks for agent {}", callback_count, job.agent_instance_id);
             }
             // Check for completed plan
             if let Ok(result) = job.result_rx.try_recv() {

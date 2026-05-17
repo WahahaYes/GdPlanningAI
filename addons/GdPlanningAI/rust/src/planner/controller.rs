@@ -4,6 +4,8 @@ pub struct SearchNode {
     pub branch: PlanBranch,
     pub depth: usize,
     pub estimated_remaining: f64,
+    /// ID of the corresponding node in [`crate::debug_tree::TreeDump`].
+    pub tree_node_id: usize,
 }
 
 pub trait SearchController {

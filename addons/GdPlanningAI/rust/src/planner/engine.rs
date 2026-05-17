@@ -1,8 +1,6 @@
 use crate::debug_tree::NodeOutcome;
 use crate::plan_tree::PlanResult;
 use crate::plan_types::*;
-use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
-use std::sync::mpsc::Sender;
 use std::sync::{Arc, atomic::AtomicBool};
 
 use super::controller::{SearchController, SearchNode};
@@ -156,15 +154,16 @@ impl<'ctx> PlannerEngine<'ctx> {
             .iter()
             .map(|p| format!("{:?}", p))
             .collect();
-        self.ctx
+        let root_id = self.ctx
             .tree_dump
             .borrow_mut()
-            .enter_node(None, 0.0, 0.0, &open_precond_names, &[]);
+            .add_root(&open_precond_names, &[]);
 
         self.controller.push_initial(SearchNode {
             branch: goal_branch,
             depth: 0,
             estimated_remaining: 0.0,
+            tree_node_id: root_id,
         });
 
         let mut best_result: Option<PlanResult> = None;
@@ -196,6 +195,10 @@ impl<'ctx> PlannerEngine<'ctx> {
             if node.depth > self.ctx.max_depth {
                 crate::log_debug!("Max depth {} reached", self.ctx.max_depth);
                 self.stats.branches_pruned += 1;
+                self.ctx.tree_dump.borrow_mut().set_outcome(
+                    node.tree_node_id,
+                    NodeOutcome::Pruned { reason: "max depth".to_string() },
+                );
                 continue;
             }
 
@@ -208,6 +211,10 @@ impl<'ctx> PlannerEngine<'ctx> {
                     best_cost
                 );
                 self.stats.branches_pruned += 1;
+                self.ctx.tree_dump.borrow_mut().set_outcome(
+                    node.tree_node_id,
+                    NodeOutcome::Pruned { reason: format!("f_score {:.2} >= best {:.2}", f_score, best_cost) },
+                );
                 continue;
             }
 
@@ -219,6 +226,7 @@ impl<'ctx> PlannerEngine<'ctx> {
                     self.ctx,
                     goal_preconditions,
                 );
+                let fwd_ok = fwd_result.is_some();
                 if let Some((action_chain, total_cost)) = fwd_result {
                     if total_cost < best_cost {
                         best_cost = total_cost;
@@ -235,15 +243,28 @@ impl<'ctx> PlannerEngine<'ctx> {
                         self.stats.valid_plans_found += 1;
                     }
                 }
+                self.ctx.tree_dump.borrow_mut().set_outcome(
+                    node.tree_node_id,
+                    NodeOutcome::Complete {
+                        chain_len: node.branch.action_chain.len(),
+                        total_cost: node.branch.estimated_cost,
+                        fwd_ok,
+                    },
+                );
                 continue;
             }
 
             let expander = BranchExpander { ctx: self.ctx };
             let successors = expander.expand(&node);
+            if successors.is_empty() {
+                self.ctx.tree_dump.borrow_mut().set_outcome(
+                    node.tree_node_id,
+                    NodeOutcome::DeadEnd,
+                );
+            }
             self.controller.push_successors(successors);
         }
 
-        self.ctx.tree_dump.borrow_mut().exit_node(crate::debug_tree::NodeOutcome::Expanded);
         best_result
     }
 }

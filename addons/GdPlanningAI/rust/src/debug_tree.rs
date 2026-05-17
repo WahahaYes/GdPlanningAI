@@ -3,6 +3,16 @@
 //! When log level is [`LogLevel::Debug`], the planner builds a full search tree
 //! during backward search. The tree can be formatted as human-readable text or
 //! serialized for Godot-side debug tooling.
+//!
+//! ## Design
+//!
+//! Uses a flat, ID-based API designed for the iterative search loop:
+//! - Nodes are allocated in a flat `Vec` and referenced by opaque `usize` IDs.
+//! - `add_child(parent_id, ...)` creates a child node and returns its ID.
+//! - `set_outcome(id, outcome)` updates any node's outcome after processing.
+//! - `exclude_action(id, ...)` records excluded actions on a specific node.
+//!
+//! This avoids the cursor/stack model that only works with recursive traversal.
 
 use crate::logger::LogLevel;
 
@@ -23,7 +33,7 @@ pub struct GoalAttempt {
     pub goal_reward: f64,
     pub goal_preconditions: Vec<String>,
     pub already_satisfied: bool,
-    pub root: Option<SearchNode>,
+    pub root_id: usize,
     pub success: bool,
     pub plan_actions: Vec<String>,
     pub plan_cost: f64,
@@ -31,7 +41,7 @@ pub struct GoalAttempt {
 
 /// A single node in the search tree.
 #[derive(Clone, Debug)]
-pub struct SearchNode {
+pub struct TreeNode {
     /// `None` for the root node of a goal attempt.
     pub action_name: Option<String>,
     pub estimated_cost: f64,
@@ -41,7 +51,8 @@ pub struct SearchNode {
     pub excluded_actions: Vec<ExcludedAction>,
     pub outcome: NodeOutcome,
     pub forward_validation: Vec<FwdStep>,
-    pub children: Vec<SearchNode>,
+    /// IDs of child nodes (indexes into TreeDump.nodes).
+    pub children: Vec<usize>,
 }
 
 /// An action that was considered but excluded from candidates.
@@ -60,8 +71,6 @@ pub enum NodeOutcome {
     Pruned { reason: String },
     /// No candidates could satisfy the open needs.
     DeadEnd,
-    /// Candidate was skipped (e.g. pending effects couldn't resolve).
-    Skipped { reason: String },
     /// Branch completed — forward validation ran.
     Complete {
         chain_len: usize,
@@ -79,15 +88,15 @@ pub struct FwdStep {
     pub ok: bool,
 }
 
-// ── Stack-based tree builder ───────────────────────────────────────
+// ── ID-based tree builder ──────────────────────────────────────────
 
-/// Builds a [`SearchTree`] during planning via push/pop operations.
+/// Builds a [`SearchTree`] during iterative planning via flat node IDs.
 pub struct TreeDump {
     enabled: bool,
-    tree: SearchTree,
-    /// Stack of node indices navigating to the current cursor position.
-    node_stack: Vec<usize>,
-    /// Owning reference to the current node's children list (index into node_stack).
+    /// All tree nodes, indexed by their opaque ID.
+    nodes: Vec<TreeNode>,
+    /// Per-goal metadata (root_id indexes into `nodes`).
+    goal_attempts: Vec<GoalAttempt>,
     start_time: std::time::Instant,
 }
 
@@ -99,7 +108,6 @@ impl TreeDump {
     }
 
     /// Create a TreeDump that is always enabled, regardless of log level.
-    /// Useful for tests and programmatic tree inspection.
     pub fn new_forced() -> Self {
         Self::with_enabled(true)
     }
@@ -107,12 +115,8 @@ impl TreeDump {
     fn with_enabled(enabled: bool) -> Self {
         Self {
             enabled,
-            tree: SearchTree {
-                goal_attempts: Vec::new(),
-                elapsed_ms: 0.0,
-                branches_explored: 0,
-            },
-            node_stack: Vec::new(),
+            nodes: Vec::new(),
+            goal_attempts: Vec::new(),
             start_time: std::time::Instant::now(),
         }
     }
@@ -122,21 +126,25 @@ impl TreeDump {
         self.enabled
     }
 
-    /// Start a new goal attempt. Must be called before any node operations.
-    pub fn begin_goal(&mut self, name: &str, reward: f64, preconditions: &[String]) {
+    // ── Goal-level operations ──────────────────────────────────────
+
+    /// Start a new goal attempt. Returns the goal index.
+    pub fn begin_goal(&mut self, name: &str, reward: f64, preconditions: &[String]) -> usize {
         if !self.enabled {
-            return;
+            return 0;
         }
-        self.tree.goal_attempts.push(GoalAttempt {
+        let idx = self.goal_attempts.len();
+        self.goal_attempts.push(GoalAttempt {
             goal_name: name.to_string(),
             goal_reward: reward,
             goal_preconditions: preconditions.to_vec(),
             already_satisfied: false,
-            root: None,
+            root_id: 0,
             success: false,
             plan_actions: Vec::new(),
             plan_cost: 0.0,
         });
+        idx
     }
 
     /// Mark the current goal as already satisfied (no search needed).
@@ -144,7 +152,7 @@ impl TreeDump {
         if !self.enabled {
             return;
         }
-        if let Some(ga) = self.tree.goal_attempts.last_mut() {
+        if let Some(ga) = self.goal_attempts.last_mut() {
             ga.already_satisfied = true;
             ga.success = true;
         }
@@ -155,29 +163,59 @@ impl TreeDump {
         if !self.enabled {
             return;
         }
-        if let Some(ga) = self.tree.goal_attempts.last_mut() {
+        if let Some(ga) = self.goal_attempts.last_mut() {
             ga.success = success;
             ga.plan_actions = plan_actions.to_vec();
             ga.plan_cost = plan_cost;
         }
     }
 
-    /// Push a new node as a child of the current cursor.
-    ///
-    /// Pass `None` for `action_name` to create the root node of a goal attempt.
-    pub fn enter_node(
+    // ── Node-level operations ──────────────────────────────────────
+
+    /// Create the root node for the current goal. Returns the node ID.
+    /// Must be called after `begin_goal`.
+    pub fn add_root(
         &mut self,
-        action_name: Option<&str>,
+        open_pre: &[String],
+        open_req: &[String],
+    ) -> usize {
+        if !self.enabled {
+            return 0;
+        }
+        let id = self.nodes.len();
+        self.nodes.push(TreeNode {
+            action_name: None,
+            estimated_cost: 0.0,
+            accumulated_cost: 0.0,
+            open_preconditions: open_pre.to_vec(),
+            open_requirements: open_req.to_vec(),
+            excluded_actions: Vec::new(),
+            outcome: NodeOutcome::Expanded,
+            forward_validation: Vec::new(),
+            children: Vec::new(),
+        });
+        if let Some(ga) = self.goal_attempts.last_mut() {
+            ga.root_id = id;
+        }
+        id
+    }
+
+    /// Add a child node under `parent_id`. Returns the new node's ID.
+    pub fn add_child(
+        &mut self,
+        parent_id: usize,
+        action_name: &str,
         estimated_cost: f64,
         accumulated_cost: f64,
         open_pre: &[String],
         open_req: &[String],
-    ) {
+    ) -> usize {
         if !self.enabled {
-            return;
+            return 0;
         }
-        let node = SearchNode {
-            action_name: action_name.map(|s| s.to_string()),
+        let child_id = self.nodes.len();
+        self.nodes.push(TreeNode {
+            action_name: Some(action_name.to_string()),
             estimated_cost,
             accumulated_cost,
             open_preconditions: open_pre.to_vec(),
@@ -186,66 +224,71 @@ impl TreeDump {
             outcome: NodeOutcome::Expanded,
             forward_validation: Vec::new(),
             children: Vec::new(),
-        };
-        if self.node_stack.is_empty() {
-            self.tree.goal_attempts.last_mut().unwrap().root = Some(node);
-        } else {
-            let parent = self.current_node_mut();
-            parent.children.push(node);
+        });
+        if parent_id < self.nodes.len() {
+            self.nodes[parent_id].children.push(child_id);
         }
-        self.node_stack.push(0);
-        self.tree.branches_explored += 1;
+        child_id
     }
 
-    /// Pop the current node, setting its outcome.
-    pub fn exit_node(&mut self, outcome: NodeOutcome) {
+    /// Set the outcome of any node.
+    pub fn set_outcome(&mut self, node_id: usize, outcome: NodeOutcome) {
         if !self.enabled {
             return;
         }
-        self.current_node_mut().outcome = outcome;
-        self.node_stack.pop();
+        if let Some(node) = self.nodes.get_mut(node_id) {
+            node.outcome = outcome;
+        }
     }
 
-    /// Record an action that was excluded from candidates at the current node.
-    pub fn exclude_action(&mut self, action_name: &str, reason: &str) {
+    /// Record an excluded action on a node.
+    pub fn exclude_action(&mut self, node_id: usize, action_name: &str, reason: &str) {
         if !self.enabled {
             return;
         }
-        self.current_node_mut()
-            .excluded_actions
-            .push(ExcludedAction {
+        if let Some(node) = self.nodes.get_mut(node_id) {
+            node.excluded_actions.push(ExcludedAction {
                 action_name: action_name.to_string(),
                 reason: reason.to_string(),
             });
+        }
     }
 
-    /// Append a forward-validation step to the current node.
-    pub fn add_fwd_step(&mut self, action_name: &str, step: &str, detail: &str, ok: bool) {
+    /// Append a forward-validation step to a node.
+    pub fn add_fwd_step(
+        &mut self,
+        node_id: usize,
+        action_name: &str,
+        step: &str,
+        detail: &str,
+        ok: bool,
+    ) {
         if !self.enabled {
             return;
         }
-        self.current_node_mut().forward_validation.push(FwdStep {
-            action_name: action_name.to_string(),
-            step: step.to_string(),
-            detail: detail.to_string(),
-            ok,
-        });
+        if let Some(node) = self.nodes.get_mut(node_id) {
+            node.forward_validation.push(FwdStep {
+                action_name: action_name.to_string(),
+                step: step.to_string(),
+                detail: detail.to_string(),
+                ok,
+            });
+        }
     }
 
-    /// Consume the builder and return the completed [`SearchTree`].
-    pub fn finish(mut self) -> SearchTree {
-        self.tree.elapsed_ms = self.start_time.elapsed().as_secs_f64() * 1000.0;
-        self.tree
-    }
+    // ── Output ─────────────────────────────────────────────────────
 
     /// Format the tree as a human-readable string.
     pub fn format(&self) -> String {
-        if !self.enabled || self.tree.goal_attempts.is_empty() {
+        if !self.enabled || self.goal_attempts.is_empty() {
             return String::new();
         }
+        let elapsed_ms = self.start_time.elapsed().as_secs_f64() * 1000.0;
+        let branches = self.nodes.len();
+
         let mut output = String::new();
         output.push_str("\n========== PLANNER SEARCH TREE ==========\n");
-        for ga in &self.tree.goal_attempts {
+        for ga in &self.goal_attempts {
             output.push_str(&format!(
                 "Goal: '{}' (reward={:.1}) pre=[{}]\n",
                 ga.goal_name,
@@ -254,8 +297,8 @@ impl TreeDump {
             ));
             if ga.already_satisfied {
                 output.push_str("  └── ALREADY SATISFIED\n");
-            } else if let Some(ref root) = ga.root {
-                format_node(&mut output, root, 1, &mut vec![false; 32]);
+            } else if ga.root_id < self.nodes.len() {
+                format_node(&mut output, self, ga.root_id, 1, &mut vec![false; 64]);
             } else {
                 output.push_str("  └── (no search)\n");
             }
@@ -275,25 +318,25 @@ impl TreeDump {
         }
         output.push_str(&format!(
             "Branches: {} | Time: {:.1}ms\n",
-            self.tree.branches_explored, self.tree.elapsed_ms
+            branches, elapsed_ms
         ));
         output.push_str("==========================================\n");
         output
     }
-
-    fn current_node_mut(&mut self) -> &mut SearchNode {
-        let ga = self.tree.goal_attempts.last_mut().unwrap();
-        let root = ga.root.as_mut().unwrap();
-        let mut cursor = root;
-        for _ in 1..self.node_stack.len() {
-            cursor = cursor.children.last_mut().unwrap();
-        }
-        cursor
-    }
 }
 
-fn format_node(output: &mut String, node: &SearchNode, depth: usize, has_more: &mut [bool]) {
-    let indent: String = (0..depth - 1)
+// ── Formatting helpers ─────────────────────────────────────────────
+
+fn format_node(
+    output: &mut String,
+    tree: &TreeDump,
+    node_id: usize,
+    depth: usize,
+    has_more: &mut [bool],
+) {
+    let node = &tree.nodes[node_id];
+
+    let indent: String = (0..depth.saturating_sub(1))
         .map(|d| if has_more[d] { "│   " } else { "    " })
         .collect();
     let branch = if depth == 0 {
@@ -332,10 +375,6 @@ fn format_node(output: &mut String, node: &SearchNode, depth: usize, has_more: &
         NodeOutcome::DeadEnd => {
             output.push_str(&format!("{}DEAD END (no candidates)\n", prefix));
         }
-        NodeOutcome::Skipped { reason } => {
-            let name = node.action_name.as_deref().unwrap_or("?");
-            output.push_str(&format!("{}'{}' SKIPPED: {}\n", prefix, name, reason));
-        }
     }
 
     for ex in &node.excluded_actions {
@@ -354,8 +393,8 @@ fn format_node(output: &mut String, node: &SearchNode, depth: usize, has_more: &
     }
 
     let n = node.children.len();
-    for (i, child) in node.children.iter().enumerate() {
+    for (i, &child_id) in node.children.iter().enumerate() {
         has_more[depth] = i + 1 < n;
-        format_node(output, child, depth + 1, has_more);
+        format_node(output, tree, child_id, depth + 1, has_more);
     }
 }
