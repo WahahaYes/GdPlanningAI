@@ -41,7 +41,11 @@ impl<'ctx> PlannerEngine<'ctx> {
         let candidates = self.goal_selection.select_goals(self.ctx.goals);
 
         for candidate in &candidates {
-            if self.ctx.cancel_flag.load(std::sync::atomic::Ordering::Relaxed) {
+            if self
+                .ctx
+                .cancel_flag
+                .load(std::sync::atomic::Ordering::Relaxed)
+            {
                 return best_result;
             }
 
@@ -53,10 +57,11 @@ impl<'ctx> PlannerEngine<'ctx> {
                 .map(|p| format!("{:?}", p))
                 .collect();
 
-            self.ctx
-                .tree_dump
-                .borrow_mut()
-                .begin_goal(&goal.name, goal.reward, &goal_precond_names);
+            self.ctx.tree_dump.borrow_mut().begin_goal(
+                &goal.name,
+                goal.reward,
+                &goal_precond_names,
+            );
 
             let goal_satisfied = goal.desired_state.iter().all(|p| {
                 p.evaluate_builtin(self.ctx.initial_agent, self.ctx.initial_world)
@@ -85,12 +90,9 @@ impl<'ctx> PlannerEngine<'ctx> {
                     return Some(result);
                 }
                 if best_result.is_none()
-                    || self.goal_selection.is_better_than(
-                        goal.reward,
-                        0.0,
-                        best_reward,
-                        best_cost,
-                    )
+                    || self
+                        .goal_selection
+                        .is_better_than(goal.reward, 0.0, best_reward, best_cost)
                 {
                     best_reward = goal.reward;
                     best_cost = 0.0;
@@ -107,16 +109,19 @@ impl<'ctx> PlannerEngine<'ctx> {
                 self.ctx.initial_world,
             );
 
-            if let Some(result) = self.search_goal(root_branch, goal.original_index, &goal.desired_state) {
+            if let Some(result) =
+                self.search_goal(root_branch, goal.original_index, &goal.desired_state)
+            {
                 let plan_action_names: Vec<String> = result
                     .action_chain
                     .iter()
                     .map(|&idx| self.ctx.actions[idx as usize].name.clone())
                     .collect();
-                self.ctx
-                    .tree_dump
-                    .borrow_mut()
-                    .end_goal(true, &plan_action_names, result.total_cost);
+                self.ctx.tree_dump.borrow_mut().end_goal(
+                    true,
+                    &plan_action_names,
+                    result.total_cost,
+                );
                 if self.goal_selection.short_circuit_on_first_valid() {
                     return Some(result);
                 }
@@ -154,7 +159,8 @@ impl<'ctx> PlannerEngine<'ctx> {
             .iter()
             .map(|p| format!("{:?}", p))
             .collect();
-        let root_id = self.ctx
+        let root_id = self
+            .ctx
             .tree_dump
             .borrow_mut()
             .add_root(&open_precond_names, &[]);
@@ -170,13 +176,20 @@ impl<'ctx> PlannerEngine<'ctx> {
         let mut best_cost: f64 = f64::INFINITY;
 
         loop {
-            if self.policy.should_terminate(&self.stats, self.controller.as_ref()) {
+            if self
+                .policy
+                .should_terminate(&self.stats, self.controller.as_ref())
+            {
                 break;
             }
             let Some(node) = self.controller.pop_next() else {
                 break;
             };
-            if self.ctx.cancel_flag.load(std::sync::atomic::Ordering::Relaxed) {
+            if self
+                .ctx
+                .cancel_flag
+                .load(std::sync::atomic::Ordering::Relaxed)
+            {
                 return best_result;
             }
 
@@ -197,7 +210,9 @@ impl<'ctx> PlannerEngine<'ctx> {
                 self.stats.branches_pruned += 1;
                 self.ctx.tree_dump.borrow_mut().set_outcome(
                     node.tree_node_id,
-                    NodeOutcome::Pruned { reason: "max depth".to_string() },
+                    NodeOutcome::Pruned {
+                        reason: "max depth".to_string(),
+                    },
                 );
                 continue;
             }
@@ -213,13 +228,18 @@ impl<'ctx> PlannerEngine<'ctx> {
                 self.stats.branches_pruned += 1;
                 self.ctx.tree_dump.borrow_mut().set_outcome(
                     node.tree_node_id,
-                    NodeOutcome::Pruned { reason: format!("f_score {:.2} >= best {:.2}", f_score, best_cost) },
+                    NodeOutcome::Pruned {
+                        reason: format!("f_score {:.2} >= best {:.2}", f_score, best_cost),
+                    },
                 );
                 continue;
             }
 
             if node.branch.is_complete(self.ctx.request_tx) {
-                crate::log_debug!("Branch complete with {} actions, forward validating...", node.branch.action_chain.len());
+                crate::log_debug!(
+                    "Branch complete with {} actions, forward validating...",
+                    node.branch.action_chain.len()
+                );
                 let fwd_result = super::forward_validate(
                     &node.branch.action_chain,
                     &node.branch.action_bindings,
@@ -257,10 +277,10 @@ impl<'ctx> PlannerEngine<'ctx> {
             let expander = BranchExpander { ctx: self.ctx };
             let successors = expander.expand(&node);
             if successors.is_empty() {
-                self.ctx.tree_dump.borrow_mut().set_outcome(
-                    node.tree_node_id,
-                    NodeOutcome::DeadEnd,
-                );
+                self.ctx
+                    .tree_dump
+                    .borrow_mut()
+                    .set_outcome(node.tree_node_id, NodeOutcome::DeadEnd);
             }
             self.controller.push_successors(successors);
         }

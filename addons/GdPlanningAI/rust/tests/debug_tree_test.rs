@@ -4,7 +4,7 @@
 //! correct SearchTree with proper parent-child relationships, outcomes,
 //! excluded actions, and forward-validation steps.
 
-use gdplanningai_rust::debug_tree::{FwdStep, NodeOutcome, TreeNode, SearchTree, TreeDump};
+use gdplanningai_rust::debug_tree::{FwdStep, NodeOutcome, SearchTree, TreeDump, TreeNode};
 
 // ── Helpers ────────────────────────────────────────────────────────
 
@@ -71,11 +71,14 @@ fn single_candidate_completes() {
     let root_id = dump.add_root(&["need_x".to_string()], &[]);
 
     let child_id = dump.add_child(root_id, "do_x", 3.0, 3.0, &[], &[]);
-    dump.set_outcome(child_id, NodeOutcome::Complete {
-        chain_len: 1,
-        total_cost: 3.0,
-        fwd_ok: true,
-    });
+    dump.set_outcome(
+        child_id,
+        NodeOutcome::Complete {
+            chain_len: 1,
+            total_cost: 3.0,
+            fwd_ok: true,
+        },
+    );
 
     dump.end_goal(true, &["do_x".to_string()], 3.0);
 
@@ -92,9 +95,12 @@ fn candidate_pruned_by_cost() {
     let root_id = dump.add_root(&["need_x".to_string()], &[]);
 
     let child_id = dump.add_child(root_id, "expensive_action", 100.0, 100.0, &[], &[]);
-    dump.set_outcome(child_id, NodeOutcome::Pruned {
-        reason: "cost 100.00 >= best 5.00".to_string(),
-    });
+    dump.set_outcome(
+        child_id,
+        NodeOutcome::Pruned {
+            reason: "cost 100.00 >= best 5.00".to_string(),
+        },
+    );
 
     dump.end_goal(false, &[], 0.0);
 
@@ -109,8 +115,16 @@ fn excluded_actions_attached_to_node() {
     dump.begin_goal("goal", 10.0, &["need_x".to_string()]);
     let root_id = dump.add_root(&["need_x".to_string()], &[]);
 
-    dump.exclude_action(root_id, "no_effect_action", "no effect to satisfy open preconditions");
-    dump.exclude_action(root_id, "freed_action", "dependencies invalid (object freed)");
+    dump.exclude_action(
+        root_id,
+        "no_effect_action",
+        "no effect to satisfy open preconditions",
+    );
+    dump.exclude_action(
+        root_id,
+        "freed_action",
+        "dependencies invalid (object freed)",
+    );
 
     dump.set_outcome(root_id, NodeOutcome::DeadEnd);
     dump.end_goal(false, &[], 0.0);
@@ -131,11 +145,14 @@ fn forward_validation_steps_attached_to_completing_node() {
     dump.add_fwd_step(child_id, "do_x", "precondition", "1 checks passed", true);
     dump.add_fwd_step(child_id, "do_x", "cost", "3.00", true);
     dump.add_fwd_step(child_id, "GOAL", "goal_check", "all satisfied", true);
-    dump.set_outcome(child_id, NodeOutcome::Complete {
-        chain_len: 1,
-        total_cost: 3.0,
-        fwd_ok: true,
-    });
+    dump.set_outcome(
+        child_id,
+        NodeOutcome::Complete {
+            chain_len: 1,
+            total_cost: 3.0,
+            fwd_ok: true,
+        },
+    );
 
     dump.end_goal(true, &["do_x".to_string()], 3.0);
 
@@ -159,11 +176,14 @@ fn multiple_goal_attempts() {
     dump.begin_goal("goal_b", 10.0, &["pre_b".to_string()]);
     let root_b = dump.add_root(&["pre_b".to_string()], &[]);
     let child_b = dump.add_child(root_b, "do_b", 2.0, 2.0, &[], &[]);
-    dump.set_outcome(child_b, NodeOutcome::Complete {
-        chain_len: 1,
-        total_cost: 2.0,
-        fwd_ok: true,
-    });
+    dump.set_outcome(
+        child_b,
+        NodeOutcome::Complete {
+            chain_len: 1,
+            total_cost: 2.0,
+            fwd_ok: true,
+        },
+    );
     dump.end_goal(true, &["do_b".to_string()], 2.0);
 
     let output = dump.format();
@@ -183,14 +203,22 @@ fn branches_counted_by_nodes() {
     dump.set_outcome(a, NodeOutcome::DeadEnd);
 
     let b = dump.add_child(root_id, "b", 2.0, 2.0, &[], &[]);
-    dump.set_outcome(b, NodeOutcome::Pruned { reason: "max depth".to_string() });
+    dump.set_outcome(
+        b,
+        NodeOutcome::Pruned {
+            reason: "max depth".to_string(),
+        },
+    );
 
     let c = dump.add_child(root_id, "c", 3.0, 3.0, &[], &[]);
-    dump.set_outcome(c, NodeOutcome::Complete {
-        chain_len: 1,
-        total_cost: 3.0,
-        fwd_ok: true,
-    });
+    dump.set_outcome(
+        c,
+        NodeOutcome::Complete {
+            chain_len: 1,
+            total_cost: 3.0,
+            fwd_ok: true,
+        },
+    );
 
     dump.end_goal(true, &["c".to_string()], 3.0);
 
@@ -205,11 +233,14 @@ fn format_produces_output() {
     dump.begin_goal("goal", 10.0, &["need_x".to_string()]);
     let root_id = dump.add_root(&["need_x".to_string()], &[]);
     let child_id = dump.add_child(root_id, "do_x", 3.0, 3.0, &[], &[]);
-    dump.set_outcome(child_id, NodeOutcome::Complete {
-        chain_len: 1,
-        total_cost: 3.0,
-        fwd_ok: true,
-    });
+    dump.set_outcome(
+        child_id,
+        NodeOutcome::Complete {
+            chain_len: 1,
+            total_cost: 3.0,
+            fwd_ok: true,
+        },
+    );
     dump.end_goal(true, &["do_x".to_string()], 3.0);
 
     let output = dump.format();
@@ -236,11 +267,14 @@ fn nested_candidates_build_correct_tree() {
     );
 
     let inner_id = dump.add_child(outer_id, "inner_action", 1.0, 3.0, &[], &[]);
-    dump.set_outcome(inner_id, NodeOutcome::Complete {
-        chain_len: 2,
-        total_cost: 3.0,
-        fwd_ok: true,
-    });
+    dump.set_outcome(
+        inner_id,
+        NodeOutcome::Complete {
+            chain_len: 2,
+            total_cost: 3.0,
+            fwd_ok: true,
+        },
+    );
 
     dump.end_goal(
         true,

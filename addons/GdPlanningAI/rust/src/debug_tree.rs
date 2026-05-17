@@ -174,11 +174,7 @@ impl TreeDump {
 
     /// Create the root node for the current goal. Returns the node ID.
     /// Must be called after `begin_goal`.
-    pub fn add_root(
-        &mut self,
-        open_pre: &[String],
-        open_req: &[String],
-    ) -> usize {
+    pub fn add_root(&mut self, open_pre: &[String], open_req: &[String]) -> usize {
         if !self.enabled {
             return 0;
         }

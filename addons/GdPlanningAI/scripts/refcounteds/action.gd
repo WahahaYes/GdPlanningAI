@@ -4,8 +4,7 @@ extends RefCounted
 ## instantaneously.  After planning, actions are carried out by the agent in real time.
 
 ## Return states for actions during true simulation.
-enum Status {FAILURE, RUNNING, SUCCESS}
-
+enum Status { FAILURE, RUNNING, SUCCESS }
 
 ## Chain position when this action instance appears in an executed plan.
 ## Used to isolate state between multiple occurrences of the same action.

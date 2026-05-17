@@ -169,11 +169,8 @@ impl<'ctx> BranchExpander<'ctx> {
 
             let min_action_cost = self.ctx.min_action_cost;
             let min_provision_cost = self.ctx.min_provision_cost;
-            let estimated_remaining = heuristic::estimate_remaining(
-                &new_branch,
-                min_action_cost,
-                min_provision_cost,
-            );
+            let estimated_remaining =
+                heuristic::estimate_remaining(&new_branch, min_action_cost, min_provision_cost);
 
             let open_precond_names: Vec<String> = new_branch
                 .open_preconditions
@@ -213,9 +210,11 @@ pub fn find_candidate_actions(
     let mut candidates: Vec<ActionCandidate> = vec![];
     for (idx, action) in ctx.actions.iter().enumerate() {
         if !super::action_is_valid(action, ctx) {
-            ctx.tree_dump
-                .borrow_mut()
-                .exclude_action(tree_node_id, &action.name, "dependencies invalid (object freed)");
+            ctx.tree_dump.borrow_mut().exclude_action(
+                tree_node_id,
+                &action.name,
+                "dependencies invalid (object freed)",
+            );
             continue;
         }
 
@@ -254,10 +253,7 @@ pub fn find_candidate_actions(
     candidates
 }
 
-pub fn insertion_index_for_candidate(
-    branch: &PlanBranch,
-    candidate: &ActionCandidate,
-) -> usize {
+pub fn insertion_index_for_candidate(branch: &PlanBranch, candidate: &ActionCandidate) -> usize {
     if candidate.satisfied_requirement_indices.is_empty() {
         return 0;
     }
@@ -336,14 +332,13 @@ fn action_candidates_for_needs(
                 });
             }
         } else if !action.requirements.is_empty() {
-            let potential_satisfied_indices =
-                potential_bound_effect_satisfied_precondition_indices(
-                    action,
-                    &branch.open_preconditions,
-                    &branch.bound_provisions,
-                    branch,
-                    ctx,
-                );
+            let potential_satisfied_indices = potential_bound_effect_satisfied_precondition_indices(
+                action,
+                &branch.open_preconditions,
+                &branch.bound_provisions,
+                branch,
+                ctx,
+            );
             let estimated_cost = estimate_action_cost(action, branch, ctx);
             if estimated_cost != f64::INFINITY {
                 for precondition_idx in potential_satisfied_indices {
@@ -497,11 +492,7 @@ fn bound_value_for_requirement(
         })
 }
 
-fn estimate_action_cost(
-    action: &ActionSpec,
-    branch: &PlanBranch,
-    ctx: &SearchContext,
-) -> f64 {
+fn estimate_action_cost(action: &ActionSpec, branch: &PlanBranch, ctx: &SearchContext) -> f64 {
     estimate_action_cost_with_binding(action, branch, ctx, &None)
 }
 

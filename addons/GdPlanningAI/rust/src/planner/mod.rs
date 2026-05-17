@@ -81,10 +81,7 @@ pub fn run_plan(
 
     match result {
         Some(plan) => {
-            crate::log_debug!(
-                "Found valid plan with cost {:.2}",
-                plan.total_cost
-            );
+            crate::log_debug!("Found valid plan with cost {:.2}", plan.total_cost);
             let tree_output = tree_dump.borrow().format();
             if !tree_output.is_empty() {
                 crate::log_debug!("{}", tree_output);
