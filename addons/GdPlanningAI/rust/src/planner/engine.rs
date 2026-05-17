@@ -1,7 +1,11 @@
+//! Core planning engine implementation.
+//!
+//! Orchestrates the search process across multiple goals and manages the
+//! [`SearchController`] and [`TerminationPolicy`].
+
 use crate::debug_tree::NodeOutcome;
 use crate::plan_tree::PlanResult;
 use crate::plan_types::*;
-use std::sync::{Arc, atomic::AtomicBool};
 
 use super::controller::{SearchController, SearchNode};
 use super::expander::{BranchExpander, PlanBranch, SearchContext};
@@ -9,6 +13,7 @@ use super::goal_selection::GoalSelection;
 use super::policy::TerminationPolicy;
 use super::stats::SearchStats;
 
+/// Main planner state and logic.
 pub struct PlannerEngine<'ctx> {
     ctx: &'ctx SearchContext<'ctx>,
     controller: Box<dyn SearchController + 'ctx>,
@@ -18,6 +23,7 @@ pub struct PlannerEngine<'ctx> {
 }
 
 impl<'ctx> PlannerEngine<'ctx> {
+    /// Create a new engine instance.
     pub fn new(
         ctx: &'ctx SearchContext<'ctx>,
         controller: Box<dyn SearchController + 'ctx>,
@@ -33,6 +39,7 @@ impl<'ctx> PlannerEngine<'ctx> {
         }
     }
 
+    /// Execute the planning process.
     pub fn run(&mut self) -> Option<PlanResult> {
         let mut best_result: Option<PlanResult> = None;
         let mut best_reward: f64 = 0.0;
@@ -247,21 +254,21 @@ impl<'ctx> PlannerEngine<'ctx> {
                     goal_preconditions,
                 );
                 let fwd_ok = fwd_result.is_some();
-                if let Some((action_chain, total_cost)) = fwd_result {
-                    if total_cost < best_cost {
-                        best_cost = total_cost;
-                        best_result = Some(PlanResult {
-                            success: true,
-                            action_chain,
-                            total_cost,
-                            goal_index: goal_index as i64,
-                            deferred_action_indices: vec![],
-                            action_bindings: node.branch.action_bindings.clone(),
-                        });
-                        self.policy.on_valid_plan_found(best_cost, &self.stats);
-                        self.stats.best_cost = best_cost;
-                        self.stats.valid_plans_found += 1;
-                    }
+                if let Some((action_chain, total_cost)) = fwd_result
+                    .filter(|&(_, total_cost)| total_cost < best_cost)
+                {
+                    best_cost = total_cost;
+                    best_result = Some(PlanResult {
+                        success: true,
+                        action_chain,
+                        total_cost,
+                        goal_index: goal_index as i64,
+                        deferred_action_indices: vec![],
+                        action_bindings: node.branch.action_bindings.clone(),
+                    });
+                    self.policy.on_valid_plan_found(best_cost, &self.stats);
+                    self.stats.best_cost = best_cost;
+                    self.stats.valid_plans_found += 1;
                 }
                 self.ctx.tree_dump.borrow_mut().set_outcome(
                     node.tree_node_id,

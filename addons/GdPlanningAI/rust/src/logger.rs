@@ -28,8 +28,8 @@ pub struct LogMessage {
 
 /// Global channel for sending log messages from planner threads to main thread.
 /// Created lazily on first use.
-static LOG_CHANNEL: OnceLock<(Mutex<Sender<LogMessage>>, Mutex<Receiver<LogMessage>>)> =
-    OnceLock::new();
+type LogChannel = (Mutex<Sender<LogMessage>>, Mutex<Receiver<LogMessage>>);
+static LOG_CHANNEL: OnceLock<LogChannel> = OnceLock::new();
 
 /// Initialize the log channel. Call this once during initialization.
 pub fn init_log_channel() {

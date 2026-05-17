@@ -1,6 +1,10 @@
+//! Plan branch expansion and candidate search.
+//!
+//! Handles the discovery of actions that can satisfy open preconditions or requirements,
+//! and manages the resulting search tree successors.
+
 use crate::debug_tree::TreeDump;
 use crate::plan_types::*;
-use crate::precondition::PreconditionTarget;
 use crate::requirement::{ProvisionSpec, RequirementSpec};
 use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use std::cell::RefCell;
@@ -10,6 +14,7 @@ use std::sync::{Arc, atomic::AtomicBool};
 use super::controller::SearchNode;
 use super::heuristic;
 
+/// Represents a partially constructed plan with open needs.
 #[derive(Clone)]
 pub struct PlanBranch {
     pub open_preconditions: Vec<PreconditionSpec>,
@@ -24,12 +29,14 @@ pub struct PlanBranch {
     pub accumulated_world: BlackboardSnapshot,
 }
 
+/// A claim for a state effect that is pending requirement satisfaction.
 #[derive(Clone)]
 pub struct PendingEffectClaim {
     pub action_idx: usize,
     pub preconditions: Vec<PreconditionSpec>,
 }
 
+/// A candidate action that can partially satisfy a plan branch's needs.
 pub struct ActionCandidate {
     pub action_idx: usize,
     pub estimated_cost: f64,
@@ -39,6 +46,7 @@ pub struct ActionCandidate {
 }
 
 impl PlanBranch {
+    /// Create a new root plan branch.
     pub fn new(
         goal_preconditions: &[PreconditionSpec],
         initial_provisions: &[ProvisionSpec],
@@ -59,6 +67,7 @@ impl PlanBranch {
         }
     }
 
+    /// Returns true if all preconditions and requirements are satisfied.
     pub fn is_complete(&self, request_tx: &Sender<CallbackRequest>) -> bool {
         if !self.pending_effects.is_empty() {
             return false;
@@ -85,11 +94,13 @@ impl PlanBranch {
     }
 }
 
+/// Handles expansion of search nodes into successors.
 pub struct BranchExpander<'ctx> {
     pub ctx: &'ctx SearchContext<'ctx>,
 }
 
 impl<'ctx> BranchExpander<'ctx> {
+    /// Expand a search node into candidate successor nodes.
     pub fn expand(&self, node: &SearchNode) -> Vec<SearchNode> {
         if node.branch.is_complete(self.ctx.request_tx) {
             return vec![];
@@ -202,6 +213,7 @@ impl<'ctx> BranchExpander<'ctx> {
     }
 }
 
+/// Find all candidate actions that can satisfy the open needs of a branch.
 pub fn find_candidate_actions(
     branch: &PlanBranch,
     tree_node_id: usize,
@@ -253,6 +265,7 @@ pub fn find_candidate_actions(
     candidates
 }
 
+/// Determine where in the action chain a candidate should be inserted.
 pub fn insertion_index_for_candidate(branch: &PlanBranch, candidate: &ActionCandidate) -> usize {
     if candidate.satisfied_requirement_indices.is_empty() {
         return 0;
@@ -268,6 +281,7 @@ pub fn insertion_index_for_candidate(branch: &PlanBranch, candidate: &ActionCand
         .unwrap_or(0)
 }
 
+/// Shift stored positions in the branch to accommodate a new insertion.
 pub fn shift_branch_positions_for_insert(branch: &mut PlanBranch, insert_pos: usize) {
     let insert_pos = insert_pos as i64;
     for (chain_position, _, _) in &mut branch.action_bindings {
@@ -572,6 +586,7 @@ fn extract_binding_for_requirement(
     }
 }
 
+/// Update open needs and requirements after inserting an action.
 pub fn update_open_needs(
     branch: &mut PlanBranch,
     candidate: &ActionCandidate,
@@ -772,6 +787,7 @@ fn preconditions_equal(a: &PreconditionSpec, b: &PreconditionSpec) -> bool {
     }
 }
 
+/// Shared context for the search process.
 pub struct SearchContext<'a> {
     pub actions: &'a [ActionSpec],
     pub goals: &'a [GoalSpec],

@@ -1,5 +1,11 @@
+//! Search statistics tracking.
+//!
+//! Tracks metrics such as branches expanded, pruned, and depth reached during
+//! the search process.
+
 use std::time::Instant;
 
+/// Collection of search performance and outcome metrics.
 #[derive(Debug)]
 pub struct SearchStats {
     pub branches_expanded: usize,
@@ -11,6 +17,7 @@ pub struct SearchStats {
 }
 
 impl SearchStats {
+    /// Create a new stats instance starting from now.
     pub fn new() -> Self {
         Self {
             branches_expanded: 0,
@@ -22,7 +29,14 @@ impl SearchStats {
         }
     }
 
+    /// Returns elapsed time in milliseconds since creation.
     pub fn elapsed_ms(&self) -> u64 {
         self.start_time.elapsed().as_millis() as u64
+    }
+}
+
+impl Default for SearchStats {
+    fn default() -> Self {
+        Self::new()
     }
 }

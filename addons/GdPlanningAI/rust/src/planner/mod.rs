@@ -1,3 +1,8 @@
+//! Modular planner implementation.
+//!
+//! Provides the top-level [`run_plan`] entry point and sub-modules for
+//! search control, goal selection, expansion, and termination policies.
+
 pub mod controller;
 pub mod engine;
 pub mod expander;
@@ -9,7 +14,6 @@ pub mod stats;
 use crate::debug_tree::TreeDump;
 use crate::plan_tree::PlanResult;
 use crate::plan_types::*;
-use crate::precondition::PreconditionTarget;
 use crate::requirement::{ProvisionSpec, RequirementSpec, extract_initial_provisions};
 use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use std::cell::RefCell;
@@ -25,6 +29,10 @@ use policy::ExhaustivePolicy;
 pub use engine::PlannerEngine as PlannerEngineType;
 pub use expander::{PlanBranch, SearchContext as SearchContextType};
 
+/// Top-level entry point for backward-chaining plan generation.
+///
+/// Orchestrates the planning process: goal selection, search engine initialization,
+/// and returning the final [`PlanResult`].
 pub fn run_plan(
     agent: BlackboardSnapshot,
     world: BlackboardSnapshot,

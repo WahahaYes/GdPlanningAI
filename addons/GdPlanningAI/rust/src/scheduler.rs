@@ -86,14 +86,12 @@ impl GdPAIPlanScheduler {
         // Process pending log messages from planner threads (from previous frames)
         crate::logger::process_logs();
 
-        let active_count = self.active_jobs.iter().filter(|j| !j.done).count();
-        let total_count = self.active_jobs.len();
+        // let active_count = self.active_jobs.iter().filter(|j| !j.done).count();
+        // let total_count = self.active_jobs.len();
 
         // Process each job's pending callbacks using its own callable registry.
         for job in self.active_jobs.iter_mut().filter(|j| !j.done) {
-            let mut callback_count = 0;
             while let Ok(req) = job.request_rx.try_recv() {
-                callback_count += 1;
                 let callable = &job.callable_registry[req.callable_id];
                 let response = dispatch_callback(callable, req.kind);
                 let _ = req.response_tx.send(response);

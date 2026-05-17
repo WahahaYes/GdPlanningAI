@@ -120,7 +120,15 @@ impl TreeDump {
             start_time: std::time::Instant::now(),
         }
     }
+}
 
+impl Default for TreeDump {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl TreeDump {
     /// Returns true if tree recording is active.
     pub fn is_enabled(&self) -> bool {
         self.enabled
@@ -294,7 +302,7 @@ impl TreeDump {
             if ga.already_satisfied {
                 output.push_str("  └── ALREADY SATISFIED\n");
             } else if ga.root_id < self.nodes.len() {
-                format_node(&mut output, self, ga.root_id, 1, &mut vec![false; 64]);
+                format_node(&mut output, self, ga.root_id, 1, &mut [false; 64]);
             } else {
                 output.push_str("  └── (no search)\n");
             }
