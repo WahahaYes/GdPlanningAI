@@ -73,6 +73,7 @@ impl<'a> PlannerEngine<'a> {
     }
 
     fn search_goal(&mut self, goal: &GoalSpec) -> Option<PlanResult> {
+        log_info!("PlannerEngine: Searching for goal '{}'", goal.name);
         let mut controller = AStarController::new();
         
         let root = PlanBranch::new(
@@ -82,6 +83,11 @@ impl<'a> PlannerEngine<'a> {
             self.ctx.initial_world,
             self.ctx.request_tx,
         );
+
+        log_info!("  Root branch: {} open preconds, {} open requirements", root.open_preconditions.len(), root.open_requirements.len());
+        for (i, p) in root.open_preconditions.iter().enumerate() {
+            log_info!("    Precond {}: {:?}", i, p);
+        }
 
         if root.open_preconditions.is_empty() && root.open_requirements.is_empty() {
             // Check if goal is satisfied in initial state deep simulation
@@ -121,7 +127,10 @@ impl<'a> PlannerEngine<'a> {
                 return None;
             }
 
+            log_info!("A* Iteration: pop node with chain length {}", node.branch.action_chain.len());
+
             if node.branch.is_complete(self.ctx.initial_agent, self.ctx.initial_world, self.ctx.request_tx) {
+                log_info!("A* SUCCESS! Returning plan for goal '{}'", goal.name);
                 return Some(PlanResult {
                     success: true,
                     action_chain: node.branch.action_chain,

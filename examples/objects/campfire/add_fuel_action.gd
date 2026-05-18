@@ -45,9 +45,11 @@ func get_action_cost(
 	world_state: GdPAIBlackboard,
 ) -> float:
 	if not is_instance_valid(campfire_ref):
+		push_warning("[DEBUG] AddFuelAction.get_action_cost: campfire_ref is invalid")
 		return INF
 	var campfire: SimObjectProxy = world_state.get_object_for(campfire_ref)
 	if campfire == null:
+		push_warning("[DEBUG] AddFuelAction.get_action_cost: campfire proxy is null for UID " + str(campfire_ref.instance_id()))
 		return INF
 	var current_fuel: Variant = campfire.get_property("current_fuel")
 	if current_fuel == null or float(current_fuel) >= 100.0:
@@ -64,6 +66,13 @@ func simulate_effect(
 		var current_fuel: Variant = campfire.get_property("current_fuel")
 		if current_fuel != null:
 			campfire.set_property("current_fuel", min(100.0, float(current_fuel) + fuel_per_wood))
+
+	# Action-Led Hypothetical Progress:
+	# This action has a symbolic requirement for 'held_item' == 'wood'.
+	# During the Discovery phase of backward planning, the requirement may not
+	# yet be physically satisfied in the blackboard. We report the effect
+	# anyway so the planner recognizes this action as a candidate for goals
+	# that depend on campfire fuel.
 	agent_blackboard.set_property("held_item", "")
 
 

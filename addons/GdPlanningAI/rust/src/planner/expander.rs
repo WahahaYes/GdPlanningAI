@@ -157,6 +157,13 @@ impl<'a> BranchExpander<'a> {
                 for prov in &action.provisions {
                     if crate::requirement::provision_satisfies_requirement(prov, req, Some(self.ctx.initial_world)) {
                         if let Some(binding) = extract_binding(prov, req) {
+                            // For wildcard provisions, also inject the binding into the
+                            // provider's position (0 = newly prepended action) so it knows
+                            // the concrete target it must fulfill (e.g. GoToAction needs the
+                            // target location injected before pre_perform_action runs).
+                            if matches!(prov, ProvisionSpec::FactWildcard { .. }) {
+                                new_bindings.push((0, binding.0.clone(), binding.1.clone()));
+                            }
                             new_bindings.push((new_consumer_pos as i64, binding.0, binding.1));
                         }
                     }
@@ -195,12 +202,13 @@ impl<'a> BranchExpander<'a> {
                 current_agent = res.agent;
                 current_world = res.world;
                 total_cost += res.cost;
-            } else if pos > 0 {
-                // If a non-head action fails its grounding check, this branch is invalid.
-                log_debug!("Ripple failed at pos {} (action: {}) - discarding branch", pos, action.name);
-                return None;
             } else {
-                log_debug!("Ripple: head action {} simulation failed even with optimistic skip", action.name);
+                if !skip_validity {
+                    log_debug!("Ripple: Action {} at pos {} failed validity - discarding branch", action.name, pos);
+                } else {
+                    log_debug!("Ripple: Action {} at pos {} (ungrounded) failed simulation - discarding branch", action.name, pos);
+                }
+                return None;
             }
             
             // Collect provisions from THIS action for the NEXT one
@@ -230,6 +238,7 @@ impl<'a> BranchExpander<'a> {
         new_branch.action_bindings = new_bindings;
         new_branch.final_state_agent = current_agent;
         new_branch.final_state_world = current_world;
+        new_branch.bound_provisions = current_provisions;
         new_branch.cost = total_cost;
 
         // Update requirements: shift existing and remove satisfied

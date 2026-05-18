@@ -11,6 +11,9 @@ const SHAKE_DURATION: float = 0.5
 var fruit_tree: FruitTreeObject
 ## Pre-computed hunger gain for planning purposes (minimum fruit × hunger_value).
 var _sim_hunger_gain: float
+## Planning cost for shaking the tree. Intentionally high to discourage the planner
+## from choosing this over real food items that are already available in the world.
+var shake_cost: float = 5.0
 
 
 # Override
@@ -30,8 +33,7 @@ func get_action_cost(
 	_agent_blackboard: GdPAIBlackboard,
 	_world_state: GdPAIBlackboard,
 ) -> float:
-	# Interaction cost is minimal - navigation is handled by GoToAction
-	return 1.0
+	return shake_cost
 
 
 # Override
@@ -41,18 +43,15 @@ func get_validity_checks() -> Array[Precondition]:
 	checks.append(Precondition.check_is_object_valid(fruit_tree))
 	checks.append(Precondition.agent_property_greater_than("hunger", 0.0))
 
+	# Replace custom with deps with a simpler approach or fix the existing one.
+	# For now, let's see if we can use a simpler custom precondition.
 	var tree_not_on_cooldown = func(_bb: GdPAIBlackboard, _ws: GdPAIBlackboard) -> bool:
-		return not fruit_tree.is_on_cooldown
+		if is_instance_valid(fruit_tree):
+			return not fruit_tree.is_on_cooldown
+		return false
 
-	checks.append(Precondition.custom_with_deps(tree_not_on_cooldown, [fruit_tree]))
+	checks.append(Precondition.custom(tree_not_on_cooldown))
 	return checks
-
-
-# Override
-func get_provisions() -> Array[ProvisionSpec]:
-	# ShakeTree provides an 'is_food' fact indicating that food (banana)
-	# will be available in the world to be picked up.
-	return [ProvisionSpec.fact("is_food", [])]
 
 
 # Override

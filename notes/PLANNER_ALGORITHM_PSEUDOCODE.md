@@ -5,7 +5,7 @@
 ### PlanBranch
 - `action_chain`: Ordered list of action indices: `[A, B, C]`
 - `final_state`: The deep-simulated state after the last action in the chain (`C`).
-- `open_preconditions`: Physical needs of the **first** action (`A`) not met by `InitialState`. (The **Frontier**).
+- `open_preconditions`: Accumulated physical needs from **anywhere** in the chain that are not yet met by `InitialState`. (The **Frontier**). A branch is only complete when this is empty — preconditions from multiple chain positions may coexist here.
 - `open_requirements`: Symbolic needs (Potato, Axe) from **anywhere** in the chain.
   - Stored as `(consumer_pos, RequirementSpec)`.
 - `action_bindings`: List of `(pos, key, values: Vec<VariantSnapshot>)` to be passed to Godot during simulation. Supports strings, integers, and object references.
@@ -78,16 +78,17 @@ When prepending `Action P` to `Branch [A, B, C]`:
      - Shift `consumer_pos` of remaining requirements by +1.
      - Add remaining `P.requirements` at `pos=0`.
    - **Preconditions (The Frontier)**:
-     - Clear the old `open_preconditions` (P is now responsible for them).
+     - Remove from `open_preconditions` only the entries that `P` satisfies (from `satisfied_precondition_indices`).
      - Check `P.preconditions` against `InitialState` (Deep Check).
-     - Any NOT met become the **new** `open_preconditions`.
+     - Any NOT met are **appended** to `open_preconditions`.
+     - Note: Unsatisfied preconditions from prior chain positions remain open until a future predecessor resolves them. The ripple validates that these are genuinely met when the full chain is executed.
 
 ---
 
 ## 4. Completion Check (`is_complete`)
 
 A branch is complete if:
-1. `open_preconditions` is empty (The plan's first step is grounded in the Present).
+1. `open_preconditions` is empty (All accumulated physical needs across the chain are grounded in the Present).
 2. `open_requirements` is empty (All symbolic dependencies are solved).
 3. **Deep Goal Check**: The `final_state` satisfies all `Goal.preconditions`.
 
@@ -98,14 +99,16 @@ A branch is complete if:
 To find actions that *could* help, we use a two-layer check:
 
 1. **Symbolic Layer**: 
-   - Does `Action A` have a provision that matches an `open_requirement`?
+   - Does `Action A` have a provision that matches **any** `open_requirement`?
    - **Context-Aware**: `BindingInSet` requirements check the world state for group membership.
    - Multiple satisfaction: An action can satisfy multiple open requirements at once.
 2. **Optimistic Physical Layer**:
    - **Hypothetical State**: Create a state where concrete `BindingEquals` requirements are applied.
    - **Action-Led Hypothetical Progress**: Run `A.simulate_effect(HypotheticalState)` with **Strict=False**.
    - **Requirement Responsibility**: Actions that declare symbolic requirements (Existence, Set membership) should report their effects during simulation even if the requirement is not physically fulfilled in the snapshot.
-   - If the effect satisfied any `open_precondition`, it is a candidate.
+   - If the effect satisfies **any** `open_precondition`, it is a candidate.
+
+**Qualification rule**: An action qualifies as a candidate if it satisfies **at least one** open precondition OR **at least one** open requirement. It does NOT need to resolve all of them — that is the termination criterion (`is_complete`), not the candidate criterion.
 
 **Cost Heuristic**:
 - `est_cost = 1.0` if physical needs satisfied.

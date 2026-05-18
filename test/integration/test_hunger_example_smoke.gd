@@ -143,6 +143,15 @@ func test_real_hunger_example_shakes_tree_then_picks_up_food() -> void:
 	var food: FoodObject = await _wait_for_fruit()
 	assert_not_null(food, "Shake Tree should drop a real FoodObject")
 
+	# Wait extra frames to ensure world state reflects the new fruit
+	await _pump_frames(10)
+
+	var world_actions: Array[Action] = agent._collect_worldly_actions()
+	var action_titles: Array[String] = []
+	for wa in world_actions:
+		action_titles.append(wa.get_title())
+	assert_true(action_titles.has("Pick Up Item"), "Agent should see world actions from dropped fruit (bananas), found: %s" % str(action_titles))
+
 	agent.blackboard.set_property("hunger", 30.0)
 	var pickup_plan: Array[Action] = await _start_plan_and_wait(agent)
 	assert_false(pickup_plan.is_empty(), "Agent should plan after food drops")

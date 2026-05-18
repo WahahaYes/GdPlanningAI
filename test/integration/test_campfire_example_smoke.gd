@@ -79,7 +79,7 @@ func _setup_campfire_scene() -> Dictionary:
 		scene_agent.config.planning_strategy = GdPAIAgentConfig.PlanningStrategy.ON_DEMAND
 	add_child_autofree(scene)
 
-	await _pump_frames(3)
+	await _pump_frames(10)
 
 	var campfire_entity: Node = scene.get_node("Campfire")
 	var agent_entity: Node = scene.get_node("Agent1")
