@@ -241,11 +241,50 @@ fn build_action_specs(
         .iter_shared()
         .filter_map(|dict| {
             let name = dict.get("name")?.try_to::<String>().ok()?;
-            let cost_callable = dict.get("cost_callable")?.try_to::<Callable>().ok()?;
-            let effect_callable = dict.get("effect_callable")?.try_to::<Callable>().ok()?;
-
-            let cost_id = register_callable(registry, cost_callable);
-            let effect_id = register_callable(registry, effect_callable);
+            
+            let cost_val = dict.get("cost_callable");
+            if cost_val.is_none() {
+                log_debug!("Action '{}': 'cost_callable' key missing", name);
+            }
+            let cost_id = cost_val.as_ref()
+                .and_then(|v| {
+                    if v.is_nil() {
+                        log_debug!("Action '{}': 'cost_callable' is Nil", name);
+                        None
+                    } else if let Ok(c) = v.try_to::<Callable>() {
+                        if c.is_valid() {
+                            Some(register_callable(registry, c))
+                        } else {
+                            log_debug!("Action '{}': 'cost_callable' is an invalid Callable", name);
+                            None
+                        }
+                    } else {
+                        log_debug!("Action '{}': 'cost_callable' is not a Callable (type: {:?})", name, v.get_type());
+                        None
+                    }
+                });
+                
+            let effect_val = dict.get("effect_callable");
+            if effect_val.is_none() {
+                log_debug!("Action '{}': 'effect_callable' key missing", name);
+            }
+            let effect_id = effect_val.as_ref()
+                .and_then(|v| {
+                    if v.is_nil() {
+                        log_debug!("Action '{}': 'effect_callable' is Nil", name);
+                        None
+                    } else if let Ok(c) = v.try_to::<Callable>() {
+                        if c.is_valid() {
+                            Some(register_callable(registry, c))
+                        } else {
+                            log_debug!("Action '{}': 'effect_callable' is an invalid Callable", name);
+                            None
+                        }
+                    } else {
+                        log_debug!("Action '{}': 'effect_callable' is not a Callable (type: {:?})", name, v.get_type());
+                        None
+                    }
+                });
 
             let preconditions = extract_precond_specs(&dict, "preconditions", registry);
             let validity_checks = extract_precond_specs(&dict, "validity_checks", registry);
@@ -434,7 +473,14 @@ fn dispatch_callback(callable: &Callable, kind: CallbackKind) -> CallbackRespons
             let bb_agent = agent.into_blackboard();
             let bb_world = world.into_blackboard();
             let result = callable.call(&[bb_agent.to_variant(), bb_world.to_variant()]);
-            let cost = result.try_to::<f64>().unwrap_or(f64::INFINITY);
+            let cost = if let Ok(f) = result.try_to::<f64>() {
+                f
+            } else if let Ok(i) = result.try_to::<i64>() {
+                i as f64
+            } else {
+                log_debug!("GetCost: callable returned non-numeric value: {:?}; returning INFINITY", result);
+                f64::INFINITY
+            };
             CallbackResponse::Float(cost)
         }
         CallbackKind::ApplyEffect { agent, world } => {

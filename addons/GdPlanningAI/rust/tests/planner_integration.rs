@@ -111,8 +111,8 @@ fn single_action_satisfies_goal() {
 
     let actions = vec![ActionSpec {
         name: "eat".to_string(),
-        cost_callable_id: 0,
-        effect_callable_id: 0,
+        cost_callable_id: Some(0),
+        effect_callable_id: Some(0),
         preconditions: vec![],
         validity_checks: vec![],
         requirements: vec![],
@@ -148,8 +148,8 @@ fn goal_already_satisfied_returns_empty_plan() {
 
     let actions = vec![ActionSpec {
         name: "eat".to_string(),
-        cost_callable_id: 0,
-        effect_callable_id: 0,
+        cost_callable_id: Some(0),
+        effect_callable_id: Some(0),
         preconditions: vec![],
         validity_checks: vec![],
         requirements: vec![],
@@ -206,8 +206,8 @@ fn action_with_unmet_precondition_fails() {
 
     let actions = vec![ActionSpec {
         name: "eat".to_string(),
-        cost_callable_id: 0,
-        effect_callable_id: 0,
+        cost_callable_id: Some(0),
+        effect_callable_id: Some(0),
         preconditions: vec![PreconditionSpec::Builtin {
             target: PreconditionTarget::Agent,
             operation: PreconditionOp::HasProperty,
@@ -247,8 +247,8 @@ fn respects_max_depth() {
     let actions = vec![
         ActionSpec {
             name: "eat".to_string(),
-            cost_callable_id: 0,
-            effect_callable_id: 0,
+            cost_callable_id: Some(0),
+            effect_callable_id: Some(0),
             preconditions: vec![PreconditionSpec::Builtin {
                 target: PreconditionTarget::Agent,
                 operation: PreconditionOp::HasProperty,
@@ -262,8 +262,8 @@ fn respects_max_depth() {
         },
         ActionSpec {
             name: "get_food".to_string(),
-            cost_callable_id: 0,
-            effect_callable_id: 0,
+            cost_callable_id: Some(0),
+            effect_callable_id: Some(0),
             preconditions: vec![],
             validity_checks: vec![],
             requirements: vec![],
@@ -300,8 +300,8 @@ fn goal_priority_respected() {
 
     let actions = vec![ActionSpec {
         name: "eat".to_string(),
-        cost_callable_id: 0,
-        effect_callable_id: 0,
+        cost_callable_id: Some(0),
+        effect_callable_id: Some(0),
         preconditions: vec![PreconditionSpec::Builtin {
             target: PreconditionTarget::Agent,
             operation: PreconditionOp::HasProperty,

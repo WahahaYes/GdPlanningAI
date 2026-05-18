@@ -73,22 +73,22 @@ func get_action_cost(
 	if actual_target == null:
 		# During planning before any binding is considered, return a reasonable heuristic cost
 		# This allows the planner to consider GoToAction as a candidate
-		return 10.0
+		return 1.0
 		
 	var sim_location: SimObjectProxy = world_state.get_object_for(actual_target)
 	if sim_location == null:
 		# If it's an ID, try to resolve it from the world state anyway.
 		# GdPAIBlackboard.get_object_for now handles IDs.
-		return 10.0
+		return 1.0
 
 	if agent_location == null:
-		return 10.0
+		return 1.0
 
-	# Euclidean distance heuristic
+	# Euclidean distance heuristic, normalized to be comparable with interaction costs
 	var dist: float = (
 		(agent_location.get_property("position") - sim_location.get_property("position")).length()
 	)
-	return dist
+	return dist / 100.0
 
 
 # Override

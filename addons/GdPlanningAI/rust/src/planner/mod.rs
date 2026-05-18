@@ -9,6 +9,7 @@ pub mod expander;
 pub mod goal_selection;
 pub mod heuristic;
 pub mod policy;
+pub mod simulation;
 pub mod stats;
 
 use crate::debug_tree::TreeDump;
@@ -20,11 +21,12 @@ use std::cell::RefCell;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, atomic::AtomicBool};
 
-use controller::DfsController;
+use controller::{AStarController, DfsController};
 use engine::PlannerEngine;
 use expander::SearchContext;
 use goal_selection::HighestRewardFirst;
-use policy::ExhaustivePolicy;
+use policy::{ExhaustivePolicy, FirstValidPolicy};
+use simulation::simulate_action;
 
 pub use engine::PlannerEngine as PlannerEngineType;
 pub use expander::{PlanBranch, SearchContext as SearchContextType};
@@ -59,6 +61,11 @@ pub fn run_plan(
 
     let initial_provisions = extract_initial_provisions(&agent);
 
+    // Use default minimum costs to avoid expensive RPC calls for every action.
+    // These can be tuned or provided via StrategyConfig later.
+    let min_action_cost = 1.0;
+    let min_provision_cost = 1.0;
+
     let ctx = SearchContext {
         actions: &actions,
         goals: &goals,
@@ -70,12 +77,13 @@ pub fn run_plan(
         request_tx: &request_tx,
         cancel_flag: &cancel_flag,
         tree_dump: &tree_dump,
-        min_action_cost: 1.0,
-        min_provision_cost: 1.0,
+        min_action_cost,
+        min_provision_cost,
+        ripple_policy: RipplePolicy::Always, // Default to Always for now
     };
 
-    let controller = Box::new(DfsController::new());
-    let policy = Box::new(ExhaustivePolicy::new());
+    let controller = Box::new(AStarController::new());
+    let policy = Box::new(FirstValidPolicy::new());
     let goal_selection = Box::new(HighestRewardFirst::new(0));
 
     let mut engine = PlannerEngine::new(&ctx, controller, policy, goal_selection);
@@ -120,99 +128,21 @@ pub(crate) fn forward_validate(
     for (chain_position, action_idx) in action_chain.iter().enumerate() {
         let action = &ctx.actions[*action_idx as usize];
 
-        for (binding_chain_position, fact_name, object_ids) in action_bindings {
-            if *binding_chain_position == chain_position as i64 && !object_ids.is_empty() {
-                let id_variants: Vec<VariantSnapshot> = object_ids
-                    .iter()
-                    .map(|id| VariantSnapshot::ObjectRef(*id))
-                    .collect();
-                let binding_value = VariantSnapshot::Array(id_variants);
-                agent.properties.insert(fact_name.clone(), binding_value);
-            }
-        }
+        let result = simulate_action(
+            action,
+            chain_position,
+            action_bindings,
+            &agent,
+            &world,
+            accumulated_provisions,
+            ctx.request_tx,
+            false, // skip_validity = false
+        )?;
 
-        if !check_dependencies_valid(&action.dependent_object_ids) {
-            return None;
-        }
-
-        for check in &action.validity_checks {
-            if !eval_precondition(check, &agent, &world, ctx.request_tx) {
-                return None;
-            }
-        }
-
-        for precond in &action.preconditions {
-            if !eval_precondition(precond, &agent, &world, ctx.request_tx) {
-                return None;
-            }
-        }
-
-        if !requirements_satisfied_in_context(&action.requirements, &accumulated_provisions, &world)
-        {
-            return None;
-        }
-
-        if action
-            .provisions
-            .iter()
-            .any(|p| matches!(p, ProvisionSpec::FactWildcard { .. }))
-        {
-            for (binding_chain_position, fact_name, object_ids) in action_bindings {
-                if *binding_chain_position == chain_position as i64 && !object_ids.is_empty() {
-                    let id_variants: Vec<VariantSnapshot> = object_ids
-                        .iter()
-                        .map(|id| VariantSnapshot::ObjectRef(*id))
-                        .collect();
-                    let binding_value = VariantSnapshot::Array(id_variants);
-                    agent.properties.insert(fact_name.clone(), binding_value);
-                }
-            }
-        }
-
-        let cost = call_get_cost(action.cost_callable_id, &agent, &world, ctx.request_tx);
-        if cost == f64::INFINITY {
-            return None;
-        }
-        total_cost += cost;
-
-        let (new_agent, new_world) =
-            call_apply_effect(action.effect_callable_id, agent, world, ctx.request_tx);
-        agent = new_agent;
-        world = new_world;
-
-        for prov in &action.provisions {
-            if matches!(prov, ProvisionSpec::FactWildcard { .. }) {
-                let has_concrete_binding =
-                    action_bindings
-                        .iter()
-                        .any(|(binding_chain_position, _, object_ids)| {
-                            *binding_chain_position == chain_position as i64
-                                && !object_ids.is_empty()
-                        });
-                if !has_concrete_binding && !accumulated_provisions.contains(prov) {
-                    accumulated_provisions.push(prov.clone());
-                }
-                continue;
-            }
-            if !accumulated_provisions.contains(prov) {
-                accumulated_provisions.push(prov.clone());
-            }
-        }
-        for (binding_chain_position, fact_name, object_ids) in action_bindings {
-            if *binding_chain_position == chain_position as i64 && !object_ids.is_empty() {
-                let args: Vec<VariantSnapshot> = object_ids
-                    .iter()
-                    .map(|id| VariantSnapshot::ObjectRef(*id))
-                    .collect();
-                let prov = ProvisionSpec::Fact {
-                    fact_name: fact_name.clone(),
-                    args,
-                };
-                if !accumulated_provisions.contains(&prov) {
-                    accumulated_provisions.push(prov);
-                }
-            }
-        }
+        agent = result.agent;
+        world = result.world;
+        total_cost += result.cost;
+        accumulated_provisions = result.provisions;
     }
 
     if !goal_preconditions
@@ -349,14 +279,17 @@ pub(crate) fn eval_precondition(
 }
 
 pub(crate) fn call_get_cost(
-    callable_id: usize,
+    callable_id: Option<usize>,
     agent: &BlackboardSnapshot,
     world: &BlackboardSnapshot,
     request_tx: &Sender<CallbackRequest>,
 ) -> f64 {
+    let Some(id) = callable_id else {
+        return 1.0;
+    };
     let (resp_tx, resp_rx) = std::sync::mpsc::channel();
     let _ = request_tx.send(CallbackRequest {
-        callable_id,
+        callable_id: id,
         kind: CallbackKind::GetCost {
             agent: agent.clone(),
             world: world.clone(),
@@ -370,14 +303,17 @@ pub(crate) fn call_get_cost(
 }
 
 pub(crate) fn call_apply_effect(
-    callable_id: usize,
+    callable_id: Option<usize>,
     agent: BlackboardSnapshot,
     world: BlackboardSnapshot,
     request_tx: &Sender<CallbackRequest>,
 ) -> (BlackboardSnapshot, BlackboardSnapshot) {
+    let Some(id) = callable_id else {
+        return (agent, world);
+    };
     let (resp_tx, resp_rx) = std::sync::mpsc::channel();
     let _ = request_tx.send(CallbackRequest {
-        callable_id,
+        callable_id: id,
         kind: CallbackKind::ApplyEffect { agent, world },
         response_tx: resp_tx,
     });

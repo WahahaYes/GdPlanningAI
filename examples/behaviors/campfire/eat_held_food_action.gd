@@ -38,8 +38,8 @@ func get_preconditions() -> Array[Precondition]:
 
 # Override
 func get_requirements() -> Array[RequirementSpec]:
-	# Require that held_item binding exists (will be provided by PickupAction)
-	return [RequirementSpec.binding_exists("held_item")]
+	# Require that held_item binding exists and is in the Food group
+	return [RequirementSpec.binding_in_set("held_item", "Food")]
 
 
 # Override

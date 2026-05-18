@@ -7,7 +7,7 @@ use crate::snapshot::VariantSnapshot;
 use godot::prelude::*;
 
 /// A planner-readable dependency that must be satisfied by a prior action's provisions.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum RequirementSpec {
     BindingExists {
         binding_name: String,

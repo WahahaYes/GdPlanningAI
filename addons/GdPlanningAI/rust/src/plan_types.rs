@@ -10,7 +10,7 @@ use std::sync::mpsc::Sender;
 /// Builtin operations carry their data directly and can be evaluated
 /// without any channel round-trip. Custom callbacks store
 /// a `callable_id` that the main thread resolves via the callable registry.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum PreconditionSpec {
     Builtin {
         target: PreconditionTarget,
@@ -150,12 +150,19 @@ fn snap_as_f64(v: &VariantSnapshot) -> Option<f64> {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum RipplePolicy {
+    Always,
+    OnRequirement,
+    Never,
+}
+
 /// Send-safe mirror of [`crate::action::ActionData`].
 #[derive(Clone, Debug)]
 pub struct ActionSpec {
     pub name: String,
-    pub cost_callable_id: usize,
-    pub effect_callable_id: usize,
+    pub cost_callable_id: Option<usize>,
+    pub effect_callable_id: Option<usize>,
     pub preconditions: Vec<PreconditionSpec>,
     pub validity_checks: Vec<PreconditionSpec>,
     pub requirements: Vec<RequirementSpec>,

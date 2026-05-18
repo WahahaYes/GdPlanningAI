@@ -30,6 +30,45 @@ pub enum VariantSnapshot {
     Array(Vec<VariantSnapshot>),
 }
 
+impl Eq for VariantSnapshot {}
+
+impl std::hash::Hash for VariantSnapshot {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        match self {
+            Self::Nil => 0.hash(state),
+            Self::Bool(b) => {
+                1.hash(state);
+                b.hash(state);
+            }
+            Self::Int(i) => {
+                2.hash(state);
+                i.hash(state);
+            }
+            Self::Float(f) => {
+                3.hash(state);
+                // Round to 3 decimal places for stable hashing
+                ((*f * 1000.0).round() as i64).hash(state);
+            }
+            Self::Str(s) => {
+                4.hash(state);
+                s.hash(state);
+            }
+            Self::Bytes(b) => {
+                5.hash(state);
+                b.hash(state);
+            }
+            Self::ObjectRef(id) => {
+                6.hash(state);
+                id.hash(state);
+            }
+            Self::Array(elems) => {
+                7.hash(state);
+                elems.hash(state);
+            }
+        }
+    }
+}
+
 impl VariantSnapshot {
     /// Snapshot a [`Variant`]. **Must be called on the main thread.**
     pub fn from_variant(v: &Variant) -> Self {
@@ -140,6 +179,69 @@ pub struct SimObjectData {
 pub struct BlackboardSnapshot {
     pub properties: HashMap<String, VariantSnapshot>,
     pub objects: HashMap<String, SimObjectData>,
+}
+
+/// A noise-resistant version of VariantSnapshot for hashing and comparison.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum StableVariant {
+    Nil,
+    Bool(bool),
+    Int(i64),
+    /// Floats are rounded to fixed precision to handle real-time decay noise.
+    Float(i64), 
+    Str(String),
+    Bytes(Vec<u8>),
+    ObjectRef(i64),
+    Array(Vec<StableVariant>),
+}
+
+impl StableVariant {
+    pub fn from_snapshot(v: &VariantSnapshot) -> Self {
+        match v {
+            VariantSnapshot::Nil => Self::Nil,
+            VariantSnapshot::Bool(b) => Self::Bool(*b),
+            VariantSnapshot::Int(i) => Self::Int(*i),
+            VariantSnapshot::Float(f) => {
+                // Round to 3 decimal places and store as integer to avoid float hashing issues.
+                Self::Float((*f * 1000.0).round() as i64)
+            }
+            VariantSnapshot::Str(s) => Self::Str(s.clone()),
+            VariantSnapshot::Bytes(b) => Self::Bytes(b.clone()),
+            VariantSnapshot::ObjectRef(id) => Self::ObjectRef(*id),
+            VariantSnapshot::Array(elems) => {
+                Self::Array(elems.iter().map(Self::from_snapshot).collect())
+            }
+        }
+    }
+}
+
+/// A noise-resistant version of BlackboardSnapshot for state deduplication.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct StableSnapshot {
+    pub properties: Vec<(String, StableVariant)>,
+    pub objects: Vec<(String, Vec<(String, StableVariant)>)>,
+}
+
+impl StableSnapshot {
+    pub fn from_blackboard(bb: &BlackboardSnapshot) -> Self {
+        let mut properties: Vec<_> = bb.properties.iter()
+            .map(|(k, v)| (k.clone(), StableVariant::from_snapshot(v)))
+            .collect();
+        properties.sort_by(|a, b| a.0.cmp(&b.0));
+
+        let mut objects: Vec<_> = bb.objects.iter()
+            .map(|(uid, data)| {
+                let mut props: Vec<_> = data.properties.iter()
+                    .map(|(k, v)| (k.clone(), StableVariant::from_snapshot(v)))
+                    .collect();
+                props.sort_by(|a, b| a.0.cmp(&b.0));
+                (uid.clone(), props)
+            })
+            .collect();
+        objects.sort_by(|a, b| a.0.cmp(&b.0));
+
+        Self { properties, objects }
+    }
 }
 
 impl BlackboardSnapshot {

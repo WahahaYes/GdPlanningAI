@@ -22,14 +22,14 @@ pub struct PreconditionHandler {
 }
 
 /// Where to evaluate a precondition.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum PreconditionTarget {
     Agent,
     WorldState,
 }
 
 /// Types of precondition operations.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum PreconditionOp {
     HasProperty,
     Equal,
