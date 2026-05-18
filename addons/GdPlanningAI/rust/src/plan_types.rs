@@ -65,6 +65,14 @@ impl PreconditionSpec {
         }
     }
 
+    /// Returns the property name if this is a `Builtin` variant.
+    pub fn property_name(&self) -> Option<&str> {
+        match self {
+            Self::Builtin { property_name, .. } => Some(property_name.as_str()),
+            _ => None,
+        }
+    }
+
     /// Returns the dependent object IDs if this is a `Custom` variant.
     pub fn dependent_object_ids(&self) -> &[i64] {
         match self {
@@ -86,17 +94,7 @@ fn eval_builtin_on_snapshot(
 ) -> bool {
     match operation {
         PreconditionOp::HasProperty => source.properties.contains_key(property_name),
-        PreconditionOp::Equal => snap_equal(source, property_name, value),
-        PreconditionOp::NotEqual => !snap_equal(source, property_name, value),
-        PreconditionOp::GreaterThan => snap_compare(source, property_name, value, |p, c| p > c),
-        PreconditionOp::GreaterThanOrEqual => {
-            snap_compare(source, property_name, value, |p, c| p >= c)
-        }
-        PreconditionOp::LessThan => snap_compare(source, property_name, value, |p, c| p < c),
-        PreconditionOp::LessThanOrEqual => {
-            snap_compare(source, property_name, value, |p, c| p <= c)
-        }
-        PreconditionOp::CustomCallback => false, // should not reach here
+        _ => snap_compare_all(source, property_name, value, operation),
     }
 }
 
@@ -126,19 +124,36 @@ fn snap_equal(
     }
 }
 
-/// Numeric comparison with a caller-supplied operator.
-fn snap_compare(
+/// Numeric comparison handling all operators.
+fn snap_compare_all(
     source: &BlackboardSnapshot,
     property_name: &str,
     compare_val: Option<&VariantSnapshot>,
-    cmp: fn(f64, f64) -> bool,
+    operation: &PreconditionOp,
 ) -> bool {
     let prop = source.properties.get(property_name);
     let p_num = prop.and_then(snap_as_f64);
     let c_num = compare_val.and_then(snap_as_f64);
-    match (p_num, c_num) {
-        (Some(p), Some(c)) => cmp(p, c),
-        _ => false,
+
+    if let (Some(p), Some(c)) = (p_num, c_num) {
+        let result = match operation {
+            PreconditionOp::Equal => (p - c).abs() < 1e-4,
+            PreconditionOp::NotEqual => (p - c).abs() >= 1e-4,
+            PreconditionOp::GreaterThan => p > c + 1e-4,
+            PreconditionOp::GreaterThanOrEqual => p >= c - 1e-4,
+            PreconditionOp::LessThan => p < c - 1e-4,
+            PreconditionOp::LessThanOrEqual => p <= c + 1e-4,
+            _ => false,
+        };
+        log_debug!("Numeric comparison: {} {:?} {} -> {}", p, operation, c, result);
+        result
+    } else {
+        // Fallback to basic equality if not numeric
+        match operation {
+            PreconditionOp::Equal => snap_equal(source, property_name, compare_val),
+            PreconditionOp::NotEqual => !snap_equal(source, property_name, compare_val),
+            _ => false,
+        }
     }
 }
 
@@ -190,20 +205,26 @@ pub struct CallbackRequest {
 
 /// What the main thread should do with the callable.
 pub enum CallbackKind {
-    /// Call `cost_callable(agent, world)` → return `Float(f64)`.
+    /// Call `cost_callable(agent, world, provisions, bindings)` → return `Float(f64)`.
     GetCost {
         agent: BlackboardSnapshot,
         world: BlackboardSnapshot,
+        provisions: Vec<ProvisionSpec>,
+        bindings: Vec<(String, Vec<VariantSnapshot>)>,
     },
-    /// Call `effect_callable(agent, world)` → return updated snapshots.
+    /// Call `effect_callable(agent, world, provisions, bindings)` → return updated snapshots.
     ApplyEffect {
         agent: BlackboardSnapshot,
         world: BlackboardSnapshot,
+        provisions: Vec<ProvisionSpec>,
+        bindings: Vec<(String, Vec<VariantSnapshot>)>,
     },
-    /// Call `eval_callable(agent, world)` → return `Bool(bool)`.
+    /// Call `eval_callable(agent, world, provisions, bindings)` → return `Bool(bool)`.
     EvalCustomPrecond {
         agent: BlackboardSnapshot,
         world: BlackboardSnapshot,
+        provisions: Vec<ProvisionSpec>,
+        bindings: Vec<(String, Vec<VariantSnapshot>)>,
     },
 }
 

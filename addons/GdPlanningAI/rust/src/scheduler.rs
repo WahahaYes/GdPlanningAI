@@ -162,6 +162,10 @@ impl GdPAIPlanScheduler {
         // 1. Snapshot blackboards on main thread
         let snap_agent = BlackboardSnapshot::from_blackboard(&agent_bb.bind());
         let snap_world = BlackboardSnapshot::from_blackboard(&world_bb.bind());
+        
+        // Extract initial provisions from both agent and world blackboards
+        let mut initial_provisions = crate::requirement::extract_initial_provisions(&snap_agent);
+        initial_provisions.extend(extract_provisions_from_snapshot(&snap_world));
 
         // 2. Register callables and build specs (per-job registry)
         let mut job_registry = Vec::new();
@@ -187,16 +191,17 @@ impl GdPAIPlanScheduler {
             .as_ref()
             .expect("submit_plan called before ready()")
             .spawn(move || {
-                crate::planner::run_plan(
-                    snap_agent,
-                    snap_world,
-                    action_specs,
-                    goal_specs,
+                let result = crate::planner::run_plan(
+                    action_specs.clone(),
+                    goal_specs.clone(),
+                    snap_agent.clone(),
+                    snap_world.clone(),
+                    initial_provisions.clone(),
                     max_rec,
                     req_tx,
-                    res_tx,
                     worker_cancel_flag,
                 );
+                let _ = res_tx.send(result);
             });
 
         self.active_jobs.push(ActiveJobHandle {
@@ -460,7 +465,7 @@ fn dispatch_callback(callable: &Callable, kind: CallbackKind) -> CallbackRespons
         log_warn!("Callable is no longer valid (target object freed); returning safe default");
         return match kind {
             CallbackKind::GetCost { .. } => CallbackResponse::Float(f64::INFINITY),
-            CallbackKind::ApplyEffect { agent, world } => {
+            CallbackKind::ApplyEffect { agent, world, .. } => {
                 // Return unchanged snapshots
                 CallbackResponse::UpdatedSnapshots(agent, world)
             }
@@ -469,10 +474,35 @@ fn dispatch_callback(callable: &Callable, kind: CallbackKind) -> CallbackRespons
     }
 
     match kind {
-        CallbackKind::GetCost { agent, world } => {
-            let bb_agent = agent.into_blackboard();
+        CallbackKind::GetCost { agent, world, provisions, bindings } => {
+            let mut bb_agent = agent.into_blackboard();
             let bb_world = world.into_blackboard();
-            let result = callable.call(&[bb_agent.to_variant(), bb_world.to_variant()]);
+            let prov_arr = provisions_to_array(&provisions);
+            let bind_dict = bindings_to_dict(&bindings);
+            
+            // Inject bindings into blackboard so actions can see them via get_property()
+            {
+                let mut bind = bb_agent.bind_mut();
+                for (name, values) in &bindings {
+                    if !values.is_empty() {
+                        // For now, take the first value as the binding value
+                        bind.properties.insert(name.clone(), values[0].to_variant());
+                    }
+                }
+            }
+
+            // Call with variable argument count based on what the callable expects
+            let mut args = vec![bb_agent.to_variant(), bb_world.to_variant()];
+            let expected_count = callable.get_argument_count();
+            if expected_count >= 3 {
+                args.push(prov_arr.to_variant());
+            }
+            if expected_count >= 4 {
+                args.push(bind_dict.to_variant());
+            }
+
+            let result = callable.call(&args);
+            
             let cost = if let Ok(f) = result.try_to::<f64>() {
                 f
             } else if let Ok(i) = result.try_to::<i64>() {
@@ -483,25 +513,144 @@ fn dispatch_callback(callable: &Callable, kind: CallbackKind) -> CallbackRespons
             };
             CallbackResponse::Float(cost)
         }
-        CallbackKind::ApplyEffect { agent, world } => {
-            let bb_agent = agent.into_blackboard();
+        CallbackKind::ApplyEffect { agent, world, provisions, bindings } => {
+            let mut bb_agent = agent.into_blackboard();
             let bb_world = world.into_blackboard();
-            callable.call(&[bb_agent.to_variant(), bb_world.to_variant()]);
+            let prov_arr = provisions_to_array(&provisions);
+            let bind_dict = bindings_to_dict(&bindings);
+
+            // Inject bindings into blackboard so actions can see them via get_property()
+            {
+                let mut bind = bb_agent.bind_mut();
+                for (name, values) in &bindings {
+                    if !values.is_empty() {
+                        bind.properties.insert(name.clone(), values[0].to_variant());
+                    }
+                }
+            }
+
+            let mut args = vec![bb_agent.to_variant(), bb_world.to_variant()];
+            let expected_count = callable.get_argument_count();
+            if expected_count >= 3 {
+                args.push(prov_arr.to_variant());
+            }
+            if expected_count >= 4 {
+                args.push(bind_dict.to_variant());
+            }
+
+            // DEBUG: Check values before
+            {
+                let bind = bb_agent.bind();
+                log_debug!("ApplyEffect [Before] ID={:?}: agent props = {:?}", bb_agent.instance_id(), bind.properties);
+            }
+
+            callable.call(&args);
+            
+            // DEBUG: Check values after
+            {
+                let bind = bb_agent.bind();
+                log_debug!("ApplyEffect [After] ID={:?}: agent props = {:?}", bb_agent.instance_id(), bind.properties);
+            }
+
             // Re-snapshot the (now mutated) blackboards
             let new_agent = BlackboardSnapshot::from_blackboard(&bb_agent.bind());
             let new_world = BlackboardSnapshot::from_blackboard(&bb_world.bind());
             CallbackResponse::UpdatedSnapshots(new_agent, new_world)
         }
-        CallbackKind::EvalCustomPrecond { agent, world } => {
-            let bb_agent = agent.into_blackboard();
+        CallbackKind::EvalCustomPrecond { agent, world, provisions, bindings } => {
+            let mut bb_agent = agent.into_blackboard();
             let bb_world = world.into_blackboard();
-            let result = callable.call(&[bb_agent.to_variant(), bb_world.to_variant()]);
+            let prov_arr = provisions_to_array(&provisions);
+            let bind_dict = bindings_to_dict(&bindings);
+
+            // Inject bindings into blackboard so actions can see them via get_property()
+            {
+                let mut bind = bb_agent.bind_mut();
+                for (name, values) in &bindings {
+                    if !values.is_empty() {
+                        bind.properties.insert(name.clone(), values[0].to_variant());
+                    }
+                }
+            }
+
+            let mut args = vec![bb_agent.to_variant(), bb_world.to_variant()];
+            let expected_count = callable.get_argument_count();
+            if expected_count >= 3 {
+                args.push(prov_arr.to_variant());
+            }
+            if expected_count >= 4 {
+                args.push(bind_dict.to_variant());
+            }
+
+            let result = callable.call(&args);
             CallbackResponse::Bool(result.try_to::<bool>().unwrap_or(false))
         }
     }
 }
 
+fn provisions_to_array(provisions: &[ProvisionSpec]) -> Array<VarDictionary> {
+    let mut arr = Array::<VarDictionary>::new();
+    for prov in provisions {
+        let mut dict = VarDictionary::new();
+        match prov {
+            ProvisionSpec::Binding { binding_name, value } => {
+                dict.set("kind", "binding");
+                dict.set("binding_name", binding_name.clone());
+                dict.set("value", value.to_variant());
+            }
+            ProvisionSpec::Fact { fact_name, args } => {
+                dict.set("kind", "fact");
+                dict.set("fact_name", fact_name.clone());
+                let mut args_arr = Array::<Variant>::new();
+                for arg in args {
+                    args_arr.push(&arg.to_variant());
+                }
+                dict.set("args", args_arr.to_variant());
+            }
+            ProvisionSpec::FactWildcard { fact_name } => {
+                dict.set("kind", "fact_wildcard");
+                dict.set("fact_name", fact_name.clone());
+            }
+        }
+        arr.push(&dict);
+    }
+    arr
+}
+
+fn bindings_to_dict(bindings: &[(String, Vec<crate::snapshot::VariantSnapshot>)]) -> VarDictionary {
+    let mut dict = VarDictionary::new();
+    for (name, values) in bindings {
+        let mut vals_arr = Array::<Variant>::new();
+        for val in values {
+            vals_arr.push(&val.to_variant());
+        }
+        dict.set(name.clone(), vals_arr.to_variant());
+    }
+    dict
+}
+
 /// Converts a [`PlanResult`] to a [`VarDictionary`] for GDScript serialization.
+fn extract_provisions_from_snapshot(snap: &BlackboardSnapshot) -> Vec<ProvisionSpec> {
+    let mut provisions = Vec::new();
+    for (uid, obj) in &snap.objects {
+        for (prop_name, val) in &obj.properties {
+            if prop_name == "provides" {
+                if let VariantSnapshot::Str(fact_name) = val {
+                    let mut args = Vec::new();
+                    if let Ok(id) = uid.parse::<i64>() {
+                        args.push(VariantSnapshot::Int(id));
+                    }
+                    provisions.push(ProvisionSpec::Fact {
+                        fact_name: fact_name.clone(),
+                        args,
+                    });
+                }
+            }
+        }
+    }
+    provisions
+}
+
 fn result_to_dict(result: &PlanResult) -> VarDictionary {
     let mut dict = VarDictionary::new();
     dict.set("success", result.success);
@@ -516,15 +665,15 @@ fn result_to_dict(result: &PlanResult) -> VarDictionary {
 
     // Add action-specific bindings
     let mut action_bindings = Array::<Variant>::new();
-    for (chain_position, fact_name, object_ids) in &result.action_bindings {
+    for (chain_position, fact_name, values) in &result.action_bindings {
         let mut binding_tuple = Array::<Variant>::new();
         binding_tuple.push(&chain_position.to_variant());
         binding_tuple.push(&fact_name.to_variant());
-        let mut ids_array = Array::<Variant>::new();
-        for id in object_ids {
-            ids_array.push(&id.to_variant());
+        let mut vals_array = Array::<Variant>::new();
+        for val in values {
+            vals_array.push(&val.to_variant());
         }
-        binding_tuple.push(&ids_array.to_variant());
+        binding_tuple.push(&vals_array.to_variant());
         action_bindings.push(&binding_tuple.to_variant());
     }
     dict.set("action_bindings", action_bindings.to_variant());

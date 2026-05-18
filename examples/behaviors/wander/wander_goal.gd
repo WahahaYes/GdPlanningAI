@@ -9,15 +9,15 @@ extends Goal
 
 # Override
 func compute_reward(_agent: GdPAIAgent) -> float:
-	return 10.0
+	return 5.0
 
 
 # Override
 func get_desired_state(agent: GdPAIAgent) -> Array[Precondition]:
 	var agent_location_data: GdPAILocationData = (
 		agent
-		. blackboard
-		. get_node_in_group(
+		.blackboard
+		.get_node_in_group(
 			"GdPAILocationData",
 		)
 	)

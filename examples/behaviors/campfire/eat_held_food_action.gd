@@ -38,8 +38,12 @@ func get_preconditions() -> Array[Precondition]:
 
 # Override
 func get_requirements() -> Array[RequirementSpec]:
-	# Require that held_item binding exists and is in the Food group
-	return [RequirementSpec.binding_in_set("held_item", "Food")]
+	# Require that held_item binding exists.
+	# We also require a symbolic 'is_food' fact to ensure the held item is edible.
+	return [
+		RequirementSpec.binding_exists("held_item"),
+		RequirementSpec.fact("is_food", [])
+	]
 
 
 # Override

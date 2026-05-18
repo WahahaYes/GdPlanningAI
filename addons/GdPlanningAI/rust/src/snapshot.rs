@@ -251,7 +251,11 @@ impl BlackboardSnapshot {
             .properties
             .iter()
             .filter(|(k, _)| k.as_str() != "GDPAI_OBJECTS")
-            .map(|(k, v)| (k.clone(), VariantSnapshot::from_variant(v)))
+            .map(|(k, v)| {
+                let snap = VariantSnapshot::from_variant(v);
+                log_debug!("  Snapshotting prop: {} = {:?} (Variant type: {:?})", k, snap, v.get_type());
+                (k.clone(), snap)
+            })
             .collect();
 
         let objects = bb

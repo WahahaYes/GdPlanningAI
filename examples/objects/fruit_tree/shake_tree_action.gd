@@ -31,7 +31,7 @@ func get_action_cost(
 	_world_state: GdPAIBlackboard,
 ) -> float:
 	# Interaction cost is minimal - navigation is handled by GoToAction
-	return 100.0
+	return 1.0
 
 
 # Override
@@ -46,6 +46,13 @@ func get_validity_checks() -> Array[Precondition]:
 
 	checks.append(Precondition.custom_with_deps(tree_not_on_cooldown, [fruit_tree]))
 	return checks
+
+
+# Override
+func get_provisions() -> Array[ProvisionSpec]:
+	# ShakeTree provides an 'is_food' fact indicating that food (banana)
+	# will be available in the world to be picked up.
+	return [ProvisionSpec.fact("is_food", [])]
 
 
 # Override
@@ -66,8 +73,11 @@ func simulate_effect(
 	agent_blackboard: GdPAIBlackboard,
 	_world_state: GdPAIBlackboard,
 ) -> void:
-	var hunger: float = agent_blackboard.get_property("hunger")
-	agent_blackboard.set_property("hunger", max(0.0, hunger - _sim_hunger_gain))
+	# Optimistically report hunger reduction during discovery so the planner 
+	# picks this action as a candidate for the Hunger goal.
+	var hunger = agent_blackboard.get_property("hunger")
+	if hunger != null:
+		agent_blackboard.set_property("hunger", max(0.0, float(hunger) - _sim_hunger_gain))
 
 
 # Override

@@ -1,37 +1,48 @@
-# Hybrid Backward-Chaining Planner: Simplified Pseudocode
+# Hybrid Backward-Chaining Planner: Implementation Pseudocode
 
 ## 1. Data Structures
 
 ### PlanBranch
-- `action_chain`: List of actions in execution order: `[A, B, C]`
-- `final_state`: The state after the last action in the chain (C).
-- `open_preconditions`: Physical needs of the **first** action (`A`) that are not yet met by the `InitialState`. This is the **Frontier** of the plan.
-- `open_requirements`: Symbolic needs (Potato, Axe) from **anywhere** in the chain that have not yet been satisfied by a Provision.
-- `bound_provisions`: List of all provisions provided by actions in the current chain.
-- `cost`: Total cumulative cost from the latest forward simulation.
+- `action_chain`: Ordered list of action indices: `[A, B, C]`
+- `final_state`: The deep-simulated state after the last action in the chain (`C`).
+- `open_preconditions`: Physical needs of the **first** action (`A`) not met by `InitialState`. (The **Frontier**).
+- `open_requirements`: Symbolic needs (Potato, Axe) from **anywhere** in the chain.
+  - Stored as `(consumer_pos, RequirementSpec)`.
+- `action_bindings`: List of `(pos, key, values: Vec<VariantSnapshot>)` to be passed to Godot during simulation. Supports strings, integers, and object references.
+- `cost`: Total cumulative cost from the latest forward simulation ripple.
 
 ### ActionCandidate
-- `action`: The action being considered for prepending.
-- `satisfied_preconditions`: Indices of `open_preconditions` this action satisfies.
-- `satisfied_requirements`: Indices of `open_requirements` this action satisfies.
+- `action_idx`: Index of the action being considered for prepending.
+- `estimated_cost`: 1.0 (Physical) or 1.1 (Symbolic) to prioritize direct grounding.
+- `satisfied_precondition_indices`: Which items in the current Frontier this action resolves.
+- `satisfied_requirement_indices`: Which symbolic needs this action provides for.
 
 ---
 
 ## 2. Core Search Loop (A*)
 
 1. **Initialization**:
-   - `root = new PlanBranch`
-   - `root.open_preconditions = Goal.preconditions`
-   - `root.final_state = InitialState`
-   - `frontier.push(root)`
+   - Sort `Goals` by `Reward` (descending). Ignore goals with reward <= 0.
+   - For each `Goal`:
+     - If `Goal` is satisfied in `InitialState` (Deep Check):
+       - RETURN successful empty plan for this goal.
+     - Else:
+       - `root = new PlanBranch`
+       - `root.open_preconditions = unmet Goal.preconditions`
+       - `frontier.push(root)`
+       - Run A* Loop (see below). If success, RETURN plan.
 
-2. **Loop**:
-   - `branch = frontier.pop()`
-   - If `branch.is_complete()`: RETURN `branch.action_chain`
-   - `candidates = find_candidates(branch)`
-   - For `candidate` in `candidates`:
-     - `new_branch = expand(branch, candidate)`
-     - If `new_branch` exists: `frontier.push(new_branch)`
+2. **A* Loop**:
+   - `visited = HashSet<NodeFingerprint>`
+   - While `frontier` not empty:
+     - `node = frontier.pop()`
+     - If `visited.contains(node.fingerprint)`: CONTINUE.
+     - `visited.insert(node.fingerprint)`
+     - If `node.branch.is_complete()`: RETURN `branch.action_chain`.
+     - `candidates = find_candidates(node.branch)`
+     - For `candidate` in `candidates`:
+       - `new_branch = expand(node.branch, candidate)`
+       - If `new_branch` exists: `frontier.push(new_branch)`
 
 ---
 
@@ -39,34 +50,37 @@
 
 When prepending `Action P` to `Branch [A, B, C]`:
 
-1. **Prepend Action**: `new_chain = [P, A, B, C]`
-2. **Immediate Grounding (P against InitialState)**:
-   - `res_p = P.simulate_effect(InitialState)`
-   - If `res_p` is invalid: RETURN None (Prune).
-3. **Verify Progress (The Chaining Step)**:
-   - **Preconditions**: Did `P` make progress on any of the current `open_preconditions`?
-   - **Requirements**: Does `P` provide any of the current `open_requirements`?
-   - If `P` satisfied **NOTHING**: RETURN None (Prune).
-4. **Full Forward Simulation (The Ripple)**:
-   - `current_state = res_p.state`
-   - `total_cost = res_p.cost`
-   - For `action` in `[A, B, C]`:
-     - `res = action.simulate_effect(current_state)`
+1. **Prepend Action**: `new_chain = [P, A, B, C]`.
+2. **Update Bindings**:
+   - Shift indices of all existing `action_bindings` by +1.
+   - For each symbolic `req` in `branch.open_requirements` satisfied by `P`:
+     - Extract `values` from `P.provisions`.
+     - Add new binding: `(new_consumer_pos, key, values)`.
+3. **Full Forward Simulation (The Ripple)**:
+   - `current_state = InitialState`
+   - `current_provisions = InitialProvisions`
+   - For `(pos, action)` in `new_chain`:
+     - **Head Simulation**: If `pos == 0`:
+       - `skip_validity = true`. (Head of chain is allowed to be ungrounded).
+       - Note: The action's `simulate_effect` should report its potential effects even if requirements are not yet physically met in `current_state`.
+     - Else:
+       - `skip_validity = false`. (Remaining chain must be strictly grounded).
+     - `res = action.simulate_effect(current_state, current_provisions, bindings[pos], skip_validity)`
      - If `res` is invalid: RETURN None (Prune).
-     - `current_state = res.state`
-     - `total_cost += res.cost`
-5. **Update Needs**:
-   - `new_branch = branch.clone()`
-   - `new_branch.action_chain = new_chain`
-   - `new_branch.final_state = current_state`
-   - `new_branch.cost = total_cost`
-   - **Update Requirements**:
+     - `current_state = res.state`, `total_cost += res.cost`.
+     - Update `current_provisions` with `action.provisions` for the NEXT step.
+4. **Update Needs**:
+   - **Initial State Pre-binding**:
+     - Check `P.requirements` against `InitialProvisions`.
+     - If met, extract bindings immediately and do NOT add to `open_requirements`.
+   - **Requirements**:
      - Remove `open_requirements` satisfied by `P`.
-     - Add `P.requirements` to `open_requirements`.
-   - **Update Preconditions (The Frontier)**:
+     - Shift `consumer_pos` of remaining requirements by +1.
+     - Add remaining `P.requirements` at `pos=0`.
+   - **Preconditions (The Frontier)**:
      - Clear the old `open_preconditions` (P is now responsible for them).
-     - Check `P.preconditions` against `InitialState`.
-     - Any that are NOT met by `InitialState` become the **new** `open_preconditions`.
+     - Check `P.preconditions` against `InitialState` (Deep Check).
+     - Any NOT met become the **new** `open_preconditions`.
 
 ---
 
@@ -75,20 +89,24 @@ When prepending `Action P` to `Branch [A, B, C]`:
 A branch is complete if:
 1. `open_preconditions` is empty (The plan's first step is grounded in the Present).
 2. `open_requirements` is empty (All symbolic dependencies are solved).
-3. **Deep Goal Check**: The `final_state` satisfies the `Goal.preconditions`.
+3. **Deep Goal Check**: The `final_state` satisfies all `Goal.preconditions`.
 
 ---
 
 ## 5. Candidate Discovery (`find_candidates`)
 
-### The "Optimistic Discovery" Rule
 To find actions that *could* help, we use a two-layer check:
 
 1. **Symbolic Layer**: 
    - Does `Action A` have a provision that matches an `open_requirement`?
+   - **Context-Aware**: `BindingInSet` requirements check the world state for group membership.
+   - Multiple satisfaction: An action can satisfy multiple open requirements at once.
 2. **Optimistic Physical Layer**:
-   - Does `Action A` affect the properties mentioned in any `open_precondition`?
-   - **Rule**: Run `A.simulate_effect(InitialState)` with **Strict=False** (ignore unmet requirements).
-   - If the simulation reports progress on the target property, it is a candidate.
-   - *Note: The "Forward Ripple" in Step 3 will later prove if this optimism was justified.*
+   - **Hypothetical State**: Create a state where concrete `BindingEquals` requirements are applied.
+   - **Action-Led Hypothetical Progress**: Run `A.simulate_effect(HypotheticalState)` with **Strict=False**.
+   - **Requirement Responsibility**: Actions that declare symbolic requirements (Existence, Set membership) should report their effects during simulation even if the requirement is not physically fulfilled in the snapshot.
+   - If the effect satisfied any `open_precondition`, it is a candidate.
 
+**Cost Heuristic**:
+- `est_cost = 1.0` if physical needs satisfied.
+- `est_cost = 1.1` if only symbolic needs satisfied (encourages grounding).

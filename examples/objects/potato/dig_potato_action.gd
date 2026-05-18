@@ -36,7 +36,10 @@ func get_requirements() -> Array[RequirementSpec]:
 
 
 func get_provisions() -> Array[ProvisionSpec]:
-	return [ProvisionSpec.binding("held_item", "potato")]
+	return [
+		ProvisionSpec.binding("held_item", "potato"),
+		ProvisionSpec.fact("is_food", [])
+	]
 
 
 func get_action_cost(

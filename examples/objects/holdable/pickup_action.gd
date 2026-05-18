@@ -62,8 +62,12 @@ func get_requirements() -> Array[RequirementSpec]:
 
 # Override
 func get_provisions() -> Array[ProvisionSpec]:
-	# Provide the held_item binding that EatHeldFoodAction requires
-	return [ProvisionSpec.binding("held_item", holdable_item.item_id)]
+	# Provide the held_item binding that EatHeldFoodAction requires.
+	# Also provide an 'is_food' fact if this object belongs to the Food group.
+	var provs: Array[ProvisionSpec] = [ProvisionSpec.binding("held_item", holdable_item.item_id)]
+	if is_instance_valid(holdable_item) and holdable_item.is_in_group("Food"):
+		provs.append(ProvisionSpec.fact("is_food", []))
+	return provs
 
 
 # Override

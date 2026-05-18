@@ -152,7 +152,7 @@ pub fn requirements_satisfied(
 pub fn requirement_satisfied(requirement: &RequirementSpec, provisions: &[ProvisionSpec]) -> bool {
     provisions
         .iter()
-        .any(|provision| provision_satisfies_requirement(provision, requirement))
+        .any(|provision| provision_satisfies_requirement(provision, requirement, None))
 }
 
 /// Returns `true` if any requirement in `requirements` is satisfied by `provisions`.
@@ -240,6 +240,7 @@ pub fn extract_initial_provisions(
 pub fn provision_satisfies_requirement(
     provision: &ProvisionSpec,
     requirement: &RequirementSpec,
+    world: Option<&crate::snapshot::BlackboardSnapshot>,
 ) -> bool {
     match (provision, requirement) {
         (
@@ -262,17 +263,39 @@ pub fn provision_satisfies_requirement(
         (
             ProvisionSpec::Binding {
                 binding_name: provided_name,
-                ..
+                value: provided_value,
             },
-            RequirementSpec::BindingInSet { binding_name, .. },
-        ) => provided_name == binding_name,
+            RequirementSpec::BindingInSet {
+                binding_name,
+                set_name,
+            },
+        ) => {
+            if provided_name != binding_name {
+                return false;
+            }
+
+            // If we have world context, check if the provided object is in the requested set
+            if let Some(w) = world {
+                if let crate::snapshot::VariantSnapshot::ObjectRef(id) = provided_value {
+                    let uid = id.to_string();
+                    if let Some(obj_data) = w.objects.get(&uid) {
+                        return obj_data.groups.contains(set_name);
+                    }
+                }
+            }
+
+            // Fallback: if no world context (discovery phase), we treat as satisfied
+            // only if the binding names match. The ripple will verify the real
+            // object group membership later during forward simulation.
+            provided_name == binding_name
+        }
         (
             ProvisionSpec::Fact {
                 fact_name: provided_name,
                 args: provided_args,
             },
             RequirementSpec::Fact { fact_name, args },
-        ) => provided_name == fact_name && provided_args == args,
+        ) => provided_name == fact_name && (args.is_empty() || provided_args == args),
         (
             ProvisionSpec::FactWildcard {
                 fact_name: provided_name,

@@ -39,17 +39,9 @@ func compute_reward(agent: GdPAIAgent) -> float:
 
 # Override
 func get_desired_state(_agent: GdPAIAgent) -> Array[Precondition]:
-	var fire_is_maintained = func(
-		_blackboard: GdPAIBlackboard,
-		world_state: GdPAIBlackboard,
-	) -> bool:
-		var campfires: Array[SimObjectProxy] = world_state.get_proxies_in_group("CampfireObject")
-		for campfire in campfires:
-			var fuel: Variant = campfire.get_property("current_fuel")
-			if fuel != null and float(fuel) >= desired_fuel_level:
-				return true
-		return false
-	return [Precondition.custom(fire_is_maintained)]
+	# Simplified built-in goal: Expect ANY campfire in the world to be at target level.
+	# The planner's candidate discovery uses this to find actions that increase fuel.
+	return [Precondition.world_state_property_geq_than("current_fuel", desired_fuel_level)]
 
 
 # Override

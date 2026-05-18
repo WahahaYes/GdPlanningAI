@@ -34,13 +34,17 @@ func get_preconditions() -> Array[Precondition]:
 
 
 func get_requirements() -> Array[RequirementSpec]:
+	var reqs: Array[RequirementSpec] = [RequirementSpec.binding_equals("held_item", "potato")]
 	if object_location != null:
-		return [RequirementSpec.fact("at_target", [object_location])]
-	return []
+		reqs.append(RequirementSpec.fact("at_target", [object_location]))
+	return reqs
 
 
 func get_provisions() -> Array[ProvisionSpec]:
-	return [ProvisionSpec.binding("held_item", "cooked_potato")]
+	return [
+		ProvisionSpec.binding("held_item", "cooked_potato"),
+		ProvisionSpec.fact("is_food", [])
+	]
 
 
 func get_action_cost(

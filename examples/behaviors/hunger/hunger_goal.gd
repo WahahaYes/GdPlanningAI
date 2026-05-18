@@ -18,17 +18,11 @@ func compute_reward(agent: GdPAIAgent) -> float:
 # Override
 func get_desired_state(agent: GdPAIAgent) -> Array[Precondition]:
 	var current_hunger: float = agent.blackboard.get_property("hunger")
-
 	var required_hunger: float = max(0.0, current_hunger - 15.0)
 
-	var check_hunger_less_than = func(
-		blackboard: GdPAIBlackboard,
-		_world_state: GdPAIBlackboard,
-	) -> bool:
-		var hunger: Variant = blackboard.get_property("hunger")
-		return hunger < required_hunger
-
-	return [Precondition.custom(check_hunger_less_than)]
+	# Using a builtin precondition instead of a custom callable allows the planner 
+	# to correctly identify which actions satisfy this goal during the discovery phase.
+	return [Precondition.agent_property_less_than("hunger", required_hunger)]
 
 
 # Override

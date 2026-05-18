@@ -54,7 +54,7 @@ fn spawn_callback_responder(
         for req in req_rx {
             let response = match req.kind {
                 CallbackKind::GetCost { .. } => CallbackResponse::Float(cost_value),
-                CallbackKind::ApplyEffect { mut agent, world } => {
+                CallbackKind::ApplyEffect { mut agent, world, .. } => {
                     if let Some(VariantSnapshot::Int(current)) =
                         agent.properties.get("hunger").cloned()
                     {
@@ -82,21 +82,18 @@ fn run_planner(
     max_depth: usize,
     request_tx: mpsc::Sender<CallbackRequest>,
 ) -> Option<PlanResult> {
-    let (result_tx, result_rx) = mpsc::channel::<Option<PlanResult>>();
     let cancel_flag = Arc::new(AtomicBool::new(false));
 
     gdplanningai_rust::planner::run_plan(
-        agent,
-        world,
         actions,
         goals,
+        agent,
+        world,
+        vec![], // initial_provisions
         max_depth,
         request_tx,
-        result_tx,
         cancel_flag,
-    );
-
-    result_rx.recv().ok().flatten()
+    )
 }
 
 // ── Tests ──────────────────────────────────────────────────────────

@@ -17,7 +17,7 @@ use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::sync::{Mutex, OnceLock};
 
 /// Process-wide log level. Defaults to [`LogLevel::Info`].
-static GLOBAL_LOG_LEVEL: AtomicU8 = AtomicU8::new(LogLevel::Info as u8);
+static GLOBAL_LOG_LEVEL: AtomicU8 = AtomicU8::new(LogLevel::Debug as u8);
 
 /// Log message with level for planner thread logging.
 #[derive(Clone, Debug)]

@@ -56,7 +56,7 @@ func _ready() -> void:
 	blackboard.set_property("GDPAI_OBJECTS", agent_objects)
 	# Apply behavior configurations.
 	for behavior_config in config.behavior_configs:
-		behavior_config.apply_to_agent(self)
+		behavior_config.apply_to_agent(self )
 	# Try to find a world node.
 	world_node = GdPAIUTILS.get_child_of_type(get_tree().root, GdPAIWorldNode)
 	_bridge = GdPAIRustBridge.new()
@@ -64,7 +64,7 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	for updater in property_updaters:
-		updater.update_properties(self, delta)
+		updater.update_properties(self , delta)
 
 	# Until some goals and actions have been provided, this agent is effectively turned off.
 	if goals.size() == 0:
@@ -154,12 +154,12 @@ func _start_plan_async() -> void:
 
 	(
 		scheduler
-		. submit_plan(
-			self,
+		.submit_plan(
+			self ,
 			blackboard,
 			world_node.get_world_state(),
 			_bridge.serialize_actions(all_actions),
-			_bridge.serialize_goals(goals, self),
+			_bridge.serialize_goals(goals, self ),
 			config.max_recursion,
 		)
 	)
@@ -206,12 +206,16 @@ func _inject_bindings_for_position(chain_position: int, action: Action) -> void:
 		return
 	for binding in _current_bindings_by_position[chain_position]:
 		var fact_name: String = binding[1]
-		var object_ids: Array = binding[2]
+		var values: Array = binding[2]
 		var object_refs = []
-		for id in object_ids:
-			var obj = instance_from_id(id)
-			if obj != null:
-				object_refs.append(obj)
+		for val in values:
+			if val is int:
+				var obj = instance_from_id(val)
+				if obj != null:
+					object_refs.append(obj)
+			elif val != null:
+				# Already an object or other variant
+				object_refs.append(val)
 		if action.has_method("inject_binding"):
 			action.inject_binding(fact_name, object_refs)
 
@@ -230,7 +234,7 @@ func _execute_plan(delta: float) -> void:
 				break
 			action.chain_position = i
 			_inject_bindings_for_position(i, action)
-			var action_status: Action.Status = action.pre_perform_action(self)
+			var action_status: Action.Status = action.pre_perform_action(self )
 			if action_status == Action.Status.FAILURE:
 				# Abort the plan.
 				_current_plan_step = action_chain.size()
@@ -247,7 +251,7 @@ func _execute_plan(delta: float) -> void:
 		else:
 			current_action.chain_position = _current_plan_step
 			_inject_bindings_for_position(_current_plan_step, current_action)
-			var action_status: Action.Status = current_action.perform_action(self, delta)
+			var action_status: Action.Status = current_action.perform_action(self , delta)
 			if action_status == Action.Status.FAILURE:
 				# Abort the plan.
 				_current_plan_step = action_chain.size()
@@ -259,13 +263,13 @@ func _execute_plan(delta: float) -> void:
 				_current_plan_step += 1
 
 	# Post actions.
-	if _current_plan_step == action_chain.size():  # We just finished, do post actions.
+	if _current_plan_step == action_chain.size(): # We just finished, do post actions.
 		for i in range(action_chain.size()):
 			var action: Action = action_chain[i]
 			if is_instance_valid(action):
 				action.chain_position = i
 				_inject_bindings_for_position(i, action)
-				action.post_perform_action(self)
+				action.post_perform_action(self )
 				action.chain_position = -1
 		_current_plan_step += 1
 		_current_bindings_by_position = {}

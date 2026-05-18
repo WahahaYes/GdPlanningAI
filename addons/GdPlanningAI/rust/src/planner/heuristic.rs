@@ -1,16 +1,9 @@
-//! Heuristic functions for plan search.
-//!
-//! Provides functions to estimate the remaining cost to reach a goal.
+use super::types::PlanBranch;
 
-use super::expander::PlanBranch;
-
-/// Estimate the minimum remaining cost for a plan branch.
-pub fn estimate_remaining(
-    branch: &PlanBranch,
-    min_action_cost: f64,
-    min_provision_cost: f64,
-) -> f64 {
-    let precondition_estimate = branch.open_preconditions.len() as f64 * min_action_cost;
-    let requirement_estimate = branch.open_requirements.len() as f64 * min_provision_cost;
-    precondition_estimate + requirement_estimate
+pub fn estimate_remaining(branch: &PlanBranch, min_action_cost: f64) -> f64 {
+    // Admissible heuristic: count open needs
+    let pre_count = branch.open_preconditions.len() as f64;
+    let req_count = branch.open_requirements.len() as f64;
+    
+    (pre_count + req_count) * min_action_cost
 }

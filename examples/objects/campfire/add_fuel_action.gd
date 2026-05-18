@@ -30,9 +30,10 @@ func get_preconditions() -> Array[Precondition]:
 
 
 func get_requirements() -> Array[RequirementSpec]:
+	var reqs: Array[RequirementSpec] = [RequirementSpec.binding_equals("held_item", "wood")]
 	if object_location != null:
-		return [RequirementSpec.fact("at_target", [object_location])]
-	return []
+		reqs.append(RequirementSpec.fact("at_target", [object_location]))
+	return reqs
 
 
 func get_provisions() -> Array[ProvisionSpec]:
