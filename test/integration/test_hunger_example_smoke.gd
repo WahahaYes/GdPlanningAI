@@ -18,7 +18,7 @@ func after_each() -> void:
 	await _drain_scheduler()
 
 
-func _drain_scheduler(timeout_frames: int = 120) -> void:
+func _drain_scheduler(timeout_frames: int = 60) -> void:
 	var scheduler: GdPAIPlanScheduler = _scheduler()
 	if scheduler == null:
 		return
@@ -47,7 +47,7 @@ func _scheduler() -> GdPAIPlanScheduler:
 	return GdPAIAutoload.get_scheduler()
 
 
-func _wait_for_plan(agent: GdPAIAgent, timeout_frames: int = 180) -> Array[Action]:
+func _wait_for_plan(agent: GdPAIAgent, timeout_frames: int = 60) -> Array[Action]:
 	var scheduler: GdPAIPlanScheduler = _scheduler()
 	for i in range(timeout_frames):
 		scheduler.process_callbacks()

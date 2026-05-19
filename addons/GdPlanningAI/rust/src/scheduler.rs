@@ -24,6 +24,7 @@ struct ActiveJobHandle {
     done: bool,
 }
 
+
 /// Planning scheduler.
 ///
 /// Add as a child of the autoload and call [method process_callbacks] every
@@ -118,9 +119,7 @@ impl GdPAIPlanScheduler {
                         result.action_chain
                     );
                     let dict = result_to_dict(&result);
-                    job.agent
-                        .clone()
-                        .call("_on_plan_ready", &[dict.to_variant()]);
+                    job.agent.call("_on_plan_ready", &[dict.to_variant()]);
                 } else {
                     log_warn!("Plan completed but agent was freed");
                 }
@@ -461,19 +460,6 @@ fn precond_spec_from_dict(
 }
 
 fn dispatch_callback(callable: &Callable, kind: CallbackKind) -> CallbackResponse {
-    // Check if callable is still valid (target object may have been freed)
-    if !callable.is_valid() {
-        log_warn!("Callable is no longer valid (target object freed); returning safe default");
-        return match kind {
-            CallbackKind::GetCost { .. } => CallbackResponse::Float(f64::INFINITY),
-            CallbackKind::ApplyEffect { agent, world, .. } => {
-                // Return unchanged snapshots
-                CallbackResponse::UpdatedSnapshots(agent, world)
-            }
-            CallbackKind::EvalCustomPrecond { .. } => CallbackResponse::Bool(false),
-        };
-    }
-
     match kind {
         CallbackKind::GetCost { agent, world, provisions, bindings } => {
             let mut bb_agent = agent.into_blackboard();

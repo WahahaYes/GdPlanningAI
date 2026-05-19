@@ -55,7 +55,7 @@ func _submit_plan_and_wait(
 	world_bb: GdPAIBlackboard,
 	actions: Array[Dictionary],
 	goals: Array[Dictionary],
-	timeout_frames: int = 120,
+	timeout_frames: int = 300,
 	max_recursion: int = 100,
 ) -> Dictionary:
 	_plan_ready = false

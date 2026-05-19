@@ -46,6 +46,7 @@ pub fn get_log_sender() -> Option<&'static Mutex<Sender<LogMessage>>> {
 
 /// Process pending log messages on the main thread.
 /// Call this from the main thread (e.g., in the scheduler's process_callbacks).
+#[cfg(not(test))]
 pub fn process_logs() {
     if let Some((_, rx)) = LOG_CHANNEL.get() {
         loop {
@@ -71,6 +72,27 @@ pub fn process_logs() {
                         godot::prelude::godot_print!("[GdPAI | debug] {}", log_msg.message);
                     }
                 },
+                Err(TryRecvError::Empty) => break,
+                Err(TryRecvError::Disconnected) => break,
+            }
+        }
+    }
+}
+
+/// No-op version for tests that don't have Godot engine available.
+#[cfg(test)]
+pub fn process_logs() {
+    // Drain logs without calling Godot FFI
+    if let Some((_, rx)) = LOG_CHANNEL.get() {
+        loop {
+            let log_msg = {
+                let Ok(receiver) = rx.lock() else {
+                    break;
+                };
+                receiver.try_recv()
+            };
+            match log_msg {
+                Ok(_) => continue,
                 Err(TryRecvError::Empty) => break,
                 Err(TryRecvError::Disconnected) => break,
             }
@@ -118,20 +140,17 @@ pub fn get_log_level() -> LogLevel {
 #[macro_export]
 macro_rules! log_error {
     ($($arg:tt)*) => {
-        #[cfg(not(test))]
-        {
-            let message = format!($($arg)*);
-            if let Some(sender) = $crate::logger::get_log_sender() {
-                if let Ok(sender) = sender.lock() {
-                    let _ = sender.send($crate::logger::LogMessage {
-                        level: $crate::logger::LogLevel::Error,
-                        message,
-                    });
-                }
-            } else {
-                // Fallback to direct print if channel not initialized (main thread)
-                godot::prelude::godot_error!("[GdPAI] {}", message);
+        let message = format!($($arg)*);
+        if let Some(sender) = $crate::logger::get_log_sender() {
+            if let Ok(sender) = sender.lock() {
+                let _ = sender.send($crate::logger::LogMessage {
+                    level: $crate::logger::LogLevel::Error,
+                    message,
+                });
             }
+        } else {
+            // Channel not initialized - fall back to Rust stdio (e.g., in tests without Godot)
+            eprintln!("[GdPAI ERROR] {}", message);
         }
     };
 }
@@ -140,7 +159,6 @@ macro_rules! log_error {
 #[macro_export]
 macro_rules! log_warn {
     ($($arg:tt)*) => {
-        #[cfg(not(test))]
         if $crate::logger::get_log_level() >= $crate::logger::LogLevel::Warn {
             let message = format!($($arg)*);
             if let Some(sender) = $crate::logger::get_log_sender() {
@@ -151,8 +169,8 @@ macro_rules! log_warn {
                     });
                 }
             } else {
-                // Fallback to direct print if channel not initialized (main thread)
-                godot::prelude::godot_warn!("[GdPAI] {}", message);
+                // Channel not initialized - fall back to Rust stdio (e.g., in tests without Godot)
+                eprintln!("[GdPAI WARN] {}", message);
             }
         }
     };
@@ -162,7 +180,6 @@ macro_rules! log_warn {
 #[macro_export]
 macro_rules! log_info {
     ($($arg:tt)*) => {
-        #[cfg(not(test))]
         if $crate::logger::get_log_level() >= $crate::logger::LogLevel::Info {
             let message = format!($($arg)*);
             if let Some(sender) = $crate::logger::get_log_sender() {
@@ -173,8 +190,8 @@ macro_rules! log_info {
                     });
                 }
             } else {
-                // Fallback to direct print if channel not initialized (main thread)
-                godot::prelude::godot_print!("[GdPAI] {}", message);
+                // Channel not initialized - fall back to Rust stdio (e.g., in tests without Godot)
+                println!("[GdPAI INFO] {}", message);
             }
         }
     };
@@ -184,7 +201,6 @@ macro_rules! log_info {
 #[macro_export]
 macro_rules! log_debug {
     ($($arg:tt)*) => {
-        #[cfg(not(test))]
         if $crate::logger::get_log_level() >= $crate::logger::LogLevel::Debug {
             let message = format!($($arg)*);
             if let Some(sender) = $crate::logger::get_log_sender() {
@@ -195,8 +211,8 @@ macro_rules! log_debug {
                     });
                 }
             } else {
-                // Fallback to direct print if channel not initialized (main thread)
-                godot::prelude::godot_print!("[GdPAI | debug] {}", message);
+                // Channel not initialized - fall back to Rust stdio (e.g., in tests without Godot)
+                println!("[GdPAI DEBUG] {}", message);
             }
         }
     };
