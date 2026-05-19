@@ -12,6 +12,12 @@ test-godot: ## Run Godot integration tests
 	@echo "Running tests..."
 	@godot --headless -s --path . addons/gut/gut_cmdln.gd -gexit 2>&1 | grep -E "(Failed|Error|PASSED|passed)" || true
 
+.PHONY: test-godot-pipe-output
+test-godot-pipe-output: ## Run Godot integration tests with full output to file
+	@echo "Running tests with full output to test_output.log..."
+	@rm -f test_output.log
+	@godot --headless -s --path . addons/gut/gut_cmdln.gd -gexit > test_output.log 2>&1
+
 ##@ Formatting
 
 .PHONY: format

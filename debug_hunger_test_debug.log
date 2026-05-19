@@ -1,0 +1,12 @@
+Initialize godot-rust (API v4.5.stable.official, runtime v4.6.1.stable.mono.official, safeguards balanced)
+Godot Engine v4.6.1.stable.mono.official.14d19694e - https://godotengine.org
+
+[GdPAI] Direct print from scheduler ready - logging works
+GdPlanningAI: log level set to 3
+ERROR: Can't send message. No active debugger
+   at: send_message (core/core_bind.cpp:2208)
+   GDScript backtrace (most recent call first):
+       [0] _ready (res://addons/GdPlanningAI/gdpai_autoload.gd:16)
+[GdPAI] GdPAIPlanScheduler ready — 16 worker thread(s)
+[GdPAI | debug] Log channel initialized and ready for planner thread logging
+Unknown arguments:  ["-gfile", "res://test/integration/test_hunger_example_smoke.gd"]

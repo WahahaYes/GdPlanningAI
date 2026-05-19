@@ -1,0 +1,133 @@
+[gd_scene load_steps=21 format=3 uid="uid://dhntmcte4wuug"]
+
+[ext_resource type="Script" uid="uid://cu134mwsik6n5" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_world_node.gd" id="1_56wuj"]
+[ext_resource type="Script" uid="uid://cvie3m6t7c0hd" path="res://addons/GdPlanningAI/scripts/gdpai_blackboard_plan.gd" id="2_ke3pc"]
+[ext_resource type="PackedScene" uid="uid://d2lr7clv3whwy" path="res://addons/GdPlanningAI/examples/2D/assets/scenery.tscn" id="3_44q8r"]
+[ext_resource type="PackedScene" uid="uid://b1bmo16x83s1x" path="res://addons/GdPlanningAI/examples/2D/assets/sample_agent.tscn" id="4_7hegv"]
+[ext_resource type="Texture2D" uid="uid://b22ckbemud140" path="res://addons/GdPlanningAI/examples/2D/assets/TinySwordsPack/Units/Red Units/Monk/Idle.png" id="5_pks2p"]
+[ext_resource type="Texture2D" uid="uid://c42c4gc6885ib" path="res://addons/GdPlanningAI/examples/2D/assets/TinySwordsPack/Units/Red Units/Monk/Run.png" id="6_ap5rn"]
+[ext_resource type="Script" uid="uid://1q8wrd044us6" path="res://addons/GdPlanningAI/examples/2D/assets/sample_fps_counter.gd" id="7_qcwyv"]
+
+[sub_resource type="Resource" id="Resource_mer3k"]
+script = ExtResource("2_ke3pc")
+metadata/_custom_type_script = "uid://dsov73hfryg5g"
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_orlck"]
+atlas = ExtResource("5_pks2p")
+region = Rect2(0, 0, 192, 192)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_jp0g3"]
+atlas = ExtResource("5_pks2p")
+region = Rect2(192, 0, 192, 192)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_idemi"]
+atlas = ExtResource("5_pks2p")
+region = Rect2(384, 0, 192, 192)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_htd53"]
+atlas = ExtResource("5_pks2p")
+region = Rect2(576, 0, 192, 192)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_uhcl6"]
+atlas = ExtResource("5_pks2p")
+region = Rect2(768, 0, 192, 192)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_f0464"]
+atlas = ExtResource("5_pks2p")
+region = Rect2(960, 0, 192, 192)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_1gbr5"]
+atlas = ExtResource("6_ap5rn")
+region = Rect2(0, 0, 192, 192)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_w40cd"]
+atlas = ExtResource("6_ap5rn")
+region = Rect2(192, 0, 192, 192)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_vd6om"]
+atlas = ExtResource("6_ap5rn")
+region = Rect2(384, 0, 192, 192)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_a5bn8"]
+atlas = ExtResource("6_ap5rn")
+region = Rect2(576, 0, 192, 192)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_guyou"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_orlck")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_jp0g3")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_idemi")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_htd53")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_uhcl6")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_f0464")
+}],
+"loop": true,
+"name": &"Idle",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_1gbr5")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_w40cd")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_vd6om")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_a5bn8")
+}],
+"loop": true,
+"name": &"Run",
+"speed": 5.0
+}]
+
+[sub_resource type="LabelSettings" id="LabelSettings_m5nv4"]
+font_size = 40
+
+[node name="MultiAgentDemo" type="Node2D"]
+
+[node name="GdPAIWorldNode" type="Node" parent="."]
+script = ExtResource("1_56wuj")
+blackboard_plan = SubResource("Resource_mer3k")
+
+[node name="Scenery" parent="." instance=ExtResource("3_44q8r")]
+
+[node name="SampleAgent" parent="." instance=ExtResource("4_7hegv")]
+position = Vector2(208, 423)
+lock_rotation = true
+
+[node name="SampleAgent2" parent="." instance=ExtResource("4_7hegv")]
+position = Vector2(947, 209)
+lock_rotation = true
+
+[node name="AnimatedSprite2D" parent="SampleAgent2" index="1"]
+sprite_frames = SubResource("SpriteFrames_guyou")
+frame_progress = 0.0
+
+[node name="FPSDisplay" type="Label" parent="." node_paths=PackedStringArray("display_text")]
+offset_left = -215.0
+offset_top = -274.0
+offset_right = 513.0
+offset_bottom = 126.0
+text = "FPS average:
+Low spike:"
+label_settings = SubResource("LabelSettings_m5nv4")
+script = ExtResource("7_qcwyv")
+display_text = NodePath(".")
+
+[editable path="SampleAgent"]
+[editable path="SampleAgent2"]
