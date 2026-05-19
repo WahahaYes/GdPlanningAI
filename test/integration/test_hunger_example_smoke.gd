@@ -150,7 +150,10 @@ func test_real_hunger_example_shakes_tree_then_picks_up_food() -> void:
 	var action_titles: Array[String] = []
 	for wa in world_actions:
 		action_titles.append(wa.get_title())
-	assert_true(action_titles.has("Pick Up Item"), "Agent should see world actions from dropped fruit (bananas), found: %s" % str(action_titles))
+	assert_true(
+		action_titles.has("Pick Up Item"),
+		"Agent should see Pickup from dropped fruit, found: %s" % str(action_titles)
+	)
 
 	agent.blackboard.set_property("hunger", 30.0)
 	var pickup_plan: Array[Action] = await _start_plan_and_wait(agent)

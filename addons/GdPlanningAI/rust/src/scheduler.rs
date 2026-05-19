@@ -111,10 +111,11 @@ impl GdPAIPlanScheduler {
 
                 if job.agent.is_instance_valid() {
                     log_info!(
-                        "Plan complete: success={}, actions={}, cost={:.1}",
+                        "Plan complete: success={}, actions={}, cost={:.1}, action_chain={:?}",
                         result.success,
                         result.action_chain.len(),
-                        result.total_cost
+                        result.total_cost,
+                        result.action_chain
                     );
                     let dict = result_to_dict(&result);
                     job.agent

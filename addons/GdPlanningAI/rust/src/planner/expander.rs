@@ -36,6 +36,26 @@ impl<'a> BranchExpander<'a> {
         log_debug!("find_candidates: Checking {} actions against {} preconds and {} requirements", self.ctx.actions.len(), branch.open_preconditions.len(), branch.open_requirements.len());
 
         for (idx, action) in self.ctx.actions.iter().enumerate() {
+            // 0. Check Validity Checks (hard prerequisites against initial state)
+            let mut valid = true;
+            for check in &action.validity_checks {
+                if !simulation::eval_precondition(
+                    check,
+                    self.ctx.initial_agent,
+                    self.ctx.initial_world,
+                    self.ctx.initial_provisions.to_vec(),
+                    vec![],
+                    self.ctx.request_tx,
+                ) {
+                    log_debug!("Discovery: Action {} failed validity check, skipping", action.name);
+                    valid = false;
+                    break; // Skip this action entirely
+                }
+            }
+            if !valid {
+                continue;
+            }
+
             let mut satisfied_preconditions = Vec::new();
             let mut satisfied_requirements = Vec::new();
 
@@ -55,11 +75,11 @@ impl<'a> BranchExpander<'a> {
             // AND all current branch requirements are assumed met.
             let mut hypothetical_agent = self.ctx.initial_agent.clone();
             let mut hypothetical_world = self.ctx.initial_world.clone();
-            
+
             // Apply branch requirements
             let branch_reqs: Vec<RequirementSpec> = branch.open_requirements.iter().map(|(_, r)| r.clone()).collect();
             apply_requirements_to_snapshots(&branch_reqs, &mut hypothetical_agent, &mut hypothetical_world);
-            
+
             // Apply this action's requirements
             apply_requirements_to_snapshots(&action.requirements, &mut hypothetical_agent, &mut hypothetical_world);
 
@@ -75,12 +95,11 @@ impl<'a> BranchExpander<'a> {
                     &hypothetical_world,
                     self.ctx.initial_provisions.to_vec(),
                     self.ctx.request_tx,
-                    true, // skip_validity = true (optimistic)
                 );
 
                 if let Some(res) = sim_result {
                     log_debug!("Discovery: Simulation success for {}. Agent props: {:?}", action.name, res.agent.properties);
-                    
+
                     // See if the effect satisfied the precondition
                     if simulation::eval_precondition(
                         precond,
@@ -179,13 +198,12 @@ impl<'a> BranchExpander<'a> {
             // Head of the chain (pos 0) is allowed to be ungrounded in backward planning.
             // If it's ungrounded, we simulate it OPTIMISTICALLY so we can see its potential effects.
             let is_grounded = crate::requirement::requirements_satisfied(&action.requirements, &current_provisions);
-            let skip_validity = pos == 0 && !is_grounded;
 
             let mut sim_agent = current_agent.clone();
             let mut sim_world = current_world.clone();
 
-            if skip_validity {
-                // Apply optimistic requirements to the state before simulation
+            // Apply optimistic requirements for ungrounded head actions
+            if pos == 0 && !is_grounded {
                 apply_requirements_to_snapshots(&action.requirements, &mut sim_agent, &mut sim_world);
             }
 
@@ -197,17 +215,12 @@ impl<'a> BranchExpander<'a> {
                 &sim_world,
                 current_provisions.clone(),
                 self.ctx.request_tx,
-                skip_validity, 
             ) {
                 current_agent = res.agent;
                 current_world = res.world;
                 total_cost += res.cost;
             } else {
-                if !skip_validity {
-                    log_debug!("Ripple: Action {} at pos {} failed validity - discarding branch", action.name, pos);
-                } else {
-                    log_debug!("Ripple: Action {} at pos {} (ungrounded) failed simulation - discarding branch", action.name, pos);
-                }
+                log_debug!("Ripple: Action {} at pos {} failed simulation - discarding branch", action.name, pos);
                 return None;
             }
             
@@ -271,9 +284,9 @@ impl<'a> BranchExpander<'a> {
         for pre in &action.preconditions {
             if !simulation::eval_precondition(
                 pre,
-                self.ctx.initial_agent,
-                self.ctx.initial_world,
-                self.ctx.initial_provisions.to_vec(),
+                &branch.final_state_agent,
+                &branch.final_state_world,
+                branch.bound_provisions.clone(),
                 vec![], // No bindings for backward grounding check
                 self.ctx.request_tx,
             ) {
@@ -292,11 +305,11 @@ fn apply_requirements_to_snapshots(reqs: &[RequirementSpec], agent: &mut Blackbo
     for req in reqs {
         match req {
             RequirementSpec::BindingEquals { binding_name, value } => {
-                // We only apply concrete value requirements. 
-                // We no longer provide dummy values for Existence or Set requirements.
+                // Apply concrete value requirements to agent snapshot.
+                // World-level bindings will need a separate mechanism when needed.
                 agent.properties.insert(binding_name.clone(), value.clone());
             }
-            _ => {} 
+            _ => {}
         }
     }
 }

@@ -60,12 +60,10 @@ When prepending `Action P` to `Branch [A, B, C]`:
    - `current_state = InitialState`
    - `current_provisions = InitialProvisions`
    - For `(pos, action)` in `new_chain`:
-     - **Head Simulation**: If `pos == 0`:
-       - `skip_validity = true`. (Head of chain is allowed to be ungrounded).
+     - **Head Simulation**: If `pos == 0` and action is ungrounded:
        - Note: The action's `simulate_effect` should report its potential effects even if requirements are not yet physically met in `current_state`.
-     - Else:
-       - `skip_validity = false`. (Remaining chain must be strictly grounded).
-     - `res = action.simulate_effect(current_state, current_provisions, bindings[pos], skip_validity)`
+       - Apply optimistic requirements to the state before simulation to see potential effects.
+     - `res = action.simulate_effect(current_state, current_provisions, bindings[pos])`
      - If `res` is invalid: RETURN None (Prune).
      - `current_state = res.state`, `total_cost += res.cost`.
      - Update `current_provisions` with `action.provisions` for the NEXT step.
@@ -79,9 +77,9 @@ When prepending `Action P` to `Branch [A, B, C]`:
      - Add remaining `P.requirements` at `pos=0`.
    - **Preconditions (The Frontier)**:
      - Remove from `open_preconditions` only the entries that `P` satisfies (from `satisfied_precondition_indices`).
-     - Check `P.preconditions` against `InitialState` (Deep Check).
+     - Check `P.preconditions` against `branch.final_state_agent` and `branch.final_state_world` (Deep Check).
      - Any NOT met are **appended** to `open_preconditions`.
-     - Note: Unsatisfied preconditions from prior chain positions remain open until a future predecessor resolves them. The ripple validates that these are genuinely met when the full chain is executed.
+     - Note: In backward planning, preconditions are checked against the state after the effects of actions already in the chain (e.g., when adding Pick Up Item after Eat Held Food, check if held_item == "" is true in the state after Eat Held Food's effects).
 
 ---
 
@@ -96,13 +94,17 @@ A branch is complete if:
 
 ## 5. Candidate Discovery (`find_candidates`)
 
-To find actions that *could* help, we use a two-layer check:
+To find actions that *could* help, we use a three-layer check:
 
-1. **Symbolic Layer**: 
+1. **Validity Checks** (Hard Prerequisites):
+   - Evaluate `Action.validity_checks` against `InitialState`.
+   - If any check fails, skip this action entirely (e.g., object invalid, on cooldown).
+   - Implementation detail: Use a flag to track validity; break out of the inner loop on first failure and skip the entire action (not just the inner loop iteration).
+2. **Symbolic Layer**:
    - Does `Action A` have a provision that matches **any** `open_requirement`?
    - **Context-Aware**: `BindingInSet` requirements check the world state for group membership.
    - Multiple satisfaction: An action can satisfy multiple open requirements at once.
-2. **Optimistic Physical Layer**:
+3. **Optimistic Physical Layer**:
    - **Hypothetical State**: Create a state where concrete `BindingEquals` requirements are applied.
    - **Action-Led Hypothetical Progress**: Run `A.simulate_effect(HypotheticalState)` with **Strict=False**.
    - **Requirement Responsibility**: Actions that declare symbolic requirements (Existence, Set membership) should report their effects during simulation even if the requirement is not physically fulfilled in the snapshot.

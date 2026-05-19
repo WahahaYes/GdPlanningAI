@@ -57,38 +57,15 @@ pub fn simulate_action(
     world: &BlackboardSnapshot,
     accumulated_provisions: Vec<ProvisionSpec>,
     request_tx: &Sender<CallbackRequest>,
-    skip_validity: bool,
 ) -> Option<SimulationResult> {
-    // 2. Resolve bindings for this specific action in the chain
+    // Resolve bindings for this specific action in the chain
     let relevant_bindings: Vec<(String, Vec<VariantSnapshot>)> = action_bindings
         .iter()
         .filter(|(idx, _, _)| *idx == chain_position as i64)
         .map(|(_, name, ids)| (name.clone(), ids.clone()))
         .collect();
 
-    // 1. Verify preconditions and requirements if not skipping
-    if !skip_validity {
-        for precond in &action.preconditions {
-            if !eval_precondition(
-                precond,
-                agent,
-                world,
-                accumulated_provisions.clone(),
-                relevant_bindings.clone(),
-                request_tx,
-            ) {
-                return None;
-            }
-        }
-
-        // Enforce symbolic requirements
-        if !crate::requirement::requirements_satisfied(&action.requirements, &accumulated_provisions) {
-            log_debug!("Action {} requirements not satisfied by accumulated provisions", action.name);
-            return None;
-        }
-    }
-
-    // 3. Call GDScript for cost and effect
+    // Call GDScript for cost and effect
     let mut cost = 1.0;
     if let Some(callable_id) = action.cost_callable_id {
         let (tx, rx) = std::sync::mpsc::channel();
