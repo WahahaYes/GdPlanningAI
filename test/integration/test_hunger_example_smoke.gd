@@ -67,11 +67,14 @@ func _start_plan_and_wait(agent: GdPAIAgent, timeout_frames: int = 180) -> Array
 	for i in range(timeout_frames):
 		scheduler.process_callbacks()
 		saw_job = saw_job or scheduler.active_job_count() > 0
-		if saw_job and scheduler.active_job_count() == 0:
-			return agent.get_current_plan()
 		if agent.get_current_plan() != previous_plan:
 			return agent.get_current_plan()
+		if saw_job and scheduler.active_job_count() == 0:
+			return agent.get_current_plan()
 		await get_tree().process_frame
+	
+	# Timeout reached - cancel the in-flight planning job
+	scheduler.cancel_agent_jobs(agent)
 	fail_test("Timed out waiting for submitted agent plan")
 	return []
 
@@ -129,12 +132,16 @@ func test_real_hunger_example_shakes_tree_then_picks_up_food() -> void:
 
 	agent.blackboard.set_property("hunger", 0.0)
 	var first_plan: Array[Action] = await _start_plan_and_wait(agent)
-	assert_false(first_plan.is_empty(), "Agent should plan while full")
+	if first_plan.is_empty():
+		fail_test("Agent should plan while full, but got empty plan")
+		return
 	assert_eq(first_plan[0].get_title(), "Wander", "Agent should wander while hunger is low")
 
 	agent.blackboard.set_property("hunger", 30.0)
 	var shake_plan: Array[Action] = await _start_plan_and_wait(agent)
-	assert_false(shake_plan.is_empty(), "Agent should plan when hungry")
+	if shake_plan.is_empty():
+		fail_test("Agent should plan when hungry, but got empty plan")
+		return
 	assert_eq(shake_plan.size(), 2, "Plan should have GoTo → Shake Tree chain")
 	assert_eq(shake_plan[0].get_title(), "Go To", "First action should be GoTo")
 	assert_eq(shake_plan[1].get_title(), "Shake Tree", "Second action should be Shake Tree")
@@ -157,8 +164,8 @@ func test_real_hunger_example_shakes_tree_then_picks_up_food() -> void:
 
 	agent.blackboard.set_property("hunger", 30.0)
 	var pickup_plan: Array[Action] = await _start_plan_and_wait(agent)
-	assert_false(pickup_plan.is_empty(), "Agent should plan after food drops")
 	if pickup_plan.is_empty():
+		fail_test("Agent should plan after food drops, but got empty plan")
 		return
 	# New pattern: GoTo → PickupAction → EatHeldFoodAction chain
 	assert_eq(pickup_plan.size(), 3, "Plan should have GoTo → Pickup → Eat chain")

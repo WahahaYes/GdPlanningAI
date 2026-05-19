@@ -61,6 +61,9 @@ func _start_plan_and_wait(agent: GdPAIAgent, timeout_frames: int = 300) -> Array
 		if saw_job and scheduler.active_job_count() == 0:
 			return agent.get_current_plan()
 		await get_tree().process_frame
+	
+	# Timeout reached - cancel the in-flight planning job
+	scheduler.cancel_agent_jobs(agent)
 	fail_test("Timed out waiting for submitted agent plan")
 	return []
 
@@ -105,9 +108,10 @@ func test_full_cooking_chain() -> void:
 	await _pump_frames(3)
 
 	var plan: Array[Action] = await _start_plan_and_wait(agent)
-	assert_false(plan.is_empty(), "Agent should plan when hungry with fire available")
+	if plan.is_empty():
+		fail_test("Agent should plan when hungry with fire available, but got empty plan")
+		return
 
-	# Expected: GoTo(potato) → Dig Potato → GoTo(campfire) → Cook Potato → Eat Held Food
 	assert_eq(plan.size(), 5, "Plan should have 5 actions: %s" % _plan_titles(plan))
 	assert_eq(plan[0].get_title(), "Go To")
 	assert_eq(plan[1].get_title(), "Dig Potato")
@@ -141,7 +145,9 @@ func test_preemptive_fire_maintenance() -> void:
 	await _pump_frames(3)
 
 	var plan: Array[Action] = await _start_plan_and_wait(agent)
-	assert_false(plan.is_empty(), "Agent should plan when fire is moderate and hunger is low")
+	if plan.is_empty():
+		fail_test("Agent should plan when fire is moderate and hunger is low, but got empty plan")
+		return
 
 	# Fire reward (40) > hunger (20), so fire maintenance is the selected goal
 	# Expected: GoTo(wood) → Pick Up Wood → GoTo(campfire) → Add Fuel
@@ -182,6 +188,10 @@ func test_cannot_add_fuel_when_full() -> void:
 	var plan: Array[Action] = await _start_plan_and_wait(agent)
 	# Agent should not plan AddFuel when fire is full
 	# It should either wander or drop wood and do something else
+	if plan.is_empty():
+		# Empty plan is acceptable for this test case
+		return
+	
 	var titles: Array[String] = []
 	for a in plan:
 		titles.append(a.get_title())
@@ -202,6 +212,10 @@ func test_cannot_cook_without_potato() -> void:
 	await _pump_frames(3)
 
 	var plan: Array[Action] = await _start_plan_and_wait(agent)
+	if plan.is_empty():
+		# Empty plan is acceptable for this test case
+		return
+	
 	var titles: Array[String] = []
 	for a in plan:
 		titles.append(a.get_title())

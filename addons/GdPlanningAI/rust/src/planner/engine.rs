@@ -13,6 +13,11 @@ pub struct PlannerEngine<'a> {
     cancel_flag: Arc<AtomicBool>,
     search_algorithm: SearchAlgorithm,
     termination_strategy: TerminationStrategy,
+    // Profiling metrics
+    nodes_explored: usize,
+    max_depth_reached: usize,
+    candidates_evaluated: usize,
+    search_iterations: usize,
 }
 
 impl<'a> PlannerEngine<'a> {
@@ -27,6 +32,10 @@ impl<'a> PlannerEngine<'a> {
             cancel_flag,
             search_algorithm: SearchAlgorithm::AStar,
             termination_strategy: TerminationStrategy::FirstComplete,
+            nodes_explored: 0,
+            max_depth_reached: 0,
+            candidates_evaluated: 0,
+            search_iterations: 0,
         }
     }
 
@@ -138,8 +147,23 @@ impl<'a> PlannerEngine<'a> {
         let mut best_cost = f64::INFINITY;
         let mut best_result: Option<PlanResult> = None;
 
+        log_info!("Starting search loop with max_depth {}", self.max_depth);
+
         while let Some(node) = controller.pop() {
+            self.search_iterations += 1;
+            self.nodes_explored += 1;
+            if node.depth > self.max_depth_reached {
+                self.max_depth_reached = node.depth;
+            }
+
+            if self.search_iterations % 100 == 0 {
+                log_info!("Search progress: iteration {}, nodes explored {}, max depth reached {}", 
+                    self.search_iterations, self.nodes_explored, self.max_depth_reached);
+            }
+
             if self.cancel_flag.load(std::sync::atomic::Ordering::Relaxed) {
+                log_info!("Search cancelled by cancel_flag after {} iterations", self.search_iterations);
+                self.log_profiling_metrics(goal);
                 return None;
             }
 
@@ -158,6 +182,7 @@ impl<'a> PlannerEngine<'a> {
 
                 match self.termination_strategy {
                     TerminationStrategy::FirstComplete => {
+                        self.log_profiling_metrics(goal);
                         return Some(PlanResult {
                             success: true,
                             action_chain: node.branch.action_chain.clone(),
@@ -188,6 +213,14 @@ impl<'a> PlannerEngine<'a> {
             }
 
             let successors = expander.expand(&node.branch);
+            self.candidates_evaluated += successors.len();
+            log_info!("Node expansion: chain length {}, depth {}, generated {} successors", 
+                node.branch.action_chain.len(), node.depth, successors.len());
+            
+            if successors.is_empty() {
+                log_info!("No successors generated - expander returned empty array");
+            }
+            
             for succ in successors {
                 let h = match self.search_algorithm {
                     SearchAlgorithm::DepthFirst => 0.0,
@@ -202,6 +235,31 @@ impl<'a> PlannerEngine<'a> {
             }
         }
 
+        log_info!("Search loop exhausted after {} iterations (no more nodes to explore)", self.search_iterations);
+        self.log_profiling_metrics(goal);
         best_result
+    }
+
+    fn log_profiling_metrics(&self, goal: &GoalSpec) {
+        let num_actions = self.ctx.actions.len();
+        let theoretical_max = if num_actions > 0 && self.max_depth > 0 {
+            // Theoretical max: num_actions^max_depth (worst case, no pruning)
+            num_actions.pow(self.max_depth as u32)
+        } else {
+            0
+        };
+
+        log_info!(
+            "=== PROFILING METRICS ===\n  Goal: {}\n  Actions: {}\n  Max Depth: {}\n  Theoretical Max Search Space: {}\n  Search Iterations: {}\n  Nodes Explored: {}\n  Max Depth Reached: {}\n  Candidates Evaluated: {}\n  Exploration Percentage: {:.2}%\n========================",
+            goal.name,
+            num_actions,
+            self.max_depth,
+            theoretical_max,
+            self.search_iterations,
+            self.nodes_explored,
+            self.max_depth_reached,
+            self.candidates_evaluated,
+            if theoretical_max > 0 { (self.nodes_explored as f64 / theoretical_max as f64) * 100.0 } else { 0.0 }
+        );
     }
 }

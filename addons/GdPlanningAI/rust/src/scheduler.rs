@@ -221,6 +221,20 @@ impl GdPAIPlanScheduler {
         self.active_jobs.len() as i64
     }
 
+    /// Cancel all in-flight planning jobs for a specific agent.
+    ///
+    /// [param agent]: The agent whose planning jobs should be cancelled.
+    #[func]
+    fn cancel_agent_jobs(&mut self, agent: Gd<Object>) {
+        let agent_instance_id = agent.instance_id().to_i64();
+        for job in &mut self.active_jobs {
+            if job.agent_instance_id == agent_instance_id {
+                job.cancel_flag.store(true, std::sync::atomic::Ordering::Relaxed);
+                log_debug!("Cancelled planning job for agent instance {}", job.agent_instance_id);
+            }
+        }
+    }
+
     /// Sets the process-wide log verbosity.
     ///
     /// [param level]: [code]0[/code] = Error, [code]1[/code] = Warn,
