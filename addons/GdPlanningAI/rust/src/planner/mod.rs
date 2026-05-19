@@ -8,6 +8,7 @@ pub mod engine;
 pub use engine::PlannerEngine;
 pub use types::{PlanBranch, ActionCandidate};
 pub use expander::SearchContext;
+pub use controller::{SearchAlgorithm, TerminationStrategy};
 
 use crate::plan_types::*;
 use crate::snapshot::BlackboardSnapshot;
@@ -34,7 +35,8 @@ pub fn run_plan(
         initial_provisions: &initial_provisions,
         request_tx: &request_tx,
     };
-
-    let mut engine = PlannerEngine::new(&ctx, max_recursion, cancel_flag);
+    let mut engine = PlannerEngine::new(&ctx, max_recursion, cancel_flag)
+        .with_search_algorithm(SearchAlgorithm::DepthFirst)
+        .with_termination_strategy(TerminationStrategy::FirstComplete);
     engine.plan(&goals)
 }

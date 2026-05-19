@@ -140,6 +140,9 @@ impl<'a> BranchExpander<'a> {
             log_debug!("No candidates found for branch with {} preconds and {} requirements", branch.open_preconditions.len(), branch.open_requirements.len());
         }
 
+        // Sort candidates by estimated cost (ascending) - critical for DFS performance
+        candidates.sort_by(|a, b| a.estimated_cost.partial_cmp(&b.estimated_cost).unwrap_or(std::cmp::Ordering::Equal));
+
         candidates
     }
 

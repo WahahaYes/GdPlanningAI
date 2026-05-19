@@ -2,7 +2,7 @@ use crate::plan_types::*;
 use crate::plan_tree::PlanResult;
 use super::types::PlanBranch;
 use super::expander::{SearchContext, BranchExpander};
-use super::controller::{AStarController, SearchNode};
+use super::controller::{SearchNode, SearchAlgorithm, TerminationStrategy, create_controller};
 use super::heuristic;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
@@ -11,6 +11,8 @@ pub struct PlannerEngine<'a> {
     ctx: &'a SearchContext<'a>,
     max_depth: usize,
     cancel_flag: Arc<AtomicBool>,
+    search_algorithm: SearchAlgorithm,
+    termination_strategy: TerminationStrategy,
 }
 
 impl<'a> PlannerEngine<'a> {
@@ -23,7 +25,19 @@ impl<'a> PlannerEngine<'a> {
             ctx,
             max_depth,
             cancel_flag,
+            search_algorithm: SearchAlgorithm::AStar,
+            termination_strategy: TerminationStrategy::FirstComplete,
         }
+    }
+
+    pub fn with_search_algorithm(mut self, algorithm: SearchAlgorithm) -> Self {
+        self.search_algorithm = algorithm;
+        self
+    }
+
+    pub fn with_termination_strategy(mut self, strategy: TerminationStrategy) -> Self {
+        self.termination_strategy = strategy;
+        self
     }
 
     pub fn plan(&mut self, goals: &[GoalSpec]) -> Option<PlanResult> {
@@ -73,8 +87,8 @@ impl<'a> PlannerEngine<'a> {
     }
 
     fn search_goal(&mut self, goal: &GoalSpec) -> Option<PlanResult> {
-        log_info!("PlannerEngine: Searching for goal '{}'", goal.name);
-        let mut controller = AStarController::new();
+        log_info!("PlannerEngine: Searching for goal '{}' with algorithm {:?}", goal.name, self.search_algorithm);
+        let mut controller = create_controller(self.search_algorithm);
         
         let root = PlanBranch::new(
             &goal.desired_state,
@@ -121,24 +135,52 @@ impl<'a> PlannerEngine<'a> {
         });
 
         let expander = BranchExpander { ctx: self.ctx };
+        let mut best_cost = f64::INFINITY;
+        let mut best_result: Option<PlanResult> = None;
 
         while let Some(node) = controller.pop() {
             if self.cancel_flag.load(std::sync::atomic::Ordering::Relaxed) {
                 return None;
             }
 
-            log_info!("A* Iteration: pop node with chain length {}", node.branch.action_chain.len());
+            // Cost pruning: skip nodes that exceed best cost found so far
+            // This is critical for DFS performance (matches old planner behavior)
+            if node.branch.cost >= best_cost {
+                log_debug!("Pruning node with cost {} >= best {}", node.branch.cost, best_cost);
+                continue;
+            }
+
+            log_info!("Search iteration: pop node with chain length {}", node.branch.action_chain.len());
 
             if node.branch.is_complete(self.ctx.initial_agent, self.ctx.initial_world, self.ctx.request_tx) {
-                log_info!("A* SUCCESS! Returning plan for goal '{}'", goal.name);
-                return Some(PlanResult {
-                    success: true,
-                    action_chain: node.branch.action_chain,
-                    total_cost: node.branch.cost,
-                    goal_index: goal.original_index as i64,
-                    deferred_action_indices: vec![],
-                    action_bindings: node.branch.action_bindings,
-                });
+                let cost = node.branch.cost;
+                log_info!("Found complete plan for goal '{}' with cost {}", goal.name, cost);
+
+                match self.termination_strategy {
+                    TerminationStrategy::FirstComplete => {
+                        return Some(PlanResult {
+                            success: true,
+                            action_chain: node.branch.action_chain.clone(),
+                            total_cost: cost,
+                            goal_index: goal.original_index as i64,
+                            deferred_action_indices: vec![],
+                            action_bindings: node.branch.action_bindings.clone(),
+                        });
+                    }
+                    TerminationStrategy::BestCost => {
+                        if cost < best_cost {
+                            best_cost = cost;
+                            best_result = Some(PlanResult {
+                                success: true,
+                                action_chain: node.branch.action_chain.clone(),
+                                total_cost: cost,
+                                goal_index: goal.original_index as i64,
+                                deferred_action_indices: vec![],
+                                action_bindings: node.branch.action_bindings.clone(),
+                            });
+                        }
+                    }
+                }
             }
 
             if node.depth >= self.max_depth {
@@ -147,7 +189,11 @@ impl<'a> PlannerEngine<'a> {
 
             let successors = expander.expand(&node.branch);
             for succ in successors {
-                let h = heuristic::estimate_remaining(&succ, 1.0);
+                let h = match self.search_algorithm {
+                    SearchAlgorithm::DepthFirst => 0.0,
+                    SearchAlgorithm::Dijkstra => 0.0,
+                    SearchAlgorithm::AStar => heuristic::estimate_remaining(&succ, 1.0),
+                };
                 controller.push(SearchNode {
                     branch: succ,
                     depth: node.depth + 1,
@@ -156,6 +202,6 @@ impl<'a> PlannerEngine<'a> {
             }
         }
 
-        None
+        best_result
     }
 }
