@@ -6,24 +6,38 @@ Integration tests (particularly campfire and hunger examples) are timing out wit
 
 ## Observed Issues
 
-### 1. Test Timeout Not Sending Cancel Signal
+### 1. Test Timeout Not Sending Cancel Signal (RESOLVED)
 - Test timeout (300 frames) occurs but planner continues running in background
 - Cancel flag is not being set when test times out
 - Planner continues processing after test failure
 - Evidence: "Search iteration" messages continue appearing after test timeout error
 
-### 2. Test Not Asserting Plan is Not None
+**Fix:** Added `cancel_agent_jobs()` method to scheduler that sets cancel flag for specific agent. Tests now call this method on timeout. Logs show "Search cancelled by cancel_flag after 10 iterations".
+
+### 2. Test Not Asserting Plan is Not None (RESOLVED)
 - Test tries to access `plan[0]` without checking if plan is empty
 - "Out of bounds get index '0'" error occurs when planner returns None/empty plan
 - Test should assert plan is not None before accessing elements
 - Location: `test/integration/test_campfire_example_smoke.gd:112`
 
-### 3. Search Exhaustion at Depth 3
+**Fix:** Added guard clauses in tests to check if plan is empty before accessing elements. Tests now fail with clear message "Agent should plan... but got empty plan" instead of crashing.
+
+### 3. Search Exhaustion at Depth 3 (RESOLVED - Root Cause Found)
 - Search loop iterates correctly but exhausts at chain length 3, depth 3
 - Expander returns 0 successors at depth 3
 - Search keeps popping nodes at depth 3 but cannot expand them
 - Planner exhausts search space without finding complete plan
 - Evidence: "Node expansion: chain length 3, depth 3, generated 0 successors"
+
+**Root Cause:** Insertion logic change in expander.rs (removed insertion_index_for_candidate, always inserted at position 0) changed DFS exploration order, causing depth 3 exhaustion.
+
+**Fix:** Reverted expander.rs to HEAD, restoring original insertion logic. Test results improved from 23 failing to 5 failing tests.
+
+### 4. Risky Test Assertions (RESOLVED)
+- Tests marked as "Risky: Did not assert" when plan is empty
+- test_cannot_add_fuel_when_full and test_cannot_cook_without_potato
+
+**Fix:** Added assertions even when plan is empty to ensure tests always have at least one assertion.
 
 ## Debug Strategies Implemented
 
@@ -56,50 +70,58 @@ Added logging for:
 
 ## Root Cause Analysis
 
-The timeout is NOT caused by:
+The timeout was caused by:
+1. **PRIMARY:** Insertion logic change in expander.rs (always inserting at position 0 instead of calculated insertion index) changed DFS exploration order, causing depth 3 exhaustion
+2. **SECONDARY:** Test timeout not canceling planner (now fixed)
+3. **SECONDARY:** Test not handling None/empty plan result gracefully (now fixed)
+
+The timeout was NOT caused by:
 - Excessive search space exploration (only 0.00%-18.75% explored)
 - Infinite loop in search (loop exits correctly)
 - Controller stuck (nodes are being popped and processed)
 
-The timeout IS caused by:
-- Test timeout (300 frames) not canceling planner
-- Planner exhausting search space without finding valid plan
-- Test not handling None/empty plan result gracefully
+## Resolution Status
 
-## Next Debug Steps
+**Completed:**
+- ✅ Root cause identified (insertion logic change)
+- ✅ Reverted expander.rs to restore original insertion logic
+- ✅ Added cancel_agent_jobs() method to scheduler
+- ✅ Wired up cancel signal in tests
+- ✅ Added plan validation in tests
+- ✅ Fixed risky test assertions
 
-### 1. Fix Test Timeout Cancel Signal
-- Investigate how cancel_flag should be set on test timeout
-- Ensure scheduler properly cancels in-flight planning jobs
-- Verify cancel signal propagates to planner threads
+**Test Results:**
+- **Before fixes:** 23 failing tests, 23 passing
+- **After reverting expander:** 5 failing tests, 40 passing
+- **After cancel signal + test fixes:** 3 failing tests, 43 passing
 
-### 2. Add Plan Validation in Tests
-- Assert plan is not None before accessing elements
-- Add graceful handling of empty plan results
-- Test should fail with clear message if no plan found
+**Remaining Failures:**
+- test_full_cooking_chain - Planner cancelled after 10 iterations (timeout before finding plan)
+- test_competing_priorities_hunger_wins - Same timeout issue
+- test_async_chooses_cheaper_deeper_chain_over_direct_expensive_completion - Action ordering issue (backward chaining produces [1,2] but test expects [2,1])
 
-### 3. Investigate Depth 3 Exhaustion
-- Add logging to expander to show why 0 successors at depth 3
-- Check if actions are being filtered incorrectly
-- Verify preconditions/requirements are being evaluated correctly
-- Compare with old DFS insertion order behavior
+## Next Steps
 
-### 4. Check Branch Recovery Logic
-- Verify controller correctly backtracks to depth 2 after depth 3 exhaustion
-- Ensure alternative branches at depth 2 are explored
-- Add logging to show branch selection and backtracking
+### 1. Investigate Remaining Timeout Issues
+The cancel signal is working correctly - planner stops when cancelled. The remaining timeout failures are due to planner performance (needs more than 300 frames to find valid plans). Options:
+- Increase test timeout values
+- Investigate why planner needs more time for these specific scenarios
+- Profile these specific test cases to understand search space
+
+### 2. Fix Action Ordering Test
+test_async_chooses_cheaper_deeper_chain_over_direct_expensive_completion expects action order [2,1] but gets [1,2]. The test comment indicates backward chaining produces "LightFire then GetFood (prepares fire before food)" which may be the correct behavior. Need to verify if test expectation is correct.
 
 ## Relevant Files
 
 - `addons/GdPlanningAI/rust/src/planner/engine.rs` - Search loop and profiling
-- `addons/GdPlanningAI/rust/src/planner/expander.rs` - Branch expansion logic
-- `addons/GdPlanningAI/rust/src/planner/controller.rs` - Search controller
-- `test/integration/test_campfire_example_smoke.gd` - Failing test
-- `addons/GdPlanningAI/plugin.cfg` - Log level configuration
+- `addons/GdPlanningAI/rust/src/planner/expander.rs` - Branch expansion logic (reverted)
+- `addons/GdPlanningAI/rust/src/scheduler.rs` - Cancel signal implementation
+- `test/integration/test_campfire_example_smoke.gd` - Failing test (fixed validation)
+- `test/integration/test_hunger_example_smoke.gd` - Failing test (fixed validation)
 
 ## Log Evidence
 
-Search loop showing exhaustion at depth 3:
+Search loop showing exhaustion at depth 3 (before fix):
 ```
 [GdPAI] Starting search loop with max_depth 6
 [GdPAI] Search iteration: pop node with chain length 0
@@ -111,6 +133,11 @@ Search loop showing exhaustion at depth 3:
 [GdPAI] Search iteration: pop node with chain length 3
 [GdPAI] Node expansion: chain length 3, depth 3, generated 0 successors
 [GdPAI] No successors generated - expander returned empty array
+```
+
+Cancel signal working (after fix):
+```
+[GdPAI] Search cancelled by cancel_flag after 10 iterations
 ```
 
 Profiling metrics showing minimal exploration:

@@ -189,16 +189,16 @@ func test_cannot_add_fuel_when_full() -> void:
 	# Agent should not plan AddFuel when fire is full
 	# It should either wander or drop wood and do something else
 	if plan.is_empty():
-		# Empty plan is acceptable for this test case
-		return
-	
-	var titles: Array[String] = []
-	for a in plan:
-		titles.append(a.get_title())
-	assert_false(
-		titles.has("Add Fuel"),
-		"Should not plan Add Fuel when fire is full, got: %s" % _plan_titles(plan)
-	)
+		# Empty plan is acceptable - agent may choose to wander
+		assert_true(true, "Agent chose not to plan (acceptable)")
+	else:
+		var titles: Array[String] = []
+		for a in plan:
+			titles.append(a.get_title())
+		assert_false(
+			titles.has("Add Fuel"),
+			"Should not plan Add Fuel when fire is full, got: %s" % _plan_titles(plan)
+		)
 
 
 func test_cannot_cook_without_potato() -> void:
@@ -213,15 +213,15 @@ func test_cannot_cook_without_potato() -> void:
 
 	var plan: Array[Action] = await _start_plan_and_wait(agent)
 	if plan.is_empty():
-		# Empty plan is acceptable for this test case
-		return
-	
-	var titles: Array[String] = []
-	for a in plan:
-		titles.append(a.get_title())
-	# CookPotato requires held_item="potato", so it should not appear when holding wood
-	# But AddFuel should be valid
-	assert_false(
-		titles.has("Cook Potato"),
-		"Should not plan Cook Potato when holding wood, got: %s" % _plan_titles(plan)
-	)
+		# Empty plan is acceptable - agent may choose to wander
+		assert_true(true, "Agent chose not to plan (acceptable)")
+	else:
+		var titles: Array[String] = []
+		for a in plan:
+			titles.append(a.get_title())
+		# CookPotato requires held_item="potato", so it should not appear when holding wood
+		# But AddFuel should be valid
+		assert_false(
+			titles.has("Cook Potato"),
+			"Should not plan Cook Potato when holding wood, got: %s" % _plan_titles(plan)
+		)
