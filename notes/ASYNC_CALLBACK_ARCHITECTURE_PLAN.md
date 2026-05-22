@@ -1,0 +1,742 @@
+# Async Callback Architecture Plan
+
+## Problem Statement
+
+The planner uses synchronous blocking callbacks from Rayon worker threads to the main Godot thread. Planner threads block on `rx.recv()` waiting for GDScript callable responses, causing:
+
+- **Test harness timeouts:** Tests must artificially pump callbacks via `process_callbacks()`, but planner threads still spend most time blocked
+- **Production risk:** Current timeout-based workaround (1000ms with safe defaults) is not production-ready
+- **Architectural bottleneck:** Synchronous blocking from worker threads to main thread limits parallelism
+
+## Current Architecture
+
+### Blocking Points in `simulation.rs`
+
+1. **Line 43:** Custom precondition evaluation
+   ```rust
+   match rx.recv() {
+       Ok(CallbackResponse::Bool(b)) => b,
+       _ => false,
+   }
+   ```
+
+2. **Line 84:** Action cost calculation
+   ```rust
+   if let Ok(CallbackResponse::Float(f)) = rx.recv() {
+       cost = f;
+   }
+   ```
+
+3. **Line 107:** Effect simulation
+   ```rust
+   if let Ok(CallbackResponse::UpdatedSnapshots(res_agent, res_world)) = rx.recv() {
+       new_agent = res_agent;
+       new_world = res_world;
+   }
+   ```
+
+### Current Flow
+
+```
+Planner Thread (Rayon)          Main Thread (Godot)
+     |                                  |
+     | send CallbackRequest             |
+     |--------------------------------->|
+     |                                  | process_callbacks()
+     |                                  | execute GDScript callable
+     |                                  |
+     | block on rx.recv()               |
+     |                                  | send CallbackResponse
+     |<---------------------------------|
+     | unblock, continue                |
+```
+
+### Callback Types
+
+From `plan_types.rs`:
+
+```rust
+pub enum CallbackKind {
+    GetCost { agent, world, provisions, bindings },
+    ApplyEffect { agent, world, provisions, bindings },
+    EvalCustomPrecond { agent, world, provisions, bindings },
+}
+
+pub enum CallbackResponse {
+    Float(f64),
+    Bool(bool),
+    UpdatedSnapshots(BlackboardSnapshot, BlackboardSnapshot),
+}
+```
+
+## Architectural Options
+
+### Option 1: Branch State Tracking with Blocked/Pending States
+
+**Concept:** Add a state to `SearchNode`/`PlanBranch` indicating if it's blocked on callbacks. Modify controllers to skip blocked nodes during pop.
+
+**Implementation:**
+
+```rust
+// In types.rs
+#[derive(Clone, Debug)]
+pub enum BranchState {
+    Ready,
+    BlockedOnCallbacks {
+        pending_callbacks: Vec<PendingCallback>,
+        continuation: BranchContinuation,
+    },
+}
+
+#[derive(Clone, Debug)]
+pub struct PendingCallback {
+    callback_id: usize,
+    kind: CallbackKind,
+}
+
+#[derive(Clone, Debug)]
+pub struct BranchContinuation {
+    branch_snapshot: PlanBranch,
+    next_step: ContinuationStep,
+}
+
+// Add to SearchNode
+pub struct SearchNode {
+    pub branch: PlanBranch,
+    pub state: BranchState,  // NEW
+    pub depth: usize,
+    pub estimated_remaining: f64,
+}
+```
+
+**Controller modifications:**
+
+```rust
+impl SearchController for DFSController {
+    fn pop(&mut self) -> Option<SearchNode> {
+        while let Some(node) = self.stack.pop() {
+            if matches!(node.state, BranchState::Ready) {
+                return Some(node);
+            }
+            // Move blocked nodes to separate queue
+        }
+        None
+    }
+}
+```
+
+**Pros:**
+- Minimal changes to existing architecture
+- Clear separation of blocked vs ready branches
+- Can process multiple branches in parallel while waiting for callbacks
+
+**Cons:**
+- Requires storing continuation state for each blocked branch
+- Memory overhead for many blocked branches
+- Still needs mechanism to resume branches when callbacks arrive
+- Only partial solution - doesn't eliminate blocking, just hides it
+
+---
+
+### Option 2: Future-Based Async Callback Architecture
+
+**Concept:** Replace blocking channels with Rust futures. Use async/await to make callback operations non-blocking.
+
+**Implementation:**
+
+```rust
+// Add to Cargo.toml
+// futures = "0.3"
+// tokio = { version = "1.0", features = ["sync"] }
+
+// In plan_types.rs
+pub struct CallbackRequest {
+    pub callable_id: usize,
+    pub kind: CallbackKind,
+    pub response_tx: oneshot::Sender<CallbackResponse>,  // Changed from mpsc
+}
+
+// In simulation.rs
+pub async fn eval_precondition_async(
+    precond: &PreconditionSpec,
+    agent: &BlackboardSnapshot,
+    world: &BlackboardSnapshot,
+    provisions: Vec<ProvisionSpec>,
+    bindings: Vec<(String, Vec<VariantSnapshot>)>,
+    request_tx: &mpsc::Sender<CallbackRequest>,
+) -> bool {
+    match precond {
+        PreconditionSpec::Builtin { .. } => {
+            precond.evaluate_builtin(agent, world).unwrap_or(false)
+        }
+        PreconditionSpec::Custom { callable_id, .. } => {
+            let (tx, rx) = oneshot::channel();
+            let request = CallbackRequest {
+                callable_id: *callable_id,
+                kind: CallbackKind::EvalCustomPrecond {
+                    agent: agent.clone(),
+                    world: world.clone(),
+                    provisions,
+                    bindings,
+                },
+                response_tx: tx,
+            };
+
+            if request_tx.send(request).is_err() {
+                return false;
+            }
+
+            match rx.await {  // Non-blocking await
+                Ok(CallbackResponse::Bool(b)) => b,
+                _ => false,
+            }
+        }
+    }
+}
+```
+
+**Scheduler modifications:**
+
+```rust
+// Use async runtime or custom executor
+// When callback arrives, send to oneshot channel
+// Planner threads await on futures instead of blocking
+```
+
+**Pros:**
+- True async/await semantics
+- No thread blocking
+- Standard Rust async patterns
+
+**Cons:**
+- Requires async runtime (tokio/async-std)
+- **Major refactoring of planner engine** - all functions become async
+- **Rayon incompatible:** Rayon is designed for CPU-bound parallel work, not async I/O
+- **Godot integration complexity:** Godot's GDScript callables are synchronous
+  - Would need to wrap each callable in `tokio::task::spawn_blocking`
+  - This defeats the purpose of async architecture
+- Would need to replace Rayon thread pool with async runtime
+
+**Verdict:** Not viable given current Godot integration constraints and Rayon architecture.
+
+---
+
+### Option 3: Two-Phase Expansion with Callback Continuation
+
+**Concept:** Split expansion into two phases. Phase 1: Identify actions and send callback requests without blocking. Phase 2: When callbacks arrive, resume expansion with results.
+
+**Implementation:**
+
+#### Phase 1: Replace blocking callbacks with non-blocking in `simulation.rs`
+
+**Approach:** Direct replacement - no backward compatibility needed. Replace existing blocking functions with non-blocking versions.
+
+```rust
+// REPLACES existing eval_precondition
+pub fn eval_precondition(
+    precond: &PreconditionSpec,
+    agent: &BlackboardSnapshot,
+    world: &BlackboardSnapshot,
+    provisions: Vec<ProvisionSpec>,
+    bindings: Vec<(String, Vec<VariantSnapshot>)>,
+    request_tx: &Sender<CallbackRequest>,
+) -> PreconditionResult {
+    match precond {
+        PreconditionSpec::Builtin { .. } => {
+            PreconditionResult::Ready(precond.evaluate_builtin(agent, world).unwrap_or(false))
+        }
+        PreconditionSpec::Custom { callable_id, .. } => {
+            let (tx, rx) = std::sync::mpsc::channel();
+            let request = CallbackRequest {
+                callable_id: *callable_id,
+                kind: CallbackKind::EvalCustomPrecond {
+                    agent: agent.clone(),
+                    world: world.clone(),
+                    provisions,
+                    bindings,
+                },
+                response_tx: tx,
+            };
+
+            if request_tx.send(request).is_err() {
+                return PreconditionResult::Ready(false);
+            }
+
+            // Return the receiver instead of blocking
+            PreconditionResult::Pending(rx)
+        }
+    }
+}
+
+// REPLACES existing simulate_action
+pub fn simulate_action(
+    action: &ActionSpec,
+    chain_position: usize,
+    action_bindings: &[(i64, String, Vec<VariantSnapshot>)],
+    agent: &BlackboardSnapshot,
+    world: &BlackboardSnapshot,
+    accumulated_provisions: Vec<ProvisionSpec>,
+    request_tx: &Sender<CallbackRequest>,
+) -> SimulationResult {
+    // Resolve bindings for this specific action in the chain
+    let relevant_bindings: Vec<(String, Vec<VariantSnapshot>)> = action_bindings
+        .iter()
+        .filter(|(idx, _, _)| *idx == chain_position as i64)
+        .map(|(_, name, ids)| (name.clone(), ids.clone()))
+        .collect();
+
+    // Non-blocking cost callback
+    let cost = if let Some(callable_id) = action.cost_callable_id {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let request = CallbackRequest {
+            callable_id,
+            kind: CallbackKind::GetCost {
+                agent: agent.clone(),
+                world: world.clone(),
+                provisions: accumulated_provisions.clone(),
+                bindings: relevant_bindings.clone(),
+            },
+            response_tx: tx,
+        };
+
+        if request_tx.send(request).is_ok() {
+            // Return pending cost receiver
+            return SimulationResult::PendingCost {
+                rx,
+                agent: agent.clone(),
+                world: world.clone(),
+                provisions: accumulated_provisions,
+                bindings: relevant_bindings,
+            };
+        }
+        1.0
+    } else {
+        1.0
+    };
+
+    // Non-blocking effect callback
+    let mut new_agent = agent.clone();
+    let mut new_world = world.clone();
+
+    if let Some(callable_id) = action.effect_callable_id {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let request = CallbackRequest {
+            callable_id,
+            kind: CallbackKind::ApplyEffect {
+                agent: agent.clone(),
+                world: world.clone(),
+                provisions: accumulated_provisions,
+                bindings: relevant_bindings,
+            },
+            response_tx: tx,
+        };
+
+        if request_tx.send(request).is_ok() {
+            // Return pending effect receiver
+            return SimulationResult::PendingEffect {
+                rx,
+                agent: new_agent,
+                world: new_world,
+                cost,
+            };
+        }
+    }
+
+    SimulationResult::Ready {
+        agent: new_agent,
+        world: new_world,
+        cost,
+    }
+}
+
+pub enum PreconditionResult {
+    Ready(bool),
+    Pending(std::sync::mpsc::Receiver<CallbackResponse>),
+}
+
+pub enum SimulationResult {
+    Ready {
+        agent: BlackboardSnapshot,
+        world: BlackboardSnapshot,
+        cost: f64,
+    },
+    PendingCost {
+        rx: std::sync::mpsc::Receiver<CallbackResponse>,
+        agent: BlackboardSnapshot,
+        world: BlackboardSnapshot,
+        provisions: Vec<ProvisionSpec>,
+        bindings: Vec<(String, Vec<VariantSnapshot>)>,
+    },
+    PendingEffect {
+        rx: std::sync::mpsc::Receiver<CallbackResponse>,
+        agent: BlackboardSnapshot,
+        world: BlackboardSnapshot,
+        cost: f64,
+    },
+}
+```
+
+#### Phase 2: Modified expansion in `expander.rs`
+
+```rust
+pub fn expand_non_blocking(
+    &self,
+    branch: &PlanBranch,
+) -> (Vec<PlanBranch>, Vec<PendingExpansion>) {
+    let mut ready_successors = Vec::new();
+    let mut pending_expansions = Vec::new();
+
+    for action_idx in 0..self.ctx.actions.len() {
+        // Check preconditions (now returns non-blocking result)
+        let precond_results: Vec<PreconditionResult> = branch.open_preconditions
+            .iter()
+            .map(|p| eval_precondition(p, &branch.final_state_agent, ...))
+            .collect();
+
+        // If any preconditions are pending, create pending expansion
+        if precond_results.iter().any(|r| matches!(r, PreconditionResult::Pending(_))) {
+            pending_expansions.push(PendingExpansion {
+                branch: branch.clone(),
+                action_idx,
+                pending_callbacks: precond_results,
+                continuation: ExpansionContinuation::PreconditionCheck,
+            });
+            continue;
+        }
+
+        // If all preconditions ready, continue with cost/effect
+        let cost_result = get_cost_non_blocking(...);
+        // Similar pattern for cost and effect...
+    }
+
+    (ready_successors, pending_expansions)
+}
+
+pub struct PendingExpansion {
+    pub branch: PlanBranch,
+    pub action_idx: usize,
+    pub pending_callbacks: Vec<PendingCallback>,
+    pub continuation: ExpansionContinuation,
+}
+
+pub enum ExpansionContinuation {
+    PreconditionCheck {
+        action_idx: usize,
+        precond_idx: usize,
+    },
+    CostCalculation {
+        action_idx: usize,
+    },
+    EffectSimulation {
+        action_idx: usize,
+        partial_successors: Vec<PlanBranch>,
+    },
+}
+```
+
+#### Phase 3: Callback-to-planner notification in `scheduler.rs`
+
+**Current Issue:** `process_callbacks()` processes ALL pending callbacks in a single frame with no limit, potentially causing frame hitches.
+
+**Solution:** Add per-frame callback budget to spread load across frames.
+
+```rust
+struct ActiveJobHandle {
+    // ... existing fields
+    planner_callback_tx: Sender<PlannerCallback>,  // NEW
+}
+
+pub enum PlannerCallback {
+    PreconditionResult {
+        request_id: usize,
+        result: bool,
+    },
+    CostResult {
+        request_id: usize,
+        cost: f64,
+    },
+    EffectResult {
+        request_id: usize,
+        agent: BlackboardSnapshot,
+        world: BlackboardSnapshot,
+    },
+}
+
+// In process_callbacks - ADD load spreading
+#[func]
+fn process_callbacks(&mut self) {
+    // Process pending log messages from planner threads (from previous frames)
+    crate::logger::process_logs();
+
+    // Load spreading: limit callbacks per frame to prevent frame hitches
+    let max_callbacks_per_frame = 50;  // Configurable via export
+    let mut processed_this_frame = 0;
+
+    // Process each job's pending callbacks using its own callable registry.
+    for job in self.active_jobs.iter_mut().filter(|j| !j.done) {
+        while processed_this_frame < max_callbacks_per_frame {
+            if let Ok(req) = job.request_rx.try_recv() {
+                let callable = &job.callable_registry[req.callable_id];
+                let response = dispatch_callback(callable, req.kind);
+                let _ = req.response_tx.send(response);
+                
+                // NEW: Notify planner that callback completed
+                let callback = match response {
+                    CallbackResponse::Bool(b) => PlannerCallback::PreconditionResult {
+                        request_id: generate_request_id(&req),
+                        result: b,
+                    },
+                    CallbackResponse::Float(f) => PlannerCallback::CostResult {
+                        request_id: generate_request_id(&req),
+                        cost: f,
+                    },
+                    CallbackResponse::UpdatedSnapshots(agent, world) => {
+                        PlannerCallback::EffectResult {
+                            request_id: generate_request_id(&req),
+                            agent,
+                            world,
+                        }
+                    }
+                };
+                let _ = job.planner_callback_tx.send(callback);
+                
+                processed_this_frame += 1;
+            } else {
+                break;  // No more callbacks for this job
+            }
+        }
+        
+        if processed_this_frame >= max_callbacks_per_frame {
+            break;  // Budget exhausted, continue next frame
+        }
+        
+        // Check for completed plan
+        if let Ok(result) = job.result_rx.try_recv() {
+            job.done = true;
+            if job.cancel_flag.load(std::sync::atomic::Ordering::Relaxed) || result.is_none() {
+                log_debug!("Canceled plan job finished without delivery");
+                continue;
+            }
+
+            let Some(result) = result else {
+                log_warn!("Plan job returned None result");
+                continue;
+            };
+
+            if job.agent.is_instance_valid() {
+                log_info!(
+                    "Plan complete: success={}, actions={}, cost={:.1}, action_chain={:?}",
+                    result.success,
+                    result.action_chain.len(),
+                    result.total_cost,
+                    result.action_chain
+                );
+                let dict = result_to_dict(&result);
+                job.agent.call("_on_plan_ready", &[dict.to_variant()]);
+            } else {
+                log_warn!("Plan completed but agent was freed");
+            }
+        }
+    }
+    // Clean up finished jobs — Rayon owns the threads, no join needed.
+    self.active_jobs.retain(|job| !job.done);
+
+    // Drain any log messages generated during this callback processing
+    crate::logger::process_logs();
+}
+```
+
+#### Phase 4: Modified search loop in `engine.rs`
+
+```rust
+pub struct PlannerEngine<'a> {
+    // ... existing fields
+    pending_expansions: Vec<PendingExpansion>,
+    callback_registry: HashMap<usize, CallbackResponse>,
+    planner_callback_rx: Receiver<PlannerCallback>,
+}
+
+impl<'a> PlannerEngine<'a> {
+    fn search_goal(&mut self, goal: &GoalSpec) -> Option<PlanResult> {
+        // ... existing setup
+
+        while let Some(node) = controller.pop() {
+            // Check for completed callbacks
+            self.process_completed_callbacks();
+
+            // Phase 1: Non-blocking expansion
+            let (successors, pending) = expander.expand_non_blocking(&node.branch);
+            
+            // Add ready successors immediately
+            for succ in successors {
+                controller.push(SearchNode { branch: succ, ... });
+            }
+            
+            // Store pending expansions
+            self.pending_expansions.extend(pending);
+        }
+    }
+    
+    fn process_completed_callbacks(&mut self) {
+        while let Ok(callback) = self.planner_callback_rx.try_recv() {
+            // Store result in registry
+            match callback {
+                PlannerCallback::PreconditionResult { request_id, result } => {
+                    self.callback_registry.insert(request_id, CallbackResponse::Bool(result));
+                }
+                // ... handle other callback types
+            }
+            
+            // Resume any pending expansions waiting for this callback
+            self.resume_pending_expansions(request_id);
+        }
+    }
+    
+    fn resume_pending_expansions(&mut self, request_id: usize) {
+        // Find pending expansions waiting for this callback
+        // Resume them with the callback result
+        // Add ready successors to controller
+    }
+}
+```
+
+#### Phase 5: Controller pop logic modifications
+
+```rust
+impl SearchController for DFSController {
+    fn pop(&mut self) -> Option<SearchNode> {
+        // Only pop nodes that are ready to expand
+        while let Some(node) = self.stack.pop() {
+            if matches!(node.state, BranchState::Ready) {
+                return Some(node);
+            }
+        }
+        None
+    }
+}
+```
+
+**Pros:**
+- **Production-ready:** True non-blocking architecture without timeouts
+- **Rayon-compatible:** Keeps existing thread pool architecture
+- **Godot-compatible:** No changes to GDScript callable integration
+- **Test-friendly:** Eliminates callback pumping bottleneck in tests
+- **Incremental migration:** Can convert blocking calls gradually
+
+**Cons:**
+- Complex state management (tracking pending callbacks per branch)
+- Need bidirectional channels (scheduler → planner)
+- Requires unique request IDs to match callbacks to branches
+- Significant refactoring of expansion logic
+
+---
+
+## Option Comparison
+
+| Option | Complexity | Rayon Compatible | Godot Compatible | Migration Effort | Production Ready |
+|--------|-----------|------------------|------------------|------------------|------------------|
+| **1. Branch State Tracking** | Medium | ✅ Yes | ✅ Yes | Medium | ⚠️ Partial - still blocks internally |
+| **2. Future-Based Async** | High | ❌ No | ⚠️ Complex | High | ❌ No |
+| **3. Two-Phase Expansion** | High | ✅ Yes | ✅ Yes | High | ✅ Yes |
+
+## Recommendation: **Option 3 (Two-Phase Expansion)**
+
+### Rationale
+
+1. **Production-ready:** True non-blocking architecture without timeout workarounds
+2. **Rayon-compatible:** Keeps existing thread pool architecture (no async runtime needed)
+3. **Godot-compatible:** No changes to GDScript callable integration
+4. **Test-friendly:** Eliminates callback pumping bottleneck in tests
+5. **Incremental migration:** Can convert blocking calls gradually with feature flags
+
+### Implementation Plan
+
+#### Phase 1: Non-blocking callback variants
+- **File:** `simulation.rs`
+- Add `eval_precondition_non_blocking()`
+- Add `get_cost_non_blocking()`
+- Add `simulate_effect_non_blocking()`
+- Return enum types: `Ready(T)` or `Pending(Receiver)`
+
+#### Phase 2: Modified expander
+- **File:** `expander.rs`
+- Add `expand_non_blocking()` method
+- Return `(ready_successors, pending_expansions)`
+- Define `PendingExpansion` struct
+- Define `ExpansionContinuation` enum
+- Track which callbacks each branch is waiting for
+
+#### Phase 3: Notification channel
+- **File:** `scheduler.rs`
+- Add `planner_callback_tx` to `ActiveJobHandle`
+- Define `PlannerCallback` enum
+- Add unique request ID generation
+- Send notifications when callbacks complete
+
+#### Phase 4: Engine modifications
+- **File:** `engine.rs`
+- Add `pending_expansions` field to `PlannerEngine`
+- Add `callback_registry` HashMap
+- Add `process_completed_callbacks()` method
+- Add `resume_pending_expansions()` method
+- Modify search loop to check for completed callbacks
+
+#### Phase 5: Controller modifications
+- **File:** `controller.rs`
+- Add `BranchState` enum to `SearchNode`
+- Modify `pop()` to skip blocked nodes
+- Add separate queue for pending expansions
+- Implement conditional popping
+
+#### Phase 6: Add load spreading configuration (optional)
+- **File:** `scheduler.rs`
+- Add `max_callbacks_per_frame` as exportable property
+- Allow runtime adjustment via GDScript
+- Add metrics tracking (callbacks processed per frame, pending queue depth)
+
+### Key Design Decisions
+
+1. **Request ID Generation:** Use incrementing counter per job to match callbacks to branches
+2. **Continuation State:** Store as closure-like data structure with branch snapshot and next step
+3. **Memory Management:** Limit pending expansions per job (e.g., max 1000) to prevent blowup
+4. **Timeout Fallback:** Keep timeout mechanism as safety net for production (from current workaround)
+5. **Atomic Migration:** Single branch replacement - no feature flags or gradual rollout
+6. **Load Spreading:** Add per-frame callback budget (e.g., 50 callbacks/frame) to prevent frame hitches and ensure smooth rendering
+
+### Migration Strategy
+
+**Direct replacement approach - no backward compatibility:**
+
+1. **Single atomic change:** Replace blocking functions with non-blocking versions in `simulation.rs`
+2. **Update all call sites:** Modify `expander.rs`, `engine.rs`, `types.rs` to handle new return types
+3. **Add callback handling:** Implement notification channel and callback registry in scheduler/engine
+4. **Add load spreading:** Implement per-frame callback budget in `process_callbacks()`
+5. **Integration tests:** Add tests specifically for non-blocking behavior
+6. **Benchmarking:** Compare performance vs current blocking implementation
+7. **Full test suite run:** Ensure all existing tests pass with new architecture
+
+### Testing Strategy
+
+1. **Unit tests:** Test non-blocking callback variants in isolation
+2. **Integration tests:** Test full planner with non-blocking callbacks
+3. **Performance tests:** Measure planning time with/without blocking
+4. **Stress tests:** Test with many pending callbacks (memory limits)
+5. **Regression tests:** Ensure existing tests still pass
+
+## Relevant Files
+
+- `addons/GdPlanningAI/rust/src/planner/simulation.rs` - Blocking callback calls
+- `addons/GdPlanningAI/rust/src/planner/engine.rs` - Search loop
+- `addons/GdPlanningAI/rust/src/planner/controller.rs` - Search controllers
+- `addons/GdPlanningAI/rust/src/planner/expander.rs` - Branch expansion
+- `addons/GdPlanningAI/rust/src/scheduler.rs` - Callback processing
+- `addons/GdPlanningAI/rust/src/plan_types.rs` - Callback types
+- `test/integration/test_async_planner.gd` - Integration tests
+
+## Next Steps
+
+1. Review and approve this architecture plan
+2. Begin Phase 1 implementation (replace blocking callbacks in simulation.rs)
+3. Add unit tests for new return types
+4. Proceed through remaining phases incrementally
+5. Run full test suite after each phase to catch regressions early
