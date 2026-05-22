@@ -174,7 +174,8 @@ impl<'a> PlannerEngine<'a> {
                 continue;
             }
 
-            log_info!("Search iteration: pop node with chain length {}", node.branch.action_chain.len());
+            log_info!("Search iteration: pop node with chain length {}, depth {}, open preconds {}, open reqs {}", 
+                node.branch.action_chain.len(), node.depth, node.branch.open_preconditions.len(), node.branch.open_requirements.len());
 
             if node.branch.is_complete(self.ctx.initial_agent, self.ctx.initial_world, self.ctx.request_tx) {
                 let cost = node.branch.cost;

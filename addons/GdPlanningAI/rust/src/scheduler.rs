@@ -235,6 +235,16 @@ impl GdPAIPlanScheduler {
         }
     }
 
+    /// Clear all active jobs from the scheduler. This is useful for resetting state between tests.
+    #[func]
+    fn clear_active_jobs(&mut self) {
+        for job in &mut self.active_jobs {
+            job.cancel_flag.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+        self.active_jobs.clear();
+        log_debug!("Cleared all active jobs from scheduler");
+    }
+
     /// Sets the process-wide log verbosity.
     ///
     /// [param level]: [code]0[/code] = Error, [code]1[/code] = Warn,

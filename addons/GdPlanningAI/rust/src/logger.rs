@@ -24,6 +24,7 @@ static GLOBAL_LOG_LEVEL: AtomicU8 = AtomicU8::new(LogLevel::Debug as u8);
 pub struct LogMessage {
     pub level: LogLevel,
     pub message: String,
+    pub timestamp: u64,
 }
 
 /// Global channel for sending log messages from planner threads to main thread.
@@ -58,18 +59,21 @@ pub fn process_logs() {
                 receiver.try_recv()
             };
             match log_msg {
-                Ok(log_msg) => match log_msg.level {
-                    LogLevel::Error => {
-                        godot::prelude::godot_error!("[GdPAI] {}", log_msg.message);
-                    }
-                    LogLevel::Warn => {
-                        godot::prelude::godot_warn!("[GdPAI] {}", log_msg.message);
-                    }
-                    LogLevel::Info => {
-                        godot::prelude::godot_print!("[GdPAI] {}", log_msg.message);
-                    }
-                    LogLevel::Debug => {
-                        godot::prelude::godot_print!("[GdPAI | debug] {}", log_msg.message);
+                Ok(log_msg) => {
+                    let timestamp = log_msg.timestamp as f64 / 1000.0;
+                    match log_msg.level {
+                        LogLevel::Error => {
+                            godot::prelude::godot_error!("[GdPAI {:.3}s] {}", timestamp, log_msg.message);
+                        }
+                        LogLevel::Warn => {
+                            godot::prelude::godot_warn!("[GdPAI {:.3}s] {}", timestamp, log_msg.message);
+                        }
+                        LogLevel::Info => {
+                            godot::prelude::godot_print!("[GdPAI {:.3}s] {}", timestamp, log_msg.message);
+                        }
+                        LogLevel::Debug => {
+                            godot::prelude::godot_print!("[GdPAI {:.3}s | debug] {}", timestamp, log_msg.message);
+                        }
                     }
                 },
                 Err(TryRecvError::Empty) => break,
@@ -136,16 +140,26 @@ pub fn get_log_level() -> LogLevel {
     LogLevel::from_u8(GLOBAL_LOG_LEVEL.load(Ordering::Relaxed))
 }
 
+/// Returns the current timestamp in milliseconds since Unix epoch.
+pub fn get_timestamp_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
+}
+
 /// Logs at error severity via `godot_error!`. Always emitted regardless of log level.
 #[macro_export]
 macro_rules! log_error {
     ($($arg:tt)*) => {
         let message = format!($($arg)*);
+        let timestamp = $crate::logger::get_timestamp_ms();
         if let Some(sender) = $crate::logger::get_log_sender() {
             if let Ok(sender) = sender.lock() {
                 let _ = sender.send($crate::logger::LogMessage {
                     level: $crate::logger::LogLevel::Error,
                     message,
+                    timestamp,
                 });
             }
         } else {
@@ -161,11 +175,13 @@ macro_rules! log_warn {
     ($($arg:tt)*) => {
         if $crate::logger::get_log_level() >= $crate::logger::LogLevel::Warn {
             let message = format!($($arg)*);
+            let timestamp = $crate::logger::get_timestamp_ms();
             if let Some(sender) = $crate::logger::get_log_sender() {
                 if let Ok(sender) = sender.lock() {
                     let _ = sender.send($crate::logger::LogMessage {
                         level: $crate::logger::LogLevel::Warn,
                         message,
+                        timestamp,
                     });
                 }
             } else {
@@ -182,16 +198,18 @@ macro_rules! log_info {
     ($($arg:tt)*) => {
         if $crate::logger::get_log_level() >= $crate::logger::LogLevel::Info {
             let message = format!($($arg)*);
+            let timestamp = $crate::logger::get_timestamp_ms();
             if let Some(sender) = $crate::logger::get_log_sender() {
                 if let Ok(sender) = sender.lock() {
                     let _ = sender.send($crate::logger::LogMessage {
                         level: $crate::logger::LogLevel::Info,
                         message,
+                        timestamp,
                     });
                 }
             } else {
                 // Channel not initialized - fall back to Rust stdio (e.g., in tests without Godot)
-                println!("[GdPAI INFO] {}", message);
+                println!("[GdPAI] {}", message);
             }
         }
     };
@@ -203,11 +221,13 @@ macro_rules! log_debug {
     ($($arg:tt)*) => {
         if $crate::logger::get_log_level() >= $crate::logger::LogLevel::Debug {
             let message = format!($($arg)*);
+            let timestamp = $crate::logger::get_timestamp_ms();
             if let Some(sender) = $crate::logger::get_log_sender() {
                 if let Ok(sender) = sender.lock() {
                     let _ = sender.send($crate::logger::LogMessage {
                         level: $crate::logger::LogLevel::Debug,
                         message,
+                        timestamp,
                     });
                 }
             } else {
