@@ -26,7 +26,8 @@ pub struct PlanBranch {
     pub simulation_index: usize,
     pub current_agent: BlackboardSnapshot,
     pub current_world: BlackboardSnapshot,
-    pub cost: f64,
+    pub cost: f64,          // Grounded cost (accumulated during simulation)
+    pub symbolic_cost: f64, // Symbolic cost (sum of discovery costs, used for Dijkstra)
 }
 
 #[derive(Clone, Debug)]
@@ -39,8 +40,8 @@ pub struct SearchNode {
 impl SearchNode {
     pub fn priority(&self) -> f64 {
         // Use Dijkstra (h=0) for guaranteed optimality in hybrid simulation.
-        // The cost reset during Rippling/Verifying is handled by the state-aware logic below.
-        self.branch.cost
+        // We use symbolic_cost for Dijkstra priority, while branch.cost tracks grounded cost.
+        self.branch.symbolic_cost
     }
 }
 
@@ -101,6 +102,7 @@ impl PlanBranch {
             current_agent: initial_agent.clone(),
             current_world: initial_world.clone(),
             cost: 0.0,
+            symbolic_cost: 0.0,
         }
     }
 

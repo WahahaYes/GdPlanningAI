@@ -41,7 +41,7 @@ impl PlannerEngine {
             response_rx: rx,
             response_tx: tx,
             algorithm: SearchAlgorithm::AStar,
-            termination: TerminationStrategy::FirstComplete,
+            termination: TerminationStrategy::BestCost,
             queue: BinaryHeap::new(),
             parked_nodes: HashMap::new(),
             visited: HashMap::new(),
@@ -149,14 +149,14 @@ impl PlannerEngine {
             if !node.resumed && node.branch.state == BranchState::Searching {
                 let fp = node.branch.fingerprint();
                 if let Some(&prev_cost) = self.visited.get(&fp) {
-                    if node.branch.cost >= prev_cost { continue; }
+                    if node.branch.symbolic_cost >= prev_cost { continue; }
                 }
-                self.visited.insert(fp, node.branch.cost);
+                self.visited.insert(fp, node.branch.symbolic_cost);
             }
             node.resumed = false;
 
             // 3. State Machine Processing
-            if node.branch.cost >= self.best_cost { continue; }
+            if node.branch.symbolic_cost >= self.best_cost { continue; }
 
             match node.branch.state {
                 BranchState::Initializing | BranchState::Rippling | BranchState::Verifying => {
@@ -208,6 +208,7 @@ impl PlannerEngine {
                                     cache.get(&cand.action_idx).map(|r| r.cost).unwrap_or(1.0)
                                 };
                                 new_branch.action_costs.insert(0, discovery_cost);
+                                new_branch.symbolic_cost += discovery_cost;
                                 
                                 // Update indices of existing needs and bindings
                                 for (pos, _) in new_branch.open_preconditions.iter_mut() { *pos += 1; }
@@ -288,7 +289,15 @@ impl PlannerEngine {
             PlannerRunResult::Pending(*self.parked_nodes.keys().next().unwrap())
         } else {
             // Search exhausted or optimal plan found
-            PlannerRunResult::Complete(self.best_plan.take())
+            let final_plan = self.best_plan.take().unwrap_or_else(|| PlanResult {
+                success: false,
+                action_chain: vec![],
+                total_cost: 0.0,
+                goal_index: -1,
+                deferred_action_indices: vec![],
+                action_bindings: vec![],
+            });
+            PlannerRunResult::Complete(Some(final_plan))
         }
     }
 
