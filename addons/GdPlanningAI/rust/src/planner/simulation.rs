@@ -7,6 +7,7 @@ pub enum StepResult<T> {
     Ready(T),
     Pending(usize),
     Invalid,
+    Complete, // Terminal success for a simulation pass
 }
 
 pub struct SimResult {
@@ -89,6 +90,11 @@ pub fn simulate_action(
 
     if cost == f64::INFINITY {
         return StepResult::Invalid;
+    }
+    
+    // Ensure the cost is recorded even for actions without a cost callable
+    if simulation_index < branch_action_costs.len() {
+        branch_action_costs[simulation_index] = cost;
     }
 
     // 2. Simulate Effect

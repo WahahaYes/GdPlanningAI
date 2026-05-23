@@ -38,12 +38,9 @@ pub struct SearchNode {
 
 impl SearchNode {
     pub fn priority(&self) -> f64 {
-        // A* priority: f(n) = g(n) + h(n)
-        // g(n) is the accumulated cost
-        // h(n) is the heuristic (number of open needs)
-        let g = self.branch.cost;
-        let h = (self.branch.open_preconditions.len() + self.branch.open_requirements.len()) as f64;
-        g + h
+        // Use Dijkstra (h=0) for guaranteed optimality in hybrid simulation.
+        // The cost reset during Rippling/Verifying is handled by the state-aware logic below.
+        self.branch.cost
     }
 }
 
@@ -78,6 +75,7 @@ pub struct SearchContext {
     
     // Discovery Cache (Thread-safe)
     pub discovery_results: std::sync::Mutex<HashMap<usize, DiscoveryResult>>,
+    pub discovery_costs: std::sync::Mutex<HashMap<usize, f64>>,
     pub discovery_pending: std::sync::Mutex<HashMap<usize, usize>>, // action_idx -> request_id
     pub discovery_request_map: std::sync::Mutex<HashMap<usize, usize>>, // request_id -> action_idx
 }
@@ -108,5 +106,9 @@ impl PlanBranch {
 
     pub fn fingerprint(&self) -> (usize, Vec<(usize, PreconditionSpec)>, Vec<(usize, RequirementSpec)>, BranchState) {
         (self.goal_index, self.open_preconditions.clone(), self.open_requirements.clone(), self.state.clone())
+    }
+
+    pub fn recalculate_cost(&mut self) {
+        self.cost = self.action_costs.iter().filter(|&&c| c >= 0.0).sum();
     }
 }

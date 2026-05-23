@@ -88,7 +88,19 @@ impl GdPAIPlanScheduler {
                         }
 
                         let Some(result) = result else {
-                            log_warn!("Plan job returned None result");
+                            // If search exhausted with no plan, deliver a failed result
+                            if job.agent.is_instance_valid() {
+                                let failed_res = PlanResult {
+                                    success: false,
+                                    action_chain: vec![],
+                                    total_cost: 0.0,
+                                    goal_index: -1,
+                                    deferred_action_indices: vec![],
+                                    action_bindings: vec![],
+                                };
+                                let dict = result_to_dict(&failed_res);
+                                job.agent.call("_on_plan_ready", &[dict.to_variant()]);
+                            }
                             continue;
                         };
 
@@ -191,6 +203,7 @@ impl GdPAIPlanScheduler {
             request_tx: req_tx,
             engine_response_tx: engine_tx.clone(),
             discovery_results: std::sync::Mutex::new(HashMap::new()),
+            discovery_costs: std::sync::Mutex::new(HashMap::new()),
             discovery_pending: std::sync::Mutex::new(HashMap::new()),
             discovery_request_map: std::sync::Mutex::new(HashMap::new()),
         });

@@ -104,6 +104,7 @@ fn run_planner(
         request_tx,
         engine_response_tx: engine_tx.clone(),
         discovery_results: std::sync::Mutex::new(HashMap::new()),
+        discovery_costs: std::sync::Mutex::new(HashMap::new()),
         discovery_pending: std::sync::Mutex::new(HashMap::new()),
         discovery_request_map: std::sync::Mutex::new(HashMap::new()),
     });

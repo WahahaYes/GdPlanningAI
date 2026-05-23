@@ -6,7 +6,8 @@ use crate::requirement::{provision_satisfies_requirement, RequirementSpec, Provi
 
 pub struct Candidate {
     pub action_idx: usize,
-    pub satisfied_requirements: Vec<(RequirementSpec, ProvisionSpec)>,
+    pub satisfied_requirements: Vec<(usize, RequirementSpec, ProvisionSpec)>,
+    pub satisfied_preconditions: Vec<usize>, // Indices into branch.open_preconditions
 }
 
 pub fn find_candidates(
@@ -38,16 +39,17 @@ pub fn find_candidates(
                     validity_failed = true;
                     break;
                 }
+                StepResult::Complete => unreachable!("eval_precondition cannot return Complete"),
             }
         }
         if validity_failed { continue; }
 
         // 1. Symbolic match (Provisions satisfy Requirements)
         let mut satisfied_requirements = Vec::new();
-        for (_, req) in &branch.open_requirements {
+        for (req_idx, (pos, req)) in branch.open_requirements.iter().enumerate() {
             for prov in &action.provisions {
                 if provision_satisfies_requirement(prov, req, None) {
-                    satisfied_requirements.push((req.clone(), prov.clone()));
+                    satisfied_requirements.push((req_idx, req.clone(), prov.clone()));
                 }
             }
         }
@@ -55,6 +57,7 @@ pub fn find_candidates(
         let satisfies_requirement = !satisfied_requirements.is_empty();
 
         // 2. Simulation match (Effect satisfies Preconditions)
+        let mut satisfied_preconditions = Vec::new();
         let mut satisfies_precondition = false;
         if !branch.open_preconditions.is_empty() {
             let mut res_to_check = None;
@@ -69,18 +72,18 @@ pub fn find_candidates(
 
             if res_to_check.is_none() {
                 // Not in cache, check if pending
-                let is_pending = {
-                    let pending = ctx.discovery_pending.lock().unwrap();
-                    pending.contains_key(&idx)
-                };
-
-                if is_pending {
+                let mut pending = ctx.discovery_pending.lock().unwrap();
+                if let Some(&id) = pending.get(&idx) {
                     some_pending = true;
-                    // We don't have the result yet, but we've already requested it.
+                    last_pending_id = id;
                 } else {
                     // Start discovery simulation against InitialState
-                    let mut dummy_costs = vec![-1.0];
-                    match simulate_action(idx, &ctx.initial_agent, &ctx.initial_world, ctx, response, &mut dummy_costs, 0) {
+                    let mut cost_cache = {
+                        let costs = ctx.discovery_costs.lock().unwrap();
+                        vec![costs.get(&idx).cloned().unwrap_or(-1.0)]
+                    };
+
+                    match simulate_action(idx, &ctx.initial_agent, &ctx.initial_world, ctx, response, &mut cost_cache, 0) {
                         StepResult::Ready(res) => {
                             let disc_res = DiscoveryResult {
                                 agent: res.agent,
@@ -92,7 +95,12 @@ pub fn find_candidates(
                             res_to_check = Some(disc_res);
                         }
                         StepResult::Pending(id) => {
-                            let mut pending = ctx.discovery_pending.lock().unwrap();
+                            // Update cost cache if we got it in this step
+                            if cost_cache[0] >= 0.0 {
+                                let mut costs = ctx.discovery_costs.lock().unwrap();
+                                costs.insert(idx, cost_cache[0]);
+                            }
+
                             pending.insert(idx, id);
                             let mut req_map = ctx.discovery_request_map.lock().unwrap();
                             req_map.insert(id, idx);
@@ -100,15 +108,20 @@ pub fn find_candidates(
                             last_pending_id = id;
                         }
                         StepResult::Invalid => {}
+                        StepResult::Complete => unreachable!("simulate_action cannot return Complete during discovery"),
                     }
                 }
             }
 
             if let Some(res) = res_to_check {
-                for (_, pre) in &branch.open_preconditions {
-                    if let Some(true) = pre.evaluate_builtin(&res.agent, &res.world) {
-                        satisfies_precondition = true;
-                        break;
+                for (pre_idx, (pos, pre)) in branch.open_preconditions.iter().enumerate() {
+                    // Only goal or prepended action's preconds can be satisfied by a discovery effect
+                    // (because discovery is against InitialState)
+                    if *pos == 0 {
+                        if let Some(true) = pre.evaluate_builtin(&res.agent, &res.world) {
+                            satisfied_preconditions.push(pre_idx);
+                            satisfies_precondition = true;
+                        }
                     }
                 }
             }
@@ -118,17 +131,18 @@ pub fn find_candidates(
             candidates.push(Candidate {
                 action_idx: idx,
                 satisfied_requirements,
+                satisfied_preconditions,
             });
         }
     }
 
-    if some_pending && candidates.is_empty() {
-        // If we didn't find any ready candidates but some actions are still being discovered,
-        // yield to wait for discovery.
+    if some_pending {
+        // If any actions are still being discovered, yield to wait for discovery.
+        // We MUST NOT return Ready yet, otherwise the node will be marked as 'visited'
+        // and we will miss the candidates that are currently pending.
         StepResult::Pending(last_pending_id)
     } else {
-        // If we found candidates, return them even if some other actions are still pending discovery.
-        // Or if nothing is pending and no candidates found, return empty list.
+        // All actions have been fully evaluated (either cached, ready, or invalid).
         StepResult::Ready(candidates)
     }
 }
