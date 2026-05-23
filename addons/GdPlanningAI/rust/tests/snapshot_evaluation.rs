@@ -165,7 +165,7 @@ fn builtin_cross_type_int_float_comparison() {
         target: PreconditionTarget::Agent,
         operation: PreconditionOp::GreaterThan,
         property_name: "value".to_string(),
-        value: Some(VariantSnapshot::Float(50.5)),
+        value: Some(VariantSnapshot::Float(50.5f64.to_bits())),
     };
 
     let result = precondition.evaluate_builtin(&agent, &world);
@@ -199,7 +199,7 @@ fn world_snapshot_with_objects() {
     );
 
     let world = create_test_world(
-        vec![("time", VariantSnapshot::Float(12.5))],
+        vec![("time", VariantSnapshot::Float(12.5f64.to_bits()))],
         vec![("enemy_1", enemy)],
     );
 

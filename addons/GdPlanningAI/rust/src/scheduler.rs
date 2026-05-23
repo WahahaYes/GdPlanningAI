@@ -23,7 +23,6 @@ struct ActiveJobHandle {
     request_rx: Receiver<CallbackRequest>,
     result_rx: Receiver<(PlannerRunResult, PlannerEngine)>,
     result_tx: Sender<(PlannerRunResult, PlannerEngine)>,
-    engine_response_tx: Sender<PlannerCallback>, // Keep a copy to send responses even when engine is running
     engine: Option<PlannerEngine>,
     goals: Vec<GoalSpec>,
     cancel_flag: Arc<AtomicBool>,
@@ -117,9 +116,8 @@ impl GdPAIPlanScheduler {
                 let callable = &job.callable_registry[req.callable_id];
                 let response = dispatch_callback(callable, req.kind);
                 
-                let _ = job.engine_response_tx.send(PlannerCallback {
+                let _ = req.response_tx.send(PlannerCallback {
                     request_id: req.request_id,
-                    sim_key: req.sim_key,
                     response,
                 });
                 jobs_with_responses.insert(job.agent_instance_id);
@@ -171,6 +169,7 @@ impl GdPAIPlanScheduler {
 
         let (req_tx, req_rx) = std::sync::mpsc::channel::<CallbackRequest>();
         let (res_tx, res_rx) = std::sync::mpsc::channel::<(PlannerRunResult, PlannerEngine)>();
+        let (engine_tx, engine_rx) = std::sync::mpsc::channel::<PlannerCallback>();
         let cancel_flag = Arc::new(AtomicBool::new(false));
         let max_rec = max_recursion.max(1) as usize;
 
@@ -180,13 +179,19 @@ impl GdPAIPlanScheduler {
             initial_world: snap_world,
             initial_provisions,
             request_tx: req_tx,
-            pending_requests: std::sync::Mutex::new(HashMap::new()),
-            callback_results: std::sync::Mutex::new(HashMap::new()),
+            engine_response_tx: engine_tx.clone(),
+            discovery_results: std::sync::Mutex::new(HashMap::new()),
+            discovery_pending: std::sync::Mutex::new(HashMap::new()),
+            discovery_request_map: std::sync::Mutex::new(HashMap::new()),
         });
 
-        let engine = PlannerEngine::new(ctx, max_rec, cancel_flag.clone())
-            .with_search_algorithm(SearchAlgorithm::DepthFirst)
-            .with_termination_strategy(TerminationStrategy::FirstComplete);
+        let mut engine = PlannerEngine::new(ctx, max_rec, cancel_flag.clone())
+            .with_search_algorithm(SearchAlgorithm::AStar)
+            .with_termination_strategy(TerminationStrategy::BestCost);
+        
+        // Use the channel we created
+        engine.response_rx = engine_rx;
+        engine.response_tx = engine_tx.clone();
 
         let job = ActiveJobHandle {
             agent,
@@ -195,7 +200,6 @@ impl GdPAIPlanScheduler {
             request_rx: req_rx,
             result_rx: res_rx,
             result_tx: res_tx.clone(),
-            engine_response_tx: engine.response_tx.clone(),
             engine: None,
             goals: goal_specs,
             cancel_flag,

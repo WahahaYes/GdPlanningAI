@@ -15,12 +15,12 @@ use std::collections::HashMap;
 /// - **Tier 1** — primitives stored as plain Rust values (fast, comparable).
 /// - **Tier 2** — everything else Godot can serialise via `var_to_bytes`.
 /// - **Tier 3** — live `Object` references stored as instance-ID handles.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum VariantSnapshot {
     Nil,
     Bool(bool),
     Int(i64),
-    Float(f64),
+    Float(u64), // Store bits for stable hashing
     Str(String),
     /// Tier 2: binary blob produced by `var_to_bytes`.
     Bytes(Vec<u8>),
@@ -28,45 +28,6 @@ pub enum VariantSnapshot {
     ObjectRef(i64),
     /// Array of VariantSnapshot values.
     Array(Vec<VariantSnapshot>),
-}
-
-impl Eq for VariantSnapshot {}
-
-impl std::hash::Hash for VariantSnapshot {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        match self {
-            Self::Nil => 0.hash(state),
-            Self::Bool(b) => {
-                1.hash(state);
-                b.hash(state);
-            }
-            Self::Int(i) => {
-                2.hash(state);
-                i.hash(state);
-            }
-            Self::Float(f) => {
-                3.hash(state);
-                // Round to 3 decimal places for stable hashing
-                ((*f * 1000.0).round() as i64).hash(state);
-            }
-            Self::Str(s) => {
-                4.hash(state);
-                s.hash(state);
-            }
-            Self::Bytes(b) => {
-                5.hash(state);
-                b.hash(state);
-            }
-            Self::ObjectRef(id) => {
-                6.hash(state);
-                id.hash(state);
-            }
-            Self::Array(elems) => {
-                7.hash(state);
-                elems.hash(state);
-            }
-        }
-    }
 }
 
 impl VariantSnapshot {
@@ -82,7 +43,7 @@ impl VariantSnapshot {
             return Self::Int(i);
         }
         if let Ok(f) = v.try_to::<f64>() {
-            return Self::Float(f);
+            return Self::Float(f.to_bits());
         }
         if let Ok(s) = v.try_to::<String>() {
             return Self::Str(s);
@@ -122,7 +83,7 @@ impl VariantSnapshot {
             Self::Nil => Variant::nil(),
             Self::Bool(b) => b.to_variant(),
             Self::Int(i) => i.to_variant(),
-            Self::Float(f) => f.to_variant(),
+            Self::Float(bits) => f64::from_bits(*bits).to_variant(),
             Self::Str(s) => s.to_variant(),
             Self::Bytes(b) => {
                 let packed = PackedByteArray::from(b.as_slice());
@@ -181,78 +142,7 @@ pub struct BlackboardSnapshot {
     pub objects: HashMap<String, SimObjectData>,
 }
 
-/// A noise-resistant version of VariantSnapshot for hashing and comparison.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum StableVariant {
-    Nil,
-    Bool(bool),
-    Int(i64),
-    /// Floats are rounded to fixed precision to handle real-time decay noise.
-    Float(i64), 
-    Str(String),
-    Bytes(Vec<u8>),
-    ObjectRef(i64),
-    Array(Vec<StableVariant>),
-}
-
-impl StableVariant {
-    pub fn from_snapshot(v: &VariantSnapshot) -> Self {
-        match v {
-            VariantSnapshot::Nil => Self::Nil,
-            VariantSnapshot::Bool(b) => Self::Bool(*b),
-            VariantSnapshot::Int(i) => Self::Int(*i),
-            VariantSnapshot::Float(f) => {
-                // Round to 3 decimal places and store as integer to avoid float hashing issues.
-                Self::Float((*f * 1000.0).round() as i64)
-            }
-            VariantSnapshot::Str(s) => Self::Str(s.clone()),
-            VariantSnapshot::Bytes(b) => Self::Bytes(b.clone()),
-            VariantSnapshot::ObjectRef(id) => Self::ObjectRef(*id),
-            VariantSnapshot::Array(elems) => {
-                Self::Array(elems.iter().map(Self::from_snapshot).collect())
-            }
-        }
-    }
-}
-
-/// A noise-resistant version of BlackboardSnapshot for state deduplication.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct StableSnapshot {
-    pub properties: Vec<(String, StableVariant)>,
-    pub objects: Vec<(String, Vec<(String, StableVariant)>)>,
-}
-
-impl StableSnapshot {
-    pub fn from_blackboard(bb: &BlackboardSnapshot) -> Self {
-        let mut properties: Vec<_> = bb.properties.iter()
-            .map(|(k, v)| (k.clone(), StableVariant::from_snapshot(v)))
-            .collect();
-        properties.sort_by(|a, b| a.0.cmp(&b.0));
-
-        let mut objects: Vec<_> = bb.objects.iter()
-            .map(|(uid, data)| {
-                let mut props: Vec<_> = data.properties.iter()
-                    .map(|(k, v)| (k.clone(), StableVariant::from_snapshot(v)))
-                    .collect();
-                props.sort_by(|a, b| a.0.cmp(&b.0));
-                (uid.clone(), props)
-            })
-            .collect();
-        objects.sort_by(|a, b| a.0.cmp(&b.0));
-
-        Self { properties, objects }
-    }
-}
-
 impl BlackboardSnapshot {
-    pub fn calculate_hash(&self) -> u64 {
-        use std::hash::{Hash, Hasher};
-        let stable = StableSnapshot::from_blackboard(self);
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        stable.hash(&mut hasher);
-        hasher.finish()
-    }
-
     /// Snapshot a live [`GdPAIBlackboard`]. **Must be called on the main thread.**
     pub fn from_blackboard(bb: &GdPAIBlackboard) -> Self {
         let properties = bb
@@ -328,7 +218,7 @@ mod tests {
     fn make_test_snapshot() -> BlackboardSnapshot {
         let mut properties = HashMap::new();
         properties.insert("health".to_string(), VariantSnapshot::Int(100));
-        properties.insert("stamina".to_string(), VariantSnapshot::Float(75.5));
+        properties.insert("stamina".to_string(), VariantSnapshot::Float(75.5f64.to_bits()));
         properties.insert(
             "name".to_string(),
             VariantSnapshot::Str("TestAgent".to_string()),
@@ -358,9 +248,12 @@ mod tests {
 
     #[test]
     fn variant_snapshot_float_preserves_value() {
-        let snap = VariantSnapshot::Float(3.14159);
+        let snap = VariantSnapshot::Float(3.14159f64.to_bits());
         match snap {
-            VariantSnapshot::Float(v) => assert!((v - 3.14159).abs() < f64::EPSILON),
+            VariantSnapshot::Float(v) => {
+                let f = f64::from_bits(v);
+                assert!((f - 3.14159).abs() < f64::EPSILON)
+            }
             _ => panic!("Expected Float variant"),
         }
     }
@@ -377,7 +270,10 @@ mod tests {
 
         // Test float retrieval
         match snapshot.properties.get("stamina").unwrap() {
-            VariantSnapshot::Float(v) => assert!((*v - 75.5).abs() < f64::EPSILON),
+            VariantSnapshot::Float(v) => {
+                let f = f64::from_bits(*v);
+                assert!((f - 75.5).abs() < f64::EPSILON)
+            }
             _ => panic!("Expected Float"),
         }
 

@@ -4,6 +4,14 @@ use crate::precondition::{PreconditionOp, PreconditionTarget};
 use crate::requirement::{ProvisionSpec, RequirementSpec};
 use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use std::sync::mpsc::Sender;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+static NEXT_REQUEST_ID: AtomicUsize = AtomicUsize::new(1);
+
+pub fn next_request_id() -> usize {
+    NEXT_REQUEST_ID.fetch_add(1, Ordering::SeqCst)
+}
+
 
 /// Send-safe mirror of [`crate::precondition::PreconditionHandler`].
 ///
@@ -160,7 +168,7 @@ fn snap_compare_all(
 fn snap_as_f64(v: &VariantSnapshot) -> Option<f64> {
     match v {
         VariantSnapshot::Int(i) => Some(*i as f64),
-        VariantSnapshot::Float(f) => Some(*f),
+        VariantSnapshot::Float(bits) => Some(f64::from_bits(*bits)),
         _ => None,
     }
 }
@@ -204,30 +212,18 @@ pub enum RequestKind {
     Effect,
 }
 
-/// Uniquely identifies a simulation request based on its input parameters and kind.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct SimulationKey {
-    pub action_idx: Option<usize>, // None for goal check
-    pub kind: RequestKind,
-    pub agent_state_hash: u64,
-    pub world_state_hash: u64,
-    pub provisions_hash: u64,
-}
-
 /// Sent from planner thread → main thread.
 pub struct CallbackRequest {
     pub request_id: usize,
-    pub sim_key: SimulationKey,
     pub callable_id: usize,
     pub kind: CallbackKind,
-    pub response_tx: Sender<CallbackResponse>,
+    pub response_tx: Sender<PlannerCallback>,
 }
 
 /// Result of a callback processed by the main thread.
 #[derive(Debug)]
 pub struct PlannerCallback {
     pub request_id: usize,
-    pub sim_key: SimulationKey,
     pub response: CallbackResponse,
 }
 
@@ -284,7 +280,7 @@ mod tests {
     fn make_agent_snapshot() -> BlackboardSnapshot {
         let mut properties = HashMap::new();
         properties.insert("health".to_string(), VariantSnapshot::Int(80));
-        properties.insert("stamina".to_string(), VariantSnapshot::Float(65.5));
+        properties.insert("stamina".to_string(), VariantSnapshot::Float(65.5f64.to_bits()));
         properties.insert("name".to_string(), VariantSnapshot::Str("Hero".to_string()));
         properties.insert("alive".to_string(), VariantSnapshot::Bool(true));
 
@@ -296,7 +292,7 @@ mod tests {
 
     fn make_world_snapshot() -> BlackboardSnapshot {
         let mut properties = HashMap::new();
-        properties.insert("time".to_string(), VariantSnapshot::Float(123.45));
+        properties.insert("time".to_string(), VariantSnapshot::Float(123.45f64.to_bits()));
         properties.insert("enemy_count".to_string(), VariantSnapshot::Int(5));
 
         BlackboardSnapshot {
@@ -401,7 +397,7 @@ mod tests {
             target: PreconditionTarget::Agent,
             operation: PreconditionOp::GreaterThan,
             property_name: "health".to_string(),
-            value: Some(VariantSnapshot::Float(79.5)),
+            value: Some(VariantSnapshot::Float(79.5f64.to_bits())),
         };
 
         let agent = make_agent_snapshot();

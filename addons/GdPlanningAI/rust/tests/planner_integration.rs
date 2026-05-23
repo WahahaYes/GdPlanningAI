@@ -67,7 +67,10 @@ fn spawn_callback_responder(
                 }
                 CallbackKind::EvalCustomPrecond { .. } => CallbackResponse::Bool(true),
             };
-            let _ = req.response_tx.send(response);
+            let _ = req.response_tx.send(gdplanningai_rust::plan_types::PlannerCallback {
+                request_id: req.request_id,
+                response,
+            });
         }
     });
 
@@ -83,6 +86,10 @@ fn run_planner(
     request_tx: mpsc::Sender<CallbackRequest>,
 ) -> Option<PlanResult> {
     let cancel_flag = Arc::new(AtomicBool::new(false));
+    
+    // Initialize logging for tests
+    gdplanningai_rust::logger::init_log_channel();
+    gdplanningai_rust::logger::set_log_level(gdplanningai_rust::logger::LogLevel::Debug);
 
     gdplanningai_rust::planner::run_plan(
         actions,

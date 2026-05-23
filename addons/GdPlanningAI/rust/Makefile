@@ -7,7 +7,7 @@ TARGET_DIR = $(RUST_DIR)/target
 
 .PHONY: build-release
 build-release: ## Build release binary for current platform
-	@cargo build --release --message-format=short 2>&1 | grep -E "(error|Error|warning|Warning)" && exit 1 || true
+	@cargo build --release --quiet --message-format=short
 	@echo "Copying release binary for current platform..."
 	@mkdir -p $(BIN_DIR)/linux 2>/dev/null || true
 	@mkdir -p $(BIN_DIR)/windows 2>/dev/null || true
@@ -16,7 +16,7 @@ build-release: ## Build release binary for current platform
 
 .PHONY: build-debug
 build-debug: ## Build debug binary for current platform
-	@cargo build --message-format=short 2>&1 | grep -E "(error|Error|warning|Warning)" || true
+	@cargo build --quiet --message-format=short
 	@echo "Copying debug binary for current platform..."
 	@mkdir -p $(BIN_DIR)/linux 2>/dev/null || true
 	@mkdir -p $(BIN_DIR)/windows 2>/dev/null || true

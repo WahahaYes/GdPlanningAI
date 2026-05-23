@@ -1,111 +1,77 @@
 use crate::plan_types::*;
 use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use crate::requirement::{ProvisionSpec, RequirementSpec};
+use std::sync::mpsc::Sender;
+use std::collections::HashMap;
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum BranchState {
+    Initializing,
+    Searching,
+    Rippling,
+    Verifying,
+}
 
 #[derive(Clone, Debug)]
 pub struct PlanBranch {
-    pub goal_preconditions: Vec<PreconditionSpec>,
-    /// Physical needs of the FIRST action that are not met by InitialState.
-    pub open_preconditions: Vec<PreconditionSpec>,
-    /// Symbolic needs (Requirements) from anywhere in the chain not yet satisfied.
-    /// Stores (ChainPosition, RequirementSpec)
-    pub open_requirements: Vec<(usize, RequirementSpec)>,
-    /// List of actions in execution order.
-    pub action_chain: Vec<i64>,
-    /// List of provisions provided by actions in the current chain.
-    pub bound_provisions: Vec<ProvisionSpec>,
-    /// List of (ActionIndex, ProvisionName, BoundValueList)
-    pub action_bindings: Vec<(i64, String, Vec<VariantSnapshot>)>,
-    /// Total cumulative cost from the latest forward simulation.
+    pub action_chain: Vec<usize>, // Indices into ctx.actions
+    pub action_costs: Vec<f64>,   // Costs of actions in the chain (filled during simulation)
+    pub action_bindings: Vec<(usize, String, Vec<VariantSnapshot>)>, // (chain_pos, fact_name, values)
+    pub open_preconditions: Vec<(usize, PreconditionSpec)>, // (consumer_pos, spec)
+    pub open_requirements: Vec<(usize, RequirementSpec)>, // (consumer_pos, spec)
+    pub state: BranchState,
+    pub goal_index: usize,
+    pub simulation_index: usize,
+    pub current_agent: BlackboardSnapshot,
+    pub current_world: BlackboardSnapshot,
     pub cost: f64,
-    /// The state after the last action in the chain.
-    pub final_state_agent: BlackboardSnapshot,
-    pub final_state_world: BlackboardSnapshot,
 }
 
-#[derive(Clone, Debug)]
-pub struct ActionCandidate {
-    pub action_idx: usize,
-    pub estimated_cost: f64,
-    pub satisfied_precondition_indices: Vec<usize>,
-    pub satisfied_requirement_indices: Vec<usize>,
+pub struct SearchNode {
+    pub branch: PlanBranch,
+    pub resumed: bool,
+    pub callback_response: Option<CallbackResponse>,
 }
 
-pub enum CompleteResult {
-    Ready(bool),
-    Pending(usize),
+pub struct SearchContext {
+    pub actions: Vec<ActionSpec>,
+    pub initial_agent: BlackboardSnapshot,
+    pub initial_world: BlackboardSnapshot,
+    pub initial_provisions: Vec<ProvisionSpec>,
+    pub request_tx: Sender<CallbackRequest>,
+    pub engine_response_tx: Sender<PlannerCallback>,
+    
+    // Discovery Cache (Thread-safe)
+    pub discovery_results: std::sync::Mutex<HashMap<usize, DiscoveryResult>>,
+    pub discovery_pending: std::sync::Mutex<HashMap<usize, usize>>, // action_idx -> request_id
+    pub discovery_request_map: std::sync::Mutex<HashMap<usize, usize>>, // request_id -> action_idx
+}
+
+#[derive(Clone)]
+pub struct DiscoveryResult {
+    pub agent: BlackboardSnapshot,
+    pub world: BlackboardSnapshot,
+    pub cost: f64,
 }
 
 impl PlanBranch {
-    pub fn new(
-        goal_preconditions: &[PreconditionSpec],
-        initial_provisions: &[ProvisionSpec],
-        initial_agent: &BlackboardSnapshot,
-        initial_world: &BlackboardSnapshot,
-        ctx: &super::expander::SearchContext,
-    ) -> Result<Self, usize> {
-        let mut open_preconditions = Vec::new();
-        for pre in goal_preconditions {
-            match crate::planner::simulation::eval_precondition(
-                pre,
-                initial_agent,
-                initial_world,
-                initial_provisions.to_vec(),
-                vec![],
-                ctx,
-            ) {
-                crate::planner::simulation::PreconditionResult::Ready(false) => {
-                    open_preconditions.push(pre.clone());
-                }
-                crate::planner::simulation::PreconditionResult::Pending(id) => return Err(id),
-                _ => {}
-            }
-        }
-
-        Ok(Self {
-            goal_preconditions: goal_preconditions.to_vec(),
-            open_preconditions,
-            open_requirements: vec![],
-            action_chain: vec![],
-            bound_provisions: initial_provisions.to_vec(),
-            action_bindings: vec![],
+    pub fn new(initial_agent: &BlackboardSnapshot, initial_world: &BlackboardSnapshot) -> Self {
+        Self {
+            action_chain: Vec::new(),
+            action_costs: Vec::new(),
+            action_bindings: Vec::new(),
+            open_preconditions: Vec::new(),
+            open_requirements: Vec::new(),
+            state: BranchState::Initializing,
+            goal_index: 0,
+            simulation_index: 0,
+            current_agent: initial_agent.clone(),
+            current_world: initial_world.clone(),
             cost: 0.0,
-            final_state_agent: initial_agent.clone(),
-            final_state_world: initial_world.clone(),
-        })
+        }
     }
 
-    pub fn is_complete(
-        &self,
-        _initial_agent: &BlackboardSnapshot,
-        _initial_world: &BlackboardSnapshot,
-        ctx: &super::expander::SearchContext,
-    ) -> CompleteResult {
-        if !self.open_requirements.is_empty() {
-            return CompleteResult::Ready(false);
-        }
-
-        if !self.open_preconditions.is_empty() {
-            return CompleteResult::Ready(false);
-        }
-
-        for goal_pre in &self.goal_preconditions {
-            match crate::planner::simulation::eval_precondition(
-                goal_pre,
-                &self.final_state_agent,
-                &self.final_state_world,
-                self.bound_provisions.clone(),
-                vec![],
-                ctx,
-            ) {
-                crate::planner::simulation::PreconditionResult::Ready(false) => {
-                    return CompleteResult::Ready(false);
-                }
-                crate::planner::simulation::PreconditionResult::Pending(id) => return CompleteResult::Pending(id),
-                _ => {}
-            }
-        }
-
-        CompleteResult::Ready(true)
+    pub fn fingerprint(&self) -> (usize, Vec<(usize, PreconditionSpec)>, Vec<(usize, RequirementSpec)>, BranchState) {
+        (self.goal_index, self.open_preconditions.clone(), self.open_requirements.clone(), self.state.clone())
     }
 }
