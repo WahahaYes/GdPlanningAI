@@ -64,33 +64,52 @@ Fix the bug where un-selected provisions are used in optimistic simulation.
 3.  **Test Stability**: `test_async_planner.gd` must pass without hitting the 300-frame timeout for complex plans.
 4.  **Reduced Callback Volume**: Debug logs should show simulation cache hits for repeated actions.
 
-## 7. Current Status (May 22, 2026)
+## 7. Current Status (May 23, 2026 - End of Session)
 
-### 7.1. Implementation State
--   **Phase 1 & 2** are partially complete. The engine is suspendable, uses a `SearchContext` with Arc-shared data, and implements `SimulationKey` parameter-based caching.
--   **Build Status**: `make build-release` is functional.
+### 7.1. Last Known Working Commit: `b227b13`
+At commit `b227b13`, the planner was overcoming timeout issues. However, significant changes have been staged/implemented since then to address architectural debt and logic edge cases.
 
-### 7.2. The "Success Key" Error
-Integration tests are crashing with `Invalid access to property or key 'success'`. 
-- **Cause**: This is a secondary error triggered by a **timeout** in the GDScript test harness (`_submit_plan_and_wait`). 
-- When the timeout is hit, the harness fails the test but continues execution, returning an empty `Dictionary {}`. The calling test then attempts to access `result["success"]`, causing the crash.
+### 7.2. Audit of Changes since `b227b13` (Potential Regression Sources)
 
-### 7.3. Timeout Hypotheses (The "Ping-Pong" Bottleneck)
+1.  **Engine Batching**: 
+    -   **Change**: Modified `step_search` to continue popping from the controller after parking a node.
+    -   **Intent**: Fix "Sequential Frame Blocking" by sending multiple requests per frame.
+    -   **Risk**: Might be sending too many requests at once, overwhelming the main thread or creating search depth faster than the harness can keep up.
 
-Despite the non-blocking refactor, we are still seeing timeouts. Log analysis reveals a **Multi-Step Parking** issue:
+2.  **Phase 3 (Hallucination Fix - Softened)**:
+    -   **Change**: In `find_candidates`, removed application of existing branch requirements to hypothetical state. In `expand_branch`, applied requirements optimistically for *all* ungrounded steps.
+    -   **Intent**: Prevent "hallucinated" successes while maintaining search direction.
+    -   **Risk**: Increased search space or cache misses during discovery due to stricter starting states.
 
-1.  **Sequential Action Re-Parking**: 
-    - Many actions define both `cost_callable` and `effect_callable`. 
-    - Current logic: Node parks for Cost -> Resumes -> Immediately parks for Effect. 
-    - This still requires 2 full Godot frames per action evaluation.
-2.  **Candidate Discovery Explosion**:
-    - `find_candidates` evaluates ALL potential actions. If 10 actions require callbacks for cost/validity and aren't cached, the node might park-and-resume 10 times before even starting the Ripple validation.
-3.  **Simulation Key Collision/Miss**:
-    - If `agent_state_hash` or `provisions_hash` changes subtly between discovery and ripple (e.g., due to float noise or unsorted provisions), the cache hits will fail, forcing redundant blocking calls.
+3.  **Direct Callback Routing**:
+    -   **Change**: Removed bridge threads. `CallbackRequest` now carries `Sender<PlannerCallback>` directly.
+    -   **Intent**: Reduce thread overhead and latency.
+    -   **Risk**: Changes the precise timing of when nodes are unparked, potentially exposing race conditions in `PlannerEngine::step_search`.
 
-## 8. Next Steps: Correcting the Resumption Flow
+4.  **Termination Logic Guard**:
+    -   **Change**: Engine returns `Pending` if `parked_nodes` is not empty, even if the search controller is empty.
+    -   **Intent**: Prevent premature "No Plan Found" results while waiting for final callbacks.
+    -   **Risk**: Extends the runtime of failing searches, potentially contributing to timeouts.
 
-To break the "yield-resume-yield" loop, we need to:
-1.  **Batch Callback Processing**: Allow the engine to process multiple ready callbacks in a single "Step" before yielding again.
-2.  **Speculative Discovery**: Modify `find_candidates` to skip actions requiring callbacks if we are already in a "Resuming" state, or prioritize actions that are already cached.
-3.  **Tighten Float Stability**: Ensure `calculate_hash` is extremely aggressive about rounding float values to prevent hash jitter.
+5.  **Float Quantization Tuning**:
+    -   **Change**: Increased rounding in `calculate_hash` from 3 decimal places to 2.
+    -   **Intent**: Improve cache stability.
+    -   **Risk**: Unlikely to cause timeouts directly, but could cause incorrect cache hits if the precision is too low.
+
+### 7.3. Known Issues
+-   **Timeouts in Godot Integration Tests**: Despite batching, complex scenarios (Campfire, Cooking) are timing out. 
+-   **Stable Regression**: Integration tests now fail on action order/cost when DFS is used, but timeout when A* is used.
+
+## 8. Next Steps & Follow Ups
+
+### 8.1. Restore A* Efficiency
+-   **Problem**: `BestCost` strategy with the new non-blocking logic is exploring too many branches per frame, overwhelming the Godot main thread or exceeding the frame budget.
+-   **Action**: Investigate why `AStar` is generating so many unique callback requests compared to the previous blocking implementation.
+
+### 8.2. Cache Jitter Investigation
+-   Even with float rounding, we may be seeing cache misses due to subtle state differences in the `provisions_hash` or `agent_state_hash`.
+-   **Action**: Add detailed logging to track cache HIT vs MISS ratios during complex plans.
+
+### 8.3. Search Algorithm Tuning
+-   Experiment with hybrid strategies (e.g., depth-limited search or more aggressive pruning) to ensure the planner returns a "good enough" plan within the 300-frame limit.
+

@@ -1,117 +1,136 @@
-# Hybrid Backward-Chaining Planner: Implementation Pseudocode
+# Async GOAP Planner: Definitive Implementation Pseudocode
 
-## 1. Data Structures
+## Preliminary: The Hybrid Planner Model
+The GdPlanningAI planner is a **Hybrid Backward-Chaining Planner** that combines the efficiency of symbolic GOAP with the power of rich scene simulation.
+- **Symbolic Layer**: Uses traditional Requirements and Provisions for fast causal link discovery and initial pruning.
+- **Simulation Layer**: Leverages custom GDScript callables for `simulate_effect`, `eval_precondition`, and `calculate_cost`. This allows the planner to reason about complex scene information (spatial distance, object properties, navigation) that cannot be easily captured in simple bitmasks.
+- **Async Execution**: The planning process is non-blocking, yielding to the Godot main thread whenever a GDScript simulation or check is required.
 
-### PlanBranch
-- `action_chain`: Ordered list of action indices: `[A, B, C]`
-- `final_state`: The deep-simulated state after the last action in the chain (`C`).
-- `open_preconditions`: Accumulated physical needs from **anywhere** in the chain that are not yet met by `InitialState`. (The **Frontier**). A branch is only complete when this is empty — preconditions from multiple chain positions may coexist here.
-- `open_requirements`: Symbolic needs (Potato, Axe) from **anywhere** in the chain.
-  - Stored as `(consumer_pos, RequirementSpec)`.
-- `action_bindings`: List of `(pos, key, values: Vec<VariantSnapshot>)` to be passed to Godot during simulation. Supports strings, integers, and object references.
-- `cost`: Total cumulative cost from the latest forward simulation ripple.
+This document describes the non-blocking, async-first backward-chaining implementation.
 
-### ActionCandidate
-- `action_idx`: Index of the action being considered for prepending.
-- `estimated_cost`: 1.0 (Physical) or 1.1 (Symbolic) to prioritize direct grounding.
-- `satisfied_precondition_indices`: Which items in the current Frontier this action resolves.
-- `satisfied_requirement_indices`: Which symbolic needs this action provides for.
+## 1. Key Principles
+- **Incremental Progress**: Every simulation step (cost, effect, precondition) can yield a `Pending` result, requiring a Godot callback.
+- **State Machine Branches**: A plan branch is not just a list of actions; it is a state machine that tracks its own simulation progress.
+- **Needs-Based Identity**: A branch's search identity is defined by its **Open Needs** (unmet preconditions and requirements).
+- **Discovery Optimization (Optional)**: Actions can be simulated against the `InitialState` once and cached (`DiscoveryCache`) to avoid request floods during candidate search. This is a toggleable optimization.
 
 ---
 
-## 2. Core Search Loop (A*)
+## 2. Core Data Structures
 
-1. **Initialization**:
-   - Sort `Goals` by `Reward` (descending). Ignore goals with reward <= 0.
-   - For each `Goal`:
-     - If `Goal` is satisfied in `InitialState` (Deep Check):
-       - RETURN successful empty plan for this goal.
-     - Else:
-       - `root = new PlanBranch`
-       - `root.open_preconditions = unmet Goal.preconditions`
-       - `frontier.push(root)`
-       - Run A* Loop (see below). If success, RETURN plan.
+### `PlanBranch`
+- `action_chain`: `[P, A, B]` (Backward-chained actions).
+- `action_bindings`: `Vec<(pos, BindingData)>` (Data passed to simulations, e.g., which object was picked up).
+- `open_preconditions`: Physical needs not yet met by `InitialState`. Stored as `(consumer_index, Precondition)`.
+- `open_requirements`: Symbolic needs not yet satisfied. Stored as `(consumer_index, Requirement)`.
+- `state`: One of `Initializing`, `Searching`, `Rippling`, `Verifying`.
+- `simulation_index`: Current progress index within the `action_chain` or `goal_preconditions`.
+- `current_agent`: Agent Blackboard resulting from action at `simulation_index - 1`.
+- `current_world`: World Blackboard resulting from action at `simulation_index - 1`.
+- `cost`: Total cumulative cost.
 
-2. **A* Loop**:
-   - `visited = HashSet<NodeFingerprint>`
-   - While `frontier` not empty:
-     - `node = frontier.pop()`
-     - If `visited.contains(node.fingerprint)`: CONTINUE.
-     - `visited.insert(node.fingerprint)`
-     - If `node.branch.is_complete()`: RETURN `branch.action_chain`.
-     - `candidates = find_candidates(node.branch)`
-     - For `candidate` in `candidates`:
-       - `new_branch = expand(node.branch, candidate)`
-       - If `new_branch` exists: `frontier.push(new_branch)`
+### `SearchNode` (A* Wrapper)
+- `branch`: `PlanBranch`.
+- `resumed`: Boolean flag (true if just woke up from callback).
+- `callback_response`: Data payload from Godot (Updated snapshots, Float, or Bool).
 
 ---
 
-## 3. Expansion Logic (`expand`)
+## 2. Core Search Loop (`step_search`)
 
-When prepending `Action P` to `Branch [A, B, C]`:
+This loop is executed repeatedly by the background thread. It yields if a Godot callback is needed or if it exceeds its `ITERATION_BUDGET`.
 
-1. **Prepend Action**: `new_chain = [P, A, B, C]`.
-2. **Update Bindings**:
-   - Shift indices of all existing `action_bindings` by +1.
-   - For each symbolic `req` in `branch.open_requirements` satisfied by `P`:
-     - Extract `values` from `P.provisions`.
-     - Add new binding: `(new_consumer_pos, key, values)`.
-3. **Full Forward Simulation (The Ripple)**:
-   - `current_state = InitialState`
-   - `current_provisions = InitialProvisions`
-   - For `(pos, action)` in `new_chain`:
-     - **Head Simulation**: If `pos == 0` and action is ungrounded:
-       - Note: The action's `simulate_effect` should report its potential effects even if requirements are not yet physically met in `current_state`.
-       - Apply optimistic requirements to the state before simulation to see potential effects.
-     - `res = action.simulate_effect(current_state, current_provisions, bindings[pos])`
-     - If `res` is invalid: RETURN None (Prune).
-     - `current_state = res.state`, `total_cost += res.cost`.
-     - Update `current_provisions` with `action.provisions` for the NEXT step.
-4. **Update Needs**:
-   - **Initial State Pre-binding**:
-     - Check `P.requirements` against `InitialProvisions`.
-     - If met, extract bindings immediately and do NOT add to `open_requirements`.
-   - **Requirements**:
-     - Remove `open_requirements` satisfied by `P`.
-     - Shift `consumer_pos` of remaining requirements by +1.
-     - Add remaining `P.requirements` at `pos=0`.
-   - **Preconditions (The Frontier)**:
-     - Remove from `open_preconditions` only the entries that `P` satisfies (from `satisfied_precondition_indices`).
-     - Check `P.preconditions` against `branch.final_state_agent` and `branch.final_state_world` (Deep Check).
-     - Any NOT met are **appended** to `open_preconditions`.
-     - Note: In backward planning, preconditions are checked against the state after the effects of actions already in the chain (e.g., when adding Pick Up Item after Eat Held Food, check if held_item == "" is true in the state after Eat Held Food's effects).
+### 3.1. Phase 1: Resume Callbacks
+1. Drain the `response_channel`.
+2. For each `response`:
+   - Find all `ParkedNodes` waiting for this `request_id`.
+   - For each node:
+     - `node.callback_response = response`
+     - `node.resumed = true`
+     - Push `node` back into the `PriorityQueue`.
+
+### 3.2. Phase 2: A* Iteration
+1. Pop `node` from `PriorityQueue`.
+2. **Visited Check**: If `!node.resumed` AND `visited_set.contains(node.fingerprint)`, then **CONTINUE**.
+   - *Note: Fingerprint = (open_needs, state).*
+3. Insert into `visited_set`.
+4. `node.resumed = false`.
+
+### 3.3. Phase 3: State Machine Processing
+Based on `node.branch.state`:
+
+#### **State: `Initializing`** (Grounding Goal)
+- `target_index = action_chain.length` (The Goal's position at the end of the chain).
+- Evaluate `Goal.precondition[simulation_index]` against `InitialState`.
+- **If Pending(id)**: `Park(node, id)`, **Yield Loop**.
+- **If Ready(bool)**:
+  - If `false`: Add `(target_index, precondition)` to `branch.open_preconditions`.
+  - `simulation_index++`. 
+  - If all goal preconds checked: `branch.state = Searching`.
+  - Push `node` back to queue.
+
+#### **State: `Searching`** (Expansion)
+- **Check Complete**: If `open_preconditions` and `open_requirements` are empty:
+  - `branch.state = Verifying`, `simulation_index = 0`.
+  - Reset `current_agent/world` to `InitialState`.
+  - Push `node` back to queue, **CONTINUE**.
+- **Expand**: Find all `Action A` that satisfy **at least one** open need (using `find_candidates`).
+  - For each candidate:
+    - `NewBranch` = Prepend `A` to chain.
+    - **Frontier Update**: 
+      - Remove `open_preconditions` and `open_requirements` that are satisfied by `A`'s simulated effects/provisions. 
+      - *Note: A precondition is satisfied if it is met at its specific point in the sequence; it does NOT need to remain true for the rest of the chain.*
+      - Increment `consumer_index` of all remaining downstream needs by +1.
+    - **Add New Needs**: Add `A.preconditions` and `A.requirements` at `consumer_index = 0`.
+    - **Reset Ripple**: `NewBranch.state = Rippling`, `simulation_index = 0`.
+    - Push `NewBranch` to queue.
+
+#### **State: `Rippling` / `Verifying`** (Simulation & Grounding)
+1. **Point-in-Time Check**: Before simulating `action_chain[simulation_index]`:
+   - Identify all `open_preconditions` where `consumer_index == simulation_index`.
+   - Evaluate them against `current_agent/world` (the state after all preceding actions).
+   - **If Ready(true)**: The need is satisfied at this point in the chain.
+   - **If Ready(false)**: The chain is broken at this step (Invalidate branch or keep as open need).
+2. **Simulate**: Simulate `action_chain[simulation_index]` against `current_state`.
+   - **If Pending(id)**: `Park(node, id)`, **Yield Loop**.
+   - **If Ready(result)**:
+     - Update `branch.current_agent`, `branch.current_world` and `branch.cost`.
+     - `simulation_index++`.
+     - If finished:
+       - `Rippling` -> `branch.state = Searching`.
+       - `Verifying` -> Perform final `GoalCheck`. If satisfied, **RETURN SUCCESSFUL PLAN**.
+     - Push `node` back to queue.
 
 ---
 
-## 4. Completion Check (`is_complete`)
+## 4. Candidate Discovery (`find_candidates`)
 
-A branch is complete if:
-1. `open_preconditions` is empty (All accumulated physical needs across the chain are grounded in the Present).
-2. `open_requirements` is empty (All symbolic dependencies are solved).
-3. **Deep Goal Check**: The `final_state` satisfies all `Goal.preconditions`.
+This is where we identify which actions are relevant to the current `open_needs`.
+
+1. **Validity Filter**: Check `Action.validity_checks` against `InitialState`. Skip if any fail (e.g., on cooldown).
+2. **Discovery Preview** (Optional Optimization): 
+   - *Note: If DiscoveryCache is disabled, skip to step 3 and use fresh simulations.*
+   - Check `DiscoveryCache` for `Action A`.
+   - If missing:
+     - Check `DiscoveryPending` map.
+     - If pending: **Skip A** for this iteration (Wait for Godot).
+     - If not pending: Run the custom GDScript `simulate_effect` for `A` against `InitialState`.
+       - If `Pending(id)`: Mark `DiscoveryPending[A] = id`, **Return Pending(id)**.
+       - If `Ready`: Store result in `DiscoveryCache`.
+3. **Hybrid Satisfaction Check**:
+   - **Symbolic Layer**: Does `A`'s **Provisions** satisfy any `open_requirements`?
+   - **Simulation Layer**: Does `A`'s **Discovery Result** (the simulated state) satisfy any `open_preconditions`?
+   - *Note: This allows actions with unadvertised effects to be discovered if the simulation reveals they satisfy a physical need.*
+4. **Qualification**:
+   - `A` is a candidate if it satisfies **at least one** open requirement OR **at least one** open precondition.
 
 ---
 
-## 5. Candidate Discovery (`find_candidates`)
+## 5. Summary of Routing Logic
 
-To find actions that *could* help, we use a three-layer check:
-
-1. **Validity Checks** (Hard Prerequisites):
-   - Evaluate `Action.validity_checks` against `InitialState`.
-   - If any check fails, skip this action entirely (e.g., object invalid, on cooldown).
-   - Implementation detail: Use a flag to track validity; break out of the inner loop on first failure and skip the entire action (not just the inner loop iteration).
-2. **Symbolic Layer**:
-   - Does `Action A` have a provision that matches **any** `open_requirement`?
-   - **Context-Aware**: `BindingInSet` requirements check the world state for group membership.
-   - Multiple satisfaction: An action can satisfy multiple open requirements at once.
-3. **Optimistic Physical Layer**:
-   - **Hypothetical State**: Create a state where concrete `BindingEquals` requirements are applied.
-   - **Action-Led Hypothetical Progress**: Run `A.simulate_effect(HypotheticalState)` with **Strict=False**.
-   - **Requirement Responsibility**: Actions that declare symbolic requirements (Existence, Set membership) should report their effects during simulation even if the requirement is not physically fulfilled in the snapshot.
-   - If the effect satisfies **any** `open_precondition`, it is a candidate.
-
-**Qualification rule**: An action qualifies as a candidate if it satisfies **at least one** open precondition OR **at least one** open requirement. It does NOT need to resolve all of them — that is the termination criterion (`is_complete`), not the candidate criterion.
-
-**Cost Heuristic**:
-- `est_cost = 1.0` if physical needs satisfied.
-- `est_cost = 1.1` if only symbolic needs satisfied (encourages grounding).
+| If Simulation Result is... | Engine Action | Main Thread Action |
+| :--- | :--- | :--- |
+| **`Ready(value)`** | Continue current branch logic. | None. |
+| **`Pending(id)`** | Store node in `ParkedNodes[id]`, Yield execution of this job. | Run the GDScript `Callable`, send result to `response_channel`. |
+| **`Invalid`** | Discard the current node. | None. |
+| **`Budget Exceeded`** | Push current node back to `PriorityQueue`, Yield execution. | None. |
