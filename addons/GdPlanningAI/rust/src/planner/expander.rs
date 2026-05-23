@@ -15,7 +15,8 @@ pub fn find_candidates(
     response: Option<&CallbackResponse>,
 ) -> StepResult<Vec<Candidate>> {
     let mut candidates = Vec::new();
-    let mut pending_id = None;
+    let mut some_pending = false;
+    let mut last_pending_id = 0;
 
     for (idx, action) in ctx.actions.iter().enumerate() {
         // 0. Validity filter (against InitialState)
@@ -27,7 +28,12 @@ pub fn find_candidates(
                     validity_failed = true;
                     break;
                 }
-                StepResult::Pending(id) => return StepResult::Pending(id),
+                StepResult::Pending(id) => {
+                    some_pending = true;
+                    last_pending_id = id;
+                    validity_failed = true; // Skip this action for now, but we are pending
+                    break;
+                }
                 StepResult::Invalid => {
                     validity_failed = true;
                     break;
@@ -68,7 +74,10 @@ pub fn find_candidates(
                     pending.contains_key(&idx)
                 };
 
-                if !is_pending {
+                if is_pending {
+                    some_pending = true;
+                    // We don't have the result yet, but we've already requested it.
+                } else {
                     // Start discovery simulation against InitialState
                     let mut dummy_costs = vec![-1.0];
                     match simulate_action(idx, &ctx.initial_agent, &ctx.initial_world, ctx, response, &mut dummy_costs, 0) {
@@ -87,7 +96,8 @@ pub fn find_candidates(
                             pending.insert(idx, id);
                             let mut req_map = ctx.discovery_request_map.lock().unwrap();
                             req_map.insert(id, idx);
-                            pending_id = Some(id);
+                            some_pending = true;
+                            last_pending_id = id;
                         }
                         StepResult::Invalid => {}
                     }
@@ -112,9 +122,13 @@ pub fn find_candidates(
         }
     }
 
-    if let Some(id) = pending_id {
-        StepResult::Pending(id)
+    if some_pending && candidates.is_empty() {
+        // If we didn't find any ready candidates but some actions are still being discovered,
+        // yield to wait for discovery.
+        StepResult::Pending(last_pending_id)
     } else {
+        // If we found candidates, return them even if some other actions are still pending discovery.
+        // Or if nothing is pending and no candidates found, return empty list.
         StepResult::Ready(candidates)
     }
 }

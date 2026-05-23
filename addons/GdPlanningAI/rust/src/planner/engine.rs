@@ -8,7 +8,7 @@ use crate::planner::expander::find_candidates;
 use super::{SearchAlgorithm, TerminationStrategy};
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
-use std::collections::{HashMap, VecDeque, HashSet};
+use std::collections::{HashMap, HashSet, BinaryHeap};
 use std::sync::mpsc::{Receiver, Sender};
 
 pub struct PlannerEngine {
@@ -18,10 +18,14 @@ pub struct PlannerEngine {
     pub response_rx: Receiver<PlannerCallback>,
     pub response_tx: Sender<PlannerCallback>,
     
+    // Config
+    pub algorithm: SearchAlgorithm,
+    pub termination: TerminationStrategy,
+    
     // Search State
-    pub queue: VecDeque<SearchNode>,
+    pub queue: BinaryHeap<SearchNode>,
     pub parked_nodes: HashMap<usize, Vec<SearchNode>>,
-    pub visited: HashSet<(usize, Vec<(usize, PreconditionSpec)>, Vec<(usize, RequirementSpec)>, BranchState)>,
+    pub visited: HashMap<(usize, Vec<(usize, PreconditionSpec)>, Vec<(usize, RequirementSpec)>, BranchState), f64>,
     pub best_plan: Option<PlanResult>,
     pub best_cost: f64,
     pub current_goal_index: usize,
@@ -36,17 +40,25 @@ impl PlannerEngine {
             cancel_flag,
             response_rx: rx,
             response_tx: tx,
-            queue: VecDeque::new(),
+            algorithm: SearchAlgorithm::AStar,
+            termination: TerminationStrategy::FirstComplete,
+            queue: BinaryHeap::new(),
             parked_nodes: HashMap::new(),
-            visited: HashSet::new(),
+            visited: HashMap::new(),
             best_plan: None,
             best_cost: f64::INFINITY,
             current_goal_index: 0,
         }
     }
 
-    pub fn with_search_algorithm(self, _alg: SearchAlgorithm) -> Self { self }
-    pub fn with_termination_strategy(self, _strat: TerminationStrategy) -> Self { self }
+    pub fn with_search_algorithm(mut self, alg: SearchAlgorithm) -> Self { 
+        self.algorithm = alg;
+        self
+    }
+    pub fn with_termination_strategy(mut self, strat: TerminationStrategy) -> Self { 
+        self.termination = strat;
+        self
+    }
 
     pub fn plan(&mut self, goals: &[GoalSpec]) -> PlannerRunResult {
         if self.queue.is_empty() && self.parked_nodes.is_empty() {
@@ -58,7 +70,7 @@ impl PlannerEngine {
                     branch.open_preconditions.push((0, pre.clone()));
                 }
                 
-                self.queue.push_back(SearchNode {
+                self.queue.push(SearchNode {
                     branch,
                     resumed: false,
                     callback_response: None,
@@ -104,18 +116,26 @@ impl PlannerEngine {
                 for mut node in nodes {
                     node.resumed = true;
                     node.callback_response = Some(callback.response.clone());
-                    self.queue.push_front(node);
+                    self.queue.push(node);
                 }
             }
         }
 
-        // 2. Main Search Loop
-        let mut iterations = 0;
-        while let Some(mut node) = self.queue.pop_front() {
-            iterations += 1;
-            // Increase budget for local tests
+            // 2. Main Search Loop
+            let mut iterations = 0;
+            while let Some(mut node) = self.queue.pop() {
+                iterations += 1;
+                
+                // Optimality check: If the best node's priority (g + h) is already worse than our best plan, 
+                // and we want the best cost, we can stop.
+                if self.termination == TerminationStrategy::BestCost && node.priority() >= self.best_cost {
+                    self.queue.push(node); // Put it back for next time if needed
+                    break;
+                }
+
+                // Increase budget for local tests
             if iterations > 5000 {
-                self.queue.push_front(node);
+                self.queue.push(node);
                 return PlannerRunResult::Pending(0);
             }
 
@@ -124,18 +144,22 @@ impl PlannerEngine {
             }
 
             // Visited check
-            if !node.resumed {
+            if !node.resumed && node.branch.state == BranchState::Searching {
                 let fp = node.branch.fingerprint();
-                if self.visited.contains(&fp) { continue; }
-                self.visited.insert(fp);
+                if let Some(&prev_cost) = self.visited.get(&fp) {
+                    if node.branch.cost >= prev_cost { continue; }
+                }
+                self.visited.insert(fp, node.branch.cost);
             }
             node.resumed = false;
 
             // 3. State Machine Processing
+            if node.branch.cost >= self.best_cost { continue; }
+
             match node.branch.state {
                 BranchState::Initializing | BranchState::Rippling | BranchState::Verifying => {
                     match self.process_simulation(&mut node) {
-                        StepResult::Ready(_) => self.queue.push_back(node),
+                        StepResult::Ready(_) => self.queue.push(node),
                         StepResult::Pending(id) => {
                             self.parked_nodes.entry(id).or_insert_with(Vec::new).push(node);
                         }
@@ -150,7 +174,10 @@ impl PlannerEngine {
                         node.branch.current_agent = self.ctx.initial_agent.clone();
                         node.branch.current_world = self.ctx.initial_world.clone();
                         node.branch.cost = 0.0;
-                        self.queue.push_back(node);
+                        self.queue.push(node);
+                        
+                        // If we are looking for any plan, we've found our candidate.
+                        // But we still need to Verify it.
                         continue;
                     }
 
@@ -199,7 +226,7 @@ impl PlannerEngine {
                                 new_branch.current_world = self.ctx.initial_world.clone();
                                 new_branch.cost = 0.0;
                                 
-                                self.queue.push_back(SearchNode {
+                                self.queue.push(SearchNode {
                                     branch: new_branch,
                                     resumed: false,
                                     callback_response: None,
@@ -300,16 +327,25 @@ impl PlannerEngine {
                     }
                     BranchState::Verifying => {
                         // Final success!
-                        self.best_plan = Some(PlanResult {
-                            success: true,
-                            action_chain: branch.action_chain.iter().map(|&i| i as i64).collect(),
-                            total_cost: branch.cost,
-                            goal_index: branch.goal_index as i64,
-                            deferred_action_indices: vec![],
-                            action_bindings: branch.action_bindings.iter()
-                                .map(|(pos, name, vals)| (*pos as i64, name.clone(), vals.clone()))
-                                .collect(),
-                        });
+                        if branch.cost < self.best_cost {
+                            self.best_cost = branch.cost;
+                            self.best_plan = Some(PlanResult {
+                                success: true,
+                                action_chain: branch.action_chain.iter().map(|&i| i as i64).collect(),
+                                total_cost: branch.cost,
+                                goal_index: branch.goal_index as i64,
+                                deferred_action_indices: vec![],
+                                action_bindings: branch.action_bindings.iter()
+                                    .map(|(pos, name, vals)| (*pos as i64, name.clone(), vals.clone()))
+                                    .collect(),
+                            });
+                        }
+                        
+                        if self.termination == TerminationStrategy::FirstComplete {
+                            return StepResult::Ready(());
+                        }
+                        
+                        // Keep searching for a better plan if strategy is BestCost
                         return StepResult::Ready(());
                     }
                     BranchState::Searching => return StepResult::Ready(()),

@@ -4,6 +4,8 @@ use crate::requirement::{ProvisionSpec, RequirementSpec};
 use std::sync::mpsc::Sender;
 use std::collections::HashMap;
 
+use std::cmp::Ordering;
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum BranchState {
     Initializing,
@@ -27,10 +29,43 @@ pub struct PlanBranch {
     pub cost: f64,
 }
 
+#[derive(Clone, Debug)]
 pub struct SearchNode {
     pub branch: PlanBranch,
     pub resumed: bool,
     pub callback_response: Option<CallbackResponse>,
+}
+
+impl SearchNode {
+    pub fn priority(&self) -> f64 {
+        // A* priority: f(n) = g(n) + h(n)
+        // g(n) is the accumulated cost
+        // h(n) is the heuristic (number of open needs)
+        let g = self.branch.cost;
+        let h = (self.branch.open_preconditions.len() + self.branch.open_requirements.len()) as f64;
+        g + h
+    }
+}
+
+impl PartialEq for SearchNode {
+    fn eq(&self, other: &Self) -> bool {
+        self.priority() == other.priority()
+    }
+}
+
+impl Eq for SearchNode {}
+
+impl PartialOrd for SearchNode {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for SearchNode {
+    fn cmp(&self, other: &Self) -> Ordering {
+        // BinaryHeap is a max-heap, so we invert the comparison for a min-heap
+        other.priority().partial_cmp(&self.priority()).unwrap_or(Ordering::Equal)
+    }
 }
 
 pub struct SearchContext {

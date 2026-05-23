@@ -26,6 +26,7 @@ struct ActiveJobHandle {
     engine: Option<PlannerEngine>,
     goals: Vec<GoalSpec>,
     cancel_flag: Arc<AtomicBool>,
+    pending_request_id: usize,
     done: bool,
 }
 
@@ -102,8 +103,9 @@ impl GdPAIPlanScheduler {
                             job.agent.call("_on_plan_ready", &[dict.to_variant()]);
                         }
                     }
-                    PlannerRunResult::Pending(_) => {
+                    PlannerRunResult::Pending(id) => {
                         job.engine = Some(engine);
+                        job.pending_request_id = id;
                     }
                 }
             }
@@ -124,9 +126,17 @@ impl GdPAIPlanScheduler {
             }
         }
 
-        // 3. Resume engines that received at least one response and are parked
-        for agent_id in jobs_with_responses {
-            if let Some(job) = self.active_jobs.iter_mut().find(|j| j.agent_instance_id == agent_id && !j.done) {
+        // 3. Resume engines that are ready
+        for job in self.active_jobs.iter_mut().filter(|j| !j.done) {
+            let ready_to_resume = if job.pending_request_id == 0 {
+                // Yielded for budget, always ready
+                true
+            } else {
+                // Yielded for callback, only ready if we got a response
+                jobs_with_responses.contains(&job.agent_instance_id)
+            };
+
+            if ready_to_resume {
                 if let Some(engine) = job.engine.take() {
                     let goals = job.goals.clone();
                     let res_tx = job.result_tx.clone();
@@ -203,6 +213,7 @@ impl GdPAIPlanScheduler {
             engine: None,
             goals: goal_specs,
             cancel_flag,
+            pending_request_id: 0,
             done: false,
         };
 
