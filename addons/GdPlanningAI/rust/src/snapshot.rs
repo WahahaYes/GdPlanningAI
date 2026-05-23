@@ -245,6 +245,14 @@ impl StableSnapshot {
 }
 
 impl BlackboardSnapshot {
+    pub fn calculate_hash(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let stable = StableSnapshot::from_blackboard(self);
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        stable.hash(&mut hasher);
+        hasher.finish()
+    }
+
     /// Snapshot a live [`GdPAIBlackboard`]. **Must be called on the main thread.**
     pub fn from_blackboard(bb: &GdPAIBlackboard) -> Self {
         let properties = bb

@@ -96,6 +96,27 @@ impl RequirementSpec {
     }
 }
 
+impl std::hash::Hash for ProvisionSpec {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        match self {
+            Self::Binding { binding_name, value } => {
+                0.hash(state);
+                binding_name.hash(state);
+                value.hash(state);
+            }
+            Self::Fact { fact_name, args } => {
+                1.hash(state);
+                fact_name.hash(state);
+                args.hash(state);
+            }
+            Self::FactWildcard { fact_name } => {
+                2.hash(state);
+                fact_name.hash(state);
+            }
+        }
+    }
+}
+
 impl ProvisionSpec {
     /// Deserialises a [`ProvisionSpec`] from a GDScript dictionary.
     pub fn from_dict(dict: &VarDictionary) -> Option<Self> {

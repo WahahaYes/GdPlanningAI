@@ -196,11 +196,48 @@ pub struct GoalSpec {
     pub original_index: usize,
 }
 
+/// Identifies the specific type of simulation request.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum RequestKind {
+    Precondition,
+    Cost,
+    Effect,
+}
+
+/// Uniquely identifies a simulation request based on its input parameters and kind.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct SimulationKey {
+    pub action_idx: Option<usize>, // None for goal check
+    pub kind: RequestKind,
+    pub agent_state_hash: u64,
+    pub world_state_hash: u64,
+    pub provisions_hash: u64,
+}
+
 /// Sent from planner thread → main thread.
 pub struct CallbackRequest {
+    pub request_id: usize,
+    pub sim_key: SimulationKey,
     pub callable_id: usize,
     pub kind: CallbackKind,
     pub response_tx: Sender<CallbackResponse>,
+}
+
+/// Result of a callback processed by the main thread.
+#[derive(Debug)]
+pub struct PlannerCallback {
+    pub request_id: usize,
+    pub sim_key: SimulationKey,
+    pub response: CallbackResponse,
+}
+
+/// The result of an engine execution step.
+#[derive(Debug, Clone)]
+pub enum PlannerRunResult {
+    /// Planning reached a terminal state (success or total failure).
+    Complete(Option<crate::plan_tree::PlanResult>),
+    /// Planning is paused waiting for a GDScript callback.
+    Pending(usize),
 }
 
 /// What the main thread should do with the callable.
@@ -229,6 +266,7 @@ pub enum CallbackKind {
 }
 
 /// Sent from main thread → planner thread.
+#[derive(Debug, Clone)]
 pub enum CallbackResponse {
     Float(f64),
     Bool(bool),

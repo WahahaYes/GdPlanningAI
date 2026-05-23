@@ -1,7 +1,6 @@
 use crate::plan_types::*;
 use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use crate::requirement::{ProvisionSpec, RequirementSpec};
-use std::sync::mpsc::Sender;
 
 #[derive(Clone, Debug)]
 pub struct PlanBranch {
@@ -32,75 +31,81 @@ pub struct ActionCandidate {
     pub satisfied_requirement_indices: Vec<usize>,
 }
 
+pub enum CompleteResult {
+    Ready(bool),
+    Pending(usize),
+}
+
 impl PlanBranch {
     pub fn new(
         goal_preconditions: &[PreconditionSpec],
         initial_provisions: &[ProvisionSpec],
         initial_agent: &BlackboardSnapshot,
         initial_world: &BlackboardSnapshot,
-        request_tx: &Sender<CallbackRequest>,
-    ) -> Self {
-        // Any goal preconditions that are NOT met by InitialState are open.
+        ctx: &super::expander::SearchContext,
+    ) -> Result<Self, usize> {
         let mut open_preconditions = Vec::new();
         for pre in goal_preconditions {
-            if !crate::planner::simulation::eval_precondition(
+            match crate::planner::simulation::eval_precondition(
                 pre,
                 initial_agent,
                 initial_world,
                 initial_provisions.to_vec(),
-                vec![], // No bindings for initial state
-                request_tx,
+                vec![],
+                ctx,
             ) {
-                open_preconditions.push(pre.clone());
+                crate::planner::simulation::PreconditionResult::Ready(false) => {
+                    open_preconditions.push(pre.clone());
+                }
+                crate::planner::simulation::PreconditionResult::Pending(id) => return Err(id),
+                _ => {}
             }
         }
 
-        // Also extract requirements from initial state? 
-        // Goal doesn't have symbolic requirements, only physical preconditions.
-
-        Self {
+        Ok(Self {
             goal_preconditions: goal_preconditions.to_vec(),
             open_preconditions,
             open_requirements: vec![],
             action_chain: vec![],
-            bound_provisions: initial_provisions.to_vec(), // Start with world provisions
+            bound_provisions: initial_provisions.to_vec(),
             action_bindings: vec![],
             cost: 0.0,
             final_state_agent: initial_agent.clone(),
             final_state_world: initial_world.clone(),
-        }
+        })
     }
 
     pub fn is_complete(
         &self,
         _initial_agent: &BlackboardSnapshot,
         _initial_world: &BlackboardSnapshot,
-        request_tx: &Sender<CallbackRequest>,
-    ) -> bool {
-        // 1. Symbolic needs must be cleared
+        ctx: &super::expander::SearchContext,
+    ) -> CompleteResult {
         if !self.open_requirements.is_empty() {
-            return false;
+            return CompleteResult::Ready(false);
         }
 
-        // 2. Physical frontier must be grounded in the REAL InitialState
         if !self.open_preconditions.is_empty() {
-            return false;
+            return CompleteResult::Ready(false);
         }
 
-        // 3. Deep Goal Check: The final state must actually satisfy the goal
         for goal_pre in &self.goal_preconditions {
-            if !crate::planner::simulation::eval_precondition(
+            match crate::planner::simulation::eval_precondition(
                 goal_pre,
                 &self.final_state_agent,
                 &self.final_state_world,
                 self.bound_provisions.clone(),
-                vec![], // Deep goal check uses finalized state, but not specific action bindings
-                request_tx,
+                vec![],
+                ctx,
             ) {
-                return false;
+                crate::planner::simulation::PreconditionResult::Ready(false) => {
+                    return CompleteResult::Ready(false);
+                }
+                crate::planner::simulation::PreconditionResult::Pending(id) => return CompleteResult::Pending(id),
+                _ => {}
             }
         }
 
-        true
+        CompleteResult::Ready(true)
     }
 }

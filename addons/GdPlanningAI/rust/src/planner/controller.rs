@@ -13,7 +13,7 @@ pub struct SearchNode {
 }
 
 /// Trait for search controllers - allows swapping between DFS, Dijkstra, A*
-pub trait SearchController {
+pub trait SearchController: Send {
     fn push(&mut self, node: SearchNode);
     fn pop(&mut self) -> Option<SearchNode>;
 }
@@ -203,7 +203,7 @@ impl SearchController for AStarController {
 }
 
 /// Factory function to create controller based on algorithm
-pub fn create_controller(algorithm: SearchAlgorithm) -> Box<dyn SearchController> {
+pub fn create_controller(algorithm: SearchAlgorithm) -> Box<dyn SearchController + Send> {
     match algorithm {
         SearchAlgorithm::DepthFirst => Box::new(DFSController::new()),
         SearchAlgorithm::Dijkstra => Box::new(DijkstraController::new()),

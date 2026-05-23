@@ -10,8 +10,10 @@ use crate::plan_types::*;
 use crate::precondition::{PreconditionHandler, PreconditionOp};
 use crate::requirement::{ProvisionSpec, RequirementSpec};
 use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
+use crate::planner::{PlannerEngine, SearchContext, SearchAlgorithm, TerminationStrategy};
 use godot::prelude::*;
-use std::sync::mpsc::Receiver;
+use std::collections::{HashMap, HashSet};
+use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, atomic::AtomicBool};
 
 struct ActiveJobHandle {
@@ -19,17 +21,16 @@ struct ActiveJobHandle {
     agent_instance_id: i64,
     callable_registry: Vec<Callable>,
     request_rx: Receiver<CallbackRequest>,
-    result_rx: Receiver<Option<PlanResult>>,
+    result_rx: Receiver<(PlannerRunResult, PlannerEngine)>,
+    result_tx: Sender<(PlannerRunResult, PlannerEngine)>,
+    engine_response_tx: Sender<PlannerCallback>, // Keep a copy to send responses even when engine is running
+    engine: Option<PlannerEngine>,
+    goals: Vec<GoalSpec>,
     cancel_flag: Arc<AtomicBool>,
     done: bool,
 }
 
-
 /// Planning scheduler.
-///
-/// Add as a child of the autoload and call [method process_callbacks] every
-/// frame. Agents submit jobs with [method submit_plan]; results arrive via
-/// `_on_plan_ready(result: Dictionary)` called on the agent.
 #[derive(GodotClass)]
 #[class(base=Node)]
 pub struct GdPAIPlanScheduler {
@@ -64,17 +65,7 @@ impl INode for GdPAIPlanScheduler {
                 .build()
                 .expect("GdPAIPlanScheduler: failed to build Rayon thread pool"),
         );
-        godot::prelude::godot_print!("[GdPAI] Direct print from scheduler ready - logging works");
-        let num_threads = self
-            .thread_pool
-            .as_ref()
-            .map(|tp| tp.current_num_threads())
-            .unwrap_or(0);
-        log_info!(
-            "GdPAIPlanScheduler ready — {} worker thread(s)",
-            num_threads
-        );
-        log_debug!("Log channel initialized and ready for planner thread logging");
+        log_info!("GdPAIPlanScheduler ready");
     }
 }
 
@@ -84,60 +75,75 @@ impl GdPAIPlanScheduler {
     /// Call this once per frame from GDScript `_process`.
     #[func]
     fn process_callbacks(&mut self) {
-        // Process pending log messages from planner threads (from previous frames)
         crate::logger::process_logs();
 
-        // let active_count = self.active_jobs.iter().filter(|j| !j.done).count();
-        // let total_count = self.active_jobs.len();
+        // 1. Recover engines from worker threads first.
+        for job in self.active_jobs.iter_mut().filter(|j| !j.done) {
+            while let Ok((run_result, engine)) = job.result_rx.try_recv() {
+                match run_result {
+                    PlannerRunResult::Complete(result) => {
+                        job.done = true;
+                        if job.cancel_flag.load(std::sync::atomic::Ordering::Relaxed) {
+                            continue;
+                        }
 
-        // Process each job's pending callbacks using its own callable registry.
+                        let Some(result) = result else {
+                            log_warn!("Plan job returned None result");
+                            continue;
+                        };
+
+                        if job.agent.is_instance_valid() {
+                            log_info!(
+                                "Plan complete: success={}, actions={}, cost={:.1}",
+                                result.success,
+                                result.action_chain.len(),
+                                result.total_cost
+                            );
+                            let dict = result_to_dict(&result);
+                            job.agent.call("_on_plan_ready", &[dict.to_variant()]);
+                        }
+                    }
+                    PlannerRunResult::Pending(_) => {
+                        job.engine = Some(engine);
+                    }
+                }
+            }
+        }
+
+        // 2. Process pending requests from Godot
+        let mut jobs_with_responses = HashSet::new();
         for job in self.active_jobs.iter_mut().filter(|j| !j.done) {
             while let Ok(req) = job.request_rx.try_recv() {
                 let callable = &job.callable_registry[req.callable_id];
                 let response = dispatch_callback(callable, req.kind);
-                let _ = req.response_tx.send(response);
+                
+                let _ = job.engine_response_tx.send(PlannerCallback {
+                    request_id: req.request_id,
+                    sim_key: req.sim_key,
+                    response,
+                });
+                jobs_with_responses.insert(job.agent_instance_id);
             }
-            // Check for completed plan
-            if let Ok(result) = job.result_rx.try_recv() {
-                job.done = true;
-                if job.cancel_flag.load(std::sync::atomic::Ordering::Relaxed) || result.is_none() {
-                    log_debug!("Canceled plan job finished without delivery");
-                    continue;
-                }
+        }
 
-                let Some(result) = result else {
-                    log_warn!("Plan job returned None result");
-                    continue;
-                };
-
-                if job.agent.is_instance_valid() {
-                    log_info!(
-                        "Plan complete: success={}, actions={}, cost={:.1}, action_chain={:?}",
-                        result.success,
-                        result.action_chain.len(),
-                        result.total_cost,
-                        result.action_chain
-                    );
-                    let dict = result_to_dict(&result);
-                    job.agent.call("_on_plan_ready", &[dict.to_variant()]);
-                } else {
-                    log_warn!("Plan completed but agent was freed");
+        // 3. Resume engines that received at least one response and are parked
+        for agent_id in jobs_with_responses {
+            if let Some(job) = self.active_jobs.iter_mut().find(|j| j.agent_instance_id == agent_id && !j.done) {
+                if let Some(engine) = job.engine.take() {
+                    let goals = job.goals.clone();
+                    let res_tx = job.result_tx.clone();
+                    run_job_step(self.thread_pool.as_ref(), goals, res_tx, engine);
                 }
             }
         }
-        // Clean up finished jobs — Rayon owns the threads, no join needed.
-        self.active_jobs.retain(|job| !job.done);
 
-        // Drain any log messages generated during this callback processing
+        // Clean up finished jobs
+        self.active_jobs.retain(|job| !job.done);
+        
         crate::logger::process_logs();
     }
 
     /// Submit a planning job for `agent`.
-    ///
-    /// `agent_bb` and `world_bb` are snapshotted immediately. `actions` and
-    /// `goals` are `Array[Dictionary]` serialised by [GdPAIRustBridge].
-    /// `max_recursion` caps the planner search depth for this job.
-    /// When the plan is ready, `agent._on_plan_ready(result)` is called.
     #[func]
     fn submit_plan(
         &mut self,
@@ -150,69 +156,54 @@ impl GdPAIPlanScheduler {
     ) {
         let agent_instance_id = agent.instance_id().to_i64();
 
-        for job in self
-            .active_jobs
-            .iter_mut()
-            .filter(|job| !job.done && job.agent_instance_id == agent_instance_id)
-        {
-            job.cancel_flag
-                .store(true, std::sync::atomic::Ordering::Relaxed);
+        for job in self.active_jobs.iter_mut().filter(|j| !j.done && j.agent_instance_id == agent_instance_id) {
+            job.cancel_flag.store(true, std::sync::atomic::Ordering::Relaxed);
         }
 
-        // 1. Snapshot blackboards on main thread
         let snap_agent = BlackboardSnapshot::from_blackboard(&agent_bb.bind());
         let snap_world = BlackboardSnapshot::from_blackboard(&world_bb.bind());
-        
-        // Extract initial provisions from both agent and world blackboards
         let mut initial_provisions = crate::requirement::extract_initial_provisions(&snap_agent);
         initial_provisions.extend(extract_provisions_from_snapshot(&snap_world));
 
-        // 2. Register callables and build specs (per-job registry)
         let mut job_registry = Vec::new();
         let action_specs = build_action_specs(&actions, &mut job_registry);
         let goal_specs = build_goal_specs(&goals, &mut job_registry);
 
-        log_info!(
-            "Submitting plan: {} actions, {} goals, {} callables",
-            action_specs.len(),
-            goal_specs.len(),
-            job_registry.len()
-        );
-
-        // 3. Create channels
         let (req_tx, req_rx) = std::sync::mpsc::channel::<CallbackRequest>();
-        let (res_tx, res_rx) = std::sync::mpsc::channel::<Option<PlanResult>>();
+        let (res_tx, res_rx) = std::sync::mpsc::channel::<(PlannerRunResult, PlannerEngine)>();
         let cancel_flag = Arc::new(AtomicBool::new(false));
-
-        // 4. Dispatch to Rayon
         let max_rec = max_recursion.max(1) as usize;
-        let worker_cancel_flag = cancel_flag.clone();
-        self.thread_pool
-            .as_ref()
-            .expect("submit_plan called before ready()")
-            .spawn(move || {
-                let result = crate::planner::run_plan(
-                    action_specs.clone(),
-                    goal_specs.clone(),
-                    snap_agent.clone(),
-                    snap_world.clone(),
-                    initial_provisions.clone(),
-                    max_rec,
-                    req_tx,
-                    worker_cancel_flag,
-                );
-                let _ = res_tx.send(result);
-            });
 
-        self.active_jobs.push(ActiveJobHandle {
+        let ctx = Arc::new(SearchContext {
+            actions: action_specs,
+            initial_agent: snap_agent,
+            initial_world: snap_world,
+            initial_provisions,
+            request_tx: req_tx,
+            pending_requests: std::sync::Mutex::new(HashMap::new()),
+            callback_results: std::sync::Mutex::new(HashMap::new()),
+        });
+
+        let engine = PlannerEngine::new(ctx, max_rec, cancel_flag.clone())
+            .with_search_algorithm(SearchAlgorithm::DepthFirst)
+            .with_termination_strategy(TerminationStrategy::FirstComplete);
+
+        let job = ActiveJobHandle {
             agent,
             agent_instance_id,
             callable_registry: job_registry,
             request_rx: req_rx,
             result_rx: res_rx,
+            result_tx: res_tx.clone(),
+            engine_response_tx: engine.response_tx.clone(),
+            engine: None,
+            goals: goal_specs,
             cancel_flag,
             done: false,
-        });
+        };
+
+        run_job_step(self.thread_pool.as_ref(), job.goals.clone(), res_tx, engine);
+        self.active_jobs.push(job);
     }
 
     /// Number of jobs currently in flight.
@@ -222,8 +213,6 @@ impl GdPAIPlanScheduler {
     }
 
     /// Cancel all in-flight planning jobs for a specific agent.
-    ///
-    /// [param agent]: The agent whose planning jobs should be cancelled.
     #[func]
     fn cancel_agent_jobs(&mut self, agent: Gd<Object>) {
         let agent_instance_id = agent.instance_id().to_i64();
@@ -235,7 +224,7 @@ impl GdPAIPlanScheduler {
         }
     }
 
-    /// Clear all active jobs from the scheduler. This is useful for resetting state between tests.
+    /// Clear all active jobs from the scheduler.
     #[func]
     fn clear_active_jobs(&mut self) {
         for job in &mut self.active_jobs {
@@ -246,13 +235,20 @@ impl GdPAIPlanScheduler {
     }
 
     /// Sets the process-wide log verbosity.
-    ///
-    /// [param level]: [code]0[/code] = Error, [code]1[/code] = Warn,
-    /// [code]2[/code] = Info (default), [code]3[/code] = Debug.
     #[func]
     fn set_log_level(&self, level: i64) {
         let log_level = crate::logger::LogLevel::from_u8(level.clamp(0, 3) as u8);
         crate::logger::set_log_level(log_level);
+    }
+}
+
+fn run_job_step(thread_pool: Option<&rayon::ThreadPool>, goals: Vec<GoalSpec>, res_tx: Sender<(PlannerRunResult, PlannerEngine)>, engine: PlannerEngine) {
+    if let Some(tp) = thread_pool {
+        let mut engine_mut = engine;
+        tp.spawn(move || {
+            let result = engine_mut.plan(&goals);
+            let _ = res_tx.send((result, engine_mut));
+        });
     }
 }
 
@@ -272,45 +268,29 @@ fn build_action_specs(
             let name = dict.get("name")?.try_to::<String>().ok()?;
             
             let cost_val = dict.get("cost_callable");
-            if cost_val.is_none() {
-                log_debug!("Action '{}': 'cost_callable' key missing", name);
-            }
             let cost_id = cost_val.as_ref()
                 .and_then(|v| {
-                    if v.is_nil() {
-                        log_debug!("Action '{}': 'cost_callable' is Nil", name);
-                        None
-                    } else if let Ok(c) = v.try_to::<Callable>() {
+                    if let Ok(c) = v.try_to::<Callable>() {
                         if c.is_valid() {
                             Some(register_callable(registry, c))
                         } else {
-                            log_debug!("Action '{}': 'cost_callable' is an invalid Callable", name);
                             None
                         }
                     } else {
-                        log_debug!("Action '{}': 'cost_callable' is not a Callable (type: {:?})", name, v.get_type());
                         None
                     }
                 });
                 
             let effect_val = dict.get("effect_callable");
-            if effect_val.is_none() {
-                log_debug!("Action '{}': 'effect_callable' key missing", name);
-            }
             let effect_id = effect_val.as_ref()
                 .and_then(|v| {
-                    if v.is_nil() {
-                        log_debug!("Action '{}': 'effect_callable' is Nil", name);
-                        None
-                    } else if let Ok(c) = v.try_to::<Callable>() {
+                    if let Ok(c) = v.try_to::<Callable>() {
                         if c.is_valid() {
                             Some(register_callable(registry, c))
                         } else {
-                            log_debug!("Action '{}': 'effect_callable' is an invalid Callable", name);
                             None
                         }
                     } else {
-                        log_debug!("Action '{}': 'effect_callable' is not a Callable (type: {:?})", name, v.get_type());
                         None
                     }
                 });
@@ -320,10 +300,7 @@ fn build_action_specs(
             let requirements = extract_requirement_specs(&dict, "requirements");
             let provisions = extract_provision_specs(&dict, "provisions");
 
-            // Collect all dependent object IDs from preconditions and action-level deps
             let mut dependent_object_ids: Vec<i64> = Vec::new();
-
-            // Collect from preconditions
             for precond in &preconditions {
                 dependent_object_ids.extend_from_slice(precond.dependent_object_ids());
             }
@@ -331,7 +308,6 @@ fn build_action_specs(
                 dependent_object_ids.extend_from_slice(check.dependent_object_ids());
             }
 
-            // Extract action-level dependent objects if present
             if let Some(action_deps) = dict
                 .get("dependent_object_ids")
                 .and_then(|v| v.try_to::<Array<Variant>>().ok())
@@ -458,7 +434,6 @@ fn precond_spec_from_dict(
         let callable = handler.eval_callable?;
         let id = register_callable(registry, callable);
 
-        // Extract dependent object IDs if present (for validity checking)
         let dependent_object_ids = dict
             .get("dependent_object_ids")
             .and_then(|v| v.try_to::<Array<Variant>>().ok())
@@ -491,18 +466,15 @@ fn dispatch_callback(callable: &Callable, kind: CallbackKind) -> CallbackRespons
             let prov_arr = provisions_to_array(&provisions);
             let bind_dict = bindings_to_dict(&bindings);
             
-            // Inject bindings into blackboard so actions can see them via get_property()
             {
                 let mut bind = bb_agent.bind_mut();
                 for (name, values) in &bindings {
                     if !values.is_empty() {
-                        // For now, take the first value as the binding value
                         bind.properties.insert(name.clone(), values[0].to_variant());
                     }
                 }
             }
 
-            // Call with variable argument count based on what the callable expects
             let mut args = vec![bb_agent.to_variant(), bb_world.to_variant()];
             let expected_count = callable.get_argument_count();
             if expected_count >= 3 {
@@ -513,13 +485,11 @@ fn dispatch_callback(callable: &Callable, kind: CallbackKind) -> CallbackRespons
             }
 
             let result = callable.call(&args);
-            
             let cost = if let Ok(f) = result.try_to::<f64>() {
                 f
             } else if let Ok(i) = result.try_to::<i64>() {
                 i as f64
             } else {
-                log_debug!("GetCost: callable returned non-numeric value: {:?}; returning INFINITY", result);
                 f64::INFINITY
             };
             CallbackResponse::Float(cost)
@@ -530,7 +500,6 @@ fn dispatch_callback(callable: &Callable, kind: CallbackKind) -> CallbackRespons
             let prov_arr = provisions_to_array(&provisions);
             let bind_dict = bindings_to_dict(&bindings);
 
-            // Inject bindings into blackboard so actions can see them via get_property()
             {
                 let mut bind = bb_agent.bind_mut();
                 for (name, values) in &bindings {
@@ -549,21 +518,8 @@ fn dispatch_callback(callable: &Callable, kind: CallbackKind) -> CallbackRespons
                 args.push(bind_dict.to_variant());
             }
 
-            // DEBUG: Check values before
-            {
-                let bind = bb_agent.bind();
-                log_debug!("ApplyEffect [Before] ID={:?}: agent props = {:?}", bb_agent.instance_id(), bind.properties);
-            }
-
             callable.call(&args);
             
-            // DEBUG: Check values after
-            {
-                let bind = bb_agent.bind();
-                log_debug!("ApplyEffect [After] ID={:?}: agent props = {:?}", bb_agent.instance_id(), bind.properties);
-            }
-
-            // Re-snapshot the (now mutated) blackboards
             let new_agent = BlackboardSnapshot::from_blackboard(&bb_agent.bind());
             let new_world = BlackboardSnapshot::from_blackboard(&bb_world.bind());
             CallbackResponse::UpdatedSnapshots(new_agent, new_world)
@@ -574,7 +530,6 @@ fn dispatch_callback(callable: &Callable, kind: CallbackKind) -> CallbackRespons
             let prov_arr = provisions_to_array(&provisions);
             let bind_dict = bindings_to_dict(&bindings);
 
-            // Inject bindings into blackboard so actions can see them via get_property()
             {
                 let mut bind = bb_agent.bind_mut();
                 for (name, values) in &bindings {
@@ -640,7 +595,6 @@ fn bindings_to_dict(bindings: &[(String, Vec<crate::snapshot::VariantSnapshot>)]
     dict
 }
 
-/// Converts a [`PlanResult`] to a [`VarDictionary`] for GDScript serialization.
 fn extract_provisions_from_snapshot(snap: &BlackboardSnapshot) -> Vec<ProvisionSpec> {
     let mut provisions = Vec::new();
     for (uid, obj) in &snap.objects {

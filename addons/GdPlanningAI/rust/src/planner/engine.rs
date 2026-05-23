@@ -1,18 +1,31 @@
 use crate::plan_types::*;
 use crate::plan_tree::PlanResult;
-use super::types::PlanBranch;
-use super::expander::{SearchContext, BranchExpander};
-use super::controller::{SearchNode, SearchAlgorithm, TerminationStrategy, create_controller};
+use super::types::{PlanBranch, CompleteResult};
+use super::expander::{SearchContext, BranchExpander, ExpandResult};
+use super::controller::{SearchNode, SearchAlgorithm, TerminationStrategy, create_controller, SearchController};
 use super::heuristic;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
+use std::collections::HashMap;
+use std::sync::mpsc::{Receiver, Sender};
 
-pub struct PlannerEngine<'a> {
-    ctx: &'a SearchContext<'a>,
+pub struct PlannerEngine {
+    ctx: Arc<SearchContext>,
     max_depth: usize,
     cancel_flag: Arc<AtomicBool>,
     search_algorithm: SearchAlgorithm,
     termination_strategy: TerminationStrategy,
+    
+    // Search state for suspend/resume
+    controller: Option<Box<dyn SearchController + Send>>,
+    parked_nodes: HashMap<usize, SearchNode>,
+    pub response_rx: Receiver<PlannerCallback>,
+    pub response_tx: Sender<PlannerCallback>,
+    current_goal_idx: usize,
+    sorted_goals: Vec<GoalSpec>,
+    best_cost: f64,
+    best_result: Option<PlanResult>,
+
     // Profiling metrics
     nodes_explored: usize,
     max_depth_reached: usize,
@@ -20,18 +33,27 @@ pub struct PlannerEngine<'a> {
     search_iterations: usize,
 }
 
-impl<'a> PlannerEngine<'a> {
+impl PlannerEngine {
     pub fn new(
-        ctx: &'a SearchContext<'a>,
+        ctx: Arc<SearchContext>,
         max_depth: usize,
         cancel_flag: Arc<AtomicBool>,
     ) -> Self {
+        let (tx, rx) = std::sync::mpsc::channel();
         Self {
             ctx,
             max_depth,
             cancel_flag,
             search_algorithm: SearchAlgorithm::AStar,
             termination_strategy: TerminationStrategy::FirstComplete,
+            controller: None,
+            parked_nodes: HashMap::new(),
+            response_rx: rx,
+            response_tx: tx,
+            current_goal_idx: 0,
+            sorted_goals: Vec::new(),
+            best_cost: f64::INFINITY,
+            best_result: None,
             nodes_explored: 0,
             max_depth_reached: 0,
             candidates_evaluated: 0,
@@ -49,41 +71,39 @@ impl<'a> PlannerEngine<'a> {
         self
     }
 
-    pub fn plan(&mut self, goals: &[GoalSpec]) -> Option<PlanResult> {
-        let mut best_failure: Option<PlanResult> = None;
+    pub fn plan(&mut self, goals: &[GoalSpec]) -> PlannerRunResult {
+        // Initialization if not already started
+        if self.sorted_goals.is_empty() {
+            let mut sorted = goals.to_vec();
+            sorted.sort_by(|a, b| b.reward.partial_cmp(&a.reward).unwrap_or(std::cmp::Ordering::Equal));
+            self.sorted_goals = sorted;
+            self.current_goal_idx = 0;
+            self.best_cost = f64::INFINITY;
+            self.best_result = None;
+        }
 
-        // 1. Sort goals by reward (descending)
-        let mut sorted_goals = goals.to_vec();
-        sorted_goals.sort_by(|a, b| b.reward.partial_cmp(&a.reward).unwrap_or(std::cmp::Ordering::Equal));
-
-        for goal in sorted_goals {
+        while self.current_goal_idx < self.sorted_goals.len() {
             if self.cancel_flag.load(std::sync::atomic::Ordering::Relaxed) {
-                return None;
+                return PlannerRunResult::Complete(None);
             }
 
-            // 2. Ignore goals with zero or negative reward
+            let goal = &self.sorted_goals[self.current_goal_idx].clone();
             if goal.reward <= 0.0 {
+                self.current_goal_idx += 1;
                 continue;
             }
 
-            log_debug!("PlannerEngine: Searching for goal '{}' (reward: {})", goal.name, goal.reward);
-
-            if let Some(result) = self.search_goal(&goal) {
-                if result.success {
-                    log_info!("PlannerEngine: Found valid plan for goal '{}' (cost: {})", goal.name, result.total_cost);
-                    return Some(result);
-                } else {
-                    log_debug!("PlannerEngine: Failed to find plan for goal '{}'", goal.name);
-                    if best_failure.is_none() {
-                        best_failure = Some(result);
-                    }
+            match self.step_search(goal) {
+                PlannerRunResult::Complete(Some(res)) => return PlannerRunResult::Complete(Some(res)),
+                PlannerRunResult::Complete(None) => {
+                    self.current_goal_idx += 1;
+                    self.controller = None; // Reset for next goal
                 }
+                PlannerRunResult::Pending(id) => return PlannerRunResult::Pending(id),
             }
         }
-        
-        // If we found no success but had a failure result, return that.
-        // Otherwise, return a generic failure.
-        best_failure.or_else(|| {
+
+        PlannerRunResult::Complete(self.best_result.take().or_else(|| {
             Some(PlanResult {
                 success: false,
                 action_chain: vec![],
@@ -92,62 +112,61 @@ impl<'a> PlannerEngine<'a> {
                 deferred_action_indices: vec![],
                 action_bindings: vec![],
             })
-        })
+        }))
     }
 
-    fn search_goal(&mut self, goal: &GoalSpec) -> Option<PlanResult> {
-        log_info!("PlannerEngine: Searching for goal '{}' with algorithm {:?}", goal.name, self.search_algorithm);
-        let mut controller = create_controller(self.search_algorithm);
-        
-        let root = PlanBranch::new(
-            &goal.desired_state,
-            self.ctx.initial_provisions,
-            self.ctx.initial_agent,
-            self.ctx.initial_world,
-            self.ctx.request_tx,
-        );
+    fn step_search(&mut self, goal: &GoalSpec) -> PlannerRunResult {
+        // 1. Check for unblocked nodes first (Resumption-First Policy)
+        while let Ok(callback) = self.response_rx.try_recv() {
+            log_debug!("Received callback response for request {}", callback.request_id);
+            
+            // Store result in context so simulation can see it
+            {
+                let mut results = self.ctx.callback_results.lock().unwrap();
+                results.insert(callback.sim_key, callback.response);
+            }
 
-        log_info!("  Root branch: {} open preconds, {} open requirements", root.open_preconditions.len(), root.open_requirements.len());
-        for (i, p) in root.open_preconditions.iter().enumerate() {
-            log_info!("    Precond {}: {:?}", i, p);
-        }
+            // Remove from pending so simulation layer knows it's ready
+            {
+                let mut pending = self.ctx.pending_requests.lock().unwrap();
+                pending.remove(&callback.sim_key);
+            }
 
-        if root.open_preconditions.is_empty() && root.open_requirements.is_empty() {
-            // Check if goal is satisfied in initial state deep simulation
-            let deep_satisfied = goal.desired_state.iter().all(|p| {
-                crate::planner::simulation::eval_precondition(
-                    p,
-                    self.ctx.initial_agent,
-                    self.ctx.initial_world,
-                    self.ctx.initial_provisions.to_vec(),
-                    vec![], // No bindings for initial state check
-                    self.ctx.request_tx,
-                )
-            });
-            if deep_satisfied {
-                log_debug!("Goal '{}' already satisfied in initial state; returning empty success", goal.name);
-                return Some(PlanResult {
-                    success: true,
-                    action_chain: vec![],
-                    total_cost: 0.0,
-                    goal_index: goal.original_index as i64,
-                    deferred_action_indices: vec![],
-                    action_bindings: vec![],
-                });
+            if let Some(node) = self.parked_nodes.remove(&callback.request_id) {
+                log_debug!("Resuming parked node for request {}", callback.request_id);
+                self.controller.as_mut().unwrap().push(node);
             }
         }
 
-        controller.push(SearchNode {
-            branch: root,
-            depth: 0,
-            estimated_remaining: 0.0,
-        });
+        let mut controller = if let Some(c) = self.controller.take() {
+            c
+        } else {
+            log_info!("PlannerEngine: Starting search for goal '{}'", goal.name);
+            let mut c = create_controller(self.search_algorithm);
+            match PlanBranch::new(
+                &goal.desired_state,
+                &self.ctx.initial_provisions,
+                &self.ctx.initial_agent,
+                &self.ctx.initial_world,
+                &*self.ctx,
+            ) {
+                Ok(root) => {
+                    c.push(SearchNode {
+                        branch: root,
+                        depth: 0,
+                        estimated_remaining: 0.0,
+                    });
+                }
+                Err(id) => {
+                    // Root is pending
+                    self.controller = Some(c);
+                    return PlannerRunResult::Pending(id);
+                }
+            }
+            c
+        };
 
-        let expander = BranchExpander { ctx: self.ctx };
-        let mut best_cost = f64::INFINITY;
-        let mut best_result: Option<PlanResult> = None;
-
-        log_info!("Starting search loop with max_depth {}", self.max_depth);
+        let expander = BranchExpander { ctx: self.ctx.clone() };
 
         while let Some(node) = controller.pop() {
             self.search_iterations += 1;
@@ -156,111 +175,95 @@ impl<'a> PlannerEngine<'a> {
                 self.max_depth_reached = node.depth;
             }
 
-            if self.search_iterations % 100 == 0 {
-                log_info!("Search progress: iteration {}, nodes explored {}, max depth reached {}", 
-                    self.search_iterations, self.nodes_explored, self.max_depth_reached);
-            }
-
             if self.cancel_flag.load(std::sync::atomic::Ordering::Relaxed) {
-                log_info!("Search cancelled by cancel_flag after {} iterations", self.search_iterations);
-                self.log_profiling_metrics(goal);
-                return None;
+                self.controller = Some(controller);
+                return PlannerRunResult::Complete(None);
             }
 
-            // Cost pruning: skip nodes that exceed best cost found so far
-            // This is critical for DFS performance (matches old planner behavior)
-            if node.branch.cost >= best_cost {
-                log_debug!("Pruning node with cost {} >= best {}", node.branch.cost, best_cost);
+            if node.branch.cost >= self.best_cost {
                 continue;
             }
 
-            log_info!("Search iteration: pop node with chain length {}, depth {}, open preconds {}, open reqs {}", 
-                node.branch.action_chain.len(), node.depth, node.branch.open_preconditions.len(), node.branch.open_requirements.len());
+            match node.branch.is_complete(&self.ctx.initial_agent, &self.ctx.initial_world, &*self.ctx) {
+                CompleteResult::Ready(true) => {
+                    let cost = node.branch.cost;
+                    log_info!("Found complete plan for goal '{}' with cost {}", goal.name, cost);
 
-            if node.branch.is_complete(self.ctx.initial_agent, self.ctx.initial_world, self.ctx.request_tx) {
-                let cost = node.branch.cost;
-                log_info!("Found complete plan for goal '{}' with cost {}", goal.name, cost);
-
-                match self.termination_strategy {
-                    TerminationStrategy::FirstComplete => {
-                        self.log_profiling_metrics(goal);
-                        return Some(PlanResult {
-                            success: true,
-                            action_chain: node.branch.action_chain.clone(),
-                            total_cost: cost,
-                            goal_index: goal.original_index as i64,
-                            deferred_action_indices: vec![],
-                            action_bindings: node.branch.action_bindings.clone(),
-                        });
-                    }
-                    TerminationStrategy::BestCost => {
-                        if cost < best_cost {
-                            best_cost = cost;
-                            best_result = Some(PlanResult {
+                    match self.termination_strategy {
+                        TerminationStrategy::FirstComplete => {
+                            self.log_profiling_metrics(goal);
+                            return PlannerRunResult::Complete(Some(PlanResult {
                                 success: true,
                                 action_chain: node.branch.action_chain.clone(),
                                 total_cost: cost,
                                 goal_index: goal.original_index as i64,
                                 deferred_action_indices: vec![],
                                 action_bindings: node.branch.action_bindings.clone(),
-                            });
+                            }));
+                        }
+                        TerminationStrategy::BestCost => {
+                            if cost < self.best_cost {
+                                self.best_cost = cost;
+                                self.best_result = Some(PlanResult {
+                                    success: true,
+                                    action_chain: node.branch.action_chain.clone(),
+                                    total_cost: cost,
+                                    goal_index: goal.original_index as i64,
+                                    deferred_action_indices: vec![],
+                                    action_bindings: node.branch.action_bindings.clone(),
+                                });
+                            }
                         }
                     }
                 }
+                CompleteResult::Pending(id) => {
+                    self.parked_nodes.insert(id, node);
+                    self.controller = Some(controller);
+                    return PlannerRunResult::Pending(id);
+                }
+                _ => {}
             }
 
             if node.depth >= self.max_depth {
                 continue;
             }
 
-            let successors = expander.expand(&node.branch);
-            self.candidates_evaluated += successors.len();
-            log_info!("Node expansion: chain length {}, depth {}, generated {} successors", 
-                node.branch.action_chain.len(), node.depth, successors.len());
-            
-            if successors.is_empty() {
-                log_info!("No successors generated - expander returned empty array");
-            }
-            
-            for succ in successors {
-                let h = match self.search_algorithm {
-                    SearchAlgorithm::DepthFirst => 0.0,
-                    SearchAlgorithm::Dijkstra => 0.0,
-                    SearchAlgorithm::AStar => heuristic::estimate_remaining(&succ, 1.0),
-                };
-                controller.push(SearchNode {
-                    branch: succ,
-                    depth: node.depth + 1,
-                    estimated_remaining: h,
-                });
+            match expander.expand(&node.branch) {
+                ExpandResult::Ready(successors) => {
+                    self.candidates_evaluated += successors.len();
+                    for succ in successors {
+                        let h = match self.search_algorithm {
+                            SearchAlgorithm::DepthFirst => 0.0,
+                            SearchAlgorithm::Dijkstra => 0.0,
+                            SearchAlgorithm::AStar => heuristic::estimate_remaining(&succ, 1.0),
+                        };
+                        controller.push(SearchNode {
+                            branch: succ,
+                            depth: node.depth + 1,
+                            estimated_remaining: h,
+                        });
+                    }
+                }
+                ExpandResult::Pending(id) => {
+                    self.parked_nodes.insert(id, node);
+                    self.controller = Some(controller);
+                    return PlannerRunResult::Pending(id);
+                }
             }
         }
 
-        log_info!("Search loop exhausted after {} iterations (no more nodes to explore)", self.search_iterations);
         self.log_profiling_metrics(goal);
-        best_result
+        self.controller = Some(controller);
+        PlannerRunResult::Complete(None)
     }
 
     fn log_profiling_metrics(&self, goal: &GoalSpec) {
-        let num_actions = self.ctx.actions.len();
-        let theoretical_max = if num_actions > 0 && self.max_depth > 0 {
-            // Theoretical max: num_actions^max_depth (worst case, no pruning)
-            num_actions.pow(self.max_depth as u32)
-        } else {
-            0
-        };
-
         log_info!(
-            "=== PROFILING METRICS ===\n  Goal: {}\n  Actions: {}\n  Max Depth: {}\n  Theoretical Max Search Space: {}\n  Search Iterations: {}\n  Nodes Explored: {}\n  Max Depth Reached: {}\n  Candidates Evaluated: {}\n  Exploration Percentage: {:.2}%\n========================",
+            "=== PROFILING METRICS ===\n  Goal: {}\n  Iterations: {}\n  Nodes Explored: {}\n  Max Depth: {}\n========================",
             goal.name,
-            num_actions,
-            self.max_depth,
-            theoretical_max,
             self.search_iterations,
             self.nodes_explored,
-            self.max_depth_reached,
-            self.candidates_evaluated,
-            if theoretical_max > 0 { (self.nodes_explored as f64 / theoretical_max as f64) * 100.0 } else { 0.0 }
+            self.max_depth_reached
         );
     }
 }
