@@ -6,14 +6,17 @@
 use gdplanningai_rust::plan_tree::PlanResult;
 use gdplanningai_rust::plan_types::{
     ActionSpec, CallbackKind, CallbackRequest, CallbackResponse, GoalSpec, PreconditionSpec,
+    PlannerRunResult, PlannerCallback,
 };
 use gdplanningai_rust::precondition::{PreconditionOp, PreconditionTarget};
 use gdplanningai_rust::snapshot::{BlackboardSnapshot, VariantSnapshot};
+use gdplanningai_rust::planner::{PlannerEngine, SearchContext, SearchAlgorithm, TerminationStrategy};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::mpsc;
 use std::thread;
+use std::time::{Duration, Instant};
 
 // ── Helpers ────────────────────────────────────────────────────────
 
@@ -91,16 +94,45 @@ fn run_planner(
     gdplanningai_rust::logger::init_log_channel();
     gdplanningai_rust::logger::set_log_level(gdplanningai_rust::logger::LogLevel::Debug);
 
-    gdplanningai_rust::planner::run_plan(
+    let (engine_tx, engine_rx) = mpsc::channel::<PlannerCallback>();
+
+    let ctx = Arc::new(SearchContext {
         actions,
-        goals,
-        agent,
-        world,
-        vec![], // initial_provisions
-        max_depth,
+        initial_agent: agent,
+        initial_world: world,
+        initial_provisions: vec![],
         request_tx,
-        cancel_flag,
-    )
+        engine_response_tx: engine_tx.clone(),
+        discovery_results: std::sync::Mutex::new(HashMap::new()),
+        discovery_pending: std::sync::Mutex::new(HashMap::new()),
+        discovery_request_map: std::sync::Mutex::new(HashMap::new()),
+    });
+
+    let mut engine = PlannerEngine::new(ctx, max_depth, cancel_flag)
+        .with_search_algorithm(SearchAlgorithm::AStar)
+        .with_termination_strategy(TerminationStrategy::BestCost);
+        
+    engine.response_rx = engine_rx;
+    engine.response_tx = engine_tx;
+
+    let start_time = Instant::now();
+    let timeout = Duration::from_secs(5);
+
+    loop {
+        if start_time.elapsed() > timeout {
+            panic!("run_planner: Timed out waiting for plan completion");
+        }
+
+        match engine.plan(&goals) {
+            PlannerRunResult::Complete(res) => return res,
+            PlannerRunResult::Pending(_) => {
+                // In this test setup, the responder thread is already running
+                // and should be sending responses to engine.response_rx.
+                // We just need to give it a tiny bit of time to breathe.
+                thread::sleep(Duration::from_millis(1));
+            }
+        }
+    }
 }
 
 // ── Tests ──────────────────────────────────────────────────────────
