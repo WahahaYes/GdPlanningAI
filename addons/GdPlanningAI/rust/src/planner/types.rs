@@ -66,6 +66,12 @@ impl Ord for SearchNode {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum DiscoveryRequest {
+    Simulation(usize),                     // action_idx
+    Precondition(usize, PreconditionSpec), // action_idx, spec
+}
+
 pub struct SearchContext {
     pub actions: Vec<ActionSpec>,
     pub initial_agent: BlackboardSnapshot,
@@ -78,7 +84,11 @@ pub struct SearchContext {
     pub discovery_results: std::sync::Mutex<HashMap<usize, DiscoveryResult>>,
     pub discovery_costs: std::sync::Mutex<HashMap<usize, f64>>,
     pub discovery_pending: std::sync::Mutex<HashMap<usize, usize>>, // action_idx -> request_id
-    pub discovery_request_map: std::sync::Mutex<HashMap<usize, usize>>, // request_id -> action_idx
+    pub discovery_request_map: std::sync::Mutex<HashMap<usize, DiscoveryRequest>>, // request_id -> DiscoveryRequest
+    
+    // Precondition Caching for Discovery (Initial State)
+    pub discovery_precond_results: std::sync::Mutex<HashMap<(usize, PreconditionSpec), bool>>,
+    pub discovery_precond_pending: std::sync::Mutex<HashMap<(usize, PreconditionSpec), usize>>,
 }
 
 #[derive(Clone)]

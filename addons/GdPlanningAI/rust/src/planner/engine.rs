@@ -85,30 +85,42 @@ impl PlannerEngine {
         // 1. Resume Callbacks
         while let Ok(callback) = self.response_rx.try_recv() {
             // Handle Discovery responses
-            let discovery_idx = {
+            let discovery_req = {
                 let req_map = self.ctx.discovery_request_map.lock().unwrap();
                 req_map.get(&callback.request_id).cloned()
             };
 
-            if let Some(idx) = discovery_idx {
-                if let CallbackResponse::UpdatedSnapshots(ref agent, ref world) = callback.response {
-                    let mut cache = self.ctx.discovery_results.lock().unwrap();
-                    let cost = {
-                        let costs = self.ctx.discovery_costs.lock().unwrap();
-                        costs.get(&idx).cloned().unwrap_or(1.0)
-                    };
-                    cache.insert(idx, DiscoveryResult { 
-                        agent: agent.clone(), 
-                        world: world.clone(), 
-                        cost
-                    });
-                } else if let CallbackResponse::Float(cost) = callback.response {
-                    let mut costs = self.ctx.discovery_costs.lock().unwrap();
-                    costs.insert(idx, cost);
-                }
+            if let Some(req) = discovery_req {
+                match req {
+                    DiscoveryRequest::Simulation(idx) => {
+                        if let CallbackResponse::UpdatedSnapshots(ref agent, ref world) = callback.response {
+                            let mut cache = self.ctx.discovery_results.lock().unwrap();
+                            let cost = {
+                                let costs = self.ctx.discovery_costs.lock().unwrap();
+                                costs.get(&idx).cloned().unwrap_or(1.0)
+                            };
+                            cache.insert(idx, DiscoveryResult { 
+                                agent: agent.clone(), 
+                                world: world.clone(), 
+                                cost
+                            });
+                        } else if let CallbackResponse::Float(cost) = callback.response {
+                            let mut costs = self.ctx.discovery_costs.lock().unwrap();
+                            costs.insert(idx, cost);
+                        }
 
-                let mut pending = self.ctx.discovery_pending.lock().unwrap();
-                pending.remove(&idx);
+                        let mut pending = self.ctx.discovery_pending.lock().unwrap();
+                        pending.remove(&idx);
+                    }
+                    DiscoveryRequest::Precondition(idx, spec) => {
+                        if let CallbackResponse::Bool(b) = callback.response {
+                            let mut cache = self.ctx.discovery_precond_results.lock().unwrap();
+                            cache.insert((idx, spec.clone()), b);
+                        }
+                        let mut pending = self.ctx.discovery_precond_pending.lock().unwrap();
+                        pending.remove(&(idx, spec));
+                    }
+                }
                 let mut req_map = self.ctx.discovery_request_map.lock().unwrap();
                 req_map.remove(&callback.request_id);
             }

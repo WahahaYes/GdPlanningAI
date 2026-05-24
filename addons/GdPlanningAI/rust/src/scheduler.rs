@@ -206,6 +206,8 @@ impl GdPAIPlanScheduler {
             discovery_costs: std::sync::Mutex::new(HashMap::new()),
             discovery_pending: std::sync::Mutex::new(HashMap::new()),
             discovery_request_map: std::sync::Mutex::new(HashMap::new()),
+            discovery_precond_results: std::sync::Mutex::new(HashMap::new()),
+            discovery_precond_pending: std::sync::Mutex::new(HashMap::new()),
         });
 
         let mut engine = PlannerEngine::new(ctx, max_rec, cancel_flag.clone())

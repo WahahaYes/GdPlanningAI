@@ -13,17 +13,18 @@ The core planning engine in Rust has been fully refactored to an async-first sta
 - [x] **Budget Management**: The `GdPAIPlanScheduler` correctly handles budget-exhausted vs callback-waiting yields.
 - [x] **Rust Test Parity**: All Rust integration tests (`tests/planner_integration.rs`) and library unit tests are passing.
 
+- [x] **Cross-Chain Discovery**: Fixed a major logic error where candidate actions were only allowed to satisfy preconditions at `pos == 0`. They can now satisfy any downstream open precondition in the chain, which is essential for spatial actions like "Go To" that enable later state-changes.
+
 ## Outstanding Issues
 1. **Godot Integration Failures**: Complex scenarios in `test_campfire_example_smoke.gd` and `test_requirements_provisions.gd` are still reporting failures.
-   - **Cost Mismatches**: Some tests report total cost as 2.0 when 1.0 is expected, or 20.0 when 2.0 is expected.
-   - **Empty Plans**: The "full cooking chain" returns empty plans in some scenarios.
-2. **Infinite Simulation Loop Risk**: `process_simulation` was simplified to handle one step at a time to ensure callback responses are correctly cleared and not re-requested.
+   - **Numeric Comparison Bugs**: Initial state checks for hunger (`70.0 < 30.0`) are returning `true`, leading to "Empty Plan" (already satisfied) results.
+   - **Strange Snapshot Bit Patterns**: Logs show `hunger` values like `Float(4632243402438040450)`, suggesting a type or endianness issue in the blackboard serialization.
 
 ## Implementation Decisions vs. Pseudocode
 The following implementation details were added or modified compared to the original `notes/PLANNER_ALGORITHM_PSEUDOCODE.md`:
 
 1. **Dijkstra for Optimality**: Switched to $h=0$ because our hybrid symbolic/simulation model makes creating an admissible heuristic difficult.
-2. **Explicit Cost Caching**: `PlanBranch` now uses `action_costs: Vec<f64>` as the source of truth for cost summation.
+2. **Stable Dijkstra Priority**: Added `symbolic_cost` to `PlanBranch`. Previously, Dijkstra was using the "grounded cost" (re-calculated during simulation), which fluctuates and was causing optimal paths to be incorrectly pruned.
 3. **Yield on Every Step**: `process_simulation` now yields `Ready(())` after satisfying a single precondition or simulating one action forward. This ensures the engine re-queues and checks the priority queue frequently, which is safer for async and ensures we always pick the cheapest path even if it's currently "rippling".
-4. **Frontier Update**: During expansion, the specific indices of satisfied needs are tracked and removed from the branch's open needs list.
-5. **Partial Dictionary Guard**: Updated `scheduler.rs` to return a full `success=false` PlanResult dictionary when search is exhausted, preventing GDScript "invalid key" errors.
+4. **Parallel Discovery**: `find_candidates` triggers multiple simulation requests in parallel to avoid sequential round-trip bottlenecks.
+5. **Frontier Update**: During expansion, the specific indices of satisfied needs are tracked and removed from the branch's open needs list.
