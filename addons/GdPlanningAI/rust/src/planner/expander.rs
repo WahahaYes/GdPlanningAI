@@ -46,7 +46,7 @@ pub fn find_candidates(
                         break;
                     } else {
                         // Start request
-                        match eval_precondition(check, &ctx.initial_agent, &ctx.initial_world, ctx, response) {
+                        match eval_precondition(check, &ctx.initial_agent, &ctx.initial_world, ctx, response, &[]) {
                             StepResult::Ready(res) => {
                                 // This can happen if the response is actually for this check
                                 if !res {
@@ -76,7 +76,7 @@ pub fn find_candidates(
 
         // 1. Symbolic match (Provisions satisfy Requirements)
         let mut satisfied_requirements = Vec::new();
-        for (req_idx, (pos, req)) in branch.open_requirements.iter().enumerate() {
+        for (req_idx, (_pos, req)) in branch.open_requirements.iter().enumerate() {
             for prov in &action.provisions {
                 if provision_satisfies_requirement(prov, req, None) {
                     satisfied_requirements.push((req_idx, req.clone(), prov.clone()));
@@ -113,7 +113,7 @@ pub fn find_candidates(
                         vec![costs.get(&idx).cloned().unwrap_or(-1.0)]
                     };
 
-                    match simulate_action(idx, &ctx.initial_agent, &ctx.initial_world, ctx, response, &mut cost_cache, 0) {
+                    match simulate_action(idx, &ctx.initial_agent, &ctx.initial_world, ctx, response, &mut cost_cache, 0, &[]) {
                         StepResult::Ready(res) => {
                             let disc_res = DiscoveryResult {
                                 agent: res.agent,
@@ -166,7 +166,7 @@ pub fn find_candidates(
                                 last_pending_id = id;
                             } else {
                                 // Start request
-                                match eval_precondition(pre, &res.agent, &res.world, ctx, response) {
+                                match eval_precondition(pre, &res.agent, &res.world, ctx, response, &[]) {
                                     StepResult::Ready(eval_res) => {
                                         if eval_res {
                                             satisfied_preconditions.push(pre_idx);

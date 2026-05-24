@@ -1,5 +1,5 @@
 use crate::plan_types::*;
-use crate::snapshot::BlackboardSnapshot;
+use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use crate::planner::types::SearchContext;
 
 
@@ -22,6 +22,7 @@ pub fn eval_precondition(
     world: &BlackboardSnapshot,
     ctx: &SearchContext,
     response: Option<&CallbackResponse>,
+    bindings: &[(String, Vec<VariantSnapshot>)],
 ) -> StepResult<bool> {
     match spec {
         PreconditionSpec::Builtin { .. } => {
@@ -40,7 +41,7 @@ pub fn eval_precondition(
                     agent: agent.clone(),
                     world: world.clone(),
                     provisions: vec![], // Preconditions don't use bound provisions yet
-                    bindings: vec![],
+                    bindings: bindings.to_vec(),
                 },
                 response_tx: ctx.engine_response_tx.clone(),
             });
@@ -57,6 +58,7 @@ pub fn simulate_action(
     response: Option<&CallbackResponse>,
     branch_action_costs: &mut [f64],
     simulation_index: usize,
+    bindings: &[(String, Vec<VariantSnapshot>)],
 ) -> StepResult<SimResult> {
     let action = &ctx.actions[action_idx];
     
@@ -78,7 +80,7 @@ pub fn simulate_action(
                     agent: agent.clone(),
                     world: world.clone(),
                     provisions: action.provisions.clone(),
-                    bindings: vec![],
+                    bindings: bindings.to_vec(),
                 },
                 response_tx: ctx.engine_response_tx.clone(),
             });
@@ -114,7 +116,7 @@ pub fn simulate_action(
                     agent: agent.clone(),
                     world: world.clone(),
                     provisions: action.provisions.clone(),
-                    bindings: vec![],
+                    bindings: bindings.to_vec(),
                 },
                 response_tx: ctx.engine_response_tx.clone(),
             });

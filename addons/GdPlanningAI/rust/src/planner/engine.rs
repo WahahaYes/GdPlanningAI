@@ -1,5 +1,6 @@
 use crate::plan_types::*;
 use crate::plan_tree::PlanResult;
+use crate::snapshot::VariantSnapshot;
 use crate::requirement::{RequirementSpec, ProvisionSpec, provision_satisfies_requirement};
 use crate::planner::types::*;
 use crate::planner::simulation::{eval_precondition, simulate_action, StepResult};
@@ -234,12 +235,28 @@ impl PlannerEngine {
 
                                 // 1. Record and remove satisfied requirements
                                 let mut new_bindings = Vec::new();
-                                let mut reqs_to_remove: HashSet<usize> = cand.satisfied_requirements.iter().map(|(idx, _, _)| *idx).collect();
-                                for (_, req, prov) in cand.satisfied_requirements {
-                                    if let ProvisionSpec::Binding { binding_name, value } = prov {
-                                        new_bindings.push((0, binding_name, vec![value]));
-                                    } else if let ProvisionSpec::Fact { fact_name, args } = prov {
-                                        new_bindings.push((0, fact_name, args));
+                                let reqs_to_remove: HashSet<usize> = cand.satisfied_requirements.iter().map(|(idx, _, _)| *idx).collect();
+                                for (req_idx_in_branch, req, prov) in cand.satisfied_requirements {
+                                    let consumer_pos = new_branch.open_requirements[req_idx_in_branch].0;
+                                    
+                                    let (binding_name, values) = match (&prov, &req) {
+                                        (ProvisionSpec::Binding { binding_name, value }, _) => {
+                                            (binding_name.clone(), vec![value.clone()])
+                                        }
+                                        (ProvisionSpec::Fact { fact_name, args }, _) => {
+                                            (fact_name.clone(), args.clone())
+                                        }
+                                        (ProvisionSpec::FactWildcard { fact_name }, RequirementSpec::Fact { args, .. }) => {
+                                            (fact_name.clone(), args.clone())
+                                        }
+                                        _ => (String::new(), vec![]),
+                                    };
+
+                                    if !binding_name.is_empty() {
+                                        // Associate with provider (the newly prepended action at pos 0)
+                                        new_bindings.push((0, binding_name.clone(), values.clone()));
+                                        // Associate with consumer (offset by 1 due to prepend)
+                                        new_bindings.push((consumer_pos + 1, binding_name, values));
                                     }
                                 }
                                 
@@ -255,7 +272,7 @@ impl PlannerEngine {
                                 }
 
                                 // 2. Remove satisfied preconditions
-                                let mut preconds_to_remove: HashSet<usize> = cand.satisfied_preconditions.iter().map(|idx| *idx).collect();
+                                let preconds_to_remove: HashSet<usize> = cand.satisfied_preconditions.iter().map(|idx| *idx).collect();
                                 let mut k = 0;
                                 let mut removed_pre_count = 0;
                                 while k < new_branch.open_preconditions.len() {
@@ -330,11 +347,17 @@ impl PlannerEngine {
     fn process_simulation(&mut self, node: &mut SearchNode) -> StepResult<()> {
         let branch = &mut node.branch;
         
+        // Gather bindings for current simulation_index
+        let current_bindings: Vec<(String, Vec<VariantSnapshot>)> = branch.action_bindings.iter()
+            .filter(|(pos, _, _)| *pos == branch.simulation_index)
+            .map(|(_, name, vals)| (name.clone(), vals.clone()))
+            .collect();
+
         // 1. Check open preconditions for current index
         let mut i = 0;
         while i < branch.open_preconditions.len() {
             if branch.open_preconditions[i].0 == branch.simulation_index {
-                match eval_precondition(&branch.open_preconditions[i].1, &branch.current_agent, &branch.current_world, &*self.ctx, node.callback_response.as_ref()) {
+                match eval_precondition(&branch.open_preconditions[i].1, &branch.current_agent, &branch.current_world, &*self.ctx, node.callback_response.as_ref(), &current_bindings) {
                     StepResult::Ready(true) => {
                         branch.open_preconditions.remove(i);
                         node.callback_response = None; 
@@ -357,7 +380,7 @@ impl PlannerEngine {
         // 2. Step simulation forward
         if branch.simulation_index < branch.action_chain.len() {
             let action_idx = branch.action_chain[branch.simulation_index];
-            match simulate_action(action_idx, &branch.current_agent, &branch.current_world, &*self.ctx, node.callback_response.as_ref(), &mut branch.action_costs, branch.simulation_index) {
+            match simulate_action(action_idx, &branch.current_agent, &branch.current_world, &*self.ctx, node.callback_response.as_ref(), &mut branch.action_costs, branch.simulation_index, &current_bindings) {
                 StepResult::Ready(res) => {
                     branch.current_agent = res.agent;
                     branch.current_world = res.world;
@@ -393,6 +416,12 @@ impl PlannerEngine {
                 }
                 BranchState::Verifying => {
                     // Final success!
+                    // Check if all goal preconditions were actually met
+                    let has_open_here = branch.open_preconditions.iter().any(|(pos, _)| *pos == branch.simulation_index);
+                    if has_open_here {
+                        return StepResult::Invalid;
+                    }
+
                     if branch.cost < self.best_cost {
                         self.best_cost = branch.cost;
                         self.best_plan = Some(PlanResult {
@@ -412,17 +441,7 @@ impl PlannerEngine {
                 BranchState::Searching => return StepResult::Ready(()),
             }
         }
-
-        // If we reached here, it means we checked all preconds at this index and none were met,
-        // and we either simulated forward or we are stuck.
-        // In Verifying, if any preconds at this index are still open, it's a failure.
-        if branch.state == BranchState::Verifying {
-            let has_open_here = branch.open_preconditions.iter().any(|(pos, _)| *pos == branch.simulation_index);
-            if has_open_here {
-                return StepResult::Invalid;
-            }
-        }
         
-        StepResult::Ready(())
+        unreachable!("process_simulation should have returned")
     }
 }
