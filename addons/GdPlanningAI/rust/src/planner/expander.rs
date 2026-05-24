@@ -1,5 +1,5 @@
 use crate::plan_types::*;
-use crate::planner::types::{SearchContext, PlanBranch, DiscoveryResult, DiscoveryRequest};
+use crate::planner::types::{SearchContext, PlanBranch, DiscoveryResult, DiscoveryRequest, BindingMap};
 use crate::planner::simulation::{StepResult, simulate_action, eval_precondition};
 use crate::requirement::{provision_satisfies_requirement, RequirementSpec, ProvisionSpec};
 
@@ -8,6 +8,79 @@ pub struct Candidate {
     pub action_idx: usize,
     pub satisfied_requirements: Vec<(usize, RequirementSpec, ProvisionSpec)>,
     pub satisfied_preconditions: Vec<usize>, // Indices into branch.open_preconditions
+    pub bindings: BindingMap,
+}
+
+fn get_bindings_for_match(prov: &ProvisionSpec, req: &RequirementSpec) -> BindingMap {
+    let mut bindings = Vec::new();
+    match (prov, req) {
+        (ProvisionSpec::Binding { binding_name, value }, _) => {
+            bindings.push((binding_name.clone(), vec![value.clone()]));
+        }
+        (ProvisionSpec::Fact { fact_name, args }, _) => {
+            bindings.push((fact_name.clone(), args.clone()));
+        }
+        (ProvisionSpec::FactWildcard { fact_name }, RequirementSpec::Fact { args, .. }) => {
+            bindings.push((fact_name.clone(), args.clone()));
+        }
+        _ => {}
+    }
+    bindings
+}
+
+fn get_discovery_result(
+    action_idx: usize,
+    bindings: &BindingMap,
+    ctx: &SearchContext,
+    response: Option<&CallbackResponse>,
+) -> StepResult<DiscoveryResult> {
+    // 1. Check cache
+    {
+        let cache = ctx.discovery_results.lock().unwrap();
+        if let Some(res) = cache.get(&(action_idx, bindings.clone())) {
+            return StepResult::Ready(res.clone());
+        }
+    }
+
+    // 2. Check if pending
+    {
+        let pending = ctx.discovery_pending.lock().unwrap();
+        if let Some(&id) = pending.get(&(action_idx, bindings.clone())) {
+            return StepResult::Pending(id);
+        }
+    }
+
+    // 3. Start discovery simulation
+    let mut cost_cache = {
+        let costs = ctx.discovery_costs.lock().unwrap();
+        vec![costs.get(&(action_idx, bindings.clone())).cloned().unwrap_or(-1.0)]
+    };
+
+    match simulate_action(action_idx, &ctx.initial_agent, &ctx.initial_world, ctx, response, &mut cost_cache, 0, bindings) {
+        StepResult::Ready(res) => {
+            let disc_res = DiscoveryResult {
+                agent: res.agent,
+                world: res.world,
+                cost: res.cost,
+            };
+            let mut cache = ctx.discovery_results.lock().unwrap();
+            cache.insert((action_idx, bindings.clone()), disc_res.clone());
+            StepResult::Ready(disc_res)
+        }
+        StepResult::Pending(id) => {
+            if cost_cache[0] >= 0.0 {
+                let mut costs = ctx.discovery_costs.lock().unwrap();
+                costs.insert((action_idx, bindings.clone()), cost_cache[0]);
+            }
+            let mut pending = ctx.discovery_pending.lock().unwrap();
+            pending.insert((action_idx, bindings.clone()), id);
+            let mut req_map = ctx.discovery_request_map.lock().unwrap();
+            req_map.insert(id, DiscoveryRequest::Simulation(action_idx, bindings.clone()));
+            StepResult::Pending(id)
+        }
+        StepResult::Invalid => StepResult::Invalid,
+        StepResult::Complete => unreachable!(),
+    }
 }
 
 pub fn find_candidates(
@@ -29,9 +102,10 @@ pub fn find_candidates(
                     break;
                 }
             } else {
-                // Custom check, check discovery cache
+                // Custom check, check discovery cache (using empty bindings for validity)
+                let empty_bindings = Vec::new();
                 let cache = ctx.discovery_precond_results.lock().unwrap();
-                if let Some(&res) = cache.get(&(idx, check.clone())) {
+                if let Some(&res) = cache.get(&(idx, check.clone(), empty_bindings.clone())) {
                     if !res {
                         validity_failed = true;
                         break;
@@ -39,25 +113,24 @@ pub fn find_candidates(
                 } else {
                     // Not in cache, check if pending
                     let mut pending = ctx.discovery_precond_pending.lock().unwrap();
-                    if let Some(&id) = pending.get(&(idx, check.clone())) {
+                    if let Some(&id) = pending.get(&(idx, check.clone(), empty_bindings.clone())) {
                         some_pending = true;
                         last_pending_id = id;
                         validity_failed = true;
                         break;
                     } else {
                         // Start request
-                        match eval_precondition(check, &ctx.initial_agent, &ctx.initial_world, ctx, response, &[]) {
+                        match eval_precondition(check, &ctx.initial_agent, &ctx.initial_world, ctx, response, &empty_bindings) {
                             StepResult::Ready(res) => {
-                                // This can happen if the response is actually for this check
                                 if !res {
                                     validity_failed = true;
                                     break;
                                 }
                             }
                             StepResult::Pending(id) => {
-                                pending.insert((idx, check.clone()), id);
+                                pending.insert((idx, check.clone(), empty_bindings.clone()), id);
                                 let mut req_map = ctx.discovery_request_map.lock().unwrap();
-                                req_map.insert(id, DiscoveryRequest::Precondition(idx, check.clone()));
+                                req_map.insert(id, DiscoveryRequest::Precondition(idx, check.clone(), empty_bindings));
                                 some_pending = true;
                                 last_pending_id = id;
                                 validity_failed = true;
@@ -74,137 +147,131 @@ pub fn find_candidates(
         }
         if validity_failed { continue; }
 
-        // 1. Symbolic match (Provisions satisfy Requirements)
-        let mut satisfied_requirements = Vec::new();
-        for (req_idx, (_pos, req)) in branch.open_requirements.iter().enumerate() {
-            for prov in &action.provisions {
-                if provision_satisfies_requirement(prov, req, None) {
-                    satisfied_requirements.push((req_idx, req.clone(), prov.clone()));
-                }
-            }
-        }
+        let has_wildcard = action.provisions.iter().any(|p| matches!(p, ProvisionSpec::FactWildcard { .. }));
 
-        let satisfies_requirement = !satisfied_requirements.is_empty();
-
-        // 2. Simulation match (Effect satisfies Preconditions)
-        let mut satisfied_preconditions = Vec::new();
-        let mut satisfies_precondition = false;
-        if !branch.open_preconditions.is_empty() {
-            let mut res_to_check = None;
-            
-            // Check cache
-            {
-                let cache = ctx.discovery_results.lock().unwrap();
-                if let Some(res) = cache.get(&idx) {
-                    res_to_check = Some(res.clone());
-                }
-            }
-
-            if res_to_check.is_none() {
-                // Not in cache, check if pending
-                let mut pending = ctx.discovery_pending.lock().unwrap();
-                if let Some(&id) = pending.get(&idx) {
-                    some_pending = true;
-                    last_pending_id = id;
-                } else {
-                    // Start discovery simulation against InitialState
-                    let mut cost_cache = {
-                        let costs = ctx.discovery_costs.lock().unwrap();
-                        vec![costs.get(&idx).cloned().unwrap_or(-1.0)]
-                    };
-
-                    match simulate_action(idx, &ctx.initial_agent, &ctx.initial_world, ctx, response, &mut cost_cache, 0, &[]) {
-                        StepResult::Ready(res) => {
-                            let disc_res = DiscoveryResult {
-                                agent: res.agent,
-                                world: res.world,
-                                cost: res.cost,
-                            };
-                            let mut cache = ctx.discovery_results.lock().unwrap();
-                            cache.insert(idx, disc_res.clone());
-                            res_to_check = Some(disc_res);
-                        }
-                        StepResult::Pending(id) => {
-                            // Update cost cache if we got it in this step
-                            if cost_cache[0] >= 0.0 {
-                                let mut costs = ctx.discovery_costs.lock().unwrap();
-                                costs.insert(idx, cost_cache[0]);
+        if has_wildcard {
+            // Per-requirement candidates for actions with wildcards
+            for (req_idx, (_pos, req)) in branch.open_requirements.iter().enumerate() {
+                for prov in &action.provisions {
+                    if provision_satisfies_requirement(prov, req, None) {
+                        let bindings = get_bindings_for_match(prov, req);
+                        match get_discovery_result(idx, &bindings, ctx, response) {
+                            StepResult::Ready(res) => {
+                                let mut satisfied_preconditions = Vec::new();
+                                for (pre_idx, (_pos, pre)) in branch.open_preconditions.iter().enumerate() {
+                                    if let Some(eval_res) = pre.evaluate_builtin(&res.agent, &res.world) {
+                                        if eval_res { satisfied_preconditions.push(pre_idx); }
+                                    } else {
+                                        // Custom precond check with specific discovery bindings
+                                        let cache = ctx.discovery_precond_results.lock().unwrap();
+                                        if let Some(&eval_res) = cache.get(&(idx, pre.clone(), bindings.clone())) {
+                                            if eval_res { satisfied_preconditions.push(pre_idx); }
+                                        } else {
+                                            let mut pending = ctx.discovery_precond_pending.lock().unwrap();
+                                            if let Some(&id) = pending.get(&(idx, pre.clone(), bindings.clone())) {
+                                                some_pending = true;
+                                                last_pending_id = id;
+                                            } else {
+                                                match eval_precondition(pre, &res.agent, &res.world, ctx, response, &bindings) {
+                                                    StepResult::Ready(eval_res) => {
+                                                        if eval_res { satisfied_preconditions.push(pre_idx); }
+                                                    }
+                                                    StepResult::Pending(id) => {
+                                                        pending.insert((idx, pre.clone(), bindings.clone()), id);
+                                                        let mut req_map = ctx.discovery_request_map.lock().unwrap();
+                                                        req_map.insert(id, DiscoveryRequest::Precondition(idx, pre.clone(), bindings.clone()));
+                                                        some_pending = true;
+                                                        last_pending_id = id;
+                                                    }
+                                                    _ => {}
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                candidates.push(Candidate {
+                                    action_idx: idx,
+                                    satisfied_requirements: vec![(req_idx, req.clone(), prov.clone())],
+                                    satisfied_preconditions,
+                                    bindings,
+                                });
                             }
-
-                            pending.insert(idx, id);
-                            let mut req_map = ctx.discovery_request_map.lock().unwrap();
-                            req_map.insert(id, DiscoveryRequest::Simulation(idx));
-                            some_pending = true;
-                            last_pending_id = id;
+                            StepResult::Pending(id) => {
+                                some_pending = true;
+                                last_pending_id = id;
+                            }
+                            _ => {}
                         }
-                        StepResult::Invalid => {}
-                        StepResult::Complete => unreachable!("simulate_action cannot return Complete during discovery"),
+                    }
+                }
+            }
+        } else {
+            // Grouped candidates for actions without wildcards
+            let mut satisfied_requirements = Vec::new();
+            for (req_idx, (_pos, req)) in branch.open_requirements.iter().enumerate() {
+                for prov in &action.provisions {
+                    if provision_satisfies_requirement(prov, req, None) {
+                        satisfied_requirements.push((req_idx, req.clone(), prov.clone()));
                     }
                 }
             }
 
-            if let Some(res) = res_to_check {
-                for (pre_idx, (_pos, pre)) in branch.open_preconditions.iter().enumerate() {
-                    if let Some(eval_res) = pre.evaluate_builtin(&res.agent, &res.world) {
-                        if eval_res {
-                            satisfied_preconditions.push(pre_idx);
-                            satisfies_precondition = true;
-                        }
-                    } else {
-                        // Custom check, check discovery cache
-                        let cache = ctx.discovery_precond_results.lock().unwrap();
-                        if let Some(&eval_res) = cache.get(&(idx, pre.clone())) {
-                            if eval_res {
-                                satisfied_preconditions.push(pre_idx);
-                                satisfies_precondition = true;
-                            }
+            let empty_bindings = Vec::new();
+            match get_discovery_result(idx, &empty_bindings, ctx, response) {
+                StepResult::Ready(res) => {
+                    let mut satisfied_preconditions = Vec::new();
+                    for (pre_idx, (_pos, pre)) in branch.open_preconditions.iter().enumerate() {
+                        if let Some(eval_res) = pre.evaluate_builtin(&res.agent, &res.world) {
+                            if eval_res { satisfied_preconditions.push(pre_idx); }
                         } else {
-                            // Not in cache, check if pending
-                            let mut pending = ctx.discovery_precond_pending.lock().unwrap();
-                            if let Some(&id) = pending.get(&(idx, pre.clone())) {
-                                some_pending = true;
-                                last_pending_id = id;
+                            let cache = ctx.discovery_precond_results.lock().unwrap();
+                            if let Some(&eval_res) = cache.get(&(idx, pre.clone(), empty_bindings.clone())) {
+                                if eval_res { satisfied_preconditions.push(pre_idx); }
                             } else {
-                                // Start request
-                                match eval_precondition(pre, &res.agent, &res.world, ctx, response, &[]) {
-                                    StepResult::Ready(eval_res) => {
-                                        if eval_res {
-                                            satisfied_preconditions.push(pre_idx);
-                                            satisfies_precondition = true;
+                                let mut pending = ctx.discovery_precond_pending.lock().unwrap();
+                                if let Some(&id) = pending.get(&(idx, pre.clone(), empty_bindings.clone())) {
+                                    some_pending = true;
+                                    last_pending_id = id;
+                                } else {
+                                    match eval_precondition(pre, &res.agent, &res.world, ctx, response, &empty_bindings) {
+                                        StepResult::Ready(eval_res) => {
+                                            if eval_res { satisfied_preconditions.push(pre_idx); }
                                         }
+                                        StepResult::Pending(id) => {
+                                            pending.insert((idx, pre.clone(), empty_bindings.clone()), id);
+                                            let mut req_map = ctx.discovery_request_map.lock().unwrap();
+                                            req_map.insert(id, DiscoveryRequest::Precondition(idx, pre.clone(), empty_bindings.clone()));
+                                            some_pending = true;
+                                            last_pending_id = id;
+                                        }
+                                        _ => {}
                                     }
-                                    StepResult::Pending(id) => {
-                                        pending.insert((idx, pre.clone()), id);
-                                        let mut req_map = ctx.discovery_request_map.lock().unwrap();
-                                        req_map.insert(id, DiscoveryRequest::Precondition(idx, pre.clone()));
-                                        some_pending = true;
-                                        last_pending_id = id;
-                                    }
-                                    _ => {}
                                 }
                             }
                         }
                     }
-                }
-            }
-        }
 
-        if satisfies_requirement || satisfies_precondition {
-            candidates.push(Candidate {
-                action_idx: idx,
-                satisfied_requirements,
-                satisfied_preconditions,
-            });
+                    if !satisfied_requirements.is_empty() || !satisfied_preconditions.is_empty() {
+                        candidates.push(Candidate {
+                            action_idx: idx,
+                            satisfied_requirements,
+                            satisfied_preconditions,
+                            bindings: empty_bindings,
+                        });
+                    }
+                }
+                StepResult::Pending(id) => {
+                    some_pending = true;
+                    last_pending_id = id;
+                }
+                _ => {}
+            }
         }
     }
 
     if some_pending {
-        // If any actions are still being discovered, yield to wait for discovery.
-        // We MUST NOT return Ready yet, otherwise the node will be marked as 'visited'
-        // and we will miss the candidates that are currently pending.
         StepResult::Pending(last_pending_id)
     } else {
-        // All actions have been fully evaluated (either cached, ready, or invalid).
         StepResult::Ready(candidates)
     }
 }

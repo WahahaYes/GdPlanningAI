@@ -98,33 +98,33 @@ impl PlannerEngine {
 
             if let Some(req) = discovery_req {
                 match req {
-                    DiscoveryRequest::Simulation(idx) => {
+                    DiscoveryRequest::Simulation(idx, bindings) => {
                         if let CallbackResponse::UpdatedSnapshots(ref agent, ref world) = callback.response {
                             let mut cache = self.ctx.discovery_results.lock().unwrap();
                             let cost = {
                                 let costs = self.ctx.discovery_costs.lock().unwrap();
-                                costs.get(&idx).cloned().unwrap_or(1.0)
+                                costs.get(&(idx, bindings.clone())).cloned().unwrap_or(1.0)
                             };
-                            cache.insert(idx, DiscoveryResult { 
+                            cache.insert((idx, bindings.clone()), DiscoveryResult { 
                                 agent: agent.clone(), 
                                 world: world.clone(), 
                                 cost
                             });
                         } else if let CallbackResponse::Float(cost) = callback.response {
                             let mut costs = self.ctx.discovery_costs.lock().unwrap();
-                            costs.insert(idx, cost);
+                            costs.insert((idx, bindings.clone()), cost);
                         }
 
                         let mut pending = self.ctx.discovery_pending.lock().unwrap();
-                        pending.remove(&idx);
+                        pending.remove(&(idx, bindings));
                     }
-                    DiscoveryRequest::Precondition(idx, spec) => {
+                    DiscoveryRequest::Precondition(idx, spec, bindings) => {
                         if let CallbackResponse::Bool(b) = callback.response {
                             let mut cache = self.ctx.discovery_precond_results.lock().unwrap();
-                            cache.insert((idx, spec.clone()), b);
+                            cache.insert((idx, spec.clone(), bindings.clone()), b);
                         }
                         let mut pending = self.ctx.discovery_precond_pending.lock().unwrap();
-                        pending.remove(&(idx, spec));
+                        pending.remove(&(idx, spec, bindings));
                     }
                 }
                 let mut req_map = self.ctx.discovery_request_map.lock().unwrap();
@@ -154,7 +154,7 @@ impl PlannerEngine {
                 }
 
                 // Increase budget for local tests
-            if iterations > 5000 {
+            if iterations > 10000 {
                 self.queue.push(node);
                 return PlannerRunResult::Pending(0);
             }
@@ -167,14 +167,14 @@ impl PlannerEngine {
             if !node.resumed && node.branch.state == BranchState::Searching {
                 let fp = node.branch.fingerprint();
                 if let Some(&prev_cost) = self.visited.get(&fp) {
-                    if node.branch.symbolic_cost >= prev_cost { continue; }
+                    if node.branch.cost >= prev_cost { continue; }
                 }
-                self.visited.insert(fp, node.branch.symbolic_cost);
+                self.visited.insert(fp, node.branch.cost);
             }
             node.resumed = false;
 
             // 3. State Machine Processing
-            if node.branch.symbolic_cost >= self.best_cost { continue; }
+            if node.branch.cost >= self.best_cost { continue; }
 
             match node.branch.state {
                 BranchState::Initializing | BranchState::Rippling | BranchState::Verifying => {
@@ -223,10 +223,9 @@ impl PlannerEngine {
                                 new_branch.action_chain.insert(0, cand.action_idx);
                                 let discovery_cost = {
                                     let cache = self.ctx.discovery_results.lock().unwrap();
-                                    cache.get(&cand.action_idx).map(|r| r.cost).unwrap_or(1.0)
+                                    cache.get(&(cand.action_idx, cand.bindings.clone())).map(|r| r.cost).unwrap_or(1.0)
                                 };
                                 new_branch.action_costs.insert(0, discovery_cost);
-                                new_branch.symbolic_cost += discovery_cost;
                                 
                                 // Update indices of existing needs and bindings
                                 for (pos, _) in new_branch.open_preconditions.iter_mut() { *pos += 1; }
@@ -255,8 +254,8 @@ impl PlannerEngine {
                                     if !binding_name.is_empty() {
                                         // Associate with provider (the newly prepended action at pos 0)
                                         new_bindings.push((0, binding_name.clone(), values.clone()));
-                                        // Associate with consumer (offset by 1 due to prepend)
-                                        new_bindings.push((consumer_pos + 1, binding_name, values));
+                                        // Associate with consumer (already offset by 1 during increment above)
+                                        new_bindings.push((consumer_pos, binding_name, values));
                                     }
                                 }
                                 
@@ -347,6 +346,14 @@ impl PlannerEngine {
     fn process_simulation(&mut self, node: &mut SearchNode) -> StepResult<()> {
         let branch = &mut node.branch;
         
+        // 0. Check open requirements for current index against InitialState or previous action
+        if branch.simulation_index == 0 {
+            // InitialState provisions satisfy requirements at pos 0
+            branch.open_requirements.retain(|(pos, req)| {
+                !(*pos == 0 && self.ctx.initial_provisions.iter().any(|prov| provision_satisfies_requirement(prov, req, Some(&self.ctx.initial_world))))
+            });
+        }
+
         // Gather bindings for current simulation_index
         let current_bindings: Vec<(String, Vec<VariantSnapshot>)> = branch.action_bindings.iter()
             .filter(|(pos, _, _)| *pos == branch.simulation_index)
@@ -440,8 +447,8 @@ impl PlannerEngine {
                 }
                 BranchState::Searching => return StepResult::Ready(()),
             }
+            
+            StepResult::Ready(())
         }
-        
-        unreachable!("process_simulation should have returned")
     }
 }

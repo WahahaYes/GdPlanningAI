@@ -20,14 +20,14 @@ This document describes the non-blocking, async-first backward-chaining implemen
 
 ### `PlanBranch`
 - `action_chain`: `[P, A, B]` (Backward-chained actions).
-- `action_bindings`: `Vec<(pos, BindingData)>` (Data passed to simulations, e.g., which object was picked up).
+- `action_bindings`: `Vec<(pos, BindingData)>` (Data passed to simulations. Associated with both provider and consumer).
 - `open_preconditions`: Physical needs not yet met by `InitialState`. Stored as `(consumer_index, Precondition)`.
 - `open_requirements`: Symbolic needs not yet satisfied. Stored as `(consumer_index, Requirement)`.
 - `state`: One of `Initializing`, `Searching`, `Rippling`, `Verifying`.
 - `simulation_index`: Current progress index within the `action_chain` or `goal_preconditions`.
 - `current_agent`: Agent Blackboard resulting from action at `simulation_index - 1`.
 - `current_world`: World Blackboard resulting from action at `simulation_index - 1`.
-- `cost`: Total cumulative cost.
+- `cost`: Total cumulative grounded cost (used for A* priority).
 
 ### `SearchNode` (A* Wrapper)
 - `branch`: `PlanBranch`.
@@ -82,13 +82,16 @@ Based on `node.branch.state`:
       - *Note: A precondition is satisfied if it is met at its specific point in the sequence; it does NOT need to remain true for the rest of the chain.*
       - Increment `consumer_index` of all remaining downstream needs by +1.
     - **Binding Propagation (Critical)**:
-      - When `A`'s provision satisfies an `open_requirement`, any associated data (e.g., arguments from a `Fact` or values from a `Binding`) **must be recorded** in `action_bindings` for position 0.
-      - *Note: For `FactWildcard` provisions (like 'at_target'), the arguments are pulled from the satisfying `Requirement` (the specific location).*
+      - When `A`'s provision satisfies an `open_requirement` of action `B`:
+        - Record the binding data for **position 0** (the provider `A`).
+        - Record the binding data for the **consumer's position** (action `B`, offset by +1).
+      - *Note: For `FactWildcard` provisions (like 'at_target'), the arguments are pulled from the satisfying `Requirement` (the specific location) and used to ground the discovery simulation.*
     - **Add New Needs**: Add `A.preconditions` and `A.requirements` at `consumer_index = 0`.
     - **Reset Ripple**: `NewBranch.state = Rippling`, `simulation_index = 0`.
     - Push `NewBranch` to queue.
 
 #### **State: `Rippling` / `Verifying`** (Simulation & Grounding)
+0. **Ground Requirements**: If `simulation_index == 0`, check `open_requirements` against `InitialState` provisions. Remove any that are satisfied.
 1. **Point-in-Time Check**: Before simulating `action_chain[simulation_index]`:
    - Identify all `open_preconditions` where `consumer_index == simulation_index`.
    - Evaluate them against `current_agent/world` (the state after all preceding actions).
@@ -111,15 +114,11 @@ Based on `node.branch.state`:
 This is where we identify which actions are relevant to the current `open_needs`.
 
 1. **Validity Filter**: Check `Action.validity_checks` against `InitialState`. Skip if any fail (e.g., on cooldown).
-2. **Discovery Preview** (Optional Optimization): 
-   - *Note: If DiscoveryCache is disabled, skip to step 3 and use fresh simulations.*
-   - Check `DiscoveryCache` for `Action A`.
-   - If missing:
-     - Check `DiscoveryPending` map.
-     - If pending: **Skip A** for this iteration (Wait for Godot).
-     - If not pending: Run the custom GDScript `simulate_effect` for `A` against `InitialState`.
-       - If `Pending(id)`: Mark `DiscoveryPending[A] = id`, **Return Pending(id)**.
-       - If `Ready`: Store result in `DiscoveryCache`.
+2. **Discovery Preview** (Binding-Aware): 
+   - *Note: Discovery is now keyed by `(Action, Bindings)`.*
+   - If an action has a **Wildcard Provision** (e.g. `at_target`), it is evaluated separately for **each** requirement it could satisfy.
+   - Run the custom GDScript `simulate_effect` and `calculate_cost` for `A` against `InitialState` **using the bindings from the requirement**.
+   - Store results in `DiscoveryCache[(A, Bindings)]`.
 3. **Hybrid Satisfaction Check**:
    - **Symbolic Layer**: Does `A`'s **Provisions** satisfy any `open_requirements`?
    - **Simulation Layer**: Does `A`'s **Discovery Result** (the simulated state) satisfy any `open_preconditions`?

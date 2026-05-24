@@ -27,7 +27,6 @@ pub struct PlanBranch {
     pub current_agent: BlackboardSnapshot,
     pub current_world: BlackboardSnapshot,
     pub cost: f64,          // Grounded cost (accumulated during simulation)
-    pub symbolic_cost: f64, // Symbolic cost (sum of discovery costs, used for Dijkstra)
 }
 
 #[derive(Clone, Debug)]
@@ -40,8 +39,8 @@ pub struct SearchNode {
 impl SearchNode {
     pub fn priority(&self) -> f64 {
         // Use Dijkstra (h=0) for guaranteed optimality in hybrid simulation.
-        // We use symbolic_cost for Dijkstra priority, while branch.cost tracks grounded cost.
-        self.branch.symbolic_cost
+        // We use grounded cost for Dijkstra priority, which is updated during Rippling.
+        self.branch.cost
     }
 }
 
@@ -66,10 +65,12 @@ impl Ord for SearchNode {
     }
 }
 
+pub type BindingMap = Vec<(String, Vec<VariantSnapshot>)>;
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum DiscoveryRequest {
-    Simulation(usize),                     // action_idx
-    Precondition(usize, PreconditionSpec), // action_idx, spec
+    Simulation(usize, BindingMap),                     // action_idx, bindings
+    Precondition(usize, PreconditionSpec, BindingMap), // action_idx, spec, bindings
 }
 
 pub struct SearchContext {
@@ -81,14 +82,14 @@ pub struct SearchContext {
     pub engine_response_tx: Sender<PlannerCallback>,
     
     // Discovery Cache (Thread-safe)
-    pub discovery_results: std::sync::Mutex<HashMap<usize, DiscoveryResult>>,
-    pub discovery_costs: std::sync::Mutex<HashMap<usize, f64>>,
-    pub discovery_pending: std::sync::Mutex<HashMap<usize, usize>>, // action_idx -> request_id
+    pub discovery_results: std::sync::Mutex<HashMap<(usize, BindingMap), DiscoveryResult>>,
+    pub discovery_costs: std::sync::Mutex<HashMap<(usize, BindingMap), f64>>,
+    pub discovery_pending: std::sync::Mutex<HashMap<(usize, BindingMap), usize>>, // action_idx, bindings -> request_id
     pub discovery_request_map: std::sync::Mutex<HashMap<usize, DiscoveryRequest>>, // request_id -> DiscoveryRequest
     
     // Precondition Caching for Discovery (Initial State)
-    pub discovery_precond_results: std::sync::Mutex<HashMap<(usize, PreconditionSpec), bool>>,
-    pub discovery_precond_pending: std::sync::Mutex<HashMap<(usize, PreconditionSpec), usize>>,
+    pub discovery_precond_results: std::sync::Mutex<HashMap<(usize, PreconditionSpec, BindingMap), bool>>,
+    pub discovery_precond_pending: std::sync::Mutex<HashMap<(usize, PreconditionSpec, BindingMap), usize>>,
 }
 
 #[derive(Clone)]
@@ -112,7 +113,6 @@ impl PlanBranch {
             current_agent: initial_agent.clone(),
             current_world: initial_world.clone(),
             cost: 0.0,
-            symbolic_cost: 0.0,
         }
     }
 
@@ -121,6 +121,6 @@ impl PlanBranch {
     }
 
     pub fn recalculate_cost(&mut self) {
-        self.cost = self.action_costs.iter().filter(|&&c| c >= 0.0).sum();
+        self.cost = self.action_costs.iter().sum();
     }
 }
