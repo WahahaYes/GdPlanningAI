@@ -31,4 +31,10 @@ pub mod snapshot;
 struct GdPlanningAIExt;
 
 #[gdextension]
-unsafe impl ExtensionLibrary for GdPlanningAIExt {}
+unsafe impl ExtensionLibrary for GdPlanningAIExt {
+    fn on_level_init(level: InitLevel) {
+        if level == InitLevel::Servers {
+            crate::logger::init_log_channel();
+        }
+    }
+}

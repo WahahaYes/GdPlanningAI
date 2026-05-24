@@ -100,10 +100,14 @@ fn eval_builtin_on_snapshot(
     value: Option<&VariantSnapshot>,
     source: &BlackboardSnapshot,
 ) -> bool {
-    match operation {
-        PreconditionOp::HasProperty => source.properties.contains_key(property_name),
+    let prop_val = source.properties.get(property_name);
+    let res = match operation {
+        PreconditionOp::HasProperty => prop_val.is_some(),
         _ => snap_compare_all(source, property_name, value, operation),
-    }
+    };
+    log_debug!("eval_builtin_on_snapshot: {} {:?} {:?} -> {} (actual_prop={:?})", 
+        property_name, operation, value, res, prop_val);
+    res
 }
 
 /// Equality check mirroring `PreconditionHandler::evaluate_equal`.
@@ -153,7 +157,6 @@ fn snap_compare_all(
             PreconditionOp::LessThanOrEqual => p <= c + 1e-4,
             _ => false,
         };
-        log_debug!("Numeric comparison: {} {:?} {} -> {}", p, operation, c, result);
         result
     } else {
         // Fallback to basic equality if not numeric

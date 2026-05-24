@@ -54,8 +54,6 @@ impl INode for GdPAIPlanScheduler {
     }
 
     fn ready(&mut self) {
-        crate::logger::init_log_channel();
-
         let mut builder = rayon::ThreadPoolBuilder::new();
         if self.max_threads > 0 {
             builder = builder.num_threads(self.max_threads as usize);
@@ -174,6 +172,7 @@ impl GdPAIPlanScheduler {
         goals: Array<VarDictionary>,
         max_recursion: i64,
     ) {
+        log_debug!("submit_plan: agent={}, actions_count={}, goals_count={}", agent.instance_id().to_i64(), actions.len(), goals.len());
         let agent_instance_id = agent.instance_id().to_i64();
 
         for job in self.active_jobs.iter_mut().filter(|j| !j.done && j.agent_instance_id == agent_instance_id) {
@@ -187,7 +186,10 @@ impl GdPAIPlanScheduler {
 
         let mut job_registry = Vec::new();
         let action_specs = build_action_specs(&actions, &mut job_registry);
-        let goal_specs = build_goal_specs(&goals, &mut job_registry);
+        let mut goal_specs = build_goal_specs(&goals, &mut job_registry);
+        
+        // Sort goals by reward descending
+        goal_specs.sort_by(|a, b| b.reward.partial_cmp(&a.reward).unwrap_or(std::cmp::Ordering::Equal));
 
         let (req_tx, req_rx) = std::sync::mpsc::channel::<CallbackRequest>();
         let (res_tx, res_rx) = std::sync::mpsc::channel::<(PlannerRunResult, PlannerEngine)>();

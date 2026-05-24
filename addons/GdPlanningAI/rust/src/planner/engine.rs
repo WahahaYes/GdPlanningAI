@@ -61,27 +61,33 @@ impl PlannerEngine {
     }
 
     pub fn plan(&mut self, goals: &[GoalSpec]) -> PlannerRunResult {
-        if self.queue.is_empty() && self.parked_nodes.is_empty() {
-            // Initializing with all goals as separate starting branches
-            for (idx, goal) in goals.iter().enumerate() {
-                let mut branch = PlanBranch::new(&self.ctx.initial_agent, &self.ctx.initial_world);
-                branch.goal_index = idx;
-                for pre in &goal.desired_state {
-                    branch.open_preconditions.push((0, pre.clone()));
-                }
-                
-                self.queue.push(SearchNode {
-                    branch,
-                    resumed: false,
-                    callback_response: None,
-                });
+        if self.queue.is_empty() && self.parked_nodes.is_empty() && self.best_plan.is_none() {
+            // Initializing with the first goal
+            if self.current_goal_index < goals.len() {
+                self.initialize_goal(goals, self.current_goal_index);
             }
         }
 
-        self.step_search()
+        self.step_search(goals)
     }
 
-    fn step_search(&mut self) -> PlannerRunResult {
+    fn initialize_goal(&mut self, goals: &[GoalSpec], idx: usize) {
+        let goal = &goals[idx];
+        log_info!("Initializing search for Goal {}: {} (reward={:.1}, original_index={})", idx, goal.name, goal.reward, goal.original_index);
+        let mut branch = PlanBranch::new(&self.ctx.initial_agent, &self.ctx.initial_world);
+        branch.goal_index = goal.original_index; // Use original index for Godot
+        for pre in &goal.desired_state {
+            branch.open_preconditions.push((0, pre.clone()));
+        }
+        
+        self.queue.push(SearchNode {
+            branch,
+            resumed: false,
+            callback_response: None,
+        });
+    }
+
+    fn step_search(&mut self, goals: &[GoalSpec]) -> PlannerRunResult {
         // 1. Resume Callbacks
         while let Ok(callback) = self.response_rx.try_recv() {
             // Handle Discovery responses
@@ -300,6 +306,14 @@ impl PlannerEngine {
         if !self.parked_nodes.is_empty() {
             PlannerRunResult::Pending(*self.parked_nodes.keys().next().unwrap())
         } else {
+            // Search exhausted for current goal. Check if there are more goals.
+            if self.best_plan.is_none() && self.current_goal_index + 1 < goals.len() {
+                self.current_goal_index += 1;
+                self.initialize_goal(goals, self.current_goal_index);
+                // Return Pending(0) to signal we yielded to start the next goal
+                return PlannerRunResult::Pending(0);
+            }
+
             // Search exhausted or optimal plan found
             let final_plan = self.best_plan.take().unwrap_or_else(|| PlanResult {
                 success: false,

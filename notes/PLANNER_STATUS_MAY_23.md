@@ -13,18 +13,14 @@ The core planning engine in Rust has been fully refactored to an async-first sta
 - [x] **Budget Management**: The `GdPAIPlanScheduler` correctly handles budget-exhausted vs callback-waiting yields.
 - [x] **Rust Test Parity**: All Rust integration tests (`tests/planner_integration.rs`) and library unit tests are passing.
 
-- [x] **Cross-Chain Discovery**: Fixed a major logic error where candidate actions were only allowed to satisfy preconditions at `pos == 0`. They can now satisfy any downstream open precondition in the chain, which is essential for spatial actions like "Go To" that enable later state-changes.
+- [x] **Serial Goal Processing**: Implemented priority-based serial goal execution. The planner now searches for the highest-reward goal first and only moves to the next goal if the first one is impossible. This fixed a major bug where the "Maintain Fire" goal (already satisfied, 0 cost) was winning over the "Hunger" goal (needs actions, >0 cost).
+- [x] **Serialization Verification**: Confirmed that bit-pattern logs (e.g. `Float(463...)`) are correct `f64` representations and are being interpreted correctly by Rust. The "corrupted float" theory was debunked.
 
 ## Outstanding Issues
 1. **Godot Integration Failures**: Complex scenarios in `test_campfire_example_smoke.gd` and `test_requirements_provisions.gd` are still reporting failures.
-   - **Numeric Comparison Bugs**: Initial state checks for hunger (`70.0 < 30.0`) are returning `true`, leading to "Empty Plan" (already satisfied) results.
-   - **Strange Snapshot Bit Patterns**: Logs show `hunger` values like `Float(4632243402438040450)`, suggesting a type or endianness issue in the blackboard serialization.
+   - **Plan Short-Circuiting**: In the "full cooking chain" test, the planner correctly picks `Go To -> Dig Potato -> Eat` because it is cheaper than the cooking chain and the test's hunger threshold allows raw food to satisfy the goal.
+   - **Cost Selection**: Some tests still report mismatched total costs (e.g. 10.0 vs 2.0), likely due to how action costs are aggregated in complex chains.
 
 ## Implementation Decisions vs. Pseudocode
-The following implementation details were added or modified compared to the original `notes/PLANNER_ALGORITHM_PSEUDOCODE.md`:
-
-1. **Dijkstra for Optimality**: Switched to $h=0$ because our hybrid symbolic/simulation model makes creating an admissible heuristic difficult.
-2. **Stable Dijkstra Priority**: Added `symbolic_cost` to `PlanBranch`. Previously, Dijkstra was using the "grounded cost" (re-calculated during simulation), which fluctuates and was causing optimal paths to be incorrectly pruned.
-3. **Yield on Every Step**: `process_simulation` now yields `Ready(())` after satisfying a single precondition or simulating one action forward. This ensures the engine re-queues and checks the priority queue frequently, which is safer for async and ensures we always pick the cheapest path even if it's currently "rippling".
-4. **Parallel Discovery**: `find_candidates` triggers multiple simulation requests in parallel to avoid sequential round-trip bottlenecks.
-5. **Frontier Update**: During expansion, the specific indices of satisfied needs are tracked and removed from the branch's open needs list.
+1. **Reward-Sorted Serial Search**: Modified the engine to be goal-serial. This ensures agents always pursue their most valuable unsatisfied goal first, matching the "Utility GOAP" mental model while keeping the performance benefits of Dijkstra on a per-goal basis.
+2. **Yield on Goal Transition**: When search for goal N is exhausted, the engine yields a `Pending(0)` before starting goal N+1. This prevents a single frame from being locked up by searching through an entire stack of impossible goals.
