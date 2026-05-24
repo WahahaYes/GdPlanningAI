@@ -31,10 +31,10 @@ func _populate(
 	actions.append(GoToAction.new())
 	(
 		actions
-		. append(
+		.append(
 			(
 				EatHeldFoodAction
-				. new(
+				.new(
 					hunger_restored_by_item,
 					eat_duration,
 					optimistic_unbound_restore,

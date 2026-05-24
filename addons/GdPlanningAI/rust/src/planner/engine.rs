@@ -73,7 +73,6 @@ impl PlannerEngine {
 
     fn initialize_goal(&mut self, goals: &[GoalSpec], idx: usize) {
         let goal = &goals[idx];
-        log_info!("Initializing search for Goal {}: {} (reward={:.1}, original_index={})", idx, goal.name, goal.reward, goal.original_index);
         let mut branch = PlanBranch::new(&self.ctx.initial_agent, &self.ctx.initial_world);
         branch.goal_index = goal.original_index; // Use original index for Godot
         for pre in &goal.desired_state {

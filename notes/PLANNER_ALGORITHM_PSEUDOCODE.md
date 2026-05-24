@@ -81,6 +81,9 @@ Based on `node.branch.state`:
       - Remove `open_preconditions` and `open_requirements` that are satisfied by `A`'s simulated effects/provisions. 
       - *Note: A precondition is satisfied if it is met at its specific point in the sequence; it does NOT need to remain true for the rest of the chain.*
       - Increment `consumer_index` of all remaining downstream needs by +1.
+    - **Binding Propagation (Critical)**:
+      - When `A`'s provision satisfies an `open_requirement`, any associated data (e.g., arguments from a `Fact` or values from a `Binding`) **must be recorded** in `action_bindings` for position 0.
+      - *Note: For `FactWildcard` provisions (like 'at_target'), the arguments are pulled from the satisfying `Requirement` (the specific location).*
     - **Add New Needs**: Add `A.preconditions` and `A.requirements` at `consumer_index = 0`.
     - **Reset Ripple**: `NewBranch.state = Rippling`, `simulation_index = 0`.
     - Push `NewBranch` to queue.
