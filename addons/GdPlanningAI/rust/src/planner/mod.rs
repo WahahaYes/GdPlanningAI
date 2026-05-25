@@ -1,5 +1,5 @@
 //! The planner module provides the core GOAP planning logic.
-//! 
+//!
 //! It is divided into several sub-modules:
 //! - `engine`: The main search loop and state machine.
 //! - `expander`: Action discovery and candidate generation.

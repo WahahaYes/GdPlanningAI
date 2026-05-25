@@ -1,10 +1,10 @@
 //! Candidate action discovery for the planning engine.
-//! 
+//!
 //! This module provides functions to identify which actions can satisfy the current
 //! open needs (preconditions and requirements) of a plan branch.
 
 use crate::plan_types::*;
-use crate::planner::simulation::{StepResult, eval_precondition, simulate_action};
+use crate::planner::simulation::{SimArgs, StepResult, eval_precondition, simulate_action};
 use crate::planner::types::{
     BindingMap, DiscoveryRequest, DiscoveryResult, PlanBranch, SearchContext,
 };
@@ -76,13 +76,15 @@ fn get_discovery_result(
 
     match simulate_action(
         action_idx,
-        &ctx.initial_agent,
-        &ctx.initial_world,
-        ctx,
-        response,
-        &mut cost_cache,
-        0,
-        bindings,
+        SimArgs {
+            agent: &ctx.initial_agent,
+            world: &ctx.initial_world,
+            ctx,
+            response,
+            branch_action_costs: &mut cost_cache,
+            simulation_index: 0,
+            bindings,
+        },
     ) {
         StepResult::Ready(res) => {
             let disc_res = DiscoveryResult {
@@ -114,7 +116,7 @@ fn get_discovery_result(
 }
 
 /// Finds all candidate actions that satisfy at least one open need of the given branch.
-/// 
+///
 /// This function performs a hybrid discovery process:
 /// 1. Symbolic Layer: Matches action Provisions against open Requirements.
 /// 2. Simulation Layer: Matches action effects (via Discovery simulation) against open Preconditions.

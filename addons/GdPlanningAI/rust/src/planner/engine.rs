@@ -1,15 +1,15 @@
 //! The core planning engine for GdPlanningAI.
-//! 
+//!
 //! This engine implements a hybrid backward-chaining GOAP planner that combines
 //! symbolic causal links (Requirements/Provisions) with rich scene simulation
 //! (simulate_effect, eval_precondition, calculate_cost).
-//! 
+//!
 //! The planning process is non-blocking and uses an A* search algorithm to find
 //! the optimal sequence of actions to satisfy a goal.
 
 use crate::plan_tree::PlanResult;
 use crate::plan_types::*;
-use crate::planner::simulation::{StepResult, eval_precondition, simulate_action};
+use crate::planner::simulation::{SimArgs, StepResult, eval_precondition, simulate_action};
 use crate::planner::types::*;
 use crate::requirement::{ProvisionSpec, RequirementSpec, provision_satisfies_requirement};
 use crate::snapshot::VariantSnapshot;
@@ -22,7 +22,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::mpsc::{Receiver, Sender};
 
 /// The execution engine for the GOAP planner.
-/// 
+///
 /// This engine manages the A* search queue, handles Godot callbacks, and
 /// orchestrates the simulation of action chains.
 pub struct PlannerEngine {
@@ -39,15 +39,7 @@ pub struct PlannerEngine {
     // Search State
     pub queue: BinaryHeap<SearchNode>,
     pub parked_nodes: HashMap<usize, Vec<SearchNode>>,
-    pub visited: HashMap<
-        (
-            usize,
-            Vec<(usize, PreconditionSpec)>,
-            Vec<(usize, RequirementSpec)>,
-            BranchState,
-        ),
-        f64,
-    >,
+    pub visited: HashMap<SearchFingerprint, f64>,
     pub best_plan: Option<PlanResult>,
     pub best_cost: f64,
     pub current_goal_index: usize,
@@ -86,7 +78,7 @@ impl PlannerEngine {
     }
 
     /// Executes the planning process for a set of goals.
-    /// 
+    ///
     /// This function performs a non-blocking step of the search and returns
     /// a PlannerRunResult indicating if the plan is complete, pending, or failed.
     pub fn plan(&mut self, goals: &[GoalSpec]) -> PlannerRunResult {
@@ -473,13 +465,15 @@ impl PlannerEngine {
             let action_idx = branch.action_chain[branch.simulation_index];
             match simulate_action(
                 action_idx,
-                &branch.current_agent,
-                &branch.current_world,
-                &self.ctx,
-                node.callback_response.as_ref(),
-                &mut branch.action_costs,
-                branch.simulation_index,
-                &current_bindings,
+                SimArgs {
+                    agent: &branch.current_agent,
+                    world: &branch.current_world,
+                    ctx: &self.ctx,
+                    response: node.callback_response.as_ref(),
+                    branch_action_costs: &mut branch.action_costs,
+                    simulation_index: branch.simulation_index,
+                    bindings: &current_bindings,
+                },
             ) {
                 StepResult::Ready(res) => {
                     branch.current_agent = res.agent;
@@ -573,7 +567,7 @@ impl PlannerEngine {
 
                     return StepResult::Complete;
                 }
-                BranchState::Searching => return StepResult::Ready(()),
+                BranchState::Searching => {}
             }
 
             StepResult::Ready(())

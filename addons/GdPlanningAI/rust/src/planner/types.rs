@@ -18,7 +18,7 @@ pub enum BranchState {
 }
 
 /// A single branch in the planning search tree.
-/// 
+///
 /// It tracks the sequence of actions, open needs, and the simulated state of the
 /// agent and world after applying those actions.
 #[derive(Clone, Debug)]
@@ -90,6 +90,14 @@ impl Ord for SearchNode {
 
 pub type BindingMap = Vec<(String, Vec<VariantSnapshot>)>;
 
+/// A unique identity for a plan branch used for cycle detection and search space pruning.
+pub type SearchFingerprint = (
+    usize,                          // goal_index
+    Vec<(usize, PreconditionSpec)>, // open_preconditions
+    Vec<(usize, RequirementSpec)>,  // open_requirements
+    BranchState,
+);
+
 /// A request for background discovery simulation or precondition check.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum DiscoveryRequest {
@@ -146,16 +154,9 @@ impl PlanBranch {
     }
 
     /// Returns a unique identity for this branch based on its goal, open needs, and state.
-    /// 
+    ///
     /// Used for cycle detection and search space pruning.
-    pub fn fingerprint(
-        &self,
-    ) -> (
-        usize,
-        Vec<(usize, PreconditionSpec)>,
-        Vec<(usize, RequirementSpec)>,
-        BranchState,
-    ) {
+    pub fn fingerprint(&self) -> SearchFingerprint {
         (
             self.goal_index,
             self.open_preconditions.clone(),
