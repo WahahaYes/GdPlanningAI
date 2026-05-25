@@ -142,18 +142,18 @@ impl PlannerEngine {
         }
 
             // 2. Main Search Loop
-            let mut iterations = 0;
-            while let Some(mut node) = self.queue.pop() {
-                iterations += 1;
-                
-                // Optimality check: If the best node's priority (g + h) is already worse than our best plan, 
-                // and we want the best cost, we can stop.
-                if self.termination == TerminationStrategy::BestCost && node.priority() >= self.best_cost {
-                    self.queue.push(node); // Put it back for next time if needed
-                    break;
-                }
+        let mut iterations = 0;
+        while let Some(mut node) = self.queue.pop() {
+            iterations += 1;
+            
+            // Optimality check: If the best node's priority (g + h) is already worse than our best plan, 
+            // and we want the best cost, we can stop.
+            if self.termination == TerminationStrategy::BestCost && node.priority() >= self.best_cost {
+                self.queue.push(node); // Put it back for next time if needed
+                break;
+            }
 
-                // Increase budget for local tests
+            // Increase budget for local tests
             if iterations > 10000 {
                 self.queue.push(node);
                 return PlannerRunResult::Pending(0);
@@ -167,7 +167,9 @@ impl PlannerEngine {
             if !node.resumed && node.branch.state == BranchState::Searching {
                 let fp = node.branch.fingerprint();
                 if let Some(&prev_cost) = self.visited.get(&fp) {
-                    if node.branch.cost >= prev_cost { continue; }
+                    if node.branch.cost >= prev_cost {
+                        continue; 
+                    }
                 }
                 self.visited.insert(fp, node.branch.cost);
             }
@@ -418,14 +420,37 @@ impl PlannerEngine {
                     return StepResult::Ready(());
                 }
                 BranchState::Rippling => {
+                    // Check if the simulation we just finished satisfied any goal preconditions
+                    // (preconditions at the end of the chain)
+                    let mut i = 0;
+                    while i < branch.open_preconditions.len() {
+                        if branch.open_preconditions[i].0 == branch.action_chain.len() {
+                            let pre = &branch.open_preconditions[i].1;
+                            if let Some(true) = pre.evaluate_builtin(&branch.current_agent, &branch.current_world) {
+                                branch.open_preconditions.remove(i);
+                                continue;
+                            }
+                        }
+                        i += 1;
+                    }
+
                     branch.state = BranchState::Searching;
                     return StepResult::Ready(());
                 }
                 BranchState::Verifying => {
                     // Final success!
                     // Check if all goal preconditions were actually met
-                    let has_open_here = branch.open_preconditions.iter().any(|(pos, _)| *pos == branch.simulation_index);
-                    if has_open_here {
+                    let has_open_preconds = branch.open_preconditions.iter().any(|(pos, _)| *pos == branch.simulation_index);
+                    if has_open_preconds {
+                        log_debug!("Verifying branch FAILED: open preconditions remain at end of chain");
+                        return StepResult::Invalid;
+                    }
+                    
+                    // Ensure no requirements remain open anywhere in the chain
+                    if !branch.open_requirements.is_empty() {
+                        log_debug!("Verifying branch FAILED: {} open requirements remain: {:?}", 
+                            branch.open_requirements.len(),
+                            branch.open_requirements);
                         return StepResult::Invalid;
                     }
 

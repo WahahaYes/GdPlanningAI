@@ -67,10 +67,7 @@ func simulate_effect(
 	var hunger_restored: float
 	var held_item_id: String
 
-	if held_item != null and (held_item is String or held_item is StringName):
-		held_item_id = String(held_item)
-
-	# During backward planning, this action may be considered before its
+	# Durante backward planning, this action may be considered before its
 	# held_item requirement has been satisfied. Use a conservative optimistic
 	# restore so the planner can recognize the action as relevant, then rely on
 	# get_requirements() and forward validation to require a real provided item.

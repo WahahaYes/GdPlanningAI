@@ -131,6 +131,7 @@ func test_real_hunger_example_shakes_tree_then_picks_up_food() -> void:
 	await _pump_frames(3)
 
 	agent.blackboard.set_property("hunger", 0.0)
+	agent.blackboard.set_property("held_item", "")
 	var first_plan: Array[Action] = await _start_plan_and_wait(agent)
 	if first_plan.is_empty():
 		fail_test("Agent should plan while full, but got empty plan")

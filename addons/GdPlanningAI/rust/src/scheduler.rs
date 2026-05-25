@@ -178,7 +178,6 @@ impl GdPAIPlanScheduler {
         for job in self.active_jobs.iter_mut().filter(|j| !j.done && j.agent_instance_id == agent_instance_id) {
             job.cancel_flag.store(true, std::sync::atomic::Ordering::Relaxed);
         }
-
         let snap_agent = BlackboardSnapshot::from_blackboard(&agent_bb.bind());
         let snap_world = BlackboardSnapshot::from_blackboard(&world_bb.bind());
         let mut initial_provisions = crate::requirement::extract_initial_provisions(&snap_agent);
