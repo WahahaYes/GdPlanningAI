@@ -22,7 +22,7 @@ pub struct SimResult {
     pub cost: f64,
 }
 
-/// Parameters for action simulation to avoid too many arguments.
+/// Parameters for action simulation.
 pub struct SimArgs<'a> {
     pub agent: &'a BlackboardSnapshot,
     pub world: &'a BlackboardSnapshot,
