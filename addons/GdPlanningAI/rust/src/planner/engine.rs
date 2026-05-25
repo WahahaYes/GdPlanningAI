@@ -1,15 +1,15 @@
-use crate::plan_types::*;
 use crate::plan_tree::PlanResult;
-use crate::snapshot::VariantSnapshot;
-use crate::requirement::{RequirementSpec, ProvisionSpec, provision_satisfies_requirement};
+use crate::plan_types::*;
+use crate::planner::simulation::{StepResult, eval_precondition, simulate_action};
 use crate::planner::types::*;
-use crate::planner::simulation::{eval_precondition, simulate_action, StepResult};
+use crate::requirement::{ProvisionSpec, RequirementSpec, provision_satisfies_requirement};
+use crate::snapshot::VariantSnapshot;
 
-use crate::planner::expander::find_candidates;
 use super::{SearchAlgorithm, TerminationStrategy};
+use crate::planner::expander::find_candidates;
+use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
-use std::collections::{HashMap, BinaryHeap, HashSet};
 use std::sync::mpsc::{Receiver, Sender};
 
 pub struct PlannerEngine {
@@ -18,15 +18,23 @@ pub struct PlannerEngine {
     pub cancel_flag: Arc<AtomicBool>,
     pub response_rx: Receiver<PlannerCallback>,
     pub response_tx: Sender<PlannerCallback>,
-    
+
     // Config
     pub algorithm: SearchAlgorithm,
     pub termination: TerminationStrategy,
-    
+
     // Search State
     pub queue: BinaryHeap<SearchNode>,
     pub parked_nodes: HashMap<usize, Vec<SearchNode>>,
-    pub visited: HashMap<(usize, Vec<(usize, PreconditionSpec)>, Vec<(usize, RequirementSpec)>, BranchState), f64>,
+    pub visited: HashMap<
+        (
+            usize,
+            Vec<(usize, PreconditionSpec)>,
+            Vec<(usize, RequirementSpec)>,
+            BranchState,
+        ),
+        f64,
+    >,
     pub best_plan: Option<PlanResult>,
     pub best_cost: f64,
     pub current_goal_index: usize,
@@ -52,11 +60,11 @@ impl PlannerEngine {
         }
     }
 
-    pub fn with_search_algorithm(mut self, alg: SearchAlgorithm) -> Self { 
+    pub fn with_search_algorithm(mut self, alg: SearchAlgorithm) -> Self {
         self.algorithm = alg;
         self
     }
-    pub fn with_termination_strategy(mut self, strat: TerminationStrategy) -> Self { 
+    pub fn with_termination_strategy(mut self, strat: TerminationStrategy) -> Self {
         self.termination = strat;
         self
     }
@@ -79,7 +87,7 @@ impl PlannerEngine {
         for pre in &goal.desired_state {
             branch.open_preconditions.push((0, pre.clone()));
         }
-        
+
         self.queue.push(SearchNode {
             branch,
             resumed: false,
@@ -99,17 +107,22 @@ impl PlannerEngine {
             if let Some(req) = discovery_req {
                 match req {
                     DiscoveryRequest::Simulation(idx, bindings) => {
-                        if let CallbackResponse::UpdatedSnapshots(ref agent, ref world) = callback.response {
+                        if let CallbackResponse::UpdatedSnapshots(ref agent, ref world) =
+                            callback.response
+                        {
                             let mut cache = self.ctx.discovery_results.lock().unwrap();
                             let cost = {
                                 let costs = self.ctx.discovery_costs.lock().unwrap();
                                 costs.get(&(idx, bindings.clone())).cloned().unwrap_or(1.0)
                             };
-                            cache.insert((idx, bindings.clone()), DiscoveryResult { 
-                                agent: agent.clone(), 
-                                world: world.clone(), 
-                                cost
-                            });
+                            cache.insert(
+                                (idx, bindings.clone()),
+                                DiscoveryResult {
+                                    agent: agent.clone(),
+                                    world: world.clone(),
+                                    cost,
+                                },
+                            );
                         } else if let CallbackResponse::Float(cost) = callback.response {
                             let mut costs = self.ctx.discovery_costs.lock().unwrap();
                             costs.insert((idx, bindings.clone()), cost);
@@ -141,14 +154,16 @@ impl PlannerEngine {
             }
         }
 
-            // 2. Main Search Loop
+        // 2. Main Search Loop
         let mut iterations = 0;
         while let Some(mut node) = self.queue.pop() {
             iterations += 1;
-            
-            // Optimality check: If the best node's priority (g + h) is already worse than our best plan, 
+
+            // Optimality check: If the best node's priority (g + h) is already worse than our best plan,
             // and we want the best cost, we can stop.
-            if self.termination == TerminationStrategy::BestCost && node.priority() >= self.best_cost {
+            if self.termination == TerminationStrategy::BestCost
+                && node.priority() >= self.best_cost
+            {
                 self.queue.push(node); // Put it back for next time if needed
                 break;
             }
@@ -166,33 +181,35 @@ impl PlannerEngine {
             // Visited check
             if !node.resumed && node.branch.state == BranchState::Searching {
                 let fp = node.branch.fingerprint();
-                if let Some(&prev_cost) = self.visited.get(&fp) {
-                    if node.branch.cost >= prev_cost {
-                        continue; 
-                    }
+                if let Some(&prev_cost) = self.visited.get(&fp)
+                    && node.branch.cost >= prev_cost
+                {
+                    continue;
                 }
                 self.visited.insert(fp, node.branch.cost);
             }
             node.resumed = false;
 
             // 3. State Machine Processing
-            if node.branch.cost >= self.best_cost { continue; }
+            if node.branch.cost >= self.best_cost {
+                continue;
+            }
 
             match node.branch.state {
                 BranchState::Initializing | BranchState::Rippling | BranchState::Verifying => {
                     match self.process_simulation(&mut node) {
                         StepResult::Ready(_) => self.queue.push(node),
                         StepResult::Pending(id) => {
-                            self.parked_nodes.entry(id).or_insert_with(Vec::new).push(node);
+                            self.parked_nodes.entry(id).or_default().push(node);
                         }
                         StepResult::Invalid => {}
                         StepResult::Complete => {
                             // Verification pass finished and updated best_plan.
                             // If strategy is FirstComplete, we are done.
-                            if self.termination == TerminationStrategy::FirstComplete {
-                                if let Some(plan) = self.best_plan.take() {
-                                    return PlannerRunResult::Complete(Some(plan));
-                                }
+                            if self.termination == TerminationStrategy::FirstComplete
+                                && let Some(plan) = self.best_plan.take()
+                            {
+                                return PlannerRunResult::Complete(Some(plan));
                             }
                             // Otherwise (BestCost), we just discard this branch and keep searching.
                         }
@@ -200,67 +217,95 @@ impl PlannerEngine {
                 }
                 BranchState::Searching => {
                     // Check if Goal Satisfied
-                    if node.branch.open_preconditions.is_empty() && node.branch.open_requirements.is_empty() {
+                    if node.branch.open_preconditions.is_empty()
+                        && node.branch.open_requirements.is_empty()
+                    {
                         node.branch.state = BranchState::Verifying;
                         node.branch.simulation_index = 0;
                         node.branch.current_agent = self.ctx.initial_agent.clone();
                         node.branch.current_world = self.ctx.initial_world.clone();
                         // node.branch.cost = 0.0; // DON'T reset cost, keep the symbolic estimate for priority
                         self.queue.push(node);
-                        
+
                         // If we are looking for any plan, we've found our candidate.
                         // But we still need to Verify it.
                         continue;
                     }
 
                     // Expand
-                    if node.branch.action_chain.len() >= self.max_depth { continue; }
-                    match find_candidates(&node.branch, &*self.ctx, node.callback_response.as_ref()) {
+                    if node.branch.action_chain.len() >= self.max_depth {
+                        continue;
+                    }
+                    match find_candidates(&node.branch, &self.ctx, node.callback_response.as_ref())
+                    {
                         StepResult::Ready(candidates) => {
                             for cand in candidates {
                                 let mut new_branch = node.branch.clone();
                                 let action = &self.ctx.actions[cand.action_idx];
-                                
+
                                 // Prepend action
                                 new_branch.action_chain.insert(0, cand.action_idx);
                                 let discovery_cost = {
                                     let cache = self.ctx.discovery_results.lock().unwrap();
-                                    cache.get(&(cand.action_idx, cand.bindings.clone())).map(|r| r.cost).unwrap_or(1.0)
+                                    cache
+                                        .get(&(cand.action_idx, cand.bindings.clone()))
+                                        .map(|r| r.cost)
+                                        .unwrap_or(1.0)
                                 };
                                 new_branch.action_costs.insert(0, discovery_cost);
-                                
+
                                 // Update indices of existing needs and bindings
-                                for (pos, _) in new_branch.open_preconditions.iter_mut() { *pos += 1; }
-                                for (pos, _) in new_branch.open_requirements.iter_mut() { *pos += 1; }
-                                for (pos, _, _) in new_branch.action_bindings.iter_mut() { *pos += 1; }
+                                for (pos, _) in new_branch.open_preconditions.iter_mut() {
+                                    *pos += 1;
+                                }
+                                for (pos, _) in new_branch.open_requirements.iter_mut() {
+                                    *pos += 1;
+                                }
+                                for (pos, _, _) in new_branch.action_bindings.iter_mut() {
+                                    *pos += 1;
+                                }
 
                                 // 1. Record and remove satisfied requirements
                                 let mut new_bindings = Vec::new();
-                                let reqs_to_remove: HashSet<usize> = cand.satisfied_requirements.iter().map(|(idx, _, _)| *idx).collect();
+                                let reqs_to_remove: HashSet<usize> = cand
+                                    .satisfied_requirements
+                                    .iter()
+                                    .map(|(idx, _, _)| *idx)
+                                    .collect();
                                 for (req_idx_in_branch, req, prov) in cand.satisfied_requirements {
-                                    let consumer_pos = new_branch.open_requirements[req_idx_in_branch].0;
-                                    
+                                    let consumer_pos =
+                                        new_branch.open_requirements[req_idx_in_branch].0;
+
                                     let (binding_name, values) = match (&prov, &req) {
-                                        (ProvisionSpec::Binding { binding_name, value }, _) => {
-                                            (binding_name.clone(), vec![value.clone()])
-                                        }
+                                        (
+                                            ProvisionSpec::Binding {
+                                                binding_name,
+                                                value,
+                                            },
+                                            _,
+                                        ) => (binding_name.clone(), vec![value.clone()]),
                                         (ProvisionSpec::Fact { fact_name, args }, _) => {
                                             (fact_name.clone(), args.clone())
                                         }
-                                        (ProvisionSpec::FactWildcard { fact_name }, RequirementSpec::Fact { args, .. }) => {
-                                            (fact_name.clone(), args.clone())
-                                        }
+                                        (
+                                            ProvisionSpec::FactWildcard { fact_name },
+                                            RequirementSpec::Fact { args, .. },
+                                        ) => (fact_name.clone(), args.clone()),
                                         _ => (String::new(), vec![]),
                                     };
 
                                     if !binding_name.is_empty() {
                                         // Associate with provider (the newly prepended action at pos 0)
-                                        new_bindings.push((0, binding_name.clone(), values.clone()));
+                                        new_bindings.push((
+                                            0,
+                                            binding_name.clone(),
+                                            values.clone(),
+                                        ));
                                         // Associate with consumer (already offset by 1 during increment above)
                                         new_bindings.push((consumer_pos, binding_name, values));
                                     }
                                 }
-                                
+
                                 let mut j = 0;
                                 let mut removed_count = 0;
                                 while j < new_branch.open_requirements.len() {
@@ -273,7 +318,8 @@ impl PlannerEngine {
                                 }
 
                                 // 2. Remove satisfied preconditions
-                                let preconds_to_remove: HashSet<usize> = cand.satisfied_preconditions.iter().map(|idx| *idx).collect();
+                                let preconds_to_remove: HashSet<usize> =
+                                    cand.satisfied_preconditions.iter().copied().collect();
                                 let mut k = 0;
                                 let mut removed_pre_count = 0;
                                 while k < new_branch.open_preconditions.len() {
@@ -284,7 +330,7 @@ impl PlannerEngine {
                                         k += 1;
                                     }
                                 }
-                                
+
                                 // Add the new bindings for the prepended action
                                 new_branch.action_bindings.extend(new_bindings);
 
@@ -302,7 +348,7 @@ impl PlannerEngine {
                                 new_branch.current_agent = self.ctx.initial_agent.clone();
                                 new_branch.current_world = self.ctx.initial_world.clone();
                                 new_branch.recalculate_cost();
-                                
+
                                 self.queue.push(SearchNode {
                                     branch: new_branch,
                                     resumed: false,
@@ -311,10 +357,12 @@ impl PlannerEngine {
                             }
                         }
                         StepResult::Pending(id) => {
-                            self.parked_nodes.entry(id).or_insert_with(Vec::new).push(node);
+                            self.parked_nodes.entry(id).or_default().push(node);
                         }
                         StepResult::Invalid => {}
-                        StepResult::Complete => unreachable!("find_candidates cannot return Complete"),
+                        StepResult::Complete => {
+                            unreachable!("find_candidates cannot return Complete")
+                        }
                     }
                 }
             }
@@ -347,17 +395,22 @@ impl PlannerEngine {
     #[allow(unused_assignments)]
     fn process_simulation(&mut self, node: &mut SearchNode) -> StepResult<()> {
         let branch = &mut node.branch;
-        
+
         // 0. Check open requirements for current index against InitialState or previous action
         if branch.simulation_index == 0 {
             // InitialState provisions satisfy requirements at pos 0
             branch.open_requirements.retain(|(pos, req)| {
-                !(*pos == 0 && self.ctx.initial_provisions.iter().any(|prov| provision_satisfies_requirement(prov, req, Some(&self.ctx.initial_world))))
+                !(*pos == 0
+                    && self.ctx.initial_provisions.iter().any(|prov| {
+                        provision_satisfies_requirement(prov, req, Some(&self.ctx.initial_world))
+                    }))
             });
         }
 
         // Gather bindings for current simulation_index
-        let current_bindings: Vec<(String, Vec<VariantSnapshot>)> = branch.action_bindings.iter()
+        let current_bindings: Vec<(String, Vec<VariantSnapshot>)> = branch
+            .action_bindings
+            .iter()
             .filter(|(pos, _, _)| *pos == branch.simulation_index)
             .map(|(_, name, vals)| (name.clone(), vals.clone()))
             .collect();
@@ -366,10 +419,17 @@ impl PlannerEngine {
         let mut i = 0;
         while i < branch.open_preconditions.len() {
             if branch.open_preconditions[i].0 == branch.simulation_index {
-                match eval_precondition(&branch.open_preconditions[i].1, &branch.current_agent, &branch.current_world, &*self.ctx, node.callback_response.as_ref(), &current_bindings) {
+                match eval_precondition(
+                    &branch.open_preconditions[i].1,
+                    &branch.current_agent,
+                    &branch.current_world,
+                    &self.ctx,
+                    node.callback_response.as_ref(),
+                    &current_bindings,
+                ) {
                     StepResult::Ready(true) => {
                         branch.open_preconditions.remove(i);
-                        node.callback_response = None; 
+                        node.callback_response = None;
                         // We satisfied one precond. Instead of looping, we return Ready
                         // so the engine re-queues us and we check the next one in the next iteration.
                         // This is slightly slower but MUCH safer for async.
@@ -380,7 +440,9 @@ impl PlannerEngine {
                     }
                     StepResult::Pending(id) => return StepResult::Pending(id),
                     StepResult::Invalid => return StepResult::Invalid,
-                    StepResult::Complete => unreachable!("eval_precondition cannot return Complete"),
+                    StepResult::Complete => {
+                        unreachable!("eval_precondition cannot return Complete")
+                    }
                 }
             }
             i += 1;
@@ -389,27 +451,37 @@ impl PlannerEngine {
         // 2. Step simulation forward
         if branch.simulation_index < branch.action_chain.len() {
             let action_idx = branch.action_chain[branch.simulation_index];
-            match simulate_action(action_idx, &branch.current_agent, &branch.current_world, &*self.ctx, node.callback_response.as_ref(), &mut branch.action_costs, branch.simulation_index, &current_bindings) {
+            match simulate_action(
+                action_idx,
+                &branch.current_agent,
+                &branch.current_world,
+                &self.ctx,
+                node.callback_response.as_ref(),
+                &mut branch.action_costs,
+                branch.simulation_index,
+                &current_bindings,
+            ) {
                 StepResult::Ready(res) => {
                     branch.current_agent = res.agent;
                     branch.current_world = res.world;
                     // branch.cost += res.cost; // Handled by action_costs and recalculate_cost
-                    
+
                     // Mark requirements satisfied by this action's provisions
                     let action = &self.ctx.actions[action_idx];
                     for prov in &action.provisions {
                         branch.open_requirements.retain(|(pos, req)| {
-                            !(*pos > branch.simulation_index && provision_satisfies_requirement(prov, req, None))
+                            !(*pos > branch.simulation_index
+                                && provision_satisfies_requirement(prov, req, None))
                         });
                     }
 
                     branch.simulation_index += 1;
                     branch.recalculate_cost();
                     node.callback_response = None;
-                    return StepResult::Ready(());
+                    StepResult::Ready(())
                 }
-                StepResult::Pending(id) => return StepResult::Pending(id),
-                StepResult::Invalid => return StepResult::Invalid,
+                StepResult::Pending(id) => StepResult::Pending(id),
+                StepResult::Invalid => StepResult::Invalid,
                 StepResult::Complete => unreachable!("simulate_action cannot return Complete"),
             }
         } else {
@@ -426,7 +498,9 @@ impl PlannerEngine {
                     while i < branch.open_preconditions.len() {
                         if branch.open_preconditions[i].0 == branch.action_chain.len() {
                             let pre = &branch.open_preconditions[i].1;
-                            if let Some(true) = pre.evaluate_builtin(&branch.current_agent, &branch.current_world) {
+                            if let Some(true) =
+                                pre.evaluate_builtin(&branch.current_agent, &branch.current_world)
+                            {
                                 branch.open_preconditions.remove(i);
                                 continue;
                             }
@@ -440,17 +514,24 @@ impl PlannerEngine {
                 BranchState::Verifying => {
                     // Final success!
                     // Check if all goal preconditions were actually met
-                    let has_open_preconds = branch.open_preconditions.iter().any(|(pos, _)| *pos == branch.simulation_index);
+                    let has_open_preconds = branch
+                        .open_preconditions
+                        .iter()
+                        .any(|(pos, _)| *pos == branch.simulation_index);
                     if has_open_preconds {
-                        log_debug!("Verifying branch FAILED: open preconditions remain at end of chain");
+                        log_debug!(
+                            "Verifying branch FAILED: open preconditions remain at end of chain"
+                        );
                         return StepResult::Invalid;
                     }
-                    
+
                     // Ensure no requirements remain open anywhere in the chain
                     if !branch.open_requirements.is_empty() {
-                        log_debug!("Verifying branch FAILED: {} open requirements remain: {:?}", 
+                        log_debug!(
+                            "Verifying branch FAILED: {} open requirements remain: {:?}",
                             branch.open_requirements.len(),
-                            branch.open_requirements);
+                            branch.open_requirements
+                        );
                         return StepResult::Invalid;
                     }
 
@@ -462,17 +543,19 @@ impl PlannerEngine {
                             total_cost: branch.cost,
                             goal_index: branch.goal_index as i64,
                             deferred_action_indices: vec![],
-                            action_bindings: branch.action_bindings.iter()
+                            action_bindings: branch
+                                .action_bindings
+                                .iter()
                                 .map(|(pos, name, vals)| (*pos as i64, name.clone(), vals.clone()))
                                 .collect(),
                         });
                     }
-                    
+
                     return StepResult::Complete;
                 }
                 BranchState::Searching => return StepResult::Ready(()),
             }
-            
+
             StepResult::Ready(())
         }
     }

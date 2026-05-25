@@ -40,10 +40,7 @@ func get_preconditions() -> Array[Precondition]:
 func get_requirements() -> Array[RequirementSpec]:
 	# Require that held_item binding exists.
 	# We also require a symbolic 'is_food' fact to ensure the held item is edible.
-	return [
-		RequirementSpec.binding_exists("held_item"),
-		RequirementSpec.fact("is_food", [])
-	]
+	return [RequirementSpec.binding_exists("held_item"), RequirementSpec.fact("is_food", [])]
 
 
 # Override

@@ -1,8 +1,8 @@
 use crate::plan_types::*;
-use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use crate::requirement::{ProvisionSpec, RequirementSpec};
-use std::sync::mpsc::Sender;
+use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use std::collections::HashMap;
+use std::sync::mpsc::Sender;
 
 use std::cmp::Ordering;
 
@@ -19,14 +19,14 @@ pub struct PlanBranch {
     pub action_chain: Vec<usize>, // Indices into ctx.actions
     pub action_costs: Vec<f64>,   // Costs of actions in the chain (filled during simulation)
     pub action_bindings: Vec<(usize, String, Vec<VariantSnapshot>)>, // (chain_pos, fact_name, values)
-    pub open_preconditions: Vec<(usize, PreconditionSpec)>, // (consumer_pos, spec)
-    pub open_requirements: Vec<(usize, RequirementSpec)>, // (consumer_pos, spec)
+    pub open_preconditions: Vec<(usize, PreconditionSpec)>,          // (consumer_pos, spec)
+    pub open_requirements: Vec<(usize, RequirementSpec)>,            // (consumer_pos, spec)
     pub state: BranchState,
     pub goal_index: usize,
     pub simulation_index: usize,
     pub current_agent: BlackboardSnapshot,
     pub current_world: BlackboardSnapshot,
-    pub cost: f64,          // Grounded cost (accumulated during simulation)
+    pub cost: f64, // Grounded cost (accumulated during simulation)
 }
 
 #[derive(Clone, Debug)]
@@ -61,7 +61,10 @@ impl PartialOrd for SearchNode {
 impl Ord for SearchNode {
     fn cmp(&self, other: &Self) -> Ordering {
         // BinaryHeap is a max-heap, so we invert the comparison for a min-heap
-        other.priority().partial_cmp(&self.priority()).unwrap_or(Ordering::Equal)
+        other
+            .priority()
+            .partial_cmp(&self.priority())
+            .unwrap_or(Ordering::Equal)
     }
 }
 
@@ -69,7 +72,7 @@ pub type BindingMap = Vec<(String, Vec<VariantSnapshot>)>;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum DiscoveryRequest {
-    Simulation(usize, BindingMap),                     // action_idx, bindings
+    Simulation(usize, BindingMap), // action_idx, bindings
     Precondition(usize, PreconditionSpec, BindingMap), // action_idx, spec, bindings
 }
 
@@ -80,16 +83,18 @@ pub struct SearchContext {
     pub initial_provisions: Vec<ProvisionSpec>,
     pub request_tx: Sender<CallbackRequest>,
     pub engine_response_tx: Sender<PlannerCallback>,
-    
+
     // Discovery Cache (Thread-safe)
     pub discovery_results: std::sync::Mutex<HashMap<(usize, BindingMap), DiscoveryResult>>,
     pub discovery_costs: std::sync::Mutex<HashMap<(usize, BindingMap), f64>>,
     pub discovery_pending: std::sync::Mutex<HashMap<(usize, BindingMap), usize>>, // action_idx, bindings -> request_id
     pub discovery_request_map: std::sync::Mutex<HashMap<usize, DiscoveryRequest>>, // request_id -> DiscoveryRequest
-    
+
     // Precondition Caching for Discovery (Initial State)
-    pub discovery_precond_results: std::sync::Mutex<HashMap<(usize, PreconditionSpec, BindingMap), bool>>,
-    pub discovery_precond_pending: std::sync::Mutex<HashMap<(usize, PreconditionSpec, BindingMap), usize>>,
+    pub discovery_precond_results:
+        std::sync::Mutex<HashMap<(usize, PreconditionSpec, BindingMap), bool>>,
+    pub discovery_precond_pending:
+        std::sync::Mutex<HashMap<(usize, PreconditionSpec, BindingMap), usize>>,
 }
 
 #[derive(Clone)]
@@ -116,8 +121,20 @@ impl PlanBranch {
         }
     }
 
-    pub fn fingerprint(&self) -> (usize, Vec<(usize, PreconditionSpec)>, Vec<(usize, RequirementSpec)>, BranchState) {
-        (self.goal_index, self.open_preconditions.clone(), self.open_requirements.clone(), self.state.clone())
+    pub fn fingerprint(
+        &self,
+    ) -> (
+        usize,
+        Vec<(usize, PreconditionSpec)>,
+        Vec<(usize, RequirementSpec)>,
+        BranchState,
+    ) {
+        (
+            self.goal_index,
+            self.open_preconditions.clone(),
+            self.open_requirements.clone(),
+            self.state.clone(),
+        )
     }
 
     pub fn recalculate_cost(&mut self) {

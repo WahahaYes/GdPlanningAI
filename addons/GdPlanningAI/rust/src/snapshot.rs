@@ -217,7 +217,10 @@ mod tests {
     fn make_test_snapshot() -> BlackboardSnapshot {
         let mut properties = HashMap::new();
         properties.insert("health".to_string(), VariantSnapshot::Int(100));
-        properties.insert("stamina".to_string(), VariantSnapshot::Float(75.5f64.to_bits()));
+        properties.insert(
+            "stamina".to_string(),
+            VariantSnapshot::Float(75.5f64.to_bits()),
+        );
         properties.insert(
             "name".to_string(),
             VariantSnapshot::Str("TestAgent".to_string()),

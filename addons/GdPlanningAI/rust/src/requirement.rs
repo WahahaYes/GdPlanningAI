@@ -99,7 +99,10 @@ impl RequirementSpec {
 impl std::hash::Hash for ProvisionSpec {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         match self {
-            Self::Binding { binding_name, value } => {
+            Self::Binding {
+                binding_name,
+                value,
+            } => {
                 0.hash(state);
                 binding_name.hash(state);
                 value.hash(state);
@@ -296,12 +299,12 @@ pub fn provision_satisfies_requirement(
             }
 
             // If we have world context, check if the provided object is in the requested set
-            if let Some(w) = world {
-                if let crate::snapshot::VariantSnapshot::ObjectRef(id) = provided_value {
-                    let uid = id.to_string();
-                    if let Some(obj_data) = w.objects.get(&uid) {
-                        return obj_data.groups.contains(set_name);
-                    }
+            if let Some(w) = world
+                && let crate::snapshot::VariantSnapshot::ObjectRef(id) = provided_value
+            {
+                let uid = id.to_string();
+                if let Some(obj_data) = w.objects.get(&uid) {
+                    return obj_data.groups.contains(set_name);
                 }
             }
 

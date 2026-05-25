@@ -1,7 +1,6 @@
 use crate::plan_types::*;
-use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use crate::planner::types::SearchContext;
-
+use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
 
 pub enum StepResult<T> {
     Ready(T),
@@ -29,7 +28,6 @@ pub fn eval_precondition(
             StepResult::Ready(spec.evaluate_builtin(agent, world).unwrap_or(false))
         }
         PreconditionSpec::Custom { callable_id, .. } => {
-
             if let Some(CallbackResponse::Bool(b)) = response {
                 return StepResult::Ready(*b);
             }
@@ -61,10 +59,12 @@ pub fn simulate_action(
     bindings: &[(String, Vec<VariantSnapshot>)],
 ) -> StepResult<SimResult> {
     let action = &ctx.actions[action_idx];
-    
+
     // 1. Evaluate Cost
     let cost = if let Some(id) = action.cost_callable_id {
-        if simulation_index < branch_action_costs.len() && branch_action_costs[simulation_index] >= 0.0 {
+        if simulation_index < branch_action_costs.len()
+            && branch_action_costs[simulation_index] >= 0.0
+        {
             branch_action_costs[simulation_index]
         } else if let Some(CallbackResponse::Float(f)) = response {
             if simulation_index < branch_action_costs.len() {
@@ -93,7 +93,7 @@ pub fn simulate_action(
     if cost == f64::INFINITY {
         return StepResult::Invalid;
     }
-    
+
     // Ensure the cost is recorded even for actions without a cost callable
     if simulation_index < branch_action_costs.len() {
         branch_action_costs[simulation_index] = cost;

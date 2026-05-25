@@ -1,8 +1,9 @@
 use crate::plan_types::*;
-use crate::planner::types::{SearchContext, PlanBranch, DiscoveryResult, DiscoveryRequest, BindingMap};
-use crate::planner::simulation::{StepResult, simulate_action, eval_precondition};
-use crate::requirement::{provision_satisfies_requirement, RequirementSpec, ProvisionSpec};
-
+use crate::planner::simulation::{StepResult, eval_precondition, simulate_action};
+use crate::planner::types::{
+    BindingMap, DiscoveryRequest, DiscoveryResult, PlanBranch, SearchContext,
+};
+use crate::requirement::{ProvisionSpec, RequirementSpec, provision_satisfies_requirement};
 
 pub struct Candidate {
     pub action_idx: usize,
@@ -14,7 +15,13 @@ pub struct Candidate {
 fn get_bindings_for_match(prov: &ProvisionSpec, req: &RequirementSpec) -> BindingMap {
     let mut bindings = Vec::new();
     match (prov, req) {
-        (ProvisionSpec::Binding { binding_name, value }, _) => {
+        (
+            ProvisionSpec::Binding {
+                binding_name,
+                value,
+            },
+            _,
+        ) => {
             bindings.push((binding_name.clone(), vec![value.clone()]));
         }
         (ProvisionSpec::Fact { fact_name, args }, _) => {
@@ -53,10 +60,24 @@ fn get_discovery_result(
     // 3. Start discovery simulation
     let mut cost_cache = {
         let costs = ctx.discovery_costs.lock().unwrap();
-        vec![costs.get(&(action_idx, bindings.clone())).cloned().unwrap_or(-1.0)]
+        vec![
+            costs
+                .get(&(action_idx, bindings.clone()))
+                .cloned()
+                .unwrap_or(-1.0),
+        ]
     };
 
-    match simulate_action(action_idx, &ctx.initial_agent, &ctx.initial_world, ctx, response, &mut cost_cache, 0, bindings) {
+    match simulate_action(
+        action_idx,
+        &ctx.initial_agent,
+        &ctx.initial_world,
+        ctx,
+        response,
+        &mut cost_cache,
+        0,
+        bindings,
+    ) {
         StepResult::Ready(res) => {
             let disc_res = DiscoveryResult {
                 agent: res.agent,
@@ -75,7 +96,10 @@ fn get_discovery_result(
             let mut pending = ctx.discovery_pending.lock().unwrap();
             pending.insert((action_idx, bindings.clone()), id);
             let mut req_map = ctx.discovery_request_map.lock().unwrap();
-            req_map.insert(id, DiscoveryRequest::Simulation(action_idx, bindings.clone()));
+            req_map.insert(
+                id,
+                DiscoveryRequest::Simulation(action_idx, bindings.clone()),
+            );
             StepResult::Pending(id)
         }
         StepResult::Invalid => StepResult::Invalid,
@@ -120,7 +144,14 @@ pub fn find_candidates(
                         break;
                     } else {
                         // Start request
-                        match eval_precondition(check, &ctx.initial_agent, &ctx.initial_world, ctx, response, &empty_bindings) {
+                        match eval_precondition(
+                            check,
+                            &ctx.initial_agent,
+                            &ctx.initial_world,
+                            ctx,
+                            response,
+                            &empty_bindings,
+                        ) {
                             StepResult::Ready(res) => {
                                 if !res {
                                     validity_failed = true;
@@ -130,7 +161,14 @@ pub fn find_candidates(
                             StepResult::Pending(id) => {
                                 pending.insert((idx, check.clone(), empty_bindings.clone()), id);
                                 let mut req_map = ctx.discovery_request_map.lock().unwrap();
-                                req_map.insert(id, DiscoveryRequest::Precondition(idx, check.clone(), empty_bindings));
+                                req_map.insert(
+                                    id,
+                                    DiscoveryRequest::Precondition(
+                                        idx,
+                                        check.clone(),
+                                        empty_bindings,
+                                    ),
+                                );
                                 some_pending = true;
                                 last_pending_id = id;
                                 validity_failed = true;
@@ -145,9 +183,14 @@ pub fn find_candidates(
                 }
             }
         }
-        if validity_failed { continue; }
+        if validity_failed {
+            continue;
+        }
 
-        let has_wildcard = action.provisions.iter().any(|p| matches!(p, ProvisionSpec::FactWildcard { .. }));
+        let has_wildcard = action
+            .provisions
+            .iter()
+            .any(|p| matches!(p, ProvisionSpec::FactWildcard { .. }));
 
         if has_wildcard {
             // Per-requirement candidates for actions with wildcards
@@ -158,28 +201,59 @@ pub fn find_candidates(
                         match get_discovery_result(idx, &bindings, ctx, response) {
                             StepResult::Ready(res) => {
                                 let mut satisfied_preconditions = Vec::new();
-                                for (pre_idx, (_pos, pre)) in branch.open_preconditions.iter().enumerate() {
-                                    if let Some(eval_res) = pre.evaluate_builtin(&res.agent, &res.world) {
-                                        if eval_res { satisfied_preconditions.push(pre_idx); }
+                                for (pre_idx, (_pos, pre)) in
+                                    branch.open_preconditions.iter().enumerate()
+                                {
+                                    if let Some(eval_res) =
+                                        pre.evaluate_builtin(&res.agent, &res.world)
+                                    {
+                                        if eval_res {
+                                            satisfied_preconditions.push(pre_idx);
+                                        }
                                     } else {
                                         // Custom precond check with specific discovery bindings
                                         let cache = ctx.discovery_precond_results.lock().unwrap();
-                                        if let Some(&eval_res) = cache.get(&(idx, pre.clone(), bindings.clone())) {
-                                            if eval_res { satisfied_preconditions.push(pre_idx); }
+                                        if let Some(&eval_res) =
+                                            cache.get(&(idx, pre.clone(), bindings.clone()))
+                                        {
+                                            if eval_res {
+                                                satisfied_preconditions.push(pre_idx);
+                                            }
                                         } else {
-                                            let mut pending = ctx.discovery_precond_pending.lock().unwrap();
-                                            if let Some(&id) = pending.get(&(idx, pre.clone(), bindings.clone())) {
+                                            let mut pending =
+                                                ctx.discovery_precond_pending.lock().unwrap();
+                                            if let Some(&id) =
+                                                pending.get(&(idx, pre.clone(), bindings.clone()))
+                                            {
                                                 some_pending = true;
                                                 last_pending_id = id;
                                             } else {
-                                                match eval_precondition(pre, &res.agent, &res.world, ctx, response, &bindings) {
+                                                match eval_precondition(
+                                                    pre, &res.agent, &res.world, ctx, response,
+                                                    &bindings,
+                                                ) {
                                                     StepResult::Ready(eval_res) => {
-                                                        if eval_res { satisfied_preconditions.push(pre_idx); }
+                                                        if eval_res {
+                                                            satisfied_preconditions.push(pre_idx);
+                                                        }
                                                     }
                                                     StepResult::Pending(id) => {
-                                                        pending.insert((idx, pre.clone(), bindings.clone()), id);
-                                                        let mut req_map = ctx.discovery_request_map.lock().unwrap();
-                                                        req_map.insert(id, DiscoveryRequest::Precondition(idx, pre.clone(), bindings.clone()));
+                                                        pending.insert(
+                                                            (idx, pre.clone(), bindings.clone()),
+                                                            id,
+                                                        );
+                                                        let mut req_map = ctx
+                                                            .discovery_request_map
+                                                            .lock()
+                                                            .unwrap();
+                                                        req_map.insert(
+                                                            id,
+                                                            DiscoveryRequest::Precondition(
+                                                                idx,
+                                                                pre.clone(),
+                                                                bindings.clone(),
+                                                            ),
+                                                        );
                                                         some_pending = true;
                                                         last_pending_id = id;
                                                     }
@@ -191,7 +265,11 @@ pub fn find_candidates(
                                 }
                                 candidates.push(Candidate {
                                     action_idx: idx,
-                                    satisfied_requirements: vec![(req_idx, req.clone(), prov.clone())],
+                                    satisfied_requirements: vec![(
+                                        req_idx,
+                                        req.clone(),
+                                        prov.clone(),
+                                    )],
                                     satisfied_preconditions,
                                     bindings,
                                 });
@@ -222,25 +300,53 @@ pub fn find_candidates(
                     let mut satisfied_preconditions = Vec::new();
                     for (pre_idx, (_pos, pre)) in branch.open_preconditions.iter().enumerate() {
                         if let Some(eval_res) = pre.evaluate_builtin(&res.agent, &res.world) {
-                            if eval_res { satisfied_preconditions.push(pre_idx); }
+                            if eval_res {
+                                satisfied_preconditions.push(pre_idx);
+                            }
                         } else {
                             let cache = ctx.discovery_precond_results.lock().unwrap();
-                            if let Some(&eval_res) = cache.get(&(idx, pre.clone(), empty_bindings.clone())) {
-                                if eval_res { satisfied_preconditions.push(pre_idx); }
+                            if let Some(&eval_res) =
+                                cache.get(&(idx, pre.clone(), empty_bindings.clone()))
+                            {
+                                if eval_res {
+                                    satisfied_preconditions.push(pre_idx);
+                                }
                             } else {
                                 let mut pending = ctx.discovery_precond_pending.lock().unwrap();
-                                if let Some(&id) = pending.get(&(idx, pre.clone(), empty_bindings.clone())) {
+                                if let Some(&id) =
+                                    pending.get(&(idx, pre.clone(), empty_bindings.clone()))
+                                {
                                     some_pending = true;
                                     last_pending_id = id;
                                 } else {
-                                    match eval_precondition(pre, &res.agent, &res.world, ctx, response, &empty_bindings) {
+                                    match eval_precondition(
+                                        pre,
+                                        &res.agent,
+                                        &res.world,
+                                        ctx,
+                                        response,
+                                        &empty_bindings,
+                                    ) {
                                         StepResult::Ready(eval_res) => {
-                                            if eval_res { satisfied_preconditions.push(pre_idx); }
+                                            if eval_res {
+                                                satisfied_preconditions.push(pre_idx);
+                                            }
                                         }
                                         StepResult::Pending(id) => {
-                                            pending.insert((idx, pre.clone(), empty_bindings.clone()), id);
-                                            let mut req_map = ctx.discovery_request_map.lock().unwrap();
-                                            req_map.insert(id, DiscoveryRequest::Precondition(idx, pre.clone(), empty_bindings.clone()));
+                                            pending.insert(
+                                                (idx, pre.clone(), empty_bindings.clone()),
+                                                id,
+                                            );
+                                            let mut req_map =
+                                                ctx.discovery_request_map.lock().unwrap();
+                                            req_map.insert(
+                                                id,
+                                                DiscoveryRequest::Precondition(
+                                                    idx,
+                                                    pre.clone(),
+                                                    empty_bindings.clone(),
+                                                ),
+                                            );
                                             some_pending = true;
                                             last_pending_id = id;
                                         }

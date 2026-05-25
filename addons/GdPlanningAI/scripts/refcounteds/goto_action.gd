@@ -58,14 +58,14 @@ func get_action_cost(
 	# We should prefer this over any previously stored target_location.
 	var actual_target = null
 	var binding = agent_blackboard.get_property("at_target")
-	
+
 	if binding != null:
 		if binding is Array:
 			if binding.size() > 0:
 				actual_target = binding[0]
 		else:
 			actual_target = binding
-	
+
 	# Fallback to stored target_location if no binding was found in blackboard.
 	if actual_target == null:
 		actual_target = target_location
@@ -74,7 +74,7 @@ func get_action_cost(
 		# During planning before any binding is considered, return a reasonable heuristic cost
 		# This allows the planner to consider GoToAction as a candidate
 		return 1.0
-		
+
 	var sim_location: SimObjectProxy = world_state.get_object_for(actual_target)
 	if sim_location == null:
 		# If it's an ID, try to resolve it from the world state anyway.
@@ -127,7 +127,7 @@ func simulate_effect(
 				actual_target = binding[0]
 		else:
 			actual_target = binding
-	
+
 	if actual_target == null:
 		actual_target = target_location
 

@@ -72,7 +72,7 @@ func simulate_effect(
 	agent_blackboard: GdPAIBlackboard,
 	_world_state: GdPAIBlackboard,
 ) -> void:
-	# Optimistically report hunger reduction during discovery so the planner 
+	# Optimistically report hunger reduction during discovery so the planner
 	# picks this action as a candidate for the Hunger goal.
 	var hunger = agent_blackboard.get_property("hunger")
 	if hunger != null:

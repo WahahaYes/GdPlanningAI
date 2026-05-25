@@ -1,11 +1,13 @@
 use gdplanningai_rust::plan_tree::PlanResult;
 use gdplanningai_rust::plan_types::{
-    ActionSpec, CallbackKind, CallbackRequest, CallbackResponse, GoalSpec, PreconditionSpec,
-    PlannerRunResult, PlannerCallback,
+    ActionSpec, CallbackKind, CallbackRequest, CallbackResponse, GoalSpec, PlannerCallback,
+    PlannerRunResult, PreconditionSpec,
+};
+use gdplanningai_rust::planner::{
+    PlannerEngine, SearchAlgorithm, SearchContext, TerminationStrategy,
 };
 use gdplanningai_rust::precondition::{PreconditionOp, PreconditionTarget};
 use gdplanningai_rust::snapshot::{BlackboardSnapshot, VariantSnapshot};
-use gdplanningai_rust::planner::{PlannerEngine, SearchContext, SearchAlgorithm, TerminationStrategy};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
@@ -29,7 +31,7 @@ fn test_verifying_terminal_state() {
     let actions = vec![ActionSpec {
         name: "finish".to_string(),
         cost_callable_id: None,
-        effect_callable_id: Some(1), 
+        effect_callable_id: Some(1),
         preconditions: vec![],
         validity_checks: vec![],
         requirements: vec![],
@@ -54,8 +56,12 @@ fn test_verifying_terminal_state() {
     std::thread::spawn(move || {
         for req in req_rx {
             let response = match req.kind {
-                CallbackKind::ApplyEffect { mut agent, world, .. } => {
-                    agent.properties.insert("goal_met".to_string(), VariantSnapshot::Bool(true));
+                CallbackKind::ApplyEffect {
+                    mut agent, world, ..
+                } => {
+                    agent
+                        .properties
+                        .insert("goal_met".to_string(), VariantSnapshot::Bool(true));
                     CallbackResponse::UpdatedSnapshots(agent, world)
                 }
                 _ => CallbackResponse::Float(1.0),
@@ -96,7 +102,10 @@ fn test_verifying_terminal_state() {
 
     loop {
         if start_time.elapsed() > timeout {
-            panic!("Test timed out! Likely infinite loop in Verifying state. Total iterations: {}", total_iterations);
+            panic!(
+                "Test timed out! Likely infinite loop in Verifying state. Total iterations: {}",
+                total_iterations
+            );
         }
 
         match engine.plan(&goals) {

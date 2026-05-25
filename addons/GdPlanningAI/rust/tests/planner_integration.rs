@@ -5,12 +5,14 @@
 
 use gdplanningai_rust::plan_tree::PlanResult;
 use gdplanningai_rust::plan_types::{
-    ActionSpec, CallbackKind, CallbackRequest, CallbackResponse, GoalSpec, PreconditionSpec,
-    PlannerRunResult, PlannerCallback,
+    ActionSpec, CallbackKind, CallbackRequest, CallbackResponse, GoalSpec, PlannerCallback,
+    PlannerRunResult, PreconditionSpec,
+};
+use gdplanningai_rust::planner::{
+    PlannerEngine, SearchAlgorithm, SearchContext, TerminationStrategy,
 };
 use gdplanningai_rust::precondition::{PreconditionOp, PreconditionTarget};
 use gdplanningai_rust::snapshot::{BlackboardSnapshot, VariantSnapshot};
-use gdplanningai_rust::planner::{PlannerEngine, SearchContext, SearchAlgorithm, TerminationStrategy};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
@@ -57,7 +59,9 @@ fn spawn_callback_responder(
         for req in req_rx {
             let response = match req.kind {
                 CallbackKind::GetCost { .. } => CallbackResponse::Float(cost_value),
-                CallbackKind::ApplyEffect { mut agent, world, .. } => {
+                CallbackKind::ApplyEffect {
+                    mut agent, world, ..
+                } => {
                     if let Some(VariantSnapshot::Int(current)) =
                         agent.properties.get("hunger").cloned()
                     {
@@ -70,10 +74,12 @@ fn spawn_callback_responder(
                 }
                 CallbackKind::EvalCustomPrecond { .. } => CallbackResponse::Bool(true),
             };
-            let _ = req.response_tx.send(gdplanningai_rust::plan_types::PlannerCallback {
-                request_id: req.request_id,
-                response,
-            });
+            let _ = req
+                .response_tx
+                .send(gdplanningai_rust::plan_types::PlannerCallback {
+                    request_id: req.request_id,
+                    response,
+                });
         }
     });
 
@@ -89,7 +95,7 @@ fn run_planner(
     request_tx: mpsc::Sender<CallbackRequest>,
 ) -> Option<PlanResult> {
     let cancel_flag = Arc::new(AtomicBool::new(false));
-    
+
     // Initialize logging for tests
     gdplanningai_rust::logger::init_log_channel();
     gdplanningai_rust::logger::set_log_level(gdplanningai_rust::logger::LogLevel::Debug);
@@ -114,7 +120,7 @@ fn run_planner(
     let mut engine = PlannerEngine::new(ctx, max_depth, cancel_flag)
         .with_search_algorithm(SearchAlgorithm::AStar)
         .with_termination_strategy(TerminationStrategy::BestCost);
-        
+
     engine.response_rx = engine_rx;
     engine.response_tx = engine_tx;
 

@@ -63,19 +63,35 @@ pub fn process_logs() {
                     let timestamp = log_msg.timestamp as f64 / 1000.0;
                     match log_msg.level {
                         LogLevel::Error => {
-                            godot::prelude::godot_error!("[GdPAI {:.3}s] {}", timestamp, log_msg.message);
+                            godot::prelude::godot_error!(
+                                "[GdPAI {:.3}s] {}",
+                                timestamp,
+                                log_msg.message
+                            );
                         }
                         LogLevel::Warn => {
-                            godot::prelude::godot_warn!("[GdPAI {:.3}s] {}", timestamp, log_msg.message);
+                            godot::prelude::godot_warn!(
+                                "[GdPAI {:.3}s] {}",
+                                timestamp,
+                                log_msg.message
+                            );
                         }
                         LogLevel::Info => {
-                            godot::prelude::godot_print!("[GdPAI {:.3}s] {}", timestamp, log_msg.message);
+                            godot::prelude::godot_print!(
+                                "[GdPAI {:.3}s] {}",
+                                timestamp,
+                                log_msg.message
+                            );
                         }
                         LogLevel::Debug => {
-                            godot::prelude::godot_print!("[GdPAI {:.3}s | debug] {}", timestamp, log_msg.message);
+                            godot::prelude::godot_print!(
+                                "[GdPAI {:.3}s | debug] {}",
+                                timestamp,
+                                log_msg.message
+                            );
                         }
                     }
-                },
+                }
                 Err(TryRecvError::Empty) => break,
                 Err(TryRecvError::Disconnected) => break,
             }

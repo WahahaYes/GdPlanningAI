@@ -3,15 +3,14 @@
 use crate::precondition::{PreconditionOp, PreconditionTarget};
 use crate::requirement::{ProvisionSpec, RequirementSpec};
 use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
-use std::sync::mpsc::Sender;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::mpsc::Sender;
 
 static NEXT_REQUEST_ID: AtomicUsize = AtomicUsize::new(1);
 
 pub fn next_request_id() -> usize {
     NEXT_REQUEST_ID.fetch_add(1, Ordering::SeqCst)
 }
-
 
 /// Send-safe mirror of [`crate::precondition::PreconditionHandler`].
 ///
@@ -144,7 +143,7 @@ fn snap_compare_all(
     let c_num = compare_val.and_then(snap_as_f64);
 
     if let (Some(p), Some(c)) = (p_num, c_num) {
-        let result = match operation {
+        match operation {
             PreconditionOp::Equal => (p - c).abs() < 1e-4,
             PreconditionOp::NotEqual => (p - c).abs() >= 1e-4,
             PreconditionOp::GreaterThan => p > c + 1e-4,
@@ -152,8 +151,7 @@ fn snap_compare_all(
             PreconditionOp::LessThan => p < c - 1e-4,
             PreconditionOp::LessThanOrEqual => p <= c + 1e-4,
             _ => false,
-        };
-        result
+        }
     } else {
         // Fallback to basic equality if not numeric
         match operation {
@@ -279,7 +277,10 @@ mod tests {
     fn make_agent_snapshot() -> BlackboardSnapshot {
         let mut properties = HashMap::new();
         properties.insert("health".to_string(), VariantSnapshot::Int(80));
-        properties.insert("stamina".to_string(), VariantSnapshot::Float(65.5f64.to_bits()));
+        properties.insert(
+            "stamina".to_string(),
+            VariantSnapshot::Float(65.5f64.to_bits()),
+        );
         properties.insert("name".to_string(), VariantSnapshot::Str("Hero".to_string()));
         properties.insert("alive".to_string(), VariantSnapshot::Bool(true));
 
@@ -291,7 +292,10 @@ mod tests {
 
     fn make_world_snapshot() -> BlackboardSnapshot {
         let mut properties = HashMap::new();
-        properties.insert("time".to_string(), VariantSnapshot::Float(123.45f64.to_bits()));
+        properties.insert(
+            "time".to_string(),
+            VariantSnapshot::Float(123.45f64.to_bits()),
+        );
         properties.insert("enemy_count".to_string(), VariantSnapshot::Int(5));
 
         BlackboardSnapshot {

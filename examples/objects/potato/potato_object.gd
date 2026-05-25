@@ -12,7 +12,7 @@ func get_group_labels() -> Array[String]:
 
 
 func get_provided_actions() -> Array[Action]:
-	return [DigPotatoAction.new(location_data, interactable_attribs, self )]
+	return [DigPotatoAction.new(location_data, interactable_attribs, self)]
 
 
 func get_sim_properties() -> Dictionary:

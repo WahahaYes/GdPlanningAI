@@ -72,7 +72,7 @@ func _start_plan_and_wait(agent: GdPAIAgent, timeout_frames: int = 180) -> Array
 		if saw_job and scheduler.active_job_count() == 0:
 			return agent.get_current_plan()
 		await get_tree().process_frame
-	
+
 	# Timeout reached - cancel the in-flight planning job
 	scheduler.cancel_agent_jobs(agent)
 	fail_test("Timed out waiting for submitted agent plan")

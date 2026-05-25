@@ -44,7 +44,12 @@ impl SimObjectProxy {
         let group_str = group.to_string();
         let result = self.groups.contains(&group_str);
         if group_str == "CampfireObject" || group_str == "Food" {
-             log_debug!("SimObjectProxy::is_in_group: object {} in group {} -> {}", self.uid, group_str, result);
+            log_debug!(
+                "SimObjectProxy::is_in_group: object {} in group {} -> {}",
+                self.uid,
+                group_str,
+                result
+            );
         }
         result
     }

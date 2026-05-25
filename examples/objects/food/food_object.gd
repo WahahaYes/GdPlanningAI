@@ -20,6 +20,6 @@ func get_group_labels() -> Array[String]:
 
 # Override
 func get_sim_properties() -> Dictionary:
-	var sim_properties: Dictionary = super ()
+	var sim_properties: Dictionary = super()
 	sim_properties["hunger_value"] = hunger_value
 	return sim_properties

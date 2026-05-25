@@ -7,10 +7,10 @@
 
 use crate::plan_tree::PlanResult;
 use crate::plan_types::*;
+use crate::planner::{PlannerEngine, SearchAlgorithm, SearchContext, TerminationStrategy};
 use crate::precondition::{PreconditionHandler, PreconditionOp};
 use crate::requirement::{ProvisionSpec, RequirementSpec};
 use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
-use crate::planner::{PlannerEngine, SearchContext, SearchAlgorithm, TerminationStrategy};
 use godot::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::{Receiver, Sender};
@@ -127,7 +127,7 @@ impl GdPAIPlanScheduler {
             while let Ok(req) = job.request_rx.try_recv() {
                 let callable = &job.callable_registry[req.callable_id];
                 let response = dispatch_callback(callable, req.kind);
-                
+
                 let _ = req.response_tx.send(PlannerCallback {
                     request_id: req.request_id,
                     response,
@@ -146,18 +146,16 @@ impl GdPAIPlanScheduler {
                 jobs_with_responses.contains(&job.agent_instance_id)
             };
 
-            if ready_to_resume {
-                if let Some(engine) = job.engine.take() {
-                    let goals = job.goals.clone();
-                    let res_tx = job.result_tx.clone();
-                    run_job_step(self.thread_pool.as_ref(), goals, res_tx, engine);
-                }
+            if ready_to_resume && let Some(engine) = job.engine.take() {
+                let goals = job.goals.clone();
+                let res_tx = job.result_tx.clone();
+                run_job_step(self.thread_pool.as_ref(), goals, res_tx, engine);
             }
         }
 
         // Clean up finished jobs
         self.active_jobs.retain(|job| !job.done);
-        
+
         crate::logger::process_logs();
     }
 
@@ -172,11 +170,21 @@ impl GdPAIPlanScheduler {
         goals: Array<VarDictionary>,
         max_recursion: i64,
     ) {
-        log_debug!("submit_plan: agent={}, actions_count={}, goals_count={}", agent.instance_id().to_i64(), actions.len(), goals.len());
+        log_debug!(
+            "submit_plan: agent={}, actions_count={}, goals_count={}",
+            agent.instance_id().to_i64(),
+            actions.len(),
+            goals.len()
+        );
         let agent_instance_id = agent.instance_id().to_i64();
 
-        for job in self.active_jobs.iter_mut().filter(|j| !j.done && j.agent_instance_id == agent_instance_id) {
-            job.cancel_flag.store(true, std::sync::atomic::Ordering::Relaxed);
+        for job in self
+            .active_jobs
+            .iter_mut()
+            .filter(|j| !j.done && j.agent_instance_id == agent_instance_id)
+        {
+            job.cancel_flag
+                .store(true, std::sync::atomic::Ordering::Relaxed);
         }
         let snap_agent = BlackboardSnapshot::from_blackboard(&agent_bb.bind());
         let snap_world = BlackboardSnapshot::from_blackboard(&world_bb.bind());
@@ -186,9 +194,13 @@ impl GdPAIPlanScheduler {
         let mut job_registry = Vec::new();
         let action_specs = build_action_specs(&actions, &mut job_registry);
         let mut goal_specs = build_goal_specs(&goals, &mut job_registry);
-        
+
         // Sort goals by reward descending
-        goal_specs.sort_by(|a, b| b.reward.partial_cmp(&a.reward).unwrap_or(std::cmp::Ordering::Equal));
+        goal_specs.sort_by(|a, b| {
+            b.reward
+                .partial_cmp(&a.reward)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         let (req_tx, req_rx) = std::sync::mpsc::channel::<CallbackRequest>();
         let (res_tx, res_rx) = std::sync::mpsc::channel::<(PlannerRunResult, PlannerEngine)>();
@@ -214,7 +226,7 @@ impl GdPAIPlanScheduler {
         let mut engine = PlannerEngine::new(ctx, max_rec, cancel_flag.clone())
             .with_search_algorithm(SearchAlgorithm::AStar)
             .with_termination_strategy(TerminationStrategy::BestCost);
-        
+
         // Use the channel we created
         engine.response_rx = engine_rx;
         engine.response_tx = engine_tx.clone();
@@ -249,8 +261,12 @@ impl GdPAIPlanScheduler {
         let agent_instance_id = agent.instance_id().to_i64();
         for job in &mut self.active_jobs {
             if job.agent_instance_id == agent_instance_id {
-                job.cancel_flag.store(true, std::sync::atomic::Ordering::Relaxed);
-                log_debug!("Cancelled planning job for agent instance {}", job.agent_instance_id);
+                job.cancel_flag
+                    .store(true, std::sync::atomic::Ordering::Relaxed);
+                log_debug!(
+                    "Cancelled planning job for agent instance {}",
+                    job.agent_instance_id
+                );
             }
         }
     }
@@ -259,7 +275,8 @@ impl GdPAIPlanScheduler {
     #[func]
     fn clear_active_jobs(&mut self) {
         for job in &mut self.active_jobs {
-            job.cancel_flag.store(true, std::sync::atomic::Ordering::Relaxed);
+            job.cancel_flag
+                .store(true, std::sync::atomic::Ordering::Relaxed);
         }
         self.active_jobs.clear();
         log_debug!("Cleared all active jobs from scheduler");
@@ -273,7 +290,12 @@ impl GdPAIPlanScheduler {
     }
 }
 
-fn run_job_step(thread_pool: Option<&rayon::ThreadPool>, goals: Vec<GoalSpec>, res_tx: Sender<(PlannerRunResult, PlannerEngine)>, engine: PlannerEngine) {
+fn run_job_step(
+    thread_pool: Option<&rayon::ThreadPool>,
+    goals: Vec<GoalSpec>,
+    res_tx: Sender<(PlannerRunResult, PlannerEngine)>,
+    engine: PlannerEngine,
+) {
     if let Some(tp) = thread_pool {
         let mut engine_mut = engine;
         tp.spawn(move || {
@@ -297,34 +319,32 @@ fn build_action_specs(
         .iter_shared()
         .filter_map(|dict| {
             let name = dict.get("name")?.try_to::<String>().ok()?;
-            
+
             let cost_val = dict.get("cost_callable");
-            let cost_id = cost_val.as_ref()
-                .and_then(|v| {
-                    if let Ok(c) = v.try_to::<Callable>() {
-                        if c.is_valid() {
-                            Some(register_callable(registry, c))
-                        } else {
-                            None
-                        }
+            let cost_id = cost_val.as_ref().and_then(|v| {
+                if let Ok(c) = v.try_to::<Callable>() {
+                    if c.is_valid() {
+                        Some(register_callable(registry, c))
                     } else {
                         None
                     }
-                });
-                
+                } else {
+                    None
+                }
+            });
+
             let effect_val = dict.get("effect_callable");
-            let effect_id = effect_val.as_ref()
-                .and_then(|v| {
-                    if let Ok(c) = v.try_to::<Callable>() {
-                        if c.is_valid() {
-                            Some(register_callable(registry, c))
-                        } else {
-                            None
-                        }
+            let effect_id = effect_val.as_ref().and_then(|v| {
+                if let Ok(c) = v.try_to::<Callable>() {
+                    if c.is_valid() {
+                        Some(register_callable(registry, c))
                     } else {
                         None
                     }
-                });
+                } else {
+                    None
+                }
+            });
 
             let preconditions = extract_precond_specs(&dict, "preconditions", registry);
             let validity_checks = extract_precond_specs(&dict, "validity_checks", registry);
@@ -491,12 +511,17 @@ fn precond_spec_from_dict(
 
 fn dispatch_callback(callable: &Callable, kind: CallbackKind) -> CallbackResponse {
     match kind {
-        CallbackKind::GetCost { agent, world, provisions, bindings } => {
+        CallbackKind::GetCost {
+            agent,
+            world,
+            provisions,
+            bindings,
+        } => {
             let mut bb_agent = agent.into_blackboard();
             let bb_world = world.into_blackboard();
             let prov_arr = provisions_to_array(&provisions);
             let bind_dict = bindings_to_dict(&bindings);
-            
+
             {
                 let mut bind = bb_agent.bind_mut();
                 for (name, values) in &bindings {
@@ -525,7 +550,12 @@ fn dispatch_callback(callable: &Callable, kind: CallbackKind) -> CallbackRespons
             };
             CallbackResponse::Float(cost)
         }
-        CallbackKind::ApplyEffect { agent, world, provisions, bindings } => {
+        CallbackKind::ApplyEffect {
+            agent,
+            world,
+            provisions,
+            bindings,
+        } => {
             let mut bb_agent = agent.into_blackboard();
             let bb_world = world.into_blackboard();
             let prov_arr = provisions_to_array(&provisions);
@@ -550,12 +580,17 @@ fn dispatch_callback(callable: &Callable, kind: CallbackKind) -> CallbackRespons
             }
 
             callable.call(&args);
-            
+
             let new_agent = BlackboardSnapshot::from_blackboard(&bb_agent.bind());
             let new_world = BlackboardSnapshot::from_blackboard(&bb_world.bind());
             CallbackResponse::UpdatedSnapshots(new_agent, new_world)
         }
-        CallbackKind::EvalCustomPrecond { agent, world, provisions, bindings } => {
+        CallbackKind::EvalCustomPrecond {
+            agent,
+            world,
+            provisions,
+            bindings,
+        } => {
             let mut bb_agent = agent.into_blackboard();
             let bb_world = world.into_blackboard();
             let prov_arr = provisions_to_array(&provisions);
@@ -590,7 +625,10 @@ fn provisions_to_array(provisions: &[ProvisionSpec]) -> Array<VarDictionary> {
     for prov in provisions {
         let mut dict = VarDictionary::new();
         match prov {
-            ProvisionSpec::Binding { binding_name, value } => {
+            ProvisionSpec::Binding {
+                binding_name,
+                value,
+            } => {
                 dict.set("kind", "binding");
                 dict.set("binding_name", binding_name.clone());
                 dict.set("value", value.to_variant());
@@ -630,17 +668,17 @@ fn extract_provisions_from_snapshot(snap: &BlackboardSnapshot) -> Vec<ProvisionS
     let mut provisions = Vec::new();
     for (uid, obj) in &snap.objects {
         for (prop_name, val) in &obj.properties {
-            if prop_name == "provides" {
-                if let VariantSnapshot::Str(fact_name) = val {
-                    let mut args = Vec::new();
-                    if let Ok(id) = uid.parse::<i64>() {
-                        args.push(VariantSnapshot::Int(id));
-                    }
-                    provisions.push(ProvisionSpec::Fact {
-                        fact_name: fact_name.clone(),
-                        args,
-                    });
+            if prop_name == "provides"
+                && let VariantSnapshot::Str(fact_name) = val
+            {
+                let mut args = Vec::new();
+                if let Ok(id) = uid.parse::<i64>() {
+                    args.push(VariantSnapshot::Int(id));
                 }
+                provisions.push(ProvisionSpec::Fact {
+                    fact_name: fact_name.clone(),
+                    args,
+                });
             }
         }
     }

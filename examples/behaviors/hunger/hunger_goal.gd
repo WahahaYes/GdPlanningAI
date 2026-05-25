@@ -20,7 +20,7 @@ func get_desired_state(agent: GdPAIAgent) -> Array[Precondition]:
 	var current_hunger: float = agent.blackboard.get_property("hunger")
 	var required_hunger: float = max(0.0, current_hunger - 15.0)
 
-	# Using a builtin precondition instead of a custom callable allows the planner 
+	# Using a builtin precondition instead of a custom callable allows the planner
 	# to correctly identify which actions satisfy this goal during the discovery phase.
 	return [Precondition.agent_property_less_than("hunger", required_hunger)]
 
