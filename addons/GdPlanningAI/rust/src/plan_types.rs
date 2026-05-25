@@ -8,6 +8,7 @@ use std::sync::mpsc::Sender;
 
 static NEXT_REQUEST_ID: AtomicUsize = AtomicUsize::new(1);
 
+/// Generates a globally unique ID for a planner-to-main-thread callback request.
 pub fn next_request_id() -> usize {
     NEXT_REQUEST_ID.fetch_add(1, Ordering::SeqCst)
 }
@@ -170,6 +171,7 @@ fn snap_as_f64(v: &VariantSnapshot) -> Option<f64> {
     }
 }
 
+/// Policy for when to re-simulate action effects during planning.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum RipplePolicy {
     Always,

@@ -21,8 +21,8 @@ This document describes the non-blocking, async-first backward-chaining implemen
 ### `PlanBranch`
 - `action_chain`: `[P, A, B]` (Backward-chained actions).
 - `action_bindings`: `Vec<(pos, BindingData)>` (Data passed to simulations. Associated with both provider and consumer).
-- `open_preconditions`: Physical needs not yet met by `InitialState`. Stored as `(consumer_index, Precondition)`.
-- `open_requirements`: Symbolic needs not yet satisfied. Stored as `(consumer_index, Requirement)`.
+- `open_preconditions`: Physical needs not yet met by `InitialState`. Stored as `(pos, Precondition)`. `pos` is the absolute index in `action_chain` where the condition must be true. Goal preconditions are anchored at `pos = chain.len()`.
+- `open_requirements`: Symbolic needs not yet satisfied. Stored as `(pos, Requirement)`.
 - `state`: One of `Initializing`, `Searching`, `Rippling`, `Verifying`.
 - `simulation_index`: Current progress index within the `action_chain` or `goal_preconditions`.
 - `current_agent`: Agent Blackboard resulting from action at `simulation_index - 1`.
@@ -60,13 +60,11 @@ This loop is executed repeatedly by the background thread. It yields if a Godot 
 Based on `node.branch.state`:
 
 #### **State: `Initializing`** (Grounding Goal)
-- `target_index = action_chain.length` (The Goal's position at the end of the chain).
-- Evaluate `Goal.precondition[simulation_index]` against `InitialState`.
+- Evaluate `Goal.precondition` against `InitialState`.
 - **If Pending(id)**: `Park(node, id)`, **Yield Loop**.
 - **If Ready(bool)**:
-  - If `false`: Add `(target_index, precondition)` to `branch.open_preconditions`.
-  - `simulation_index++`. 
-  - If all goal preconds checked: `branch.state = Searching`.
+  - If `false`: Add `(0, precondition)` to `branch.open_preconditions`. (Anchored at the end of the empty chain).
+  - `branch.state = Searching`.
   - Push `node` back to queue.
 
 #### **State: `Searching`** (Expansion)
@@ -80,31 +78,38 @@ Based on `node.branch.state`:
     - **Frontier Update**: 
       - Remove `open_preconditions` and `open_requirements` that are satisfied by `A`'s simulated effects/provisions. 
       - *Note: A precondition is satisfied if it is met at its specific point in the sequence; it does NOT need to remain true for the rest of the chain.*
-      - Increment `consumer_index` of all remaining downstream needs by +1.
-    - **Binding Propagation (Critical)**:
+      - Increment `pos` of all remaining downstream needs by +1.
+    - **Binding Propagation**:
       - When `A`'s provision satisfies an `open_requirement` of action `B`:
         - Record the binding data for **position 0** (the provider `A`).
         - Record the binding data for the **consumer's position** (action `B`, offset by +1).
-      - *Note: For `FactWildcard` provisions (like 'at_target'), the arguments are pulled from the satisfying `Requirement` (the specific location) and used to ground the discovery simulation.*
-    - **Add New Needs**: Add `A.preconditions` and `A.requirements` at `consumer_index = 0`.
+      - *Note: For `FactWildcard` provisions (like 'at_target'), the arguments are pulled from the satisfying `Requirement` and used to ground the discovery simulation.*
+    - **Add New Needs**: Add `A.preconditions` and `A.requirements` at `pos = 0`.
     - **Reset Ripple**: `NewBranch.state = Rippling`, `simulation_index = 0`.
     - Push `NewBranch` to queue.
 
 #### **State: `Rippling` / `Verifying`** (Simulation & Grounding)
-0. **Ground Requirements**: If `simulation_index == 0`, check `open_requirements` against `InitialState` provisions. Remove any that are satisfied.
+0. **Ground Requirements**:
+   - If `simulation_index == 0`, check `open_requirements` at `pos=0` against `InitialState` provisions.
+   - After each simulated action `i`, check `open_requirements` where `pos > i` against the action's provisions.
+   - Remove any that are satisfied.
 1. **Point-in-Time Check**: Before simulating `action_chain[simulation_index]`:
-   - Identify all `open_preconditions` where `consumer_index == simulation_index`.
+   - Identify all `open_preconditions` where `pos == simulation_index`.
    - Evaluate them against `current_agent/world` (the state after all preceding actions).
-   - **If Ready(true)**: The need is satisfied at this point in the chain.
-   - **If Ready(false)**: The chain is broken at this step (Invalidate branch or keep as open need).
+   - **If Ready(true)**: The need is satisfied at this point in the chain. Remove it.
+   - **If Ready(false)**: The chain is broken at this step. Return `Invalid`.
 2. **Simulate**: Simulate `action_chain[simulation_index]` against `current_state`.
    - **If Pending(id)**: `Park(node, id)`, **Yield Loop**.
    - **If Ready(result)**:
      - Update `branch.current_agent`, `branch.current_world` and `branch.cost`.
      - `simulation_index++`.
-     - If finished:
-       - `Rippling` -> `branch.state = Searching`.
-       - `Verifying` -> Perform final `GoalCheck`. If satisfied, **RETURN SUCCESSFUL PLAN**.
+     - If finished (`simulation_index == chain.length`):
+       - **If `Rippling`**: 
+         - Check if any `open_preconditions` anchored at `chain.length` (Goal Preconditions) are now satisfied by the final state.
+         - `branch.state = Searching`.
+       - **If `Verifying`**:
+         - Final Goal Check: Ensure no `open_preconditions` or `open_requirements` remain anywhere in the chain.
+         - If satisfied, **RETURN SUCCESSFUL PLAN**.
      - Push `node` back to queue.
 
 ---

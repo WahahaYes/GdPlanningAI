@@ -1,3 +1,12 @@
+//! The core planning engine for GdPlanningAI.
+//! 
+//! This engine implements a hybrid backward-chaining GOAP planner that combines
+//! symbolic causal links (Requirements/Provisions) with rich scene simulation
+//! (simulate_effect, eval_precondition, calculate_cost).
+//! 
+//! The planning process is non-blocking and uses an A* search algorithm to find
+//! the optimal sequence of actions to satisfy a goal.
+
 use crate::plan_tree::PlanResult;
 use crate::plan_types::*;
 use crate::planner::simulation::{StepResult, eval_precondition, simulate_action};
@@ -12,6 +21,10 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::mpsc::{Receiver, Sender};
 
+/// The execution engine for the GOAP planner.
+/// 
+/// This engine manages the A* search queue, handles Godot callbacks, and
+/// orchestrates the simulation of action chains.
 pub struct PlannerEngine {
     pub ctx: Arc<SearchContext>,
     pub max_depth: usize,
@@ -41,6 +54,7 @@ pub struct PlannerEngine {
 }
 
 impl PlannerEngine {
+    /// Creates a new PlannerEngine with the given search context and constraints.
     pub fn new(ctx: Arc<SearchContext>, max_depth: usize, cancel_flag: Arc<AtomicBool>) -> Self {
         let (tx, rx) = std::sync::mpsc::channel();
         Self {
@@ -60,15 +74,21 @@ impl PlannerEngine {
         }
     }
 
+    /// Sets the search algorithm to use (e.g., AStar, BFS).
     pub fn with_search_algorithm(mut self, alg: SearchAlgorithm) -> Self {
         self.algorithm = alg;
         self
     }
+    /// Sets the termination strategy (e.g., FirstComplete, BestCost).
     pub fn with_termination_strategy(mut self, strat: TerminationStrategy) -> Self {
         self.termination = strat;
         self
     }
 
+    /// Executes the planning process for a set of goals.
+    /// 
+    /// This function performs a non-blocking step of the search and returns
+    /// a PlannerRunResult indicating if the plan is complete, pending, or failed.
     pub fn plan(&mut self, goals: &[GoalSpec]) -> PlannerRunResult {
         if self.queue.is_empty() && self.parked_nodes.is_empty() && self.best_plan.is_none() {
             // Initializing with the first goal

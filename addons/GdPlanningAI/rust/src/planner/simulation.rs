@@ -1,7 +1,13 @@
+//! Simulation logic for evaluating action effects and preconditions.
+//! 
+//! This module handles communication with Godot (via callbacks) to evaluate
+//! dynamic properties that cannot be calculated purely in Rust.
+
 use crate::plan_types::*;
 use crate::planner::types::SearchContext;
 use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
 
+/// The result of a single simulation step.
 pub enum StepResult<T> {
     Ready(T),
     Pending(usize),
@@ -9,12 +15,17 @@ pub enum StepResult<T> {
     Complete, // Terminal success for a simulation pass
 }
 
+/// The result of a successful action simulation.
 pub struct SimResult {
     pub agent: BlackboardSnapshot,
     pub world: BlackboardSnapshot,
     pub cost: f64,
 }
 
+/// Evaluates a precondition against the current state.
+/// 
+/// If the precondition is custom, this may return `StepResult::Pending` and
+/// require a Godot callback.
 pub fn eval_precondition(
     spec: &PreconditionSpec,
     agent: &BlackboardSnapshot,
@@ -48,6 +59,11 @@ pub fn eval_precondition(
     }
 }
 
+/// Simulates the cost and effect of an action against the current state.
+/// 
+/// This involves potentially two round-trips to Godot:
+/// 1. Evaluate the action's cost.
+/// 2. Simulate the action's effect on the agent and world snapshots.
 pub fn simulate_action(
     action_idx: usize,
     agent: &BlackboardSnapshot,

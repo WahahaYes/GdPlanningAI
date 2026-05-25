@@ -19,6 +19,7 @@ pub struct PlanResult {
     pub action_bindings: Vec<(i64, String, Vec<crate::snapshot::VariantSnapshot>)>,
 }
 
+/// A fingerprint used for cycle detection in the planner, capturing the set of open needs.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PlanFingerprint {
     pub open_preconditions: Vec<PreconditionSpec>,

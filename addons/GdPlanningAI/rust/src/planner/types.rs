@@ -1,3 +1,5 @@
+//! Core data structures and types for the planning engine.
+
 use crate::plan_types::*;
 use crate::requirement::{ProvisionSpec, RequirementSpec};
 use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
@@ -6,6 +8,7 @@ use std::sync::mpsc::Sender;
 
 use std::cmp::Ordering;
 
+/// The search state of a plan branch.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum BranchState {
     Initializing,
@@ -14,21 +17,37 @@ pub enum BranchState {
     Verifying,
 }
 
+/// A single branch in the planning search tree.
+/// 
+/// It tracks the sequence of actions, open needs, and the simulated state of the
+/// agent and world after applying those actions.
 #[derive(Clone, Debug)]
 pub struct PlanBranch {
-    pub action_chain: Vec<usize>, // Indices into ctx.actions
-    pub action_costs: Vec<f64>,   // Costs of actions in the chain (filled during simulation)
-    pub action_bindings: Vec<(usize, String, Vec<VariantSnapshot>)>, // (chain_pos, fact_name, values)
-    pub open_preconditions: Vec<(usize, PreconditionSpec)>,          // (consumer_pos, spec)
-    pub open_requirements: Vec<(usize, RequirementSpec)>,            // (consumer_pos, spec)
+    /// Indices into the `SearchContext.actions` list.
+    pub action_chain: Vec<usize>,
+    /// Costs of each action in the chain.
+    pub action_costs: Vec<f64>,
+    /// Variable bindings associated with actions at specific chain positions.
+    pub action_bindings: Vec<(usize, String, Vec<VariantSnapshot>)>,
+    /// Preconditions that are not yet satisfied by preceding actions or the initial state.
+    pub open_preconditions: Vec<(usize, PreconditionSpec)>,
+    /// Symbolic requirements not yet satisfied by preceding actions.
+    pub open_requirements: Vec<(usize, RequirementSpec)>,
+    /// Current search phase for this branch.
     pub state: BranchState,
+    /// The index of the goal this branch is trying to satisfy.
     pub goal_index: usize,
+    /// Current position in the chain being simulated/verified.
     pub simulation_index: usize,
+    /// Simulated agent state after `simulation_index` actions.
     pub current_agent: BlackboardSnapshot,
+    /// Simulated world state after `simulation_index` actions.
     pub current_world: BlackboardSnapshot,
-    pub cost: f64, // Grounded cost (accumulated during simulation)
+    /// Total grounded cost of the actions in this branch.
+    pub cost: f64,
 }
 
+/// A node in the A* priority queue.
 #[derive(Clone, Debug)]
 pub struct SearchNode {
     pub branch: PlanBranch,
@@ -37,6 +56,7 @@ pub struct SearchNode {
 }
 
 impl SearchNode {
+    /// Returns the priority value used for the search queue (lower is better).
     pub fn priority(&self) -> f64 {
         // Use Dijkstra (h=0) for guaranteed optimality in hybrid simulation.
         // We use grounded cost for Dijkstra priority, which is updated during Rippling.
@@ -70,12 +90,14 @@ impl Ord for SearchNode {
 
 pub type BindingMap = Vec<(String, Vec<VariantSnapshot>)>;
 
+/// A request for background discovery simulation or precondition check.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum DiscoveryRequest {
     Simulation(usize, BindingMap), // action_idx, bindings
     Precondition(usize, PreconditionSpec, BindingMap), // action_idx, spec, bindings
 }
 
+/// Shared context and cached data for a single planning run.
 pub struct SearchContext {
     pub actions: Vec<ActionSpec>,
     pub initial_agent: BlackboardSnapshot,
@@ -97,6 +119,7 @@ pub struct SearchContext {
         std::sync::Mutex<HashMap<(usize, PreconditionSpec, BindingMap), usize>>,
 }
 
+/// The result of a background action discovery simulation.
 #[derive(Clone)]
 pub struct DiscoveryResult {
     pub agent: BlackboardSnapshot,
@@ -105,6 +128,7 @@ pub struct DiscoveryResult {
 }
 
 impl PlanBranch {
+    /// Creates a new, empty plan branch starting from the initial states.
     pub fn new(initial_agent: &BlackboardSnapshot, initial_world: &BlackboardSnapshot) -> Self {
         Self {
             action_chain: Vec::new(),
@@ -121,6 +145,9 @@ impl PlanBranch {
         }
     }
 
+    /// Returns a unique identity for this branch based on its goal, open needs, and state.
+    /// 
+    /// Used for cycle detection and search space pruning.
     pub fn fingerprint(
         &self,
     ) -> (
@@ -137,6 +164,7 @@ impl PlanBranch {
         )
     }
 
+    /// Updates the total cost of the branch based on the individual action costs.
     pub fn recalculate_cost(&mut self) {
         self.cost = self.action_costs.iter().sum();
     }

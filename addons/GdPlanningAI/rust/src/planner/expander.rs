@@ -1,3 +1,8 @@
+//! Candidate action discovery for the planning engine.
+//! 
+//! This module provides functions to identify which actions can satisfy the current
+//! open needs (preconditions and requirements) of a plan branch.
+
 use crate::plan_types::*;
 use crate::planner::simulation::{StepResult, eval_precondition, simulate_action};
 use crate::planner::types::{
@@ -5,6 +10,7 @@ use crate::planner::types::{
 };
 use crate::requirement::{ProvisionSpec, RequirementSpec, provision_satisfies_requirement};
 
+/// A candidate action that can potentially satisfy one or more open needs.
 pub struct Candidate {
     pub action_idx: usize,
     pub satisfied_requirements: Vec<(usize, RequirementSpec, ProvisionSpec)>,
@@ -107,6 +113,11 @@ fn get_discovery_result(
     }
 }
 
+/// Finds all candidate actions that satisfy at least one open need of the given branch.
+/// 
+/// This function performs a hybrid discovery process:
+/// 1. Symbolic Layer: Matches action Provisions against open Requirements.
+/// 2. Simulation Layer: Matches action effects (via Discovery simulation) against open Preconditions.
 pub fn find_candidates(
     branch: &PlanBranch,
     ctx: &SearchContext,
