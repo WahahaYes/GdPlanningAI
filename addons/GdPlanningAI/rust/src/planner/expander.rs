@@ -209,7 +209,7 @@ pub fn find_candidates(
             // Per-requirement candidates for actions with wildcards
             for (req_idx, (_pos, req)) in branch.open_requirements.iter().enumerate() {
                 for prov in &action.provisions {
-                    if provision_satisfies_requirement(prov, req, None) {
+                    if provision_satisfies_requirement(prov, req, Some(&ctx.initial_world)) {
                         let bindings = get_bindings_for_match(prov, req);
                         match get_discovery_result(idx, &bindings, ctx, response) {
                             StepResult::Ready(res) => {
@@ -301,7 +301,7 @@ pub fn find_candidates(
             let mut satisfied_requirements = Vec::new();
             for (req_idx, (_pos, req)) in branch.open_requirements.iter().enumerate() {
                 for prov in &action.provisions {
-                    if provision_satisfies_requirement(prov, req, None) {
+                    if provision_satisfies_requirement(prov, req, Some(&ctx.initial_world)) {
                         satisfied_requirements.push((req_idx, req.clone(), prov.clone()));
                     }
                 }

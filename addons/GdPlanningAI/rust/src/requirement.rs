@@ -27,7 +27,7 @@ pub enum RequirementSpec {
 }
 
 /// A value or fact that an action contributes for later actions to consume.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ProvisionSpec {
     Binding {
         binding_name: String,
@@ -320,18 +320,19 @@ pub fn provision_satisfies_requirement(
             }
 
             // If we have world context, check if the provided object is in the requested set
-            if let Some(w) = world
-                && let crate::snapshot::VariantSnapshot::ObjectRef(id) = provided_value
-            {
-                let uid = id.to_string();
-                if let Some(obj_data) = w.objects.get(&uid) {
-                    return obj_data.groups.contains(set_name);
+            if let Some(w) = world {
+                if let crate::snapshot::VariantSnapshot::ObjectRef(id) = provided_value {
+                    let uid = id.to_string();
+                    if let Some(obj_data) = w.objects.get(&uid) {
+                        return obj_data.groups.contains(set_name);
+                    }
                 }
+                // If world is provided but object isn't found or isn't an ObjectRef, it fails.
+                return false;
             }
 
-            // Fallback: if no world context (discovery phase), we treat as satisfied
-            // only if the binding names match. The ripple will verify the real
-            // object group membership later during forward simulation.
+            // Fallback: if no world context, we treat as satisfied
+            // only if the binding names match.
             provided_name == binding_name
         }
         (

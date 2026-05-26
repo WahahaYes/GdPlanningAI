@@ -347,11 +347,7 @@ impl PlannerEngine {
 
                                     if !binding_name.is_empty() {
                                         // Associate with provider (the newly prepended action at pos 0)
-                                        new_bindings.push((
-                                            0,
-                                            binding_name.clone(),
-                                            values.clone(),
-                                        ));
+                                        new_bindings.push((0, binding_name.clone(), values.clone()));
                                         // Associate with consumer (already offset by 1 during increment above)
                                         new_bindings.push((consumer_pos, binding_name, values));
                                     }

@@ -28,6 +28,7 @@ This document describes the non-blocking, async-first backward-chaining implemen
 - `current_agent`: Agent Blackboard resulting from action at `simulation_index - 1`.
 - `current_world`: World Blackboard resulting from action at `simulation_index - 1`.
 - `cost`: Total cumulative grounded cost (used for A* priority).
+- `tree_node_id`: ID of the node in the debug search tree.
 
 ### `SearchNode` (A* Wrapper)
 - `branch`: `PlanBranch`.
@@ -126,6 +127,7 @@ This is where we identify which actions are relevant to the current `open_needs`
    - Store results in `DiscoveryCache[(A, Bindings)]`.
 3. **Hybrid Satisfaction Check**:
    - **Symbolic Layer**: Does `A`'s **Provisions** satisfy any `open_requirements`?
+     - *Strict Enrollment*: Requirements like `BindingInSet` are verified against `InitialState` object groups immediately. If a provision refers to an object not in the required group, the match fails.
    - **Simulation Layer**: Does `A`'s **Discovery Result** (the simulated state) satisfy any `open_preconditions`?
    - *Note: This allows actions with unadvertised effects to be discovered if the simulation reveals they satisfy a physical need.*
 4. **Qualification**:
