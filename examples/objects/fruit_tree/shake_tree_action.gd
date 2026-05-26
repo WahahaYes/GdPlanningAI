@@ -13,7 +13,7 @@ var fruit_tree: FruitTreeObject
 var _sim_hunger_gain: float
 ## Planning cost for shaking the tree. Intentionally high to discourage the planner
 ## from choosing this over real food items that are already available in the world.
-var shake_cost: float = 5.0
+var shake_cost: float = 10.0
 
 
 # Override

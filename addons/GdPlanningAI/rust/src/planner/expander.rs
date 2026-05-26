@@ -311,7 +311,14 @@ pub fn find_candidates(
             match get_discovery_result(idx, &empty_bindings, ctx, response) {
                 StepResult::Ready(res) => {
                     let mut satisfied_preconditions = Vec::new();
-                    for (pre_idx, (_pos, pre)) in branch.open_preconditions.iter().enumerate() {
+                    for (pre_idx, (pos, pre)) in branch.open_preconditions.iter().enumerate() {
+                        // A prepended action can only satisfy preconditions that are currently
+                        // at the front of the chain (pos 0), because its immediate output
+                        // state is the input state for those actions.
+                        if *pos != 0 {
+                            continue;
+                        }
+
                         if let Some(eval_res) = pre.evaluate_builtin(&res.agent, &res.world) {
                             if eval_res {
                                 satisfied_preconditions.push(pre_idx);

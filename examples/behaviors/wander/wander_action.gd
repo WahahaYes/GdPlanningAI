@@ -16,7 +16,7 @@ var _wander_target_location: GdPAILocationData
 
 
 func _init(p_wander_distance: float) -> void:
-	super()
+	super ()
 	wander_distance = p_wander_distance
 
 
@@ -35,7 +35,7 @@ func get_action_cost(
 	_world_state: GdPAIBlackboard,
 ) -> float:
 	# Wander cost is fixed since target is computed at runtime
-	return 10.0
+	return 1.0
 
 
 # Override
@@ -57,10 +57,14 @@ func simulate_effect(
 	# Simulate moving wander_distance in a random direction
 	var sim_location: SimObjectProxy = agent_blackboard.get_proxy_in_group("GdPAILocationData")
 	var current_pos: Variant = sim_location.get_property("position")
+	
+	var random_dir: Vector2 = Vector2.from_angle(randf_range(0, TAU))
+	
 	if current_pos is Vector2:
-		sim_location.set_property("position", current_pos + Vector2(wander_distance, 0))
+		sim_location.set_property("position", current_pos + random_dir * wander_distance)
 	elif current_pos is Vector3:
-		sim_location.set_property("position", current_pos + Vector3(wander_distance, 0, 0))
+		var random_dir_3d: Vector3 = Vector3(random_dir.x, 0, random_dir.y)
+		sim_location.set_property("position", current_pos + random_dir_3d * wander_distance)
 
 
 # Override
@@ -97,13 +101,13 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	target_location = _wander_target_location
 
 	# Call parent to handle navigation setup
-	return super(agent)
+	return super (agent)
 
 
 # Override
 func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 	# Delegate navigation to parent GoToAction
-	return super(agent, delta)
+	return super (agent, delta)
 
 
 # Override
@@ -115,7 +119,7 @@ func post_perform_action(agent: GdPAIAgent) -> Action.Status:
 	_wander_target_location = null
 
 	# Call parent to handle navigation cleanup
-	return super(agent)
+	return super (agent)
 
 
 # Override

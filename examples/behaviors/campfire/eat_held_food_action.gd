@@ -39,8 +39,10 @@ func get_preconditions() -> Array[Precondition]:
 # Override
 func get_requirements() -> Array[RequirementSpec]:
 	# Require that held_item binding exists.
-	# We also require a symbolic 'is_food' fact to ensure the held item is edible.
-	return [RequirementSpec.binding_exists("held_item"), RequirementSpec.fact("is_food", [])]
+	# We no longer require a symbolic 'is_food' fact because we validate the item
+	# against hunger_restored_by_item during simulation/execution. This allows
+	# the agent to eat items it is already holding.
+	return [RequirementSpec.binding_exists("held_item")]
 
 
 # Override
@@ -62,7 +64,7 @@ func simulate_effect(
 		return
 
 	var hunger_restored: float
-	var held_item_id: String
+	var held_item_id: String = String(held_item) if held_item != null else ""
 
 	# Durante backward planning, this action may be considered before its
 	# held_item requirement has been satisfied. Use a conservative optimistic

@@ -112,21 +112,23 @@ fn snap_equal(
     property_name: &str,
     compare_val: Option<&VariantSnapshot>,
 ) -> bool {
-    let prop = match source.properties.get(property_name) {
-        Some(v) => v,
-        None => return false,
-    };
+    let prop = source.properties.get(property_name).unwrap_or(&VariantSnapshot::Nil);
     let cmp = match compare_val {
         Some(v) => v,
-        None => return false,
+        None => &VariantSnapshot::Nil,
     };
+
     match (prop, cmp) {
         (VariantSnapshot::Nil, VariantSnapshot::Nil) => true,
+        (VariantSnapshot::Nil, VariantSnapshot::Str(s)) if s.is_empty() => true,
+        (VariantSnapshot::Str(s), VariantSnapshot::Nil) if s.is_empty() => true,
         (VariantSnapshot::Bool(a), VariantSnapshot::Bool(b)) => a == b,
         (VariantSnapshot::Str(a), VariantSnapshot::Str(b)) => a == b,
+        (VariantSnapshot::Int(a), VariantSnapshot::Int(b)) => a == b,
+        (VariantSnapshot::ObjectRef(a), VariantSnapshot::ObjectRef(b)) => a == b,
         // Numeric: cross-compare int/float
         (p, c) => match (snap_as_f64(p), snap_as_f64(c)) {
-            (Some(pn), Some(cn)) => (pn - cn).abs() < f64::EPSILON,
+            (Some(pn), Some(cn)) => (pn - cn).abs() < 1e-4,
             _ => false,
         },
     }
@@ -139,8 +141,8 @@ fn snap_compare_all(
     compare_val: Option<&VariantSnapshot>,
     operation: &PreconditionOp,
 ) -> bool {
-    let prop = source.properties.get(property_name);
-    let p_num = prop.and_then(snap_as_f64);
+    let prop = source.properties.get(property_name).unwrap_or(&VariantSnapshot::Nil);
+    let p_num = snap_as_f64(prop);
     let c_num = compare_val.and_then(snap_as_f64);
 
     if let (Some(p), Some(c)) = (p_num, c_num) {

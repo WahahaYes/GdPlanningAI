@@ -61,8 +61,11 @@ func get_action_cost(
 
 	if binding != null:
 		if binding is Array:
-			if binding.size() > 0:
-				actual_target = binding[0]
+			var flattened = binding
+			while flattened.size() > 0 and flattened[0] is Array:
+				flattened = flattened[0]
+			if flattened.size() > 0:
+				actual_target = flattened[0]
 		else:
 			actual_target = binding
 
@@ -123,8 +126,11 @@ func simulate_effect(
 	var binding = agent_blackboard.get_property("at_target")
 	if binding != null:
 		if binding is Array:
-			if binding.size() > 0:
-				actual_target = binding[0]
+			var flattened = binding
+			while flattened.size() > 0 and flattened[0] is Array:
+				flattened = flattened[0]
+			if flattened.size() > 0:
+				actual_target = flattened[0]
 		else:
 			actual_target = binding
 

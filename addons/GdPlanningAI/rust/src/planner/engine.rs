@@ -181,7 +181,8 @@ impl PlannerEngine {
             }
 
             // Increase budget for local tests
-            if iterations > 10000 {
+            if iterations > 20000 {
+                log_warn!("Search budget exceeded (20000 iterations). Search is taking too long.");
                 self.queue.push(node);
                 return PlannerRunResult::Pending(0);
             }
@@ -236,11 +237,7 @@ impl PlannerEngine {
                         node.branch.simulation_index = 0;
                         node.branch.current_agent = self.ctx.initial_agent.clone();
                         node.branch.current_world = self.ctx.initial_world.clone();
-                        // node.branch.cost = 0.0; // DON'T reset cost, keep the symbolic estimate for priority
                         self.queue.push(node);
-
-                        // If we are looking for any plan, we've found our candidate.
-                        // But we still need to Verify it.
                         continue;
                     }
 
@@ -367,6 +364,8 @@ impl PlannerEngine {
                                     callback_response: None,
                                 });
                             }
+                            // Stop search for this branch once we've expanded it with its candidates.
+                            continue;
                         }
                         StepResult::Pending(id) => {
                             self.parked_nodes.entry(id).or_default().push(node);
@@ -533,19 +532,11 @@ impl PlannerEngine {
                         .iter()
                         .any(|(pos, _)| *pos == branch.simulation_index);
                     if has_open_preconds {
-                        log_debug!(
-                            "Verifying branch FAILED: open preconditions remain at end of chain"
-                        );
                         return StepResult::Invalid;
                     }
 
                     // Ensure no requirements remain open anywhere in the chain
                     if !branch.open_requirements.is_empty() {
-                        log_debug!(
-                            "Verifying branch FAILED: {} open requirements remain: {:?}",
-                            branch.open_requirements.len(),
-                            branch.open_requirements
-                        );
                         return StepResult::Invalid;
                     }
 
