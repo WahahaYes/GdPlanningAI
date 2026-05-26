@@ -45,6 +45,8 @@ pub struct PlanBranch {
     pub current_world: BlackboardSnapshot,
     /// Total grounded cost of the actions in this branch.
     pub cost: f64,
+    /// ID of the node in the debug search tree.
+    pub tree_node_id: usize,
 }
 
 /// A node in the A* priority queue.
@@ -150,6 +152,7 @@ impl PlanBranch {
             current_agent: initial_agent.clone(),
             current_world: initial_world.clone(),
             cost: 0.0,
+            tree_node_id: 0,
         }
     }
 

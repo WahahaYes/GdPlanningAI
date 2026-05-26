@@ -47,7 +47,6 @@ impl PreconditionHandler {
     /// Expected keys: `target`, `operation`, `property_name`, `value`,
     /// `is_satisfied`, `eval_callable`.
     pub fn from_dict(dict: &VarDictionary) -> Option<Self> {
-        log_debug!("PreconditionHandler::from_dict: {:?}", dict);
         let target = dict
             .get("target")
             .and_then(|v| v.try_to::<String>().ok())

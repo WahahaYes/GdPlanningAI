@@ -94,6 +94,27 @@ impl RequirementSpec {
             }
         }
     }
+
+    pub fn to_string(&self) -> String {
+        match self {
+            Self::BindingExists { binding_name } => format!("exists({})", binding_name),
+            Self::BindingEquals {
+                binding_name,
+                value,
+            } => format!("{} == {:?}", binding_name, value),
+            Self::BindingInSet {
+                binding_name,
+                set_name,
+            } => format!("{} in {}", binding_name, set_name),
+            Self::Fact { fact_name, args } => {
+                if args.is_empty() {
+                    fact_name.clone()
+                } else {
+                    format!("{}({:?})", fact_name, args)
+                }
+            }
+        }
+    }
 }
 
 impl std::hash::Hash for ProvisionSpec {

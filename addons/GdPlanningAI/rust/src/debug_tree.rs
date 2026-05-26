@@ -48,6 +48,8 @@ pub struct TreeNode {
     pub accumulated_cost: f64,
     pub open_preconditions: Vec<String>,
     pub open_requirements: Vec<String>,
+    pub satisfied_preconditions: Vec<String>,
+    pub satisfied_requirements: Vec<String>,
     pub excluded_actions: Vec<ExcludedAction>,
     pub outcome: NodeOutcome,
     pub forward_validation: Vec<FwdStep>,
@@ -193,6 +195,8 @@ impl TreeDump {
             accumulated_cost: 0.0,
             open_preconditions: open_pre.to_vec(),
             open_requirements: open_req.to_vec(),
+            satisfied_preconditions: Vec::new(),
+            satisfied_requirements: Vec::new(),
             excluded_actions: Vec::new(),
             outcome: NodeOutcome::Expanded,
             forward_validation: Vec::new(),
@@ -213,6 +217,8 @@ impl TreeDump {
         accumulated_cost: f64,
         open_pre: &[String],
         open_req: &[String],
+        satisfied_pre: &[String],
+        satisfied_req: &[String],
     ) -> usize {
         if !self.enabled {
             return 0;
@@ -224,6 +230,8 @@ impl TreeDump {
             accumulated_cost,
             open_preconditions: open_pre.to_vec(),
             open_requirements: open_req.to_vec(),
+            satisfied_preconditions: satisfied_pre.to_vec(),
+            satisfied_requirements: satisfied_req.to_vec(),
             excluded_actions: Vec::new(),
             outcome: NodeOutcome::Expanded,
             forward_validation: Vec::new(),
@@ -363,6 +371,14 @@ fn format_node(
                 "ROOT".to_string()
             };
             output.push_str(&format!("{}{}\n", prefix, label));
+            if !node.satisfied_preconditions.is_empty() || !node.satisfied_requirements.is_empty() {
+                output.push_str(&format!(
+                    "{}  satisfies_pre=[{}] satisfies_req=[{}]\n",
+                    indent,
+                    node.satisfied_preconditions.join(", "),
+                    node.satisfied_requirements.join(", ")
+                ));
+            }
             if !node.open_preconditions.is_empty() || !node.open_requirements.is_empty() {
                 output.push_str(&format!(
                     "{}  open_pre=[{}] open_req=[{}]\n",

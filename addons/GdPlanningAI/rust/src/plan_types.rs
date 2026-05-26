@@ -91,6 +91,38 @@ impl PreconditionSpec {
             _ => &[],
         }
     }
+
+    pub fn to_string(&self) -> String {
+        match self {
+            Self::Builtin {
+                target,
+                operation,
+                property_name,
+                value,
+            } => {
+                let target_str = match target {
+                    PreconditionTarget::Agent => "Agent",
+                    PreconditionTarget::WorldState => "World",
+                };
+                let op_str = match operation {
+                    PreconditionOp::HasProperty => "has",
+                    PreconditionOp::Equal => "==",
+                    PreconditionOp::NotEqual => "!=",
+                    PreconditionOp::GreaterThan => ">",
+                    PreconditionOp::GreaterThanOrEqual => ">=",
+                    PreconditionOp::LessThan => "<",
+                    PreconditionOp::LessThanOrEqual => "<=",
+                    PreconditionOp::CustomCallback => "custom",
+                };
+                if let Some(v) = value {
+                    format!("{}.{} {} {:?}", target_str, property_name, op_str, v)
+                } else {
+                    format!("{}.{} {}", target_str, property_name, op_str)
+                }
+            }
+            Self::Custom { callable_id, .. } => format!("Custom({})", callable_id),
+        }
+    }
 }
 
 /// Evaluate a single builtin precondition against a [`BlackboardSnapshot`].

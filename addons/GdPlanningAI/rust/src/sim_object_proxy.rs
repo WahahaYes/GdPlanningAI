@@ -42,16 +42,7 @@ impl SimObjectProxy {
     #[func]
     pub fn is_in_group(&self, group: GString) -> bool {
         let group_str = group.to_string();
-        let result = self.groups.contains(&group_str);
-        if group_str == "CampfireObject" || group_str == "Food" {
-            log_debug!(
-                "SimObjectProxy::is_in_group: object {} in group {} -> {}",
-                self.uid,
-                group_str,
-                result
-            );
-        }
-        result
+        self.groups.contains(&group_str)
     }
 
     /// Returns all groups this object belongs to.
