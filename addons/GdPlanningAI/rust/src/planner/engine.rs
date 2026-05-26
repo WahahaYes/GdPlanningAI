@@ -99,8 +99,10 @@ impl PlannerEngine {
         let goal = &goals[idx];
 
         // Tree: Start goal
-        let goal_pre_strings: Vec<String> = goal.desired_state.iter().map(|p| p.to_string()).collect();
-        self.tree.begin_goal(&goal.name, goal.reward, &goal_pre_strings);
+        let goal_pre_strings: Vec<String> =
+            goal.desired_state.iter().map(|p| p.to_string()).collect();
+        self.tree
+            .begin_goal(&goal.name, goal.reward, &goal_pre_strings);
 
         let mut branch = PlanBranch::new(&self.ctx.initial_agent, &self.ctx.initial_world);
         branch.goal_index = goal.original_index; // Use original index for Godot
@@ -109,8 +111,16 @@ impl PlannerEngine {
         }
 
         // Tree: Add root node
-        let open_pre: Vec<String> = branch.open_preconditions.iter().map(|(_, p)| p.to_string()).collect();
-        let open_req: Vec<String> = branch.open_requirements.iter().map(|(_, r)| r.to_string()).collect();
+        let open_pre: Vec<String> = branch
+            .open_preconditions
+            .iter()
+            .map(|(_, p)| p.to_string())
+            .collect();
+        let open_req: Vec<String> = branch
+            .open_requirements
+            .iter()
+            .map(|(_, r)| r.to_string())
+            .collect();
         branch.tree_node_id = self.tree.add_root(&open_pre, &open_req);
 
         self.queue.push(SearchNode {
@@ -229,7 +239,12 @@ impl PlannerEngine {
                             self.parked_nodes.entry(id).or_default().push(node);
                         }
                         StepResult::Invalid => {
-                            self.tree.set_outcome(node.branch.tree_node_id, NodeOutcome::Pruned { reason: "Simulation failed or cost infinite".to_string() });
+                            self.tree.set_outcome(
+                                node.branch.tree_node_id,
+                                NodeOutcome::Pruned {
+                                    reason: "Simulation failed or cost infinite".to_string(),
+                                },
+                            );
                         }
                         StepResult::Complete => {
                             // Verification pass finished and updated best_plan.
@@ -268,10 +283,14 @@ impl PlannerEngine {
                                 let action = &self.ctx.actions[cand.action_idx];
 
                                 // Record satisfied needs for debugging
-                                let satisfied_pre: Vec<String> = cand.satisfied_preconditions.iter()
+                                let satisfied_pre: Vec<String> = cand
+                                    .satisfied_preconditions
+                                    .iter()
                                     .map(|&idx| node.branch.open_preconditions[idx].1.to_string())
                                     .collect();
-                                let satisfied_req: Vec<String> = cand.satisfied_requirements.iter()
+                                let satisfied_req: Vec<String> = cand
+                                    .satisfied_requirements
+                                    .iter()
                                     .map(|(_, req, _)| req.to_string())
                                     .collect();
 
@@ -375,9 +394,17 @@ impl PlannerEngine {
                                 }
 
                                 // Tree: Add child node now that needs are updated
-                                let open_pre: Vec<String> = new_branch.open_preconditions.iter().map(|(_, p)| p.to_string()).collect();
-                                let open_req: Vec<String> = new_branch.open_requirements.iter().map(|(_, r)| r.to_string()).collect();
-                                
+                                let open_pre: Vec<String> = new_branch
+                                    .open_preconditions
+                                    .iter()
+                                    .map(|(_, p)| p.to_string())
+                                    .collect();
+                                let open_req: Vec<String> = new_branch
+                                    .open_requirements
+                                    .iter()
+                                    .map(|(_, r)| r.to_string())
+                                    .collect();
+
                                 new_branch.tree_node_id = self.tree.add_child(
                                     node.branch.tree_node_id,
                                     &action.name,
@@ -409,7 +436,8 @@ impl PlannerEngine {
                             self.parked_nodes.entry(id).or_default().push(node);
                         }
                         StepResult::Invalid => {
-                            self.tree.set_outcome(node.branch.tree_node_id, NodeOutcome::DeadEnd);
+                            self.tree
+                                .set_outcome(node.branch.tree_node_id, NodeOutcome::DeadEnd);
                         }
                         StepResult::Complete => {
                             unreachable!("find_candidates cannot return Complete")
@@ -442,8 +470,13 @@ impl PlannerEngine {
             });
 
             if final_plan.success {
-                let action_names: Vec<String> = final_plan.action_chain.iter().map(|&idx| self.ctx.actions[idx as usize].name.clone()).collect();
-                self.tree.end_goal(true, &action_names, final_plan.total_cost);
+                let action_names: Vec<String> = final_plan
+                    .action_chain
+                    .iter()
+                    .map(|&idx| self.ctx.actions[idx as usize].name.clone())
+                    .collect();
+                self.tree
+                    .end_goal(true, &action_names, final_plan.total_cost);
                 if self.tree.is_enabled() {
                     log_debug!("{}", self.tree.format());
                 }
@@ -587,22 +620,35 @@ impl PlannerEngine {
                         .iter()
                         .any(|(pos, _)| *pos == branch.simulation_index);
                     if has_open_preconds {
-                        self.tree.set_outcome(branch.tree_node_id, NodeOutcome::Pruned { reason: "Goal preconditions not met".to_string() });
+                        self.tree.set_outcome(
+                            branch.tree_node_id,
+                            NodeOutcome::Pruned {
+                                reason: "Goal preconditions not met".to_string(),
+                            },
+                        );
                         return StepResult::Invalid;
                     }
 
                     // Ensure no requirements remain open anywhere in the chain
                     if !branch.open_requirements.is_empty() {
-                        self.tree.set_outcome(branch.tree_node_id, NodeOutcome::Pruned { reason: "Unsatisfied requirements remain".to_string() });
+                        self.tree.set_outcome(
+                            branch.tree_node_id,
+                            NodeOutcome::Pruned {
+                                reason: "Unsatisfied requirements remain".to_string(),
+                            },
+                        );
                         return StepResult::Invalid;
                     }
 
                     if branch.cost < self.best_cost {
-                        self.tree.set_outcome(branch.tree_node_id, NodeOutcome::Complete { 
-                            chain_len: branch.action_chain.len(), 
-                            total_cost: branch.cost, 
-                            fwd_ok: true 
-                        });
+                        self.tree.set_outcome(
+                            branch.tree_node_id,
+                            NodeOutcome::Complete {
+                                chain_len: branch.action_chain.len(),
+                                total_cost: branch.cost,
+                                fwd_ok: true,
+                            },
+                        );
                         self.best_cost = branch.cost;
                         self.best_plan = Some(PlanResult {
                             success: true,

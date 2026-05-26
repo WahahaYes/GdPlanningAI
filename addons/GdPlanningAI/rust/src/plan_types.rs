@@ -144,7 +144,10 @@ fn snap_equal(
     property_name: &str,
     compare_val: Option<&VariantSnapshot>,
 ) -> bool {
-    let prop = source.properties.get(property_name).unwrap_or(&VariantSnapshot::Nil);
+    let prop = source
+        .properties
+        .get(property_name)
+        .unwrap_or(&VariantSnapshot::Nil);
     let cmp = match compare_val {
         Some(v) => v,
         None => &VariantSnapshot::Nil,
@@ -173,7 +176,10 @@ fn snap_compare_all(
     compare_val: Option<&VariantSnapshot>,
     operation: &PreconditionOp,
 ) -> bool {
-    let prop = source.properties.get(property_name).unwrap_or(&VariantSnapshot::Nil);
+    let prop = source
+        .properties
+        .get(property_name)
+        .unwrap_or(&VariantSnapshot::Nil);
     let p_num = snap_as_f64(prop);
     let c_num = compare_val.and_then(snap_as_f64);
 
