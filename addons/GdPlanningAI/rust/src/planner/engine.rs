@@ -137,6 +137,11 @@ impl PlannerEngine {
 
         // 1. Resume Callbacks
         while let Ok(callback) = self.response_rx.try_recv() {
+            if self.cancel_flag.load(std::sync::atomic::Ordering::Relaxed) {
+                self.parked_nodes.clear();
+                return PlannerRunResult::Complete(None);
+            }
+
             // Handle Discovery responses
             let discovery_req = {
                 let req_map = self.ctx.discovery_request_map.lock().unwrap();
@@ -415,12 +420,38 @@ impl PlannerEngine {
                             &satisfied_req,
                         );
 
-                        // Reset to Rippling to check if this action satisfies anything
-                        new_branch.state = BranchState::Rippling;
-                        new_branch.simulation_index = 0;
-                        new_branch.current_agent = self.ctx.initial_agent.clone();
-                        new_branch.current_world = self.ctx.initial_world.clone();
+                        // Reset search state for the new branch
+                        new_branch.state = BranchState::Searching;
                         new_branch.recalculate_cost();
+
+                        // Check if this action satisfied its own preconditions or goal preconditions
+                        // using its discovery simulation result.
+                        if let Some(disc_res) = {
+                            let cache = self.ctx.discovery_results.lock().unwrap();
+                            cache.get(&(cand.action_idx, cand.bindings.clone())).cloned()
+                        } {
+                            // Clear any preconditions at pos 0 that are satisfied by the state BEFORE the chain
+                            // or by the newly prepended action.
+                            let mut i = 0;
+                            while i < new_branch.open_preconditions.len() {
+                                let (pos, pre) = &new_branch.open_preconditions[i];
+                                if *pos == 0 {
+                                    if let Some(true) = pre.evaluate_builtin(&disc_res.agent, &disc_res.world) {
+                                        new_branch.open_preconditions.remove(i);
+                                        continue;
+                                    }
+                                }
+                                i += 1;
+                            }
+                        }
+
+                        // If ALL needs are satisfied, move to Verifying
+                        if new_branch.open_preconditions.is_empty() && new_branch.open_requirements.is_empty() {
+                            new_branch.state = BranchState::Verifying;
+                            new_branch.simulation_index = 0;
+                            new_branch.current_agent = self.ctx.initial_agent.clone();
+                            new_branch.current_world = self.ctx.initial_world.clone();
+                        }
 
                         self.queue.push(SearchNode {
                             branch: new_branch,

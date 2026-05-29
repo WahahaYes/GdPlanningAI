@@ -387,6 +387,8 @@ pub fn find_candidates(
                             satisfied_preconditions,
                             bindings: empty_bindings,
                         });
+                    } else if branch.action_chain.is_empty() {
+                        // log_debug!("Discovery: Action '{}' satisfied nothing for ROOT", action.name);
                     }
                 }
                 StepResult::Pending(id) => {

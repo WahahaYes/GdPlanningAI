@@ -30,6 +30,7 @@ struct ActiveJobHandle {
     cancel_flag: Arc<AtomicBool>,
     pending_request_id: usize,
     done: bool,
+    pending_reap: bool, // New flag
 }
 
 /// Planning scheduler.
@@ -165,8 +166,11 @@ impl GdPAIPlanScheduler {
             }
         }
 
-        // Clean up finished jobs
-        self.active_jobs.retain(|job| !job.done);
+        // Clean up finished jobs that have had one frame to be inspected
+        self.active_jobs.retain(|job| !job.pending_reap);
+        for job in self.active_jobs.iter_mut().filter(|j| j.done) {
+            job.pending_reap = true;
+        }
 
         crate::logger::process_logs();
     }
@@ -255,6 +259,7 @@ impl GdPAIPlanScheduler {
             cancel_flag,
             pending_request_id: 0,
             done: false,
+            pending_reap: false,
         };
 
         run_job_step(self.thread_pool.as_ref(), job.goals.clone(), res_tx, engine);
