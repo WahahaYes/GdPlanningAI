@@ -78,10 +78,14 @@ impl GdPAIPlanScheduler {
         // 1. Recover engines from worker threads first.
         for job in self.active_jobs.iter_mut().filter(|j| !j.done) {
             while let Ok((run_result, engine)) = job.result_rx.try_recv() {
+                // Always put the engine back into the handle so we can extract its debug tree
+                job.engine = Some(engine);
+
                 match run_result {
                     PlannerRunResult::Complete(result) => {
                         job.done = true;
                         if job.cancel_flag.load(std::sync::atomic::Ordering::Relaxed) {
+                            log_debug!("Job for agent instance {} cancelled successfully", job.agent_instance_id);
                             continue;
                         }
 
@@ -114,7 +118,6 @@ impl GdPAIPlanScheduler {
                         }
                     }
                     PlannerRunResult::Pending(id) => {
-                        job.engine = Some(engine);
                         job.pending_request_id = id;
                     }
                 }
@@ -282,11 +285,39 @@ impl GdPAIPlanScheduler {
         log_debug!("Cleared all active jobs from scheduler");
     }
 
+    /// Signal all active jobs to cancel but do not remove them from the registry.
+    /// This allows process_callbacks to still recover the engines for debug tree inspection.
+    #[func]
+    fn cancel_all_jobs(&mut self) {
+        for job in &mut self.active_jobs {
+            job.cancel_flag
+                .store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+        log_debug!("Signalled all active jobs to cancel");
+    }
+
     /// Sets the process-wide log verbosity.
     #[func]
     fn set_log_level(&self, level: i64) {
         let log_level = crate::logger::LogLevel::from_u8(level.clamp(0, 3) as u8);
         crate::logger::set_log_level(log_level);
+    }
+
+    /// Returns a human-readable search tree for the given agent's current planning job.
+    /// Returns an empty string if no active job is found or if the job is currently running in a thread.
+    #[func]
+    fn get_debug_tree(&self, agent: Gd<Object>) -> String {
+        let agent_instance_id = agent.instance_id().to_i64();
+        for job in &self.active_jobs {
+            if job.agent_instance_id == agent_instance_id {
+                if let Some(engine) = &job.engine {
+                    return engine.tree.format();
+                } else {
+                    return "Engine is currently running in a background thread.".to_string();
+                }
+            }
+        }
+        String::new()
     }
 }
 

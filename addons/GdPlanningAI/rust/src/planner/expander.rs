@@ -9,6 +9,7 @@ use crate::planner::types::{
     BindingMap, DiscoveryRequest, DiscoveryResult, PlanBranch, SearchContext,
 };
 use crate::requirement::{ProvisionSpec, RequirementSpec, provision_satisfies_requirement};
+use std::collections::HashSet;
 
 /// A candidate action that can potentially satisfy one or more open needs.
 pub struct Candidate {
@@ -214,7 +215,7 @@ pub fn find_candidates(
                         match get_discovery_result(idx, &bindings, ctx, response) {
                             StepResult::Ready(res) => {
                                 let mut satisfied_preconditions = Vec::new();
-                                for (pre_idx, (_pos, pre)) in
+                                for (pre_idx, (pos, pre)) in
                                     branch.open_preconditions.iter().enumerate()
                                 {
                                     if let Some(eval_res) =
@@ -299,10 +300,14 @@ pub fn find_candidates(
         } else {
             // Grouped candidates for actions without wildcards
             let mut satisfied_requirements = Vec::new();
+            let mut matched_req_indices = HashSet::new();
             for (req_idx, (_pos, req)) in branch.open_requirements.iter().enumerate() {
                 for prov in &action.provisions {
                     if provision_satisfies_requirement(prov, req, Some(&ctx.initial_world)) {
-                        satisfied_requirements.push((req_idx, req.clone(), prov.clone()));
+                        if matched_req_indices.insert(req_idx) {
+                            satisfied_requirements.push((req_idx, req.clone(), prov.clone()));
+                        }
+                        break; // One provision is enough for this requirement
                     }
                 }
             }
@@ -312,13 +317,6 @@ pub fn find_candidates(
                 StepResult::Ready(res) => {
                     let mut satisfied_preconditions = Vec::new();
                     for (pre_idx, (pos, pre)) in branch.open_preconditions.iter().enumerate() {
-                        // A prepended action can only satisfy preconditions that are currently
-                        // at the front of the chain (pos 0), because its immediate output
-                        // state is the input state for those actions.
-                        if *pos != 0 {
-                            continue;
-                        }
-
                         if let Some(eval_res) = pre.evaluate_builtin(&res.agent, &res.world) {
                             if eval_res {
                                 satisfied_preconditions.push(pre_idx);

@@ -70,7 +70,7 @@ fn single_candidate_completes() {
     dump.begin_goal("goal", 10.0, &["need_x".to_string()]);
     let root_id = dump.add_root(&["need_x".to_string()], &[]);
 
-    let child_id = dump.add_child(root_id, "do_x", 3.0, 3.0, &[], &[]);
+    let child_id = dump.add_child(root_id, "do_x", 3.0, 3.0, &[], &[], &[], &[]);
     dump.set_outcome(
         child_id,
         NodeOutcome::Complete {
@@ -94,7 +94,7 @@ fn candidate_pruned_by_cost() {
     dump.begin_goal("goal", 10.0, &["need_x".to_string()]);
     let root_id = dump.add_root(&["need_x".to_string()], &[]);
 
-    let child_id = dump.add_child(root_id, "expensive_action", 100.0, 100.0, &[], &[]);
+    let child_id = dump.add_child(root_id, "expensive_action", 100.0, 100.0, &[], &[], &[], &[]);
     dump.set_outcome(
         child_id,
         NodeOutcome::Pruned {
@@ -140,7 +140,7 @@ fn forward_validation_steps_attached_to_completing_node() {
     dump.begin_goal("goal", 10.0, &["need_x".to_string()]);
     let root_id = dump.add_root(&["need_x".to_string()], &[]);
 
-    let child_id = dump.add_child(root_id, "do_x", 3.0, 3.0, &[], &[]);
+    let child_id = dump.add_child(root_id, "do_x", 3.0, 3.0, &[], &[], &[], &[]);
     dump.add_fwd_step(child_id, "do_x", "dependencies", "valid", true);
     dump.add_fwd_step(child_id, "do_x", "precondition", "1 checks passed", true);
     dump.add_fwd_step(child_id, "do_x", "cost", "3.00", true);
@@ -175,7 +175,7 @@ fn multiple_goal_attempts() {
     // Second goal succeeds
     dump.begin_goal("goal_b", 10.0, &["pre_b".to_string()]);
     let root_b = dump.add_root(&["pre_b".to_string()], &[]);
-    let child_b = dump.add_child(root_b, "do_b", 2.0, 2.0, &[], &[]);
+    let child_b = dump.add_child(root_b, "do_b", 2.0, 2.0, &[], &[], &[], &[]);
     dump.set_outcome(
         child_b,
         NodeOutcome::Complete {
@@ -199,10 +199,10 @@ fn branches_counted_by_nodes() {
     dump.begin_goal("goal", 10.0, &["need".to_string()]);
     let root_id = dump.add_root(&["need".to_string()], &[]);
 
-    let a = dump.add_child(root_id, "a", 1.0, 1.0, &[], &[]);
+    let a = dump.add_child(root_id, "a", 1.0, 1.0, &[], &[], &[], &[]);
     dump.set_outcome(a, NodeOutcome::DeadEnd);
 
-    let b = dump.add_child(root_id, "b", 2.0, 2.0, &[], &[]);
+    let b = dump.add_child(root_id, "b", 2.0, 2.0, &[], &[], &[], &[]);
     dump.set_outcome(
         b,
         NodeOutcome::Pruned {
@@ -210,7 +210,7 @@ fn branches_counted_by_nodes() {
         },
     );
 
-    let c = dump.add_child(root_id, "c", 3.0, 3.0, &[], &[]);
+    let c = dump.add_child(root_id, "c", 3.0, 3.0, &[], &[], &[], &[]);
     dump.set_outcome(
         c,
         NodeOutcome::Complete {
@@ -232,7 +232,7 @@ fn format_produces_output() {
     let mut dump = TreeDump::new_forced();
     dump.begin_goal("goal", 10.0, &["need_x".to_string()]);
     let root_id = dump.add_root(&["need_x".to_string()], &[]);
-    let child_id = dump.add_child(root_id, "do_x", 3.0, 3.0, &[], &[]);
+    let child_id = dump.add_child(root_id, "do_x", 3.0, 3.0, &[], &[], &[], &[]);
     dump.set_outcome(
         child_id,
         NodeOutcome::Complete {
@@ -264,9 +264,11 @@ fn nested_candidates_build_correct_tree() {
         2.0,
         &["inner_need".to_string()],
         &[],
+        &[],
+        &[],
     );
 
-    let inner_id = dump.add_child(outer_id, "inner_action", 1.0, 3.0, &[], &[]);
+    let inner_id = dump.add_child(outer_id, "inner_action", 1.0, 3.0, &[], &[], &[], &[]);
     dump.set_outcome(
         inner_id,
         NodeOutcome::Complete {

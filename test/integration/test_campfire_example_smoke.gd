@@ -63,7 +63,20 @@ func _start_plan_and_wait(agent: GdPAIAgent, timeout_frames: int = 300) -> Array
 		await get_tree().process_frame
 
 	# Timeout reached - cancel the in-flight planning job
+	print("[TIMEOUT] Signaling cancellation for agent: ", agent)
 	scheduler.cancel_agent_jobs(agent)
+
+	# Give the thread a few frames to return the engine
+	for i in range(10):
+		scheduler.process_callbacks()
+		var tree = scheduler.get_debug_tree(agent)
+		if tree != "" and not tree.contains("running in a background thread"):
+			print("\n---------- TIMEOUT DEBUG TREE ----------")
+			print(tree)
+			print("----------------------------------------\n")
+			break
+		await get_tree().process_frame
+
 	fail_test("Timed out waiting for submitted agent plan")
 	return []
 
