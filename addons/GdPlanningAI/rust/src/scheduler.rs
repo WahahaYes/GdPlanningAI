@@ -14,7 +14,9 @@ use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use godot::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::{Receiver, Sender};
-use std::sync::{Arc, atomic::AtomicBool};
+use std::sync::{Arc, atomic::AtomicBool, atomic::AtomicUsize};
+
+static ACTIVE_SEARCH_THREADS: AtomicUsize = AtomicUsize::new(0);
 
 struct ActiveJobHandle {
     agent: Gd<Object>,
@@ -141,6 +143,12 @@ impl GdPAIPlanScheduler {
 
         // 3. Resume engines that are ready
         for job in self.active_jobs.iter_mut().filter(|j| !j.done) {
+            // If job was cancelled while yielded, mark as done and don't resume
+            if job.cancel_flag.load(std::sync::atomic::Ordering::Relaxed) {
+                job.done = true;
+                continue;
+            }
+
             let ready_to_resume = if job.pending_request_id == 0 {
                 // Yielded for budget, always ready
                 true
@@ -150,6 +158,7 @@ impl GdPAIPlanScheduler {
             };
 
             if ready_to_resume && let Some(engine) = job.engine.take() {
+                log_debug!("Resuming search for agent instance {}", job.agent_instance_id);
                 let goals = job.goals.clone();
                 let res_tx = job.result_tx.clone();
                 run_job_step(self.thread_pool.as_ref(), goals, res_tx, engine);
@@ -296,6 +305,21 @@ impl GdPAIPlanScheduler {
         log_debug!("Signalled all active jobs to cancel");
     }
 
+    /// Returns a string describing the current state of the thread pool.
+    #[func]
+    fn get_pool_status(&self) -> String {
+        if let Some(pool) = &self.thread_pool {
+            format!(
+                "Threads: {} | Active Search Threads: {} | Active Jobs: {}",
+                pool.current_num_threads(),
+                ACTIVE_SEARCH_THREADS.load(std::sync::atomic::Ordering::Relaxed),
+                self.active_jobs.len(),
+            )
+        } else {
+            "Pool not initialized".to_string()
+        }
+    }
+
     /// Sets the process-wide log verbosity.
     #[func]
     fn set_log_level(&self, level: i64) {
@@ -330,7 +354,9 @@ fn run_job_step(
     if let Some(tp) = thread_pool {
         let mut engine_mut = engine;
         tp.spawn(move || {
+            ACTIVE_SEARCH_THREADS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             let result = engine_mut.plan(&goals);
+            ACTIVE_SEARCH_THREADS.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
             let _ = res_tx.send((result, engine_mut));
         });
     }

@@ -131,6 +131,10 @@ impl PlannerEngine {
     }
 
     fn step_search(&mut self, goals: &[GoalSpec]) -> PlannerRunResult {
+        if self.cancel_flag.load(std::sync::atomic::Ordering::Relaxed) {
+            return PlannerRunResult::Complete(None);
+        }
+
         // 1. Resume Callbacks
         while let Ok(callback) = self.response_rx.try_recv() {
             // Handle Discovery responses
@@ -275,169 +279,159 @@ impl PlannerEngine {
                     if node.branch.action_chain.len() >= self.max_depth {
                         continue;
                     }
-                    match find_candidates(&node.branch, &self.ctx, node.callback_response.as_ref())
-                    {
-                        StepResult::Ready(candidates) => {
-                            for cand in candidates {
-                                let mut new_branch = node.branch.clone();
-                                let action = &self.ctx.actions[cand.action_idx];
+                    let candidates_res = find_candidates(&node.branch, &self.ctx, node.callback_response.as_ref());
+                    
+                    for cand in candidates_res.ready {
+                        let mut new_branch = node.branch.clone();
+                        let action = &self.ctx.actions[cand.action_idx];
 
-                                // Record satisfied needs for debugging
-                                let satisfied_pre: Vec<String> = cand
-                                    .satisfied_preconditions
-                                    .iter()
-                                    .map(|&idx| node.branch.open_preconditions[idx].1.to_string())
-                                    .collect();
-                                let satisfied_req: Vec<String> = cand
-                                    .satisfied_requirements
-                                    .iter()
-                                    .map(|(_, req, _)| req.to_string())
-                                    .collect();
+                        // Record satisfied needs for debugging
+                        let satisfied_pre: Vec<String> = cand
+                            .satisfied_preconditions
+                            .iter()
+                            .map(|&idx| node.branch.open_preconditions[idx].1.to_string())
+                            .collect();
+                        let satisfied_req: Vec<String> = cand
+                            .satisfied_requirements
+                            .iter()
+                            .map(|(_, req, _)| req.to_string())
+                            .collect();
 
-                                // Prepend action
-                                new_branch.action_chain.insert(0, cand.action_idx);
-                                let discovery_cost = {
-                                    let cache = self.ctx.discovery_results.lock().unwrap();
-                                    cache
-                                        .get(&(cand.action_idx, cand.bindings.clone()))
-                                        .map(|r| r.cost)
-                                        .unwrap_or(1.0)
-                                };
-                                new_branch.action_costs.insert(0, discovery_cost);
+                        // Prepend action
+                        new_branch.action_chain.insert(0, cand.action_idx);
+                        let discovery_cost = {
+                            let cache = self.ctx.discovery_results.lock().unwrap();
+                            cache
+                                .get(&(cand.action_idx, cand.bindings.clone()))
+                                .map(|r| r.cost)
+                                .unwrap_or(1.0)
+                        };
+                        new_branch.action_costs.insert(0, discovery_cost);
 
-                                // Update indices of existing needs and bindings
-                                for (pos, _) in new_branch.open_preconditions.iter_mut() {
-                                    *pos += 1;
+                        // Update indices of existing needs and bindings
+                        for (pos, _) in new_branch.open_preconditions.iter_mut() {
+                            *pos += 1;
+                        }
+                        for (pos, _) in new_branch.open_requirements.iter_mut() {
+                            *pos += 1;
+                        }
+                        for (pos, _, _) in new_branch.action_bindings.iter_mut() {
+                            *pos += 1;
+                        }
+
+                        // 1. Record and remove satisfied requirements
+                        let mut new_bindings = Vec::new();
+                        let reqs_to_remove: HashSet<usize> = cand
+                            .satisfied_requirements
+                            .iter()
+                            .map(|(idx, _, _)| *idx)
+                            .collect();
+                        for (req_idx_in_branch, req, prov) in cand.satisfied_requirements {
+                            let consumer_pos =
+                                new_branch.open_requirements[req_idx_in_branch].0;
+
+                            let (binding_name, values) = match (&prov, &req) {
+                                (
+                                    ProvisionSpec::Binding {
+                                        binding_name,
+                                        value,
+                                    },
+                                    _,
+                                ) => (binding_name.clone(), vec![value.clone()]),
+                                (ProvisionSpec::Fact { fact_name, args }, _) => {
+                                    (fact_name.clone(), args.clone())
                                 }
-                                for (pos, _) in new_branch.open_requirements.iter_mut() {
-                                    *pos += 1;
-                                }
-                                for (pos, _, _) in new_branch.action_bindings.iter_mut() {
-                                    *pos += 1;
-                                }
+                                (
+                                    ProvisionSpec::FactWildcard { fact_name },
+                                    RequirementSpec::Fact { args, .. },
+                                ) => (fact_name.clone(), args.clone()),
+                                _ => (String::new(), vec![]),
+                            };
 
-                                // 1. Record and remove satisfied requirements
-                                let mut new_bindings = Vec::new();
-                                let reqs_to_remove: HashSet<usize> = cand
-                                    .satisfied_requirements
-                                    .iter()
-                                    .map(|(idx, _, _)| *idx)
-                                    .collect();
-                                for (req_idx_in_branch, req, prov) in cand.satisfied_requirements {
-                                    let consumer_pos =
-                                        new_branch.open_requirements[req_idx_in_branch].0;
-
-                                    let (binding_name, values) = match (&prov, &req) {
-                                        (
-                                            ProvisionSpec::Binding {
-                                                binding_name,
-                                                value,
-                                            },
-                                            _,
-                                        ) => (binding_name.clone(), vec![value.clone()]),
-                                        (ProvisionSpec::Fact { fact_name, args }, _) => {
-                                            (fact_name.clone(), args.clone())
-                                        }
-                                        (
-                                            ProvisionSpec::FactWildcard { fact_name },
-                                            RequirementSpec::Fact { args, .. },
-                                        ) => (fact_name.clone(), args.clone()),
-                                        _ => (String::new(), vec![]),
-                                    };
-
-                                    if !binding_name.is_empty() {
-                                        // Associate with provider (the newly prepended action at pos 0)
-                                        new_bindings.push((0, binding_name.clone(), values.clone()));
-                                        // Associate with consumer (already offset by 1 during increment above)
-                                        new_bindings.push((consumer_pos, binding_name, values));
-                                    }
-                                }
-
-                                let mut j = 0;
-                                let mut removed_count = 0;
-                                while j < new_branch.open_requirements.len() {
-                                    if reqs_to_remove.contains(&(j + removed_count)) {
-                                        new_branch.open_requirements.remove(j);
-                                        removed_count += 1;
-                                    } else {
-                                        j += 1;
-                                    }
-                                }
-
-                                // 2. Remove satisfied preconditions
-                                let preconds_to_remove: HashSet<usize> =
-                                    cand.satisfied_preconditions.iter().copied().collect();
-                                let mut k = 0;
-                                let mut removed_pre_count = 0;
-                                while k < new_branch.open_preconditions.len() {
-                                    if preconds_to_remove.contains(&(k + removed_pre_count)) {
-                                        new_branch.open_preconditions.remove(k);
-                                        removed_pre_count += 1;
-                                    } else {
-                                        k += 1;
-                                    }
-                                }
-
-                                // Add the new bindings for the prepended action
-                                new_branch.action_bindings.extend(new_bindings);
-
-                                // Add new needs from the prepended action at pos=0
-                                for pre in &action.preconditions {
-                                    new_branch.open_preconditions.push((0, pre.clone()));
-                                }
-                                for req in &action.requirements {
-                                    new_branch.open_requirements.push((0, req.clone()));
-                                }
-
-                                // Tree: Add child node now that needs are updated
-                                let open_pre: Vec<String> = new_branch
-                                    .open_preconditions
-                                    .iter()
-                                    .map(|(_, p)| p.to_string())
-                                    .collect();
-                                let open_req: Vec<String> = new_branch
-                                    .open_requirements
-                                    .iter()
-                                    .map(|(_, r)| r.to_string())
-                                    .collect();
-
-                                new_branch.tree_node_id = self.tree.add_child(
-                                    node.branch.tree_node_id,
-                                    &action.name,
-                                    discovery_cost,
-                                    node.branch.cost + discovery_cost,
-                                    &open_pre,
-                                    &open_req,
-                                    &satisfied_pre,
-                                    &satisfied_req,
-                                );
-
-                                // Reset to Rippling to check if this action satisfies anything
-                                new_branch.state = BranchState::Rippling;
-                                new_branch.simulation_index = 0;
-                                new_branch.current_agent = self.ctx.initial_agent.clone();
-                                new_branch.current_world = self.ctx.initial_world.clone();
-                                new_branch.recalculate_cost();
-
-                                self.queue.push(SearchNode {
-                                    branch: new_branch,
-                                    resumed: false,
-                                    callback_response: None,
-                                });
+                            if !binding_name.is_empty() {
+                                // Associate with provider (the newly prepended action at pos 0)
+                                new_bindings.push((0, binding_name.clone(), values.clone()));
+                                // Associate with consumer (already offset by 1 during increment above)
+                                new_bindings.push((consumer_pos, binding_name, values));
                             }
-                            // Stop search for this branch once we've expanded it with its candidates.
-                            continue;
                         }
-                        StepResult::Pending(id) => {
-                            self.parked_nodes.entry(id).or_default().push(node);
+
+                        let mut j = 0;
+                        let mut removed_count = 0;
+                        while j < new_branch.open_requirements.len() {
+                            if reqs_to_remove.contains(&(j + removed_count)) {
+                                new_branch.open_requirements.remove(j);
+                                removed_count += 1;
+                            } else {
+                                j += 1;
+                            }
                         }
-                        StepResult::Invalid => {
-                            self.tree
-                                .set_outcome(node.branch.tree_node_id, NodeOutcome::DeadEnd);
+
+                        // 2. Remove satisfied preconditions
+                        let preconds_to_remove: HashSet<usize> =
+                            cand.satisfied_preconditions.iter().copied().collect();
+                        let mut k = 0;
+                        let mut removed_pre_count = 0;
+                        while k < new_branch.open_preconditions.len() {
+                            if preconds_to_remove.contains(&(k + removed_pre_count)) {
+                                new_branch.open_preconditions.remove(k);
+                                removed_pre_count += 1;
+                            } else {
+                                k += 1;
+                            }
                         }
-                        StepResult::Complete => {
-                            unreachable!("find_candidates cannot return Complete")
+
+                        // Add the new bindings for the prepended action
+                        new_branch.action_bindings.extend(new_bindings);
+
+                        // Add new needs from the prepended action at pos=0
+                        for pre in &action.preconditions {
+                            new_branch.open_preconditions.push((0, pre.clone()));
                         }
+                        for req in &action.requirements {
+                            new_branch.open_requirements.push((0, req.clone()));
+                        }
+
+                        // Tree: Add child node now that needs are updated
+                        let open_pre: Vec<String> = new_branch
+                            .open_preconditions
+                            .iter()
+                            .map(|(_, p)| p.to_string())
+                            .collect();
+                        let open_req: Vec<String> = new_branch
+                            .open_requirements
+                            .iter()
+                            .map(|(_, r)| r.to_string())
+                            .collect();
+
+                        new_branch.tree_node_id = self.tree.add_child(
+                            node.branch.tree_node_id,
+                            &action.name,
+                            discovery_cost,
+                            node.branch.cost + discovery_cost,
+                            &open_pre,
+                            &open_req,
+                            &satisfied_pre,
+                            &satisfied_req,
+                        );
+
+                        // Reset to Rippling to check if this action satisfies anything
+                        new_branch.state = BranchState::Rippling;
+                        new_branch.simulation_index = 0;
+                        new_branch.current_agent = self.ctx.initial_agent.clone();
+                        new_branch.current_world = self.ctx.initial_world.clone();
+                        new_branch.recalculate_cost();
+
+                        self.queue.push(SearchNode {
+                            branch: new_branch,
+                            resumed: false,
+                            callback_response: None,
+                        });
+                    }
+
+                    if let Some(id) = candidates_res.pending_id {
+                        node.callback_response = None;
+                        self.parked_nodes.entry(id).or_default().push(node);
                     }
                 }
             }

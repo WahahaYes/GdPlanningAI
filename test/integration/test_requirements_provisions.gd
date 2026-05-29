@@ -84,7 +84,7 @@ func _submit_plan_and_wait(
 		await get_tree().process_frame
 
 	fail_test("Timed out waiting for async plan result")
-	return {}
+	return {"success": false, "goal_index": - 1, "action_chain": [], "total_cost": 0.0}
 
 
 ## Test that Pickup -> Eat chain works when:

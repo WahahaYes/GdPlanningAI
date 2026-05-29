@@ -116,6 +116,11 @@ fn get_discovery_result(
     }
 }
 
+pub struct CandidatesResult {
+    pub ready: Vec<Candidate>,
+    pub pending_id: Option<usize>,
+}
+
 /// Finds all candidate actions that satisfy at least one open need of the given branch.
 ///
 /// This function performs a hybrid discovery process:
@@ -125,7 +130,7 @@ pub fn find_candidates(
     branch: &PlanBranch,
     ctx: &SearchContext,
     response: Option<&CallbackResponse>,
-) -> StepResult<Vec<Candidate>> {
+) -> CandidatesResult {
     let mut candidates = Vec::new();
     let mut some_pending = false;
     let mut last_pending_id = 0;
@@ -215,7 +220,7 @@ pub fn find_candidates(
                         match get_discovery_result(idx, &bindings, ctx, response) {
                             StepResult::Ready(res) => {
                                 let mut satisfied_preconditions = Vec::new();
-                                for (pre_idx, (pos, pre)) in
+                                for (pre_idx, (_pos, pre)) in
                                     branch.open_preconditions.iter().enumerate()
                                 {
                                     if let Some(eval_res) =
@@ -316,7 +321,7 @@ pub fn find_candidates(
             match get_discovery_result(idx, &empty_bindings, ctx, response) {
                 StepResult::Ready(res) => {
                     let mut satisfied_preconditions = Vec::new();
-                    for (pre_idx, (pos, pre)) in branch.open_preconditions.iter().enumerate() {
+                    for (pre_idx, (_pos, pre)) in branch.open_preconditions.iter().enumerate() {
                         if let Some(eval_res) = pre.evaluate_builtin(&res.agent, &res.world) {
                             if eval_res {
                                 satisfied_preconditions.push(pre_idx);
@@ -393,9 +398,8 @@ pub fn find_candidates(
         }
     }
 
-    if some_pending {
-        StepResult::Pending(last_pending_id)
-    } else {
-        StepResult::Ready(candidates)
+    CandidatesResult {
+        ready: candidates,
+        pending_id: if some_pending { Some(last_pending_id) } else { None },
     }
 }

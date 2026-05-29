@@ -16,6 +16,9 @@ const BLACKBOARD_PLAN_SCRIPT: Script = preload(
 
 
 func after_each() -> void:
+	var scheduler: GdPAIPlanScheduler = _scheduler()
+	if scheduler != null:
+		scheduler.cancel_all_jobs()
 	await _drain_scheduler()
 
 
@@ -64,6 +67,8 @@ func _start_plan_and_wait(agent: GdPAIAgent, timeout_frames: int = 300) -> Array
 
 	# Timeout reached - cancel the in-flight planning job
 	print("[TIMEOUT] Signaling cancellation for agent: ", agent)
+	if scheduler != null:
+		print("[POOL STATUS] ", scheduler.get_pool_status())
 	scheduler.cancel_agent_jobs(agent)
 
 	# Give the thread a few frames to return the engine

@@ -11,6 +11,12 @@ func before_each() -> void:
 	_plan_ready_count = 0
 
 
+func after_each() -> void:
+	var scheduler: GdPAIPlanScheduler = GdPAIAutoload.get_scheduler()
+	if scheduler != null:
+		scheduler.cancel_all_jobs()
+
+
 func _on_plan_ready(result: Dictionary) -> void:
 	_last_plan_result = result
 	_plan_ready = true
@@ -51,6 +57,8 @@ func _submit_plan_and_wait(
 
 	# Timeout reached
 	print("[TIMEOUT] Signaling cancellation for agent: ", self )
+	if scheduler != null:
+		print("[POOL STATUS] ", scheduler.get_pool_status())
 	scheduler.cancel_agent_jobs(self )
 
 	# Give the thread a few frames to return the engine
@@ -65,7 +73,7 @@ func _submit_plan_and_wait(
 		await get_tree().process_frame
 
 	fail_test("Timed out waiting for async plan result")
-	return {}
+	return {"success": false, "goal_index": - 1, "action_chain": [], "total_cost": 0.0}
 
 
 func test_async_empty_plan_returns_failure() -> void:
