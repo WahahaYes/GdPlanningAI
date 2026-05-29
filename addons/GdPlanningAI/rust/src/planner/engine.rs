@@ -326,15 +326,18 @@ impl PlannerEngine {
 
                         // 1. Record and remove satisfied requirements
                         let mut new_bindings = Vec::new();
-                        let reqs_to_remove: HashSet<usize> = cand
-                            .satisfied_requirements
-                            .iter()
-                            .map(|(idx, _, _)| *idx)
-                            .collect();
-                        for (req_idx_in_branch, req, prov) in cand.satisfied_requirements {
-                            let consumer_pos =
-                                new_branch.open_requirements[req_idx_in_branch].0;
+                        let mut reqs_to_remove = HashSet::new();
 
+                        for (req_idx_in_branch, req, prov) in cand.satisfied_requirements {
+                            // GREEDY CLEARING: Find ALL identical requirements in the chain
+                            // This prevents multiple actions from piling up the same at_target(...) need.
+                            for (idx, (_, other_req)) in new_branch.open_requirements.iter().enumerate() {
+                                if other_req == &req {
+                                    reqs_to_remove.insert(idx);
+                                }
+                            }
+
+                            // Determine the binding values based on the provision and the specific requirement it filled
                             let (binding_name, values) = match (&prov, &req) {
                                 (
                                     ProvisionSpec::Binding {
@@ -356,8 +359,12 @@ impl PlannerEngine {
                             if !binding_name.is_empty() {
                                 // Associate with provider (the newly prepended action at pos 0)
                                 new_bindings.push((0, binding_name.clone(), values.clone()));
-                                // Associate with consumer (already offset by 1 during increment above)
-                                new_bindings.push((consumer_pos, binding_name, values));
+                                
+                                // Associate with ALL cleared consumers (their positions were already offset by 1)
+                                for &idx in &reqs_to_remove {
+                                    let consumer_pos = new_branch.open_requirements[idx].0;
+                                    new_bindings.push((consumer_pos, binding_name.clone(), values.clone()));
+                                }
                             }
                         }
 
@@ -386,16 +393,24 @@ impl PlannerEngine {
                             }
                         }
 
-                        // Add the new bindings for the prepended action
-                        new_branch.action_bindings.extend(new_bindings);
-
-                        // Add new needs from the prepended action at pos=0
+                        // 3. Add any new needs from the prepended action
+                        // Deduplicate against existing needs to prevent congestion
+                        let existing_pre: HashSet<PreconditionSpec> = new_branch.open_preconditions.iter().map(|(_, p)| p.clone()).collect();
                         for pre in &action.preconditions {
-                            new_branch.open_preconditions.push((0, pre.clone()));
+                            if !existing_pre.contains(pre) {
+                                new_branch.open_preconditions.push((0, pre.clone()));
+                            }
                         }
+
+                        let existing_req: HashSet<RequirementSpec> = new_branch.open_requirements.iter().map(|(_, r)| r.clone()).collect();
                         for req in &action.requirements {
-                            new_branch.open_requirements.push((0, req.clone()));
+                            if !existing_req.contains(req) {
+                                new_branch.open_requirements.push((0, req.clone()));
+                            }
                         }
+
+                        // 4. Merge action bindings
+                        new_branch.action_bindings.extend(new_bindings);
 
                         // Tree: Add child node now that needs are updated
                         let open_pre: Vec<String> = new_branch

@@ -213,7 +213,12 @@ pub fn find_candidates(
 
         if has_wildcard {
             // Per-requirement candidates for actions with wildcards
-            for (req_idx, (_pos, req)) in branch.open_requirements.iter().enumerate() {
+            for (req_idx, (pos, req)) in branch.open_requirements.iter().enumerate() {
+                // Symbolic Requirements are strictly sequential:
+                // Only try to satisfy the requirement of the immediate next action.
+                if *pos != 0 {
+                    continue;
+                }
                 for prov in &action.provisions {
                     if provision_satisfies_requirement(prov, req, Some(&ctx.initial_world)) {
                         let bindings = get_bindings_for_match(prov, req);
@@ -306,7 +311,12 @@ pub fn find_candidates(
             // Grouped candidates for actions without wildcards
             let mut satisfied_requirements = Vec::new();
             let mut matched_req_indices = HashSet::new();
-            for (req_idx, (_pos, req)) in branch.open_requirements.iter().enumerate() {
+            for (req_idx, (pos, req)) in branch.open_requirements.iter().enumerate() {
+                // Symbolic Requirements are strictly sequential:
+                // Only try to satisfy the requirement of the immediate next action.
+                if *pos != 0 {
+                    continue;
+                }
                 for prov in &action.provisions {
                     if provision_satisfies_requirement(prov, req, Some(&ctx.initial_world)) {
                         if matched_req_indices.insert(req_idx) {

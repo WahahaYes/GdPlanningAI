@@ -94,9 +94,9 @@ pub type BindingMap = Vec<(String, Vec<VariantSnapshot>)>;
 
 /// A unique identity for a plan branch used for cycle detection and search space pruning.
 pub type SearchFingerprint = (
-    usize,                          // goal_index
-    Vec<(usize, PreconditionSpec)>, // open_preconditions
-    Vec<(usize, RequirementSpec)>,  // open_requirements
+    usize,                 // goal_index
+    Vec<PreconditionSpec>, // open_preconditions (stripped of positions)
+    Vec<RequirementSpec>,  // open_requirements (stripped of positions)
     BranchState,
 );
 
@@ -162,8 +162,14 @@ impl PlanBranch {
     pub fn fingerprint(&self) -> SearchFingerprint {
         (
             self.goal_index,
-            self.open_preconditions.clone(),
-            self.open_requirements.clone(),
+            self.open_preconditions
+                .iter()
+                .map(|(_, p)| p.clone())
+                .collect(),
+            self.open_requirements
+                .iter()
+                .map(|(_, r)| r.clone())
+                .collect(),
             self.state.clone(),
         )
     }
