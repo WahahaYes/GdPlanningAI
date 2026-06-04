@@ -405,7 +405,14 @@ impl PlannerEngine {
                         let existing_req: HashSet<RequirementSpec> = new_branch.open_requirements.iter().map(|(_, r)| r.clone()).collect();
                         for req in &action.requirements {
                             if !existing_req.contains(req) {
-                                new_branch.open_requirements.push((0, req.clone()));
+                                // Check if initial state satisfies this requirement
+                                let satisfied_by_initial = self.ctx.initial_provisions.iter().any(|prov| {
+                                    provision_satisfies_requirement(prov, req, Some(&self.ctx.initial_world))
+                                });
+                                
+                                if !satisfied_by_initial {
+                                    new_branch.open_requirements.push((0, req.clone()));
+                                }
                             }
                         }
 
