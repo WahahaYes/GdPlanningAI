@@ -412,6 +412,10 @@ pub fn find_candidates(
 
     CandidatesResult {
         ready: candidates,
-        pending_id: if some_pending { Some(last_pending_id) } else { None },
+        pending_id: if some_pending {
+            Some(last_pending_id)
+        } else {
+            None
+        },
     }
 }

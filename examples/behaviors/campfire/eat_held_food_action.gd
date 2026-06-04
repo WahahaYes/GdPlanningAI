@@ -34,11 +34,11 @@ func get_validity_checks() -> Array[Precondition]:
 # Override
 func get_preconditions() -> Array[Precondition]:
 	var preconds: Array[Precondition] = [Precondition.agent_property_greater_than("hunger", 0.0)]
-	
+
 	# If we are already holding something, it must be a food item we know how to eat.
 	# We use a custom check for this since it depends on our internal map.
-	preconds.append(Precondition.custom(Callable(self , "_is_holding_food")))
-	
+	preconds.append(Precondition.custom(Callable(self, "_is_holding_food")))
+
 	return preconds
 
 
@@ -46,19 +46,16 @@ func get_preconditions() -> Array[Precondition]:
 func get_requirements() -> Array[RequirementSpec]:
 	# Require that held_item binding exists AND that it is marked as food.
 	# This prevents the planner from trying to 'eat' non-food items like wood.
-	return [
-		RequirementSpec.binding_exists("held_item"),
-		RequirementSpec.fact("is_food", [])
-	]
+	return [RequirementSpec.binding_exists("held_item"), RequirementSpec.fact("is_food", [])]
 
 
 func _is_holding_food(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> bool:
 	var item = agent.get_property("held_item")
 	if item == null or str(item).is_empty():
-		# Not holding anything - this precondition is satisfied because 
+		# Not holding anything - this precondition is satisfied because
 		# we expect a later action in the chain to provide the food.
 		return true
-	
+
 	return hunger_restored_by_item.has(str(item))
 
 

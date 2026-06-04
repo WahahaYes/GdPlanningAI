@@ -94,7 +94,16 @@ fn candidate_pruned_by_cost() {
     dump.begin_goal("goal", 10.0, &["need_x".to_string()]);
     let root_id = dump.add_root(&["need_x".to_string()], &[]);
 
-    let child_id = dump.add_child(root_id, "expensive_action", 100.0, 100.0, &[], &[], &[], &[]);
+    let child_id = dump.add_child(
+        root_id,
+        "expensive_action",
+        100.0,
+        100.0,
+        &[],
+        &[],
+        &[],
+        &[],
+    );
     dump.set_outcome(
         child_id,
         NodeOutcome::Pruned {

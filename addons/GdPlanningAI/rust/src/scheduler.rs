@@ -88,7 +88,10 @@ impl GdPAIPlanScheduler {
                     PlannerRunResult::Complete(result) => {
                         job.done = true;
                         if job.cancel_flag.load(std::sync::atomic::Ordering::Relaxed) {
-                            log_debug!("Job for agent instance {} cancelled successfully", job.agent_instance_id);
+                            log_debug!(
+                                "Job for agent instance {} cancelled successfully",
+                                job.agent_instance_id
+                            );
                             continue;
                         }
 
@@ -159,7 +162,10 @@ impl GdPAIPlanScheduler {
             };
 
             if ready_to_resume && let Some(engine) = job.engine.take() {
-                log_debug!("Resuming search for agent instance {}", job.agent_instance_id);
+                log_debug!(
+                    "Resuming search for agent instance {}",
+                    job.agent_instance_id
+                );
                 let goals = job.goals.clone();
                 let res_tx = job.result_tx.clone();
                 run_job_step(self.thread_pool.as_ref(), goals, res_tx, engine);

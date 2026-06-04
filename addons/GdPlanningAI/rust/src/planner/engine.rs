@@ -284,8 +284,9 @@ impl PlannerEngine {
                     if node.branch.action_chain.len() >= self.max_depth {
                         continue;
                     }
-                    let candidates_res = find_candidates(&node.branch, &self.ctx, node.callback_response.as_ref());
-                    
+                    let candidates_res =
+                        find_candidates(&node.branch, &self.ctx, node.callback_response.as_ref());
+
                     for cand in candidates_res.ready {
                         let mut new_branch = node.branch.clone();
                         let action = &self.ctx.actions[cand.action_idx];
@@ -328,10 +329,12 @@ impl PlannerEngine {
                         let mut new_bindings = Vec::new();
                         let mut reqs_to_remove = HashSet::new();
 
-                        for (req_idx_in_branch, req, prov) in cand.satisfied_requirements {
+                        for (_req_idx_in_branch, req, prov) in cand.satisfied_requirements {
                             // GREEDY CLEARING: Find ALL identical requirements in the chain
                             // This prevents multiple actions from piling up the same at_target(...) need.
-                            for (idx, (_, other_req)) in new_branch.open_requirements.iter().enumerate() {
+                            for (idx, (_, other_req)) in
+                                new_branch.open_requirements.iter().enumerate()
+                            {
                                 if other_req == &req {
                                     reqs_to_remove.insert(idx);
                                 }
@@ -359,11 +362,15 @@ impl PlannerEngine {
                             if !binding_name.is_empty() {
                                 // Associate with provider (the newly prepended action at pos 0)
                                 new_bindings.push((0, binding_name.clone(), values.clone()));
-                                
+
                                 // Associate with ALL cleared consumers (their positions were already offset by 1)
                                 for &idx in &reqs_to_remove {
                                     let consumer_pos = new_branch.open_requirements[idx].0;
-                                    new_bindings.push((consumer_pos, binding_name.clone(), values.clone()));
+                                    new_bindings.push((
+                                        consumer_pos,
+                                        binding_name.clone(),
+                                        values.clone(),
+                                    ));
                                 }
                             }
                         }
@@ -395,21 +402,34 @@ impl PlannerEngine {
 
                         // 3. Add any new needs from the prepended action
                         // Deduplicate against existing needs to prevent congestion
-                        let existing_pre: HashSet<PreconditionSpec> = new_branch.open_preconditions.iter().map(|(_, p)| p.clone()).collect();
+                        let existing_pre: HashSet<PreconditionSpec> = new_branch
+                            .open_preconditions
+                            .iter()
+                            .map(|(_, p)| p.clone())
+                            .collect();
                         for pre in &action.preconditions {
                             if !existing_pre.contains(pre) {
                                 new_branch.open_preconditions.push((0, pre.clone()));
                             }
                         }
 
-                        let existing_req: HashSet<RequirementSpec> = new_branch.open_requirements.iter().map(|(_, r)| r.clone()).collect();
+                        let existing_req: HashSet<RequirementSpec> = new_branch
+                            .open_requirements
+                            .iter()
+                            .map(|(_, r)| r.clone())
+                            .collect();
                         for req in &action.requirements {
                             if !existing_req.contains(req) {
                                 // Check if initial state satisfies this requirement
-                                let satisfied_by_initial = self.ctx.initial_provisions.iter().any(|prov| {
-                                    provision_satisfies_requirement(prov, req, Some(&self.ctx.initial_world))
-                                });
-                                
+                                let satisfied_by_initial =
+                                    self.ctx.initial_provisions.iter().any(|prov| {
+                                        provision_satisfies_requirement(
+                                            prov,
+                                            req,
+                                            Some(&self.ctx.initial_world),
+                                        )
+                                    });
+
                                 if !satisfied_by_initial {
                                     new_branch.open_requirements.push((0, req.clone()));
                                 }
@@ -450,25 +470,30 @@ impl PlannerEngine {
                         // using its discovery simulation result.
                         if let Some(disc_res) = {
                             let cache = self.ctx.discovery_results.lock().unwrap();
-                            cache.get(&(cand.action_idx, cand.bindings.clone())).cloned()
+                            cache
+                                .get(&(cand.action_idx, cand.bindings.clone()))
+                                .cloned()
                         } {
                             // Clear any preconditions at pos 0 that are satisfied by the state BEFORE the chain
                             // or by the newly prepended action.
                             let mut i = 0;
                             while i < new_branch.open_preconditions.len() {
                                 let (pos, pre) = &new_branch.open_preconditions[i];
-                                if *pos == 0 {
-                                    if let Some(true) = pre.evaluate_builtin(&disc_res.agent, &disc_res.world) {
-                                        new_branch.open_preconditions.remove(i);
-                                        continue;
-                                    }
+                                if *pos == 0
+                                    && let Some(true) =
+                                        pre.evaluate_builtin(&disc_res.agent, &disc_res.world)
+                                {
+                                    new_branch.open_preconditions.remove(i);
+                                    continue;
                                 }
                                 i += 1;
                             }
                         }
 
                         // If ALL needs are satisfied, move to Verifying
-                        if new_branch.open_preconditions.is_empty() && new_branch.open_requirements.is_empty() {
+                        if new_branch.open_preconditions.is_empty()
+                            && new_branch.open_requirements.is_empty()
+                        {
                             new_branch.state = BranchState::Verifying;
                             new_branch.simulation_index = 0;
                             new_branch.current_agent = self.ctx.initial_agent.clone();
