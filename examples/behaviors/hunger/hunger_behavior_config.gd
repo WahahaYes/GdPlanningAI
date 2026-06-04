@@ -29,17 +29,9 @@ func _populate(
 ) -> void:
 	goals.append(HungerGoal.new())
 	actions.append(GoToAction.new())
-	(
-		actions
-		. append(
-			(
-				EatHeldFoodAction
-				. new(
-					hunger_restored_by_item,
-					eat_duration,
-					optimistic_unbound_restore,
-				)
-			)
-		)
-	)
+	actions.append(EatHeldFoodAction.new(
+		hunger_restored_by_item,
+		eat_duration,
+		optimistic_unbound_restore,
+	))
 	updaters.append(HungerPropertyUpdater.new(hunger_decay, initial_hunger))
