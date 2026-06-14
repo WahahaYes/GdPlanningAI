@@ -12,7 +12,7 @@ pub mod simulation;
 pub mod types;
 
 pub use engine::PlannerEngine;
-pub use types::{PlanBranch, SearchContext};
+pub use types::{PlanBranch, ProvisionKind, SearchContext};
 
 /// The algorithm to use for exploring the search space.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

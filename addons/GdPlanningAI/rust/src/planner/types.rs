@@ -95,6 +95,14 @@ pub type BindingMap = Vec<(String, Vec<VariantSnapshot>)>;
 /// A unique identity for a plan branch used for cycle detection and search space pruning.
 pub type SearchFingerprint = u64;
 
+/// Classification of a provision's kind for indexing actions by what they provide.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum ProvisionKind {
+    Binding,
+    Fact,
+    FactWildcard,
+}
+
 /// A request for background discovery simulation or precondition check.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum DiscoveryRequest {
@@ -122,6 +130,11 @@ pub struct SearchContext {
         std::sync::Mutex<HashMap<(usize, PreconditionSpec, BindingMap), bool>>,
     pub discovery_precond_pending:
         std::sync::Mutex<HashMap<(usize, PreconditionSpec, BindingMap), usize>>,
+
+    // Provision Index: maps (ProvisionKind, name) -> action indices that provide it.
+    pub provision_index: HashMap<(ProvisionKind, String), Vec<usize>>,
+    /// Action indices that have no wildcard provisions (can be discovered with empty bindings).
+    pub non_wildcard_actions: Vec<usize>,
 }
 
 /// The result of a background action discovery simulation.

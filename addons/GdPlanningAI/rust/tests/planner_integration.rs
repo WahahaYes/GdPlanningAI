@@ -101,6 +101,7 @@ fn run_planner(
     gdplanningai_rust::logger::set_log_level(gdplanningai_rust::logger::LogLevel::Debug);
 
     let (engine_tx, engine_rx) = mpsc::channel::<PlannerCallback>();
+    let non_wildcard_actions: Vec<usize> = (0..actions.len()).collect();
 
     let ctx = Arc::new(SearchContext {
         actions,
@@ -115,6 +116,8 @@ fn run_planner(
         discovery_request_map: std::sync::Mutex::new(HashMap::new()),
         discovery_precond_results: std::sync::Mutex::new(HashMap::new()),
         discovery_precond_pending: std::sync::Mutex::new(HashMap::new()),
+        provision_index: HashMap::new(),
+        non_wildcard_actions,
     });
 
     let mut engine = PlannerEngine::new(ctx, max_depth, cancel_flag)

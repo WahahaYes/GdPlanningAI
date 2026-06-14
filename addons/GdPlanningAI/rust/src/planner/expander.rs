@@ -6,10 +6,10 @@
 use crate::plan_types::*;
 use crate::planner::simulation::{SimArgs, StepResult, eval_precondition, simulate_action};
 use crate::planner::types::{
-    BindingMap, DiscoveryRequest, DiscoveryResult, PlanBranch, SearchContext,
+    BindingMap, DiscoveryRequest, DiscoveryResult, PlanBranch, ProvisionKind, SearchContext,
 };
 use crate::requirement::{ProvisionSpec, RequirementSpec, provision_satisfies_requirement};
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 
 /// A candidate action that can potentially satisfy one or more open needs.
 pub struct Candidate {
@@ -126,6 +126,8 @@ pub struct CandidatesResult {
 /// This function performs a hybrid discovery process:
 /// 1. Symbolic Layer: Matches action Provisions against open Requirements.
 /// 2. Simulation Layer: Matches action effects (via Discovery simulation) against open Preconditions.
+///
+/// Uses the provision index to avoid scanning actions that cannot possibly satisfy any open need.
 pub fn find_candidates(
     branch: &PlanBranch,
     ctx: &SearchContext,
@@ -135,7 +137,49 @@ pub fn find_candidates(
     let mut some_pending = false;
     let mut last_pending_id = 0;
 
-    for (idx, action) in ctx.actions.iter().enumerate() {
+    // ------------------------------------------------------------------
+    // 1. Determine which actions to evaluate
+    // ------------------------------------------------------------------
+    let mut candidate_actions: BTreeSet<usize> = BTreeSet::new();
+
+    // a) Actions whose provisions match requirements at pos == 0
+    for (_, (pos, req)) in branch.open_requirements.iter().enumerate() {
+        if *pos != 0 {
+            continue;
+        }
+        let lookup_key = match req {
+            RequirementSpec::BindingExists { binding_name }
+            | RequirementSpec::BindingEquals { binding_name, .. }
+            | RequirementSpec::BindingInSet { binding_name, .. } => {
+                (ProvisionKind::Binding, binding_name.clone())
+            }
+            RequirementSpec::Fact { fact_name, .. } => {
+                (ProvisionKind::Fact, fact_name.clone())
+            }
+        };
+        if let Some(action_indices) = ctx.provision_index.get(&lookup_key) {
+            candidate_actions.extend(action_indices);
+        }
+        // Fact requirements may also be satisfied by FactWildcard provisions
+        if matches!(req, RequirementSpec::Fact { .. }) {
+            let wildcard_key = (ProvisionKind::FactWildcard, lookup_key.1);
+            if let Some(action_indices) = ctx.provision_index.get(&wildcard_key) {
+                candidate_actions.extend(action_indices);
+            }
+        }
+    }
+
+    // b) Non-wildcard actions may satisfy preconditions through their effects.
+    //    Always include them; the per-action loop will determine whether they
+    //    actually satisfy any open need.
+    candidate_actions.extend(&ctx.non_wildcard_actions);
+
+    // ------------------------------------------------------------------
+    // 2. Evaluate each candidate action
+    // ------------------------------------------------------------------
+    for idx in candidate_actions {
+        let action = &ctx.actions[idx];
+
         // 0. Validity filter (against InitialState)
         let mut validity_failed = false;
         for check in &action.validity_checks {
@@ -310,7 +354,7 @@ pub fn find_candidates(
         } else {
             // Grouped candidates for actions without wildcards
             let mut satisfied_requirements = Vec::new();
-            let mut matched_req_indices = HashSet::new();
+            let mut matched_req_indices = BTreeSet::new();
             for (req_idx, (pos, req)) in branch.open_requirements.iter().enumerate() {
                 // Symbolic Requirements are strictly sequential:
                 // Only try to satisfy the requirement of the immediate next action.

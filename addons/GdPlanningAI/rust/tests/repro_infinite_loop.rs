@@ -77,6 +77,7 @@ fn test_verifying_terminal_state() {
 
     let (engine_tx, engine_rx) = mpsc::channel::<PlannerCallback>();
     let cancel_flag = Arc::new(AtomicBool::new(false));
+    let non_wildcard_actions: Vec<usize> = (0..actions.len()).collect();
     let ctx = Arc::new(SearchContext {
         actions,
         initial_agent: agent,
@@ -90,6 +91,8 @@ fn test_verifying_terminal_state() {
         discovery_request_map: std::sync::Mutex::new(HashMap::new()),
         discovery_precond_results: std::sync::Mutex::new(HashMap::new()),
         discovery_precond_pending: std::sync::Mutex::new(HashMap::new()),
+        provision_index: HashMap::new(),
+        non_wildcard_actions,
     });
 
     let mut engine = PlannerEngine::new(ctx, 10, cancel_flag)

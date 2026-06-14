@@ -7,7 +7,7 @@
 
 use crate::plan_tree::PlanResult;
 use crate::plan_types::*;
-use crate::planner::{PlannerEngine, SearchAlgorithm, SearchContext, TerminationStrategy};
+use crate::planner::{PlannerEngine, ProvisionKind, SearchAlgorithm, SearchContext, TerminationStrategy};
 use crate::precondition::{PreconditionHandler, PreconditionOp};
 use crate::requirement::{ProvisionSpec, RequirementSpec};
 use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
@@ -232,6 +232,33 @@ impl GdPAIPlanScheduler {
         let max_rec = max_recursion.max(1) as usize;
         let iter_budget = iteration_budget.max(100) as usize;
 
+        // Build provision index for fast candidate discovery.
+        let mut provision_index: HashMap<(ProvisionKind, String), Vec<usize>> = HashMap::new();
+        let mut non_wildcard_actions = Vec::new();
+        for (idx, action) in action_specs.iter().enumerate() {
+            let has_wildcard = action
+                .provisions
+                .iter()
+                .any(|p| matches!(p, ProvisionSpec::FactWildcard { .. }));
+            if !has_wildcard {
+                non_wildcard_actions.push(idx);
+            }
+            for prov in &action.provisions {
+                let (kind, name) = match prov {
+                    ProvisionSpec::Binding { binding_name, .. } => {
+                        (ProvisionKind::Binding, binding_name.clone())
+                    }
+                    ProvisionSpec::Fact { fact_name, .. } => {
+                        (ProvisionKind::Fact, fact_name.clone())
+                    }
+                    ProvisionSpec::FactWildcard { fact_name } => {
+                        (ProvisionKind::FactWildcard, fact_name.clone())
+                    }
+                };
+                provision_index.entry((kind, name)).or_default().push(idx);
+            }
+        }
+
         let ctx = Arc::new(SearchContext {
             actions: action_specs,
             initial_agent: snap_agent,
@@ -245,6 +272,8 @@ impl GdPAIPlanScheduler {
             discovery_request_map: std::sync::Mutex::new(HashMap::new()),
             discovery_precond_results: std::sync::Mutex::new(HashMap::new()),
             discovery_precond_pending: std::sync::Mutex::new(HashMap::new()),
+            provision_index,
+            non_wildcard_actions,
         });
 
         let mut engine = PlannerEngine::new(ctx, max_rec, cancel_flag.clone())
