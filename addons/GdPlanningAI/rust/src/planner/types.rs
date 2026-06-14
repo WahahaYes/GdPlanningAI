@@ -4,6 +4,8 @@ use crate::plan_types::*;
 use crate::requirement::{ProvisionSpec, RequirementSpec};
 use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use std::collections::HashMap;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use std::sync::mpsc::Sender;
 
 use std::cmp::Ordering;
@@ -91,12 +93,7 @@ impl Ord for SearchNode {
 pub type BindingMap = Vec<(String, Vec<VariantSnapshot>)>;
 
 /// A unique identity for a plan branch used for cycle detection and search space pruning.
-pub type SearchFingerprint = (
-    usize,                 // goal_index
-    Vec<PreconditionSpec>, // open_preconditions (stripped of positions)
-    Vec<RequirementSpec>,  // open_requirements (stripped of positions)
-    BranchState,
-);
+pub type SearchFingerprint = u64;
 
 /// A request for background discovery simulation or precondition check.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -154,22 +151,29 @@ impl PlanBranch {
         }
     }
 
-    /// Returns a unique identity for this branch based on its goal, open needs, and state.
+    /// Returns a unique identity for this branch based on its goal, open needs, state,
+    /// and concrete binding values.
     ///
-    /// Used for cycle detection and search space pruning.
+    /// Used for cycle detection and search space pruning. The hash includes
+    /// `action_bindings` to prevent false collisions where two branches have
+    /// identical open needs but different concrete binding values that affect
+    /// future candidate discovery.
     pub fn fingerprint(&self) -> SearchFingerprint {
-        (
-            self.goal_index,
-            self.open_preconditions
-                .iter()
-                .map(|(_, p)| p.clone())
-                .collect(),
-            self.open_requirements
-                .iter()
-                .map(|(_, r)| r.clone())
-                .collect(),
-            self.state.clone(),
-        )
+        let mut hasher = DefaultHasher::new();
+        self.goal_index.hash(&mut hasher);
+        self.state.hash(&mut hasher);
+        for (_, pre) in &self.open_preconditions {
+            pre.hash(&mut hasher);
+        }
+        for (_, req) in &self.open_requirements {
+            req.hash(&mut hasher);
+        }
+        for (pos, name, values) in &self.action_bindings {
+            pos.hash(&mut hasher);
+            name.hash(&mut hasher);
+            values.hash(&mut hasher);
+        }
+        hasher.finish()
     }
 
     /// Updates the total cost of the branch based on the individual action costs.

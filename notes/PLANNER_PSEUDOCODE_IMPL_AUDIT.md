@@ -141,7 +141,7 @@ The planner is *feasible* as a backward-chaining planner, but the forward-valida
 | A* heuristic (`h > 0`) | Described as A* wrapper | ❌ Dijkstra (`h = 0`) only; `priority() == cost` |
 | `Rippling` state | Active forward simulation phase | ❌ Dead state — never assigned |
 | Provision/action indexes | Recommended for performance | ❌ Not implemented; full scan every expansion |
-| Visited state keyed by open needs + selected suffix | Recommended | ⚠️ Partial — fingerprint strips positions but does not include action chain |
+| Visited state keyed by open needs + selected suffix | Recommended | ✅ Improved — `SearchFingerprint` is now a hashed `u64` including `goal_index`, `state`, `open_preconditions`, `open_requirements`, and `action_bindings` |
 
 ---
 
