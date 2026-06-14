@@ -417,7 +417,18 @@ impl PlannerEngine {
                             .collect();
                         for pre in &action.preconditions {
                             if !existing_pre.contains(pre) {
-                                new_branch.open_preconditions.push((0, pre.clone()));
+                                // Skip builtin preconditions already satisfied by the initial
+                                // state — they don't need a predecessor to achieve them.
+                                // Custom preconditions cannot be evaluated here and must stay open.
+                                let satisfied_by_initial = pre
+                                    .evaluate_builtin(
+                                        &self.ctx.initial_agent,
+                                        &self.ctx.initial_world,
+                                    )
+                                    .unwrap_or(false);
+                                if !satisfied_by_initial {
+                                    new_branch.open_preconditions.push((0, pre.clone()));
+                                }
                             }
                         }
 
@@ -506,6 +517,19 @@ impl PlannerEngine {
                             new_branch.simulation_index = 0;
                             new_branch.current_agent = self.ctx.initial_agent.clone();
                             new_branch.current_world = self.ctx.initial_world.clone();
+                        }
+
+                        // Guard against runaway requirement accumulation (cycle detection).
+                        // Legitimate chains can have at most max_depth open requirements.
+                        if new_branch.open_requirements.len() > self.max_depth {
+                            self.tree.set_outcome(
+                                new_branch.tree_node_id,
+                                NodeOutcome::Pruned {
+                                    reason: "Too many accumulated open requirements (cycle)"
+                                        .to_string(),
+                                },
+                            );
+                            continue;
                         }
 
                         self.queue.push(SearchNode {
@@ -652,7 +676,7 @@ impl PlannerEngine {
                     let action = &self.ctx.actions[action_idx];
                     for prov in &action.provisions {
                         branch.open_requirements.retain(|(pos, req)| {
-                            !(*pos > branch.simulation_index
+                            !(*pos >= branch.simulation_index
                                 && provision_satisfies_requirement(prov, req, None))
                         });
                     }

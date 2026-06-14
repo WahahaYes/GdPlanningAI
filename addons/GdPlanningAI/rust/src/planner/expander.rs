@@ -142,11 +142,8 @@ pub fn find_candidates(
     // ------------------------------------------------------------------
     let mut candidate_actions: BTreeSet<usize> = BTreeSet::new();
 
-    // a) Actions whose provisions match requirements at pos == 0
-    for (_, (pos, req)) in branch.open_requirements.iter().enumerate() {
-        if *pos != 0 {
-            continue;
-        }
+    // a) Actions whose provisions match any open requirement
+    for (_, (_pos, req)) in branch.open_requirements.iter().enumerate() {
         let lookup_key = match req {
             RequirementSpec::BindingExists { binding_name }
             | RequirementSpec::BindingEquals { binding_name, .. }
@@ -189,59 +186,74 @@ pub fn find_candidates(
                     break;
                 }
             } else {
-                // Custom check, check discovery cache (using empty bindings for validity)
-                let empty_bindings = Vec::new();
-                let cache = ctx.discovery_precond_results.lock().unwrap();
-                if let Some(&res) = cache.get(&(idx, check.clone(), empty_bindings.clone())) {
+                // Custom check - use short-lived locks so no lock is held when firing callbacks.
+                let empty_bindings: BindingMap = Vec::new();
+
+                // 1. Check cache
+                let cached = {
+                    let cache = ctx.discovery_precond_results.lock().unwrap();
+                    cache.get(&(idx, check.clone(), empty_bindings.clone())).copied()
+                };
+                if let Some(res) = cached {
                     if !res {
                         validity_failed = true;
                         break;
                     }
-                } else {
-                    // Not in cache, check if pending
-                    let mut pending = ctx.discovery_precond_pending.lock().unwrap();
-                    if let Some(&id) = pending.get(&(idx, check.clone(), empty_bindings.clone())) {
+                    continue; // cached true — move to next check
+                }
+
+                // 2. Check pending
+                let pending_id = {
+                    let pending = ctx.discovery_precond_pending.lock().unwrap();
+                    pending.get(&(idx, check.clone(), empty_bindings.clone())).copied()
+                };
+                if let Some(id) = pending_id {
+                    some_pending = true;
+                    last_pending_id = id;
+                    validity_failed = true;
+                    break;
+                }
+
+                // 3. Fire callback (no locks held)
+                match eval_precondition(
+                    check,
+                    &ctx.initial_agent,
+                    &ctx.initial_world,
+                    ctx,
+                    response,
+                    &empty_bindings,
+                ) {
+                    StepResult::Ready(res) => {
+                        // Cache immediately so subsequent calls don't re-fire
+                        let mut cache = ctx.discovery_precond_results.lock().unwrap();
+                        cache.insert((idx, check.clone(), empty_bindings.clone()), res);
+                        drop(cache);
+                        if !res {
+                            validity_failed = true;
+                            break;
+                        }
+                    }
+                    StepResult::Pending(id) => {
+                        let mut pending = ctx.discovery_precond_pending.lock().unwrap();
+                        pending.insert((idx, check.clone(), empty_bindings.clone()), id);
+                        drop(pending);
+                        let mut req_map = ctx.discovery_request_map.lock().unwrap();
+                        req_map.insert(
+                            id,
+                            DiscoveryRequest::Precondition(
+                                idx,
+                                check.clone(),
+                                empty_bindings,
+                            ),
+                        );
                         some_pending = true;
                         last_pending_id = id;
                         validity_failed = true;
                         break;
-                    } else {
-                        // Start request
-                        match eval_precondition(
-                            check,
-                            &ctx.initial_agent,
-                            &ctx.initial_world,
-                            ctx,
-                            response,
-                            &empty_bindings,
-                        ) {
-                            StepResult::Ready(res) => {
-                                if !res {
-                                    validity_failed = true;
-                                    break;
-                                }
-                            }
-                            StepResult::Pending(id) => {
-                                pending.insert((idx, check.clone(), empty_bindings.clone()), id);
-                                let mut req_map = ctx.discovery_request_map.lock().unwrap();
-                                req_map.insert(
-                                    id,
-                                    DiscoveryRequest::Precondition(
-                                        idx,
-                                        check.clone(),
-                                        empty_bindings,
-                                    ),
-                                );
-                                some_pending = true;
-                                last_pending_id = id;
-                                validity_failed = true;
-                                break;
-                            }
-                            _ => {
-                                validity_failed = true;
-                                break;
-                            }
-                        }
+                    }
+                    _ => {
+                        validity_failed = true;
+                        break;
                     }
                 }
             }
@@ -257,12 +269,7 @@ pub fn find_candidates(
 
         if has_wildcard {
             // Per-requirement candidates for actions with wildcards
-            for (req_idx, (pos, req)) in branch.open_requirements.iter().enumerate() {
-                // Symbolic Requirements are strictly sequential:
-                // Only try to satisfy the requirement of the immediate next action.
-                if *pos != 0 {
-                    continue;
-                }
+            for (req_idx, (_pos, req)) in branch.open_requirements.iter().enumerate() {
                 for prov in &action.provisions {
                     if provision_satisfies_requirement(prov, req, Some(&ctx.initial_world)) {
                         let bindings = get_bindings_for_match(prov, req);
@@ -355,12 +362,7 @@ pub fn find_candidates(
             // Grouped candidates for actions without wildcards
             let mut satisfied_requirements = Vec::new();
             let mut matched_req_indices = BTreeSet::new();
-            for (req_idx, (pos, req)) in branch.open_requirements.iter().enumerate() {
-                // Symbolic Requirements are strictly sequential:
-                // Only try to satisfy the requirement of the immediate next action.
-                if *pos != 0 {
-                    continue;
-                }
+            for (req_idx, (_pos, req)) in branch.open_requirements.iter().enumerate() {
                 for prov in &action.provisions {
                     if provision_satisfies_requirement(prov, req, Some(&ctx.initial_world)) {
                         if matched_req_indices.insert(req_idx) {

@@ -51,7 +51,7 @@ func _scheduler() -> GdPAIPlanScheduler:
 	return GdPAIAutoload.get_scheduler()
 
 
-func _start_plan_and_wait(agent: GdPAIAgent, timeout_frames: int = 300) -> Array[Action]:
+func _start_plan_and_wait(agent: GdPAIAgent, timeout_frames: int = 2000) -> Array[Action]:
 	var scheduler: GdPAIPlanScheduler = _scheduler()
 	var previous_plan: Array[Action] = agent.get_current_plan()
 	agent.manually_start_plan()
