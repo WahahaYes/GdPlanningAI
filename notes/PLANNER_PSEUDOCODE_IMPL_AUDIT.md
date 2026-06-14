@@ -84,33 +84,14 @@ The planner is *feasible* as a backward-chaining planner, but the forward-valida
 
 **Implementation** (`engine.rs:563-741` via `process_simulation`):
 
-**🚨 CRITICAL DRIFT 1: `Rippling` is a dead state.**
-- `BranchState::Rippling` is defined in `types.rs` and matched in `engine.rs:244` and `engine.rs:663`, but **it is NEVER assigned anywhere in the codebase**.
-- The implementation groups `Initializing | Rippling | Verifying` into the *same* `process_simulation` handler.
-- The pseudocode describes `Rippling` as a distinct forward simulation phase. The implementation does not use it.
+**✅ FIXED — `Rippling` removed.**
+- `BranchState::Rippling` was defined but never assigned. It has been removed from the enum and all match arms.
+- The state machine is now `Initializing → Searching → Verifying`, which matches the actual implementation behavior.
 
-**🚨 CRITICAL DRIFT 2: Action preconditions that evaluate to `false` during forward validation are NOT treated as Invalid.**
-- In `process_simulation` (`engine.rs:586-616`), when evaluating an open precondition at the current `simulation_index`:
-  ```rust
-  StepResult::Ready(false) => {
-      // Not satisfied yet, keep it and check others at this index.
-  }
-  ```
-- The code **does not return `Invalid`**; it keeps the precondition in the list and continues.
-- The terminal check in `Verifying` (`engine.rs:686-698`) only checks for open preconditions at **`pos == simulation_index == chain.len()`**:
-  ```rust
-  let has_open_preconds = branch
-      .open_preconditions
-      .iter()
-      .any(|(pos, _)| *pos == branch.simulation_index);
-  ```
-- Since `simulation_index == chain.len()` at the terminal point, this only checks for **goal preconditions** (which are at `pos == chain.len()` after all the prepends).
-- **Action preconditions** live at positions `0 .. chain.len()-1`. If one evaluated to `false` during the forward pass, it remains in `open_preconditions` but at a position `< chain.len()`. The terminal check **never sees it**.
-- **Conclusion:** A branch can pass forward validation even if an action precondition was false, as long as all goal preconditions are met. This is a **correctness bug**.
-
-**🚨 CRITICAL DRIFT 3: `Rippling` terminal check only looks at goal preconditions.**
-- In the `Rippling` match arm (`engine.rs:663-681`), after finishing a forward simulation pass, the code checks open preconditions **only at `pos == action_chain.len()`** and then transitions back to `Searching`.
-- This confirms the same pattern: action-level preconditions are never terminal-checked.
+**✅ FIXED — Forward validation returns `Invalid` on false preconditions during `Verifying` only.**
+- During `Verifying`, `process_simulation` returns `StepResult::Invalid` when a precondition at the current `simulation_index` evaluates to `false`. This catches invalid chains that passed backward-chaining symbolic checks but fail actual simulation.
+- During `Initializing`, a `false` precondition is left in place (it simply means the goal is not already satisfied); the branch transitions to `Searching` for backward chaining.
+- The terminal `Verifying` check uses `!branch.open_preconditions.is_empty()` (and the same for requirements), ensuring *all* open preconditions across the entire chain are validated before a plan is recorded as successful.
 
 **Correct behavior present:**
 - Initial-state provision checking for requirements at `simulation_index == 0` ✅
@@ -166,14 +147,14 @@ The planner is *feasible* as a backward-chaining planner, but the forward-valida
 
 ## 6. Summary of Issues
 
-### Category A: Algorithmic Incorrectness (must fix for correctness)
-1. **Action preconditions false during forward validation do not invalidate the branch.** `process_simulation` must return `Invalid` when a precondition at the current `simulation_index` evaluates to `false`.
-2. **Terminal validation in `Verifying` only checks goal preconditions.** It must also verify that *all* action preconditions were satisfied (i.e., `open_preconditions` is entirely empty, not just at `chain.len()`).
+### Category A: Algorithmic Incorrectness (FIXED)
+1. **✅ FIXED — Action preconditions false during forward validation now invalidate the branch.** `process_simulation` returns `Invalid` when a precondition at the current `simulation_index` evaluates to `false`.
+2. **✅ FIXED — Terminal validation checks all open preconditions.** The `Verifying` terminal check now uses `!branch.open_preconditions.is_empty()` to ensure every precondition in the chain is satisfied, not just goal preconditions at `chain.len()`.
 
-### Category B: Structural Drift (should fix for maintainability / performance)
-3. **`Rippling` state is dead code.** Either implement it as a real intermediate forward-simulation state (as the pseudocode describes) or remove it and update the pseudocode.
-4. **No configurable iteration budget.** The hardcoded 20,000 limit should be parameterized.
-5. **No heuristic / A* implementation.** The `SearchAlgorithm` enum has `AStar` but `priority()` is pure Dijkstra. Either implement a heuristic or remove the enum variant.
+### Category B: Structural Drift (FIXED)
+3. **✅ FIXED — `Rippling` removed.** The dead state was removed from the enum and all match arms. The state machine is now `Initializing → Searching → Verifying`.
+4. **✅ FIXED — Iteration budget is now parameterized.** `PlannerEngine` has an `iteration_budget` field with builder method `with_iteration_budget()`. `submit_plan` accepts `iteration_budget` from GDScript (default 20000). The `GdPAIAgentConfig` resource exposes it as `@export var iteration_budget: int = 20000`.
+5. **No heuristic / A* implementation.** The `SearchAlgorithm` enum has `AStar` but `priority()` is pure Dijkstra. This is an intentional correctness-debugging choice; A* is planned as a future optimization.
 6. **No provision/action indexes.** `find_candidates` scans all actions against all needs on every expansion. For large action sets this is the primary performance bottleneck.
 
 ### Category C: Working As Intended (minor drift, not bugs)
@@ -185,28 +166,20 @@ The planner is *feasible* as a backward-chaining planner, but the forward-valida
 
 ## 7. Recommendations
 
-1. **Fix forward validation precondition handling.** In `process_simulation`, when `eval_precondition` returns `Ready(false)` for a precondition at the current `simulation_index`, return `StepResult::Invalid` immediately. Then update the terminal `Verifying` check to simply ensure `open_preconditions.is_empty()` (and same for requirements) rather than checking only at `simulation_index`.
+1. **Implement an action-provision index** in `SearchContext` to replace the full O(actions × needs) scan in `find_candidates`.
 
-2. **Decide the fate of `Rippling`.** Either:
-   - Implement it properly: enter `Rippling` after `Searching` completes (all needs empty) and before `Verifying`; run one full forward simulation pass in `Rippling`, then transition to `Verifying` if all preconditions clear.
-   - Or remove the state and update the pseudocode to describe the current two-state model (`Searching` → `Verifying`).
-
-3. **Parameterize the iteration budget** and wire it through from `submit_plan` or the scheduler config.
-
-4. **Consider a simple action-provision index** (e.g., a `HashMap<RequirementSpec, Vec<usize>>` of action indices) in `SearchContext` so `find_candidates` doesn't scan the entire action list on every node expansion.
-
-5. **Re-run the full test suite** after fixing (1) and (2). The current timeout / search-explosion issues may be partially caused by invalid branches surviving forward validation and polluting the search tree or best-cost bound.
+2. **Re-run the full test suite after all fixes.** The forward validation and Rippling cleanup should prune invalid branches earlier, improving correctness and search efficiency.
 
 ---
 
 ## Relevant File Citations
 
 - `notes/reference/PLANNER_PSEUDOCODE.md` — Target specification
-- `addons/GdPlanningAI/rust/src/planner/engine.rs:134-560` — `step_search` and `process_simulation`
-- `addons/GdPlanningAI/rust/src/planner/engine.rs:586-616` — Precondition evaluation during forward simulation (bug location)
-- `addons/GdPlanningAI/rust/src/planner/engine.rs:686-698` — Terminal goal-precondition-only check (bug location)
+- `addons/GdPlanningAI/rust/src/planner/engine.rs:134-530` — `step_search` and `process_simulation`
+- `addons/GdPlanningAI/rust/src/planner/engine.rs:597-608` — Forward validation precondition check (✅ fixed)
+- `addons/GdPlanningAI/rust/src/planner/engine.rs:664-685` — Terminal validation check (✅ fixed)
 - `addons/GdPlanningAI/rust/src/planner/expander.rs:45-117` — `get_discovery_result`
 - `addons/GdPlanningAI/rust/src/planner/expander.rs:129-421` — `find_candidates`
-- `addons/GdPlanningAI/rust/src/planner/types.rs:12-18` — `BranchState` enum (includes unused `Rippling`)
-- `addons/GdPlanningAI/rust/src/planner/types.rs:54-58` — `SearchNode`
-- `addons/GdPlanningAI/rust/src/planner/types.rs:162-175` — `fingerprint()`
+- `addons/GdPlanningAI/rust/src/planner/types.rs:12-17` — `BranchState` enum (✅ `Rippling` removed)
+- `addons/GdPlanningAI/rust/src/planner/types.rs:53-64` — `SearchNode`
+- `addons/GdPlanningAI/rust/src/planner/types.rs:159-175` — `fingerprint()`

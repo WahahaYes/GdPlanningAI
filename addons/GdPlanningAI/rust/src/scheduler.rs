@@ -191,6 +191,7 @@ impl GdPAIPlanScheduler {
         actions: Array<VarDictionary>,
         goals: Array<VarDictionary>,
         max_recursion: i64,
+        iteration_budget: i64,
     ) {
         log_debug!(
             "submit_plan: agent={}, actions_count={}, goals_count={}",
@@ -229,6 +230,7 @@ impl GdPAIPlanScheduler {
         let (engine_tx, engine_rx) = std::sync::mpsc::channel::<PlannerCallback>();
         let cancel_flag = Arc::new(AtomicBool::new(false));
         let max_rec = max_recursion.max(1) as usize;
+        let iter_budget = iteration_budget.max(100) as usize;
 
         let ctx = Arc::new(SearchContext {
             actions: action_specs,
@@ -247,7 +249,8 @@ impl GdPAIPlanScheduler {
 
         let mut engine = PlannerEngine::new(ctx, max_rec, cancel_flag.clone())
             .with_search_algorithm(SearchAlgorithm::AStar)
-            .with_termination_strategy(TerminationStrategy::BestCost);
+            .with_termination_strategy(TerminationStrategy::BestCost)
+            .with_iteration_budget(iter_budget);
 
         // Use the channel we created
         engine.response_rx = engine_rx;

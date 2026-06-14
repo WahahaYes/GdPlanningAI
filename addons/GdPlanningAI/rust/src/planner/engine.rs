@@ -36,6 +36,7 @@ pub struct PlannerEngine {
     // Config
     pub algorithm: SearchAlgorithm,
     pub termination: TerminationStrategy,
+    pub iteration_budget: usize,
 
     // Search State
     pub queue: BinaryHeap<SearchNode>,
@@ -59,6 +60,7 @@ impl PlannerEngine {
             response_tx: tx,
             algorithm: SearchAlgorithm::AStar,
             termination: TerminationStrategy::BestCost,
+            iteration_budget: 20000,
             queue: BinaryHeap::new(),
             parked_nodes: HashMap::new(),
             visited: HashMap::new(),
@@ -77,6 +79,12 @@ impl PlannerEngine {
     /// Sets the termination strategy (e.g., FirstComplete, BestCost).
     pub fn with_termination_strategy(mut self, strat: TerminationStrategy) -> Self {
         self.termination = strat;
+        self
+    }
+    /// Sets the iteration budget for a single planning step.
+    /// The search yields after this many iterations to avoid blocking the main thread.
+    pub fn with_iteration_budget(mut self, budget: usize) -> Self {
+        self.iteration_budget = budget;
         self
     }
 
@@ -213,8 +221,8 @@ impl PlannerEngine {
             }
 
             // Increase budget for local tests
-            if iterations > 20000 {
-                log_warn!("Search budget exceeded (20000 iterations). Search is taking too long.");
+            if iterations > self.iteration_budget {
+                log_warn!("Search budget exceeded ({} iterations). Search is taking too long.", self.iteration_budget);
                 self.queue.push(node);
                 return PlannerRunResult::Pending(0);
             }
@@ -603,7 +611,12 @@ impl PlannerEngine {
                         return StepResult::Ready(());
                     }
                     StepResult::Ready(false) => {
-                        // Not satisfied yet, keep it and check others at this index.
+                        // During Verifying, a false precondition means the chain is invalid.
+                        // During Initializing, it just means the goal isn't already satisfied;
+                        // leave the precondition in place and transition to Searching.
+                        if branch.state == BranchState::Verifying {
+                            return StepResult::Invalid;
+                        }
                     }
                     StepResult::Pending(id) => return StepResult::Pending(id),
                     StepResult::Invalid => return StepResult::Invalid,
@@ -662,22 +675,17 @@ impl PlannerEngine {
                 }
                 BranchState::Verifying => {
                     // Final success!
-                    // Check if all goal preconditions were actually met
-                    let has_open_preconds = branch
-                        .open_preconditions
-                        .iter()
-                        .any(|(pos, _)| *pos == branch.simulation_index);
-                    if has_open_preconds {
+                    // Ensure no preconditions or requirements remain open anywhere in the chain
+                    if !branch.open_preconditions.is_empty() {
                         self.tree.set_outcome(
                             branch.tree_node_id,
                             NodeOutcome::Pruned {
-                                reason: "Goal preconditions not met".to_string(),
+                                reason: "Unsatisfied preconditions remain".to_string(),
                             },
                         );
                         return StepResult::Invalid;
                     }
 
-                    // Ensure no requirements remain open anywhere in the chain
                     if !branch.open_requirements.is_empty() {
                         self.tree.set_outcome(
                             branch.tree_node_id,

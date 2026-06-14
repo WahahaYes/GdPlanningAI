@@ -15,6 +15,8 @@ This document describes the non-blocking, async-first backward-chaining implemen
 - **Split Constraint Discovery**: Requirements are strictly sequential (must satisfy `pos 0`), while Preconditions are unrestricted (can satisfy any point in the chain).
 - **Greedy Clearing**: Satisfying one requirement (e.g. `at_target`) clears all identical requirements in the chain to prevent congestion.
 - **Async Concurrency**: `find_candidates` returns "Ready" actions immediately to keep search threads busy while other simulations are "Pending".
+- **Search Algorithm**: The current implementation uses Dijkstra (h = 0) to guarantee correctness while debugging the planner. An A* heuristic is planned as a future optimization once the planner is fully validated.
+- **Iteration Budget**: The search yields after a configurable number of iterations per step to avoid blocking the Godot main thread.
 
 ---
 
@@ -103,7 +105,8 @@ Based on `node.branch.state`:
    - **Accumulate Provisions**: Check if the action's provisions satisfy any downstream `open_requirements`.
    - `simulation_index++`.
 5. **Terminal Check**: If `simulation_index == chain.len()`:
-   - If `Verifying`: If all needs empty, **Record Best Plan**.
+   - If `Verifying`: If `open_preconditions.is_empty()` **and** `open_requirements.is_empty()`, **Record Best Plan**.
+   - If any precondition or requirement remains open at any position, return `Invalid`.
 
 ---
 

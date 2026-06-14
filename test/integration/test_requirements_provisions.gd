@@ -57,10 +57,11 @@ func _submit_plan_and_wait(
 	goals: Array[Dictionary],
 	timeout_frames: int = 300,
 	max_recursion: int = 100,
+	iteration_budget: int = 20000,
 ) -> Dictionary:
 	_plan_ready = false
 	_last_plan_result = {}
-	scheduler.submit_plan(self, agent_bb, world_bb, actions, goals, max_recursion)
+	scheduler.submit_plan(self , agent_bb, world_bb, actions, goals, max_recursion, iteration_budget)
 
 	for i in range(timeout_frames):
 		scheduler.process_callbacks()
@@ -69,13 +70,13 @@ func _submit_plan_and_wait(
 		await get_tree().process_frame
 
 	# Timeout reached
-	print("[TIMEOUT] Signaling cancellation for agent: ", self)
-	scheduler.cancel_agent_jobs(self)
+	print("[TIMEOUT] Signaling cancellation for agent: ", self )
+	scheduler.cancel_agent_jobs(self )
 
 	# Give the thread a few frames to return the engine
 	for i in range(10):
 		scheduler.process_callbacks()
-		var tree = scheduler.get_debug_tree(self)
+		var tree = scheduler.get_debug_tree(self )
 		if tree != "" and not tree.contains("running in a background thread"):
 			print("\n---------- TIMEOUT DEBUG TREE ----------")
 			print(tree)
@@ -84,7 +85,7 @@ func _submit_plan_and_wait(
 		await get_tree().process_frame
 
 	fail_test("Timed out waiting for async plan result")
-	return {"success": false, "goal_index": -1, "action_chain": [], "total_cost": 0.0}
+	return {"success": false, "goal_index": - 1, "action_chain": [], "total_cost": 0.0}
 
 
 ## Test that Pickup -> Eat chain works when:
@@ -118,7 +119,7 @@ func test_pickup_eat_chain_satisfies_hunger() -> void:
 			"effect_callable": eat_effect,
 			"preconditions": [],
 			"validity_checks": [],
-			"requirements": [{"kind": "binding_exists", "binding_name": "held_item"}],
+			"requirements": [ {"kind": "binding_exists", "binding_name": "held_item"}],
 			"provisions": []
 		},
 		{
@@ -128,7 +129,7 @@ func test_pickup_eat_chain_satisfies_hunger() -> void:
 			"preconditions": [],
 			"validity_checks": [],
 			"requirements": [],
-			"provisions": [{"kind": "binding", "binding_name": "held_item", "value": "banana"}]
+			"provisions": [ {"kind": "binding", "binding_name": "held_item", "value": "banana"}]
 		}
 	]
 
@@ -156,7 +157,7 @@ func test_pickup_eat_chain_satisfies_hunger() -> void:
 		actions,
 		goals,
 		120,
-		4  # max_recursion must allow 2 actions
+		4 # max_recursion must allow 2 actions
 	)
 
 	assert_true(result["success"], "Plan should succeed with Pickup -> Eat chain")
@@ -187,7 +188,7 @@ func test_eat_alone_fails_without_pickup() -> void:
 			"effect_callable": eat_effect,
 			"preconditions": [],
 			"validity_checks": [],
-			"requirements": [{"kind": "binding_exists", "binding_name": "held_item"}],
+			"requirements": [ {"kind": "binding_exists", "binding_name": "held_item"}],
 			"provisions": []
 		}
 	]
@@ -248,7 +249,7 @@ func test_action_order_is_pickup_then_eat_not_reversed() -> void:
 			"effect_callable": eat_effect,
 			"preconditions": [],
 			"validity_checks": [],
-			"requirements": [{"kind": "binding_exists", "binding_name": "held_item"}],
+			"requirements": [ {"kind": "binding_exists", "binding_name": "held_item"}],
 			"provisions": []
 		},
 		{
@@ -258,7 +259,7 @@ func test_action_order_is_pickup_then_eat_not_reversed() -> void:
 			"preconditions": [],
 			"validity_checks": [],
 			"requirements": [],
-			"provisions": [{"kind": "binding", "binding_name": "held_item", "value": "banana"}]
+			"provisions": [ {"kind": "binding", "binding_name": "held_item", "value": "banana"}]
 		}
 	]
 
@@ -316,7 +317,7 @@ func test_eat_alone_succeeds_when_already_holding_food() -> void:
 			"effect_callable": eat_effect,
 			"preconditions": [],
 			"validity_checks": [],
-			"requirements": [{"kind": "binding_exists", "binding_name": "held_item"}],
+			"requirements": [ {"kind": "binding_exists", "binding_name": "held_item"}],
 			"provisions": []
 		}
 	]
@@ -376,7 +377,7 @@ func test_requirement_dependent_effect_uses_provider_bound_resimulation() -> voi
 			"effect_callable": eat_effect,
 			"preconditions": [],
 			"validity_checks": [],
-			"requirements": [{"kind": "binding_exists", "binding_name": "held_item"}],
+			"requirements": [ {"kind": "binding_exists", "binding_name": "held_item"}],
 			"provisions": []
 		},
 		{
@@ -386,7 +387,7 @@ func test_requirement_dependent_effect_uses_provider_bound_resimulation() -> voi
 			"preconditions": [],
 			"validity_checks": [],
 			"requirements": [],
-			"provisions": [{"kind": "binding", "binding_name": "held_item", "value": "banana"}]
+			"provisions": [ {"kind": "binding", "binding_name": "held_item", "value": "banana"}]
 		}
 	]
 	var goals: Array[Dictionary] = [
@@ -461,8 +462,8 @@ func test_search_returns_cheapest_valid_requirement_chain() -> void:
 			"preconditions": [],
 			"validity_checks": [],
 			"requirements":
-			[{"kind": "binding_equals", "binding_name": "tool", "value": "expensive"}],
-			"provisions": [{"kind": "fact", "fact_name": "task_done", "args": []}]
+			[ {"kind": "binding_equals", "binding_name": "tool", "value": "expensive"}],
+			"provisions": [ {"kind": "fact", "fact_name": "task_done", "args": []}]
 		},
 		{
 			"name": "GetExpensiveTool",
@@ -471,7 +472,7 @@ func test_search_returns_cheapest_valid_requirement_chain() -> void:
 			"preconditions": [],
 			"validity_checks": [],
 			"requirements": [],
-			"provisions": [{"kind": "binding", "binding_name": "tool", "value": "expensive"}]
+			"provisions": [ {"kind": "binding", "binding_name": "tool", "value": "expensive"}]
 		},
 		{
 			"name": "UseCheapTool",
@@ -479,8 +480,8 @@ func test_search_returns_cheapest_valid_requirement_chain() -> void:
 			"effect_callable": use_tool_effect,
 			"preconditions": [],
 			"validity_checks": [],
-			"requirements": [{"kind": "binding_equals", "binding_name": "tool", "value": "cheap"}],
-			"provisions": [{"kind": "fact", "fact_name": "task_done", "args": []}]
+			"requirements": [ {"kind": "binding_equals", "binding_name": "tool", "value": "cheap"}],
+			"provisions": [ {"kind": "fact", "fact_name": "task_done", "args": []}]
 		},
 		{
 			"name": "GetCheapTool",
@@ -489,7 +490,7 @@ func test_search_returns_cheapest_valid_requirement_chain() -> void:
 			"preconditions": [],
 			"validity_checks": [],
 			"requirements": [],
-			"provisions": [{"kind": "binding", "binding_name": "tool", "value": "cheap"}]
+			"provisions": [ {"kind": "binding", "binding_name": "tool", "value": "cheap"}]
 		}
 	]
 	var goals: Array[Dictionary] = [
@@ -497,7 +498,7 @@ func test_search_returns_cheapest_valid_requirement_chain() -> void:
 			"name": "TaskDone",
 			"reward": 100.0,
 			"desired_state":
-			[{"target": "agent", "operation": "equal", "property_name": "task_done", "value": true}]
+			[ {"target": "agent", "operation": "equal", "property_name": "task_done", "value": true}]
 		}
 	]
 
@@ -557,7 +558,7 @@ func test_binding_in_set_requires_world_group_membership() -> void:
 			"preconditions": [],
 			"validity_checks": [],
 			"requirements":
-			[{"kind": "binding_in_set", "binding_name": "held_item", "set_name": "edible"}],
+			[ {"kind": "binding_in_set", "binding_name": "held_item", "set_name": "edible"}],
 			"provisions": []
 		},
 		{
@@ -567,7 +568,7 @@ func test_binding_in_set_requires_world_group_membership() -> void:
 			"preconditions": [],
 			"validity_checks": [],
 			"requirements": [],
-			"provisions": [{"kind": "binding", "binding_name": "held_item", "value": banana}]
+			"provisions": [ {"kind": "binding", "binding_name": "held_item", "value": banana}]
 		},
 		{
 			"name": "PickupRock",
@@ -576,7 +577,7 @@ func test_binding_in_set_requires_world_group_membership() -> void:
 			"preconditions": [],
 			"validity_checks": [],
 			"requirements": [],
-			"provisions": [{"kind": "binding", "binding_name": "held_item", "value": rock}]
+			"provisions": [ {"kind": "binding", "binding_name": "held_item", "value": rock}]
 		}
 	]
 	var goals: Array[Dictionary] = [
@@ -584,7 +585,7 @@ func test_binding_in_set_requires_world_group_membership() -> void:
 			"name": "Ate",
 			"reward": 100.0,
 			"desired_state":
-			[{"target": "agent", "operation": "equal", "property_name": "ate", "value": true}]
+			[ {"target": "agent", "operation": "equal", "property_name": "ate", "value": true}]
 		}
 	]
 	var world: GdPAIBlackboard = _make_blackboard()
@@ -620,7 +621,7 @@ func test_wildcard_fact_provision_matches_specific_requirement() -> void:
 			"effect_callable": interact_effect,
 			"preconditions": [],
 			"validity_checks": [],
-			"requirements": [{"kind": "fact", "fact_name": "at_target", "args": ["location_123"]}],
+			"requirements": [ {"kind": "fact", "fact_name": "at_target", "args": ["location_123"]}],
 			"provisions": []
 		},
 		{
@@ -630,7 +631,7 @@ func test_wildcard_fact_provision_matches_specific_requirement() -> void:
 			"preconditions": [],
 			"validity_checks": [],
 			"requirements": [],
-			"provisions": [{"kind": "fact_wildcard", "fact_name": "at_target"}]
+			"provisions": [ {"kind": "fact_wildcard", "fact_name": "at_target"}]
 		}
 	]
 	var goals: Array[Dictionary] = [
@@ -689,7 +690,7 @@ func test_wildcard_fact_provision_matches_multiple_requirements() -> void:
 			"effect_callable": interact_a_effect,
 			"preconditions": [],
 			"validity_checks": [],
-			"requirements": [{"kind": "fact", "fact_name": "at_target", "args": ["location_a"]}],
+			"requirements": [ {"kind": "fact", "fact_name": "at_target", "args": ["location_a"]}],
 			"provisions": []
 		},
 		{
@@ -698,7 +699,7 @@ func test_wildcard_fact_provision_matches_multiple_requirements() -> void:
 			"effect_callable": interact_b_effect,
 			"preconditions": [],
 			"validity_checks": [],
-			"requirements": [{"kind": "fact", "fact_name": "at_target", "args": ["location_b"]}],
+			"requirements": [ {"kind": "fact", "fact_name": "at_target", "args": ["location_b"]}],
 			"provisions": []
 		},
 		{
@@ -708,7 +709,7 @@ func test_wildcard_fact_provision_matches_multiple_requirements() -> void:
 			"preconditions": [],
 			"validity_checks": [],
 			"requirements": [],
-			"provisions": [{"kind": "fact_wildcard", "fact_name": "at_target"}]
+			"provisions": [ {"kind": "fact_wildcard", "fact_name": "at_target"}]
 		}
 	]
 	var goals: Array[Dictionary] = [
@@ -771,7 +772,7 @@ func test_goto_action_wildcard_chains_to_pickup_interaction() -> void:
 			"effect_callable": eat_effect,
 			"preconditions": [],
 			"validity_checks": [],
-			"requirements": [{"kind": "binding_exists", "binding_name": "held_item"}],
+			"requirements": [ {"kind": "binding_exists", "binding_name": "held_item"}],
 			"provisions": []
 		},
 		{
@@ -780,8 +781,8 @@ func test_goto_action_wildcard_chains_to_pickup_interaction() -> void:
 			"effect_callable": pickup_effect,
 			"preconditions": [],
 			"validity_checks": [],
-			"requirements": [{"kind": "fact", "fact_name": "at_target", "args": [location_data]}],
-			"provisions": [{"kind": "binding", "binding_name": "held_item", "value": "test_item"}]
+			"requirements": [ {"kind": "fact", "fact_name": "at_target", "args": [location_data]}],
+			"provisions": [ {"kind": "binding", "binding_name": "held_item", "value": "test_item"}]
 		},
 		{
 			"name": "GoTo",
@@ -790,7 +791,7 @@ func test_goto_action_wildcard_chains_to_pickup_interaction() -> void:
 			"preconditions": [],
 			"validity_checks": [],
 			"requirements": [],
-			"provisions": [{"kind": "fact_wildcard", "fact_name": "at_target"}]
+			"provisions": [ {"kind": "fact_wildcard", "fact_name": "at_target"}]
 		}
 	]
 
