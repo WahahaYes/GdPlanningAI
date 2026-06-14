@@ -26,7 +26,7 @@ This document describes the non-blocking, async-first backward-chaining implemen
 - `action_bindings`: `Vec<(pos, BindingData)>` (Data passed to simulations).
 - `open_preconditions`: Stored as `(pos, PreconditionSpec)`. 
 - `open_requirements`: Stored as `(pos, RequirementSpec)`.
-- `state`: One of `Initializing`, `Searching`, `Rippling`, `Verifying`.
+- `state`: One of `Initializing`, `Searching`, `Verifying`.
 - `simulation_index`: Current progress index during forward phases.
 - `cost`: Total cumulative grounded cost (recalculated via `sum()`).
 - `fingerprint`: `(goal_index, Vec<PreconditionSpec>, Vec<RequirementSpec>, state)` (Positions are stripped to catch causal loops).
@@ -54,12 +54,20 @@ This loop is executed repeatedly by the background thread. It yields if a Godot 
 
 ### 3.2. Phase 2: A* Iteration
 1. Pop `node` from `PriorityQueue`.
-2. **Visited Check**: If `visited_set.contains(node.fingerprint)` and `cost >= visited_cost`, then **PRUNE**.
+2. **Visited Check**: If `!node.resumed`, `node.branch.state == Searching`, and `visited_set.contains(node.fingerprint)` with `cost >= visited_cost`, then **PRUNE**.
+   - *Optimization*: Resumed nodes are exempt from the visited check because they have just received a callback result and their state has not materially changed since they were parked.
 3. **Optimality Check**: If `node.cost >= best_cost`, then **PRUNE**.
 4. `node.resumed = false`.
 
 ### 3.3. Phase 3: State Machine Processing
 Based on `node.branch.state`:
+
+#### **State: `Initializing`** (Bootstrap)
+1. **Goal Check**: Evaluate goal preconditions against `InitialState`.
+   - If already satisfied, the branch is trivially complete.
+   - Clear any `open_requirements` matched by `InitialState.provisions`.
+2. **Transition**: `branch.state = Searching`.
+3. Push back to queue.
 
 #### **State: `Searching`** (Expansion)
 1. **Check Complete**: If `open_preconditions` and `open_requirements` are empty:
@@ -76,19 +84,25 @@ Based on `node.branch.state`:
    - **Frontier Update**: Offset `pos` of all remaining needs by +1.
    - **Add New Needs**: Add `C.action.requirements` and `C.action.preconditions` at `pos 0`.
    - **Deduplicate**: Check `HashSet` to ensure we don't add redundant needs already in the chain.
+   - **Initial-State Pruning**: For each newly added requirement, if `InitialState` already satisfies it (e.g., the agent already holds the required item), remove it immediately instead of leaving it open. This prevents unnecessary predecessor searches for needs that are already met.
+   - **Post-Discovery Precondition Clearing**: For any newly added precondition at `pos 0`, evaluate its builtin form against the discovery result's simulated state. If already satisfied, remove it now. This avoids spurious open preconditions for state that the candidate action's own discovery pass has already proven reachable.
    - **Stay in Searching**: Keep `state = Searching` to allow further backward chaining.
 4. **Handle Pending**: If `find_candidates` returned a `pending_id`:
    - `Park(node, id)`. (Note: Ready candidates were already queued, so search continues).
 
-#### **State: `Rippling` / `Verifying`** (Forward Simulation)
-1. **Validation Entry**: Only enter these states once all symbolic needs are resolved.
-2. **Check Current State**: Evaluate `open_preconditions` where `pos == simulation_index` against `current_agent/world`.
+#### **State: `Verifying`** (Forward Simulation)
+1. **Validation Entry**: Only enter this state once all symbolic needs are resolved.
+2. **Initial-State Provision Pass** (`simulation_index == 0` only):
+   - Before simulating the first action, scan `InitialState.provisions`.
+   - For any provision that matches an `open_requirement`, clear that requirement immediately.
+   - This avoids inserting provider actions (e.g., `Go To`) when the agent already starts with the needed binding or fact.
+3. **Check Current State**: Evaluate `open_preconditions` where `pos == simulation_index` against `current_agent/world`.
    - If `false`, return `Invalid`. If `true`, remove precondition.
-3. **Simulate Step**: Run `simulate_action(action_chain[simulation_index])`.
+4. **Simulate Step**: Run `simulate_action(action_chain[simulation_index])`.
    - Update snapshots and `action_costs`.
    - **Accumulate Provisions**: Check if the action's provisions satisfy any downstream `open_requirements`.
    - `simulation_index++`.
-4. **Terminal Check**: If `simulation_index == chain.len()`:
+5. **Terminal Check**: If `simulation_index == chain.len()`:
    - If `Verifying`: If all needs empty, **Record Best Plan**.
 
 ---

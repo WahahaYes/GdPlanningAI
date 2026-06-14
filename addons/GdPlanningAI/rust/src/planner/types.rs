@@ -13,7 +13,6 @@ use std::cmp::Ordering;
 pub enum BranchState {
     Initializing,
     Searching,
-    Rippling,
     Verifying,
 }
 
@@ -61,7 +60,6 @@ impl SearchNode {
     /// Returns the priority value used for the search queue (lower is better).
     pub fn priority(&self) -> f64 {
         // Use Dijkstra (h=0) for guaranteed optimality in hybrid simulation.
-        // We use grounded cost for Dijkstra priority, which is updated during Rippling.
         self.branch.cost
     }
 }

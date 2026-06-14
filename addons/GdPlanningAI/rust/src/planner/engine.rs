@@ -241,7 +241,7 @@ impl PlannerEngine {
             }
 
             match node.branch.state {
-                BranchState::Initializing | BranchState::Rippling | BranchState::Verifying => {
+                BranchState::Initializing | BranchState::Verifying => {
                     match self.process_simulation(&mut node) {
                         StepResult::Ready(_) => self.queue.push(node),
                         StepResult::Pending(id) => {
@@ -657,26 +657,6 @@ impl PlannerEngine {
             // Reached end of chain
             match branch.state {
                 BranchState::Initializing => {
-                    branch.state = BranchState::Searching;
-                    return StepResult::Ready(());
-                }
-                BranchState::Rippling => {
-                    // Check if the simulation we just finished satisfied any goal preconditions
-                    // (preconditions at the end of the chain)
-                    let mut i = 0;
-                    while i < branch.open_preconditions.len() {
-                        if branch.open_preconditions[i].0 == branch.action_chain.len() {
-                            let pre = &branch.open_preconditions[i].1;
-                            if let Some(true) =
-                                pre.evaluate_builtin(&branch.current_agent, &branch.current_world)
-                            {
-                                branch.open_preconditions.remove(i);
-                                continue;
-                            }
-                        }
-                        i += 1;
-                    }
-
                     branch.state = BranchState::Searching;
                     return StepResult::Ready(());
                 }
