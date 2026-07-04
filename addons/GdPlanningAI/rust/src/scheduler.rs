@@ -255,6 +255,18 @@ impl GdPAIPlanScheduler {
         let cancel_flag = Arc::new(AtomicBool::new(false));
         let max_rec = max_recursion.max(1) as usize;
         let iter_budget = iteration_budget.max(100) as usize;
+        if max_recursion < 1 {
+            log_warn!(
+                "max_recursion was clamped from {} to 1",
+                max_recursion
+            );
+        }
+        if iteration_budget < 100 {
+            log_warn!(
+                "iteration_budget was clamped from {} to 100",
+                iteration_budget
+            );
+        }
 
         // Build provision index for fast candidate discovery.
         let mut provision_index: HashMap<(ProvisionKind, String), Vec<usize>> = HashMap::new();
@@ -399,6 +411,19 @@ impl GdPAIPlanScheduler {
     #[func]
     fn get_debug_tree(&self, agent: Gd<Object>) -> String {
         let agent_instance_id = agent.instance_id().to_i64();
+        // First, prefer a non-cancelled job
+        for job in &self.active_jobs {
+            if job.agent_instance_id == agent_instance_id
+                && !job.cancel_flag.load(std::sync::atomic::Ordering::Relaxed)
+            {
+                if let Some(engine) = &job.engine {
+                    return engine.tree.format();
+                } else {
+                    return "Engine is currently running in a background thread.".to_string();
+                }
+            }
+        }
+        // Fall back to any matching job (including cancelled)
         for job in &self.active_jobs {
             if job.agent_instance_id == agent_instance_id {
                 if let Some(engine) = &job.engine {
@@ -691,6 +716,7 @@ fn dispatch_callback(
     }
 }
 
+/// Injects bindings into the agent blackboard only. World-state bindings are not currently supported.
 fn inject_bindings_into_agent(
     agent_bb: &mut Gd<GdPAIBlackboard>,
     bindings: &[(String, Vec<VariantSnapshot>)],
