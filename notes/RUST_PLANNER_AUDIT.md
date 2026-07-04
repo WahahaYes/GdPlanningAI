@@ -145,20 +145,18 @@ The Rust planner implements a hybrid backward-chaining GOAP search but suffers f
 
 ---
 
-## Test Coverage Gaps
+## Test Coverage Gaps ✅ CLOSED
 
-The Rust integration tests (`tests/planner_integration.rs`) cover basic single-action, empty-plan, no-action, and max-depth cases. They do **not** cover:
+The Rust integration tests (`tests/planner_integration.rs`) cover basic single-action, empty-plan, no-action, and max-depth cases. The gaps below were closed by Package D:
 
-1. **Requirement/Provision chaining** (e.g., Pickup → Eat with `held_item` binding).
-2. **Wildcard fact provisions** (`FactWildcard` — core to GoToAction).
-3. **Binding injection** during forward validation (chain-position semantics).
-4. **Custom precondition callbacks** returning `false` or pending.
-5. **BestCost vs FirstComplete** behavior with multiple valid plans.
-6. **Cancellation** mid-search (`cancel_flag`).
-7. **Budget/depth exhaustion** yielding `PlannerRunResult::Pending`.
-8. **`BindingInSet` with world group context**.
-
-**Recommendation:** Add a new `tests/requirement_provision_chaining.rs` module covering items 1, 2, 3, and 8.
+1. ✅ **Requirement/Provision chaining** — `tests/requirement_provision_chaining.rs::requirement_provision_chains_pickup_then_eat`
+2. ✅ **Wildcard fact provisions** (`FactWildcard`) — `tests/requirement_provision_chaining.rs::wildcard_fact_provision_binds_concrete_value`
+3. ✅ **Binding injection** during forward validation — `tests/requirement_provision_chaining.rs::binding_injection_available_during_forward_validation`
+4. ✅ **Custom precondition callbacks** returning `false` — `tests/requirement_provision_chaining.rs::custom_precondition_false_prunes_branch`
+5. ✅ **BestCost vs FirstComplete** — `tests/best_cost_termination.rs::best_cost_returns_lowest_cost_plan` + `first_complete_returns_first_found_plan`
+6. ✅ **Cancellation** mid-search — `tests/cancellation.rs::cancellation_returns_failure_quickly`
+7. **Budget/depth exhaustion** yielding `PlannerRunResult::Pending` — still open (not in scope for Package D).
+8. ✅ **`BindingInSet` with world group context** — `tests/requirement_provision_chaining.rs::binding_in_set_respects_world_group`
 
 ---
 
@@ -192,14 +190,14 @@ The Rust integration tests (`tests/planner_integration.rs`) cover basic single-a
 4. ✅ Extracted `remove_indices<T>(vec, indices)` helper (P2.4) — replaces two manual while-loop removal patterns with a cleaner descending-sort approach.
 5. ✅ `cargo check`, `cargo test`, and `make test` all pass.
 
-### Package D — Rust Integration Test Expansion
+### Package D — Rust Integration Test Expansion ✅ COMPLETE
 **Owner:** Single subagent.
 **Files:** `tests/` directory
 **Deliverables:**
-1. New `tests/requirement_provision_chaining.rs` covering items 1–4 and 8 from the Test Coverage Gaps section.
-2. New `tests/cancellation.rs` or extend existing with cancel-flag test.
-3. New `tests/best_cost_termination.rs` with two valid plans of different costs.
-4. `make test-rust` must pass.
+1. ✅ `tests/requirement_provision_chaining.rs` covering items 1–4 and 8 from the Test Coverage Gaps section (5 tests).
+2. ✅ `tests/cancellation.rs` with cancel-flag mid-search test.
+3. ✅ `tests/best_cost_termination.rs` with two valid plans of different costs (2 tests).
+4. ✅ `make test-rust` passes — total Rust test count increased from 31 to 44 tests.
 
 ---
 
