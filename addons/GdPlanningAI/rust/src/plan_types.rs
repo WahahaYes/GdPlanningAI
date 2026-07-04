@@ -243,6 +243,8 @@ pub struct CallbackRequest {
     pub request_id: usize,
     pub callable_id: usize,
     pub kind: CallbackKind,
+    /// Bindings to inject into the agent blackboard before calling the GDScript callable.
+    pub bindings: Vec<(String, Vec<VariantSnapshot>)>,
     pub response_tx: Sender<PlannerCallback>,
 }
 
@@ -264,26 +266,23 @@ pub enum PlannerRunResult {
 
 /// What the main thread should do with the callable.
 pub enum CallbackKind {
-    /// Call `cost_callable(agent, world, provisions, bindings)` → return `Float(f64)`.
+    /// Call `cost_callable(agent, world)` → return `Float(f64)`.
+    /// Bindings are pre-injected into `agent` before the call.
     GetCost {
         agent: BlackboardSnapshot,
         world: BlackboardSnapshot,
-        provisions: Vec<ProvisionSpec>,
-        bindings: Vec<(String, Vec<VariantSnapshot>)>,
     },
-    /// Call `effect_callable(agent, world, provisions, bindings)` → return updated snapshots.
+    /// Call `effect_callable(agent, world)` → return updated snapshots.
+    /// Bindings are pre-injected into `agent` before the call.
     ApplyEffect {
         agent: BlackboardSnapshot,
         world: BlackboardSnapshot,
-        provisions: Vec<ProvisionSpec>,
-        bindings: Vec<(String, Vec<VariantSnapshot>)>,
     },
-    /// Call `eval_callable(agent, world, provisions, bindings)` → return `Bool(bool)`.
+    /// Call `eval_callable(agent, world)` → return `Bool(bool)`.
+    /// Bindings are pre-injected into `agent` before the call.
     EvalCustomPrecond {
         agent: BlackboardSnapshot,
         world: BlackboardSnapshot,
-        provisions: Vec<ProvisionSpec>,
-        bindings: Vec<(String, Vec<VariantSnapshot>)>,
     },
 }
 

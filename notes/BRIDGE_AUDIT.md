@@ -15,7 +15,7 @@
 | `get_provisions() -> Array[ProvisionSpec]` | Users won't know actions can provide bindings/facts for later actions. Critical for chaining. |
 | `clone_for_plan() -> Action` | Used by the scheduler when an action appears multiple times in a plan with different bindings. Missing from template. |
 
-**Also:** `get_action_cost` and `simulate_effect` signatures in the template only show 2 params, but the Rust dispatcher adaptively passes up to 4 (`agent`, `world`, `provisions`, `bindings`). The template should document this.
+**Also (resolved):** The Rust dispatcher previously adaptively passed up to 4 arguments (`agent`, `world`, `provisions`, `bindings`) based on `get_argument_count()`. This dynamic dispatch has been removed; the contract is now always 2 arguments (`agent`, `world`), with bindings pre-injected into the agent blackboard.
 
 ### Goal Template (`script_templates/Goal/template.gd`)
 
@@ -134,7 +134,7 @@ This runs every time a job is resumed. If a response arrived for request A in fr
 4. **Log warning when custom precondition returns non-bool.** Silent `false` is confusing.
 
 ### Medium Priority
-5. **Document the adaptive callback argument count.** Action templates should note that cost/effect/precondition callables receive `(agent, world, provisions, bindings)` when they accept 4 args.
+5. ~~**Document the adaptive callback argument count.**~~ **Removed** — dynamic dispatch eliminated; contract is always `(agent, world)`.
 6. **Document that `simulate_effect` must mutate in-place.** The return value is ignored.
 7. **Add `get_debug_tree` preference for non-cancelled jobs.** Avoid returning stale debug trees.
 8. **Consider clamping warnings for `max_recursion` and `iteration_budget`.**

@@ -35,11 +35,34 @@ func get_preconditions() -> Array[Precondition]:
 
 
 # Override
+func get_requirements() -> Array[RequirementSpec]:
+	# Return symbolic dependencies that must be satisfied by predecessor action provisions.
+	# Used by the backward-chaining planner to discover which earlier actions enable this one.
+	return []
+
+
+# Override
+func get_provisions() -> Array[ProvisionSpec]:
+	# Return bindings and facts this action makes available to later actions in the chain.
+	# Provisions are injected into the agent blackboard of the consumer action.
+	# They do not affect world state.
+	return []
+
+
+# Override
+func clone_for_plan() -> Action:
+	# Return a clean copy of this action for use in planning.
+	# The scheduler clones actions when they appear multiple times in a plan with different bindings.
+	# Override this if your action stores mutable state that must be isolated per occurrence.
+	return self
+
+
+# Override
 func simulate_effect(
 	_agent_blackboard: GdPAIBlackboard,
 	_world_state: GdPAIBlackboard,
 ) -> void:
-	# Modify the simulated blackboard to reflect what this action does.
+	# Mutate the passed blackboards in-place. The return value is ignored.
 	pass
 
 

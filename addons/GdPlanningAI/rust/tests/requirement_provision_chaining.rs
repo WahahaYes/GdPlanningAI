@@ -493,9 +493,9 @@ fn binding_injection_available_during_forward_validation() {
                         .insert("done".to_string(), VariantSnapshot::Bool(true));
                     CallbackResponse::UpdatedSnapshots(agent, world)
                 }
-                CallbackKind::EvalCustomPrecond { bindings, .. } => {
+                CallbackKind::EvalCustomPrecond { .. } => {
                     // Return true only if the at_target binding contains obj_01
-                    let has_correct = bindings.iter().any(|(name, vals)| {
+                    let has_correct = req.bindings.iter().any(|(name, vals)| {
                         name == "at_target"
                             && vals.contains(&VariantSnapshot::ObjectRef(100))
                     });

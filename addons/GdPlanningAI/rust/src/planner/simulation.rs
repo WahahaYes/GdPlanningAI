@@ -68,9 +68,8 @@ pub fn eval_precondition(
                 kind: CallbackKind::EvalCustomPrecond {
                     agent: agent.clone(),
                     world: world.clone(),
-                    provisions: vec![], // Preconditions don't use bound provisions yet
-                    bindings: bindings.to_vec(),
                 },
+                bindings: bindings.to_vec(),
                 response_tx: ctx.engine_response_tx.clone(),
             });
             StepResult::Pending(request_id)
@@ -125,9 +124,8 @@ pub fn simulate_action(action_idx: usize, args: SimArgs) -> StepResult<SimResult
                     kind: CallbackKind::GetCost {
                         agent: args.agent.clone(),
                         world: args.world.clone(),
-                        provisions: action.provisions.clone(),
-                        bindings: args.bindings.to_vec(),
                     },
+                    bindings: args.bindings.to_vec(),
                     response_tx: args.ctx.engine_response_tx.clone(),
                 });
                 return StepResult::Pending(request_id);
@@ -162,9 +160,8 @@ pub fn simulate_action(action_idx: usize, args: SimArgs) -> StepResult<SimResult
                 kind: CallbackKind::ApplyEffect {
                     agent: args.agent.clone(),
                     world: args.world.clone(),
-                    provisions: action.provisions.clone(),
-                    bindings: args.bindings.to_vec(),
                 },
+                bindings: args.bindings.to_vec(),
                 response_tx: args.ctx.engine_response_tx.clone(),
             });
             StepResult::Pending(request_id)
