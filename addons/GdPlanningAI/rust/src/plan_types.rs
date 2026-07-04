@@ -91,7 +91,6 @@ impl PreconditionSpec {
             _ => &[],
         }
     }
-
 }
 
 impl std::fmt::Display for PreconditionSpec {

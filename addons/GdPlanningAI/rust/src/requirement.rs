@@ -94,7 +94,6 @@ impl RequirementSpec {
             }
         }
     }
-
 }
 
 impl std::fmt::Display for RequirementSpec {

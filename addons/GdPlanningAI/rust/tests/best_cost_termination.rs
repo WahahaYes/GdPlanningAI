@@ -154,22 +154,19 @@ fn best_cost_returns_lowest_cost_plan() {
                 } => {
                     match req.callable_id {
                         100 => {
-                            agent.properties.insert(
-                                "goal_met".to_string(),
-                                VariantSnapshot::Bool(true),
-                            );
+                            agent
+                                .properties
+                                .insert("goal_met".to_string(), VariantSnapshot::Bool(true));
                         }
                         101 => {
-                            agent.properties.insert(
-                                "can_finish".to_string(),
-                                VariantSnapshot::Bool(true),
-                            );
+                            agent
+                                .properties
+                                .insert("can_finish".to_string(), VariantSnapshot::Bool(true));
                         }
                         102 => {
-                            agent.properties.insert(
-                                "goal_met".to_string(),
-                                VariantSnapshot::Bool(true),
-                            );
+                            agent
+                                .properties
+                                .insert("goal_met".to_string(), VariantSnapshot::Bool(true));
                         }
                         _ => {}
                     }
@@ -185,7 +182,12 @@ fn best_cost_returns_lowest_cost_plan() {
     });
 
     let result = run_with_strategy(
-        agent, world, actions, goals, TerminationStrategy::BestCost, req_tx,
+        agent,
+        world,
+        actions,
+        goals,
+        TerminationStrategy::BestCost,
+        req_tx,
     );
 
     let plan = result.expect("should produce a plan");
@@ -280,22 +282,19 @@ fn first_complete_returns_first_found_plan() {
                 } => {
                     match req.callable_id {
                         100 => {
-                            agent.properties.insert(
-                                "goal_met".to_string(),
-                                VariantSnapshot::Bool(true),
-                            );
+                            agent
+                                .properties
+                                .insert("goal_met".to_string(), VariantSnapshot::Bool(true));
                         }
                         101 => {
-                            agent.properties.insert(
-                                "can_finish".to_string(),
-                                VariantSnapshot::Bool(true),
-                            );
+                            agent
+                                .properties
+                                .insert("can_finish".to_string(), VariantSnapshot::Bool(true));
                         }
                         102 => {
-                            agent.properties.insert(
-                                "goal_met".to_string(),
-                                VariantSnapshot::Bool(true),
-                            );
+                            agent
+                                .properties
+                                .insert("goal_met".to_string(), VariantSnapshot::Bool(true));
                         }
                         _ => {}
                     }
@@ -311,7 +310,12 @@ fn first_complete_returns_first_found_plan() {
     });
 
     let result = run_with_strategy(
-        agent, world, actions, goals, TerminationStrategy::FirstComplete, req_tx,
+        agent,
+        world,
+        actions,
+        goals,
+        TerminationStrategy::FirstComplete,
+        req_tx,
     );
 
     let plan = result.expect("should produce a plan");

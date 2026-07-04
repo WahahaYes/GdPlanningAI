@@ -5,12 +5,14 @@
 //! autoload calls [`process_callbacks`] to drain pending callback requests
 //! from planner threads and deliver completed results.
 
+use crate::gdpai_blackboard::GdPAIBlackboard;
 use crate::plan_tree::PlanResult;
 use crate::plan_types::*;
-use crate::planner::{DijkstraHeuristic, PlannerEngine, ProvisionKind, SearchContext, TerminationStrategy};
+use crate::planner::{
+    DijkstraHeuristic, PlannerEngine, ProvisionKind, SearchContext, TerminationStrategy,
+};
 use crate::precondition::{PreconditionHandler, PreconditionOp};
 use crate::requirement::{ProvisionSpec, RequirementSpec};
-use crate::gdpai_blackboard::GdPAIBlackboard;
 use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use godot::prelude::*;
 use std::collections::{HashMap, HashSet};
@@ -256,10 +258,7 @@ impl GdPAIPlanScheduler {
         let max_rec = max_recursion.max(1) as usize;
         let iter_budget = iteration_budget.max(100) as usize;
         if max_recursion < 1 {
-            log_warn!(
-                "max_recursion was clamped from {} to 1",
-                max_recursion
-            );
+            log_warn!("max_recursion was clamped from {} to 1", max_recursion);
         }
         if iteration_budget < 100 {
             log_warn!(
@@ -591,11 +590,7 @@ where
                 })
             })
         })
-        .map(|arr| {
-            arr.iter_shared()
-                .filter_map(|d| parse_fn(&d))
-                .collect()
-        })
+        .map(|arr| arr.iter_shared().filter_map(|d| parse_fn(&d)).collect())
         .unwrap_or_default()
 }
 

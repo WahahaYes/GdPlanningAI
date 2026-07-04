@@ -169,18 +169,16 @@ fn max_depth_prevents_plan_completion() {
                                 agent.properties.get("hunger").cloned()
                             {
                                 let new_hunger = (current - 60).max(0);
-                                agent.properties.insert(
-                                    "hunger".to_string(),
-                                    VariantSnapshot::Int(new_hunger),
-                                );
+                                agent
+                                    .properties
+                                    .insert("hunger".to_string(), VariantSnapshot::Int(new_hunger));
                             }
                         }
                         1 => {
                             // get_food effect
-                            agent.properties.insert(
-                                "has_food".to_string(),
-                                VariantSnapshot::Bool(true),
-                            );
+                            agent
+                                .properties
+                                .insert("has_food".to_string(), VariantSnapshot::Bool(true));
                         }
                         _ => {}
                     }
@@ -239,5 +237,8 @@ fn max_depth_prevents_plan_completion() {
     drop(handle);
 
     let plan = result.expect("should produce a result");
-    assert!(!plan.success, "Expected failure when max_depth=1 blocks 2-action plan");
+    assert!(
+        !plan.success,
+        "Expected failure when max_depth=1 blocks 2-action plan"
+    );
 }

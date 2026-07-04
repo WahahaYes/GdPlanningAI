@@ -243,7 +243,9 @@ impl PlannerEngine {
             // Optimality check: If the best node's priority (g + h) is already worse than our best plan,
             // and we want the best cost, we can stop.
             if self.termination == TerminationStrategy::BestCost
-                && self.heuristic.prune_threshold_met(node_priority, self.best_cost)
+                && self
+                    .heuristic
+                    .prune_threshold_met(node_priority, self.best_cost)
             {
                 self.enqueue(node); // Put it back for next time if needed
                 break;
@@ -251,7 +253,10 @@ impl PlannerEngine {
 
             // Increase budget for local tests
             if iterations > self.iteration_budget {
-                log_warn!("Search budget exceeded ({} iterations). Search is taking too long.", self.iteration_budget);
+                log_warn!(
+                    "Search budget exceeded ({} iterations). Search is taking too long.",
+                    self.iteration_budget
+                );
                 self.enqueue(node);
                 return PlannerRunResult::Pending(0);
             }
@@ -332,8 +337,7 @@ impl PlannerEngine {
                     if node.branch.action_chain.len() >= self.max_depth {
                         continue;
                     }
-                    let candidates_res =
-                        find_candidates(&node.branch, &self.ctx);
+                    let candidates_res = find_candidates(&node.branch, &self.ctx);
 
                     for cand in candidates_res.ready {
                         let key = (cand.action_idx, cand.bindings.clone());
@@ -685,7 +689,11 @@ impl PlannerEngine {
                     for prov in &action.provisions {
                         branch.open_requirements.retain(|(pos, req)| {
                             !(*pos >= branch.simulation_index
-                                && provision_satisfies_requirement(prov, req, Some(&branch.current_world)))
+                                && provision_satisfies_requirement(
+                                    prov,
+                                    req,
+                                    Some(&branch.current_world),
+                                ))
                         });
                     }
 

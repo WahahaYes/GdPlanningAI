@@ -8,10 +8,10 @@ use gdplanningai_rust::plan_types::{
     ActionSpec, CallbackKind, CallbackRequest, CallbackResponse, GoalSpec, PlannerCallback,
     PlannerRunResult, PreconditionSpec,
 };
+use gdplanningai_rust::planner::types::ProvisionKind;
 use gdplanningai_rust::planner::{
     DijkstraHeuristic, PlannerEngine, SearchContext, TerminationStrategy,
 };
-use gdplanningai_rust::planner::types::ProvisionKind;
 use gdplanningai_rust::precondition::{PreconditionOp, PreconditionTarget};
 use gdplanningai_rust::requirement::{ProvisionSpec, RequirementSpec};
 use gdplanningai_rust::snapshot::{BlackboardSnapshot, VariantSnapshot};
@@ -32,9 +32,7 @@ fn build_provision_index(actions: &[ActionSpec]) -> HashMap<(ProvisionKind, Stri
                 ProvisionSpec::Binding { binding_name, .. } => {
                     (ProvisionKind::Binding, binding_name.clone())
                 }
-                ProvisionSpec::Fact { fact_name, .. } => {
-                    (ProvisionKind::Fact, fact_name.clone())
-                }
+                ProvisionSpec::Fact { fact_name, .. } => (ProvisionKind::Fact, fact_name.clone()),
                 ProvisionSpec::FactWildcard { fact_name } => {
                     (ProvisionKind::FactWildcard, fact_name.clone())
                 }
@@ -49,7 +47,11 @@ fn build_non_wildcard_actions(actions: &[ActionSpec]) -> Vec<usize> {
     actions
         .iter()
         .enumerate()
-        .filter(|(_, a)| !a.provisions.iter().any(|p| matches!(p, ProvisionSpec::FactWildcard { .. })))
+        .filter(|(_, a)| {
+            !a.provisions
+                .iter()
+                .any(|p| matches!(p, ProvisionSpec::FactWildcard { .. }))
+        })
         .map(|(i, _)| i)
         .collect()
 }
@@ -86,12 +88,10 @@ fn spawn_callback_responder(
                 }
                 CallbackKind::EvalCustomPrecond { .. } => CallbackResponse::Bool(true),
             };
-            let _ = req
-                .response_tx
-                .send(PlannerCallback {
-                    request_id: req.request_id,
-                    response,
-                });
+            let _ = req.response_tx.send(PlannerCallback {
+                request_id: req.request_id,
+                response,
+            });
         }
     });
 
@@ -118,22 +118,19 @@ fn spawn_action_aware_responder(
                             agent.properties.get("hunger").cloned()
                         {
                             let new_hunger = (current - hunger_reduction).max(0);
-                            agent.properties.insert(
-                                "hunger".to_string(),
-                                VariantSnapshot::Int(new_hunger),
-                            );
+                            agent
+                                .properties
+                                .insert("hunger".to_string(), VariantSnapshot::Int(new_hunger));
                         }
                     }
                     CallbackResponse::UpdatedSnapshots(agent, world)
                 }
                 CallbackKind::EvalCustomPrecond { .. } => CallbackResponse::Bool(true),
             };
-            let _ = req
-                .response_tx
-                .send(PlannerCallback {
-                    request_id: req.request_id,
-                    response,
-                });
+            let _ = req.response_tx.send(PlannerCallback {
+                request_id: req.request_id,
+                response,
+            });
         }
     });
 
@@ -180,12 +177,10 @@ fn spawn_selective_callback_responder(
                     }
                 }
             };
-            let _ = req
-                .response_tx
-                .send(PlannerCallback {
-                    request_id: req.request_id,
-                    response,
-                });
+            let _ = req.response_tx.send(PlannerCallback {
+                request_id: req.request_id,
+                response,
+            });
         }
     });
 
@@ -329,10 +324,7 @@ fn wildcard_fact_provision_binds_concrete_value() {
     let agent = create_test_agent(vec![("goal_met", VariantSnapshot::Bool(false))]);
     let world = create_test_world(
         vec![],
-        vec![(
-            "obj_01",
-            create_sim_object("obj_01", vec![], vec![]),
-        )],
+        vec![("obj_01", create_sim_object("obj_01", vec![], vec![]))],
     );
 
     let actions = vec![
@@ -417,10 +409,7 @@ fn wildcard_fact_provision_binds_concrete_value() {
         at_target_bindings
     );
     for (_, _, vals) in &at_target_bindings {
-        assert_eq!(
-            vals,
-            &vec![VariantSnapshot::ObjectRef(100)]
-        );
+        assert_eq!(vals, &vec![VariantSnapshot::ObjectRef(100)]);
     }
 }
 
@@ -432,10 +421,7 @@ fn binding_injection_available_during_forward_validation() {
     let agent = create_test_agent(vec![("done", VariantSnapshot::Bool(false))]);
     let world = create_test_world(
         vec![],
-        vec![(
-            "obj_01",
-            create_sim_object("obj_01", vec![], vec![]),
-        )],
+        vec![("obj_01", create_sim_object("obj_01", vec![], vec![]))],
     );
 
     let actions = vec![
@@ -496,8 +482,7 @@ fn binding_injection_available_during_forward_validation() {
                 CallbackKind::EvalCustomPrecond { .. } => {
                     // Return true only if the at_target binding contains obj_01
                     let has_correct = req.bindings.iter().any(|(name, vals)| {
-                        name == "at_target"
-                            && vals.contains(&VariantSnapshot::ObjectRef(100))
+                        name == "at_target" && vals.contains(&VariantSnapshot::ObjectRef(100))
                     });
                     CallbackResponse::Bool(has_correct)
                 }
@@ -580,23 +565,14 @@ fn binding_in_set_respects_world_group() {
     // Planner must select pickup_food -> eat.
     let agent = create_test_agent(vec![
         ("hunger", VariantSnapshot::Int(80)),
-        (
-            "held_item",
-            VariantSnapshot::ObjectRef(102),
-        ),
+        ("held_item", VariantSnapshot::ObjectRef(102)),
     ]);
     let world = create_test_world(
         vec![],
         vec![
             // UIDs must match the ObjectRef integer values as strings
-            (
-                "101",
-                create_sim_object("101", vec!["food"], vec![]),
-            ),
-            (
-                "102",
-                create_sim_object("102", vec!["tool"], vec![]),
-            ),
+            ("101", create_sim_object("101", vec!["food"], vec![])),
+            ("102", create_sim_object("102", vec!["tool"], vec![])),
         ],
     );
 
@@ -728,14 +704,8 @@ fn binding_in_set_rejected_during_forward_validation() {
     let world = create_test_world(
         vec![],
         vec![
-            (
-                "101",
-                create_sim_object("101", vec!["food"], vec![]),
-            ),
-            (
-                "102",
-                create_sim_object("102", vec!["weapon"], vec![]),
-            ),
+            ("101", create_sim_object("101", vec!["food"], vec![])),
+            ("102", create_sim_object("102", vec!["weapon"], vec![])),
         ],
     );
 
