@@ -440,7 +440,13 @@ fn build_action_specs(
     actions
         .iter_shared()
         .filter_map(|dict| {
-            let name = dict.get("name")?.try_to::<String>().ok()?;
+            let name = match dict.get("name").and_then(|v| v.try_to::<String>().ok()) {
+                Some(n) => n,
+                None => {
+                    log_warn!("Skipping action dictionary: missing or invalid 'name' field");
+                    return None;
+                }
+            };
 
             let cost_val = dict.get("cost_callable");
             let cost_id = cost_val.as_ref().and_then(|v| {
@@ -511,8 +517,26 @@ fn build_goal_specs(goals: &Array<VarDictionary>, registry: &mut Vec<Callable>) 
         .iter_shared()
         .enumerate()
         .filter_map(|(idx, dict)| {
-            let name = dict.get("name")?.try_to::<String>().ok()?;
-            let reward = dict.get("reward")?.try_to::<f64>().ok()?;
+            let name = match dict.get("name").and_then(|v| v.try_to::<String>().ok()) {
+                Some(n) => n,
+                None => {
+                    log_warn!(
+                        "Skipping goal dictionary at index {}: missing or invalid 'name' field",
+                        idx
+                    );
+                    return None;
+                }
+            };
+            let reward = match dict.get("reward").and_then(|v| v.try_to::<f64>().ok()) {
+                Some(r) => r,
+                None => {
+                    log_warn!(
+                        "Skipping goal '{}': missing or invalid 'reward' field",
+                        name
+                    );
+                    return None;
+                }
+            };
             let desired_state = extract_precond_specs(&dict, "desired_state", registry);
             Some(GoalSpec {
                 name,
@@ -619,6 +643,12 @@ fn dispatch_callback(
             } else if let Ok(i) = result.try_to::<i64>() {
                 i as f64
             } else {
+                log_warn!(
+                    "Cost callable {} returned unexpected type {:?} (value: {:?}); treating as infinite cost",
+                    callable.to_string(),
+                    result.get_type(),
+                    result
+                );
                 f64::INFINITY
             };
             CallbackResponse::Float(cost)
@@ -644,7 +674,19 @@ fn dispatch_callback(
 
             let args = vec![bb_agent.to_variant(), bb_world.to_variant()];
             let result = callable.call(&args);
-            CallbackResponse::Bool(result.try_to::<bool>().unwrap_or(false))
+            let bool_result = match result.try_to::<bool>() {
+                Ok(b) => b,
+                Err(_) => {
+                    log_warn!(
+                        "Custom precondition callable {} returned non-bool type {:?} (value: {:?}); treating as false",
+                        callable.to_string(),
+                        result.get_type(),
+                        result
+                    );
+                    false
+                }
+            };
+            CallbackResponse::Bool(bool_result)
         }
     }
 }
