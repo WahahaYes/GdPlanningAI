@@ -22,6 +22,20 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::mpsc::{Receiver, Sender};
 
+/// Removes elements at the given indices from a vector.
+///
+/// Indices are sorted descending so each removal does not affect
+/// the validity of the remaining indices.
+fn remove_indices<T>(vec: &mut Vec<T>, indices: &HashSet<usize>) {
+    let mut sorted: Vec<_> = indices.iter().copied().collect();
+    sorted.sort_unstable_by(|a, b| b.cmp(a));
+    for idx in sorted {
+        if idx < vec.len() {
+            vec.remove(idx);
+        }
+    }
+}
+
 /// The execution engine for the GOAP planner.
 ///
 /// This engine manages the backward-chaining search queue, handles Godot callbacks, and
@@ -355,15 +369,7 @@ impl PlannerEngine {
                         new_branch.action_costs.insert(0, discovery_cost);
 
                         // Update indices of existing needs and bindings
-                        for (pos, _) in new_branch.open_preconditions.iter_mut() {
-                            *pos += 1;
-                        }
-                        for (pos, _) in new_branch.open_requirements.iter_mut() {
-                            *pos += 1;
-                        }
-                        for (pos, _, _) in new_branch.action_bindings.iter_mut() {
-                            *pos += 1;
-                        }
+                        new_branch.shift_positions(1);
 
                         // 1. Record and remove satisfied requirements
                         let mut new_bindings = Vec::new();
@@ -415,30 +421,12 @@ impl PlannerEngine {
                             }
                         }
 
-                        let mut j = 0;
-                        let mut removed_count = 0;
-                        while j < new_branch.open_requirements.len() {
-                            if reqs_to_remove.contains(&(j + removed_count)) {
-                                new_branch.open_requirements.remove(j);
-                                removed_count += 1;
-                            } else {
-                                j += 1;
-                            }
-                        }
+                        remove_indices(&mut new_branch.open_requirements, &reqs_to_remove);
 
                         // 2. Remove satisfied preconditions
                         let preconds_to_remove: HashSet<usize> =
                             cand.satisfied_preconditions.iter().copied().collect();
-                        let mut k = 0;
-                        let mut removed_pre_count = 0;
-                        while k < new_branch.open_preconditions.len() {
-                            if preconds_to_remove.contains(&(k + removed_pre_count)) {
-                                new_branch.open_preconditions.remove(k);
-                                removed_pre_count += 1;
-                            } else {
-                                k += 1;
-                            }
-                        }
+                        remove_indices(&mut new_branch.open_preconditions, &preconds_to_remove);
 
                         // 3. Add any new needs from the prepended action
                         // Deduplicate against existing needs to prevent congestion

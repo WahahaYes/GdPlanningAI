@@ -198,4 +198,17 @@ impl PlanBranch {
     pub fn recalculate_cost(&mut self) {
         self.cost = self.action_costs.iter().sum();
     }
+
+    /// Increments the chain position of all open needs and bindings by `delta`.
+    pub fn shift_positions(&mut self, delta: usize) {
+        for (pos, _) in self.open_preconditions.iter_mut() {
+            *pos += delta;
+        }
+        for (pos, _) in self.open_requirements.iter_mut() {
+            *pos += delta;
+        }
+        for (pos, _, _) in self.action_bindings.iter_mut() {
+            *pos += delta;
+        }
+    }
 }

@@ -84,32 +84,32 @@ The Rust planner implements a hybrid backward-chaining GOAP search but suffers f
 
 ## P2 — Medium: Maintainability & Refactoring
 
-### P2.1 Duplicated Binding-Injection Logic in Scheduler
+### P2.1 Duplicated Binding-Injection Logic in Scheduler ✅ FIXED
 
 - **Location:** `src/scheduler.rs`, lines 652–658, 691–697, 725–731
-- **Root Cause:** All three `CallbackKind` arms in `dispatch_callback` contain identical blocks that inject bindings into `bb_agent.properties`.
-- **Fix Guidance:** Extract a helper `fn inject_bindings_into_agent(agent_bb: &mut Gd<GdPAIBlackboard>, bindings: &[(String, Vec<VariantSnapshot>)])`.
+- **Root Cause:** All three `CallbackKind` arms in `dispatch_callback` contained identical blocks that injected bindings into `bb_agent.properties`.
+- **Fix Applied:** Extracted `inject_bindings_into_agent(agent_bb: &mut Gd<GdPAIBlackboard>, bindings: &[(String, Vec<VariantSnapshot>)])` in `scheduler.rs`. All three arms now call this helper.
 - **Subagent Scope:** `scheduler.rs` only.
 
-### P2.2 Nearly-Identical Dictionary-Extraction Functions
+### P2.2 Nearly-Identical Dictionary-Extraction Functions ✅ FIXED
 
 - **Location:** `src/scheduler.rs`, lines 531–602
-- **Root Cause:** `extract_precond_specs`, `extract_requirement_specs`, and `extract_provision_specs` share the same `try_to::<Array<VarDictionary>>` / `try_to::<VarArray>` fallback pattern and differ only in the element parser.
-- **Fix Guidance:** Introduce a single generic `extract_typed_specs<T, F>(dict, key, parse_fn) -> Vec<T>` helper.
+- **Root Cause:** `extract_precond_specs`, `extract_requirement_specs`, and `extract_provision_specs` shared the same `try_to::<Array<VarDictionary>>` / `try_to::<VarArray>` fallback pattern and differed only in the element parser.
+- **Fix Applied:** Introduced generic `extract_typed_specs<T, F>(dict, key, parse_fn) -> Vec<T>` in `scheduler.rs`. The three old functions are now thin wrappers delegating to it.
 - **Subagent Scope:** `scheduler.rs` only.
 
-### P2.3 Manual Index Shifting on Action Prepend
+### P2.3 Manual Index Shifting on Action Prepend ✅ FIXED
 
 - **Location:** `src/planner/engine.rs`, lines 343–352
-- **Root Cause:** Three separate loops increment positions in `open_preconditions`, `open_requirements`, and `action_bindings` when an action is prepended.
-- **Fix Guidance:** Add a `PlanBranch::shift_positions(delta: usize)` method on `PlanBranch` in `planner/types.rs`.
+- **Root Cause:** Three separate loops incremented positions in `open_preconditions`, `open_requirements`, and `action_bindings` when an action was prepended.
+- **Fix Applied:** Added `PlanBranch::shift_positions(delta: usize)` in `planner/types.rs`. The engine now calls `new_branch.shift_positions(1)` instead of the three loops.
 - **Subagent Scope:** `planner/types.rs` + `planner/engine.rs`.
 
-### P2.4 Manual Index-Compensated Removal Pattern (×2)
+### P2.4 Manual Index-Compensated Removal Pattern (×2) ✅ FIXED
 
 - **Location:** `src/planner/engine.rs`, lines 404–413 (requirements) and 418–427 (preconditions)
-- **Root Cause:** Nearly identical while-loops with `removed_count` to adjust indices when removing by a `HashSet<usize>`.
-- **Fix Guidance:** Extract a generic `fn remove_indices<T>(vec: &mut Vec<T>, indices: &HashSet<usize>)`.
+- **Root Cause:** Nearly identical while-loops with `removed_count` adjusted indices when removing by a `HashSet<usize>`.
+- **Fix Applied:** Extracted generic `remove_indices<T>(vec: &mut Vec<T>, indices: &HashSet<usize>)` in `planner/engine.rs`. It sorts indices descending before removal, which is cleaner and idiomatically correct. Both call sites now use this helper.
 - **Subagent Scope:** `planner/engine.rs` only.
 
 ### P2.5 Cost-Caching via Mutable Slice Side Channel
@@ -173,24 +173,24 @@ The Rust integration tests (`tests/planner_integration.rs`) cover basic single-a
 3. Add regression Rust tests proving both bugs and their fixes.
 4. `make test-rust` must pass.
 
-### Package B — Dead-Code & Doc Cleanup (P1)
+### Package B — Dead-Code & Doc Cleanup (P1) ✅ COMPLETE
 **Owner:** Single subagent (mechanical cleanup, low risk).
 **Files:** `lib.rs`, `planner/mod.rs`, `planner/engine.rs`, `plan_types.rs`, `plan_tree.rs`, `planner/types.rs`, `debug_tree.rs`, `requirement.rs`
 **Deliverables:**
-1. Fix algorithm characterization in docs (P1.1).
-2. Remove all dead types listed in P1.2.
-3. Replace manual `to_string()` with `Display` impls (P1.3).
-4. `cargo check` and `make test-rust` must pass.
+1. ✅ Fixed algorithm characterization in docs (P1.1).
+2. ✅ Removed all dead types listed in P1.2 (`RipplePolicy`, `PlanFingerprint`, `RequestKind`, `SearchTree`, `BranchState::Initializing`).
+3. ✅ Replaced manual `to_string()` with `Display` impls (P1.3).
+4. ✅ `cargo check` and `make test` pass.
 
-### Package C — Scheduler & Expander Refactoring (P2)
+### Package C — Scheduler & Expander Refactoring (P2) ✅ COMPLETE
 **Owner:** Single subagent.
-**Files:** `scheduler.rs`, `planner/expander.rs`, `planner/types.rs`, `planner/engine.rs`
+**Files:** `scheduler.rs`, `planner/types.rs`, `planner/engine.rs`
 **Deliverables:**
-1. Extract shared `inject_bindings_into_agent` helper (P2.1).
-2. Extract generic dictionary-extraction helper (P2.2).
-3. Extract `shift_positions` on `PlanBranch` (P2.3).
-4. Extract generic `remove_indices` helper (P2.4).
-5. `cargo check` and `make test-rust` must pass.
+1. ✅ Extracted `inject_bindings_into_agent` helper (P2.1) — replaces three identical binding-injection blocks.
+2. ✅ Extracted generic `extract_typed_specs<T, F>` helper (P2.2) — collapses three near-identical dictionary-extraction functions into one.
+3. ✅ Added `PlanBranch::shift_positions(delta: usize)` (P2.3) — replaces three separate index-shifting loops on action prepend.
+4. ✅ Extracted `remove_indices<T>(vec, indices)` helper (P2.4) — replaces two manual while-loop removal patterns with a cleaner descending-sort approach.
+5. ✅ `cargo check`, `cargo test`, and `make test` all pass.
 
 ### Package D — Rust Integration Test Expansion
 **Owner:** Single subagent.

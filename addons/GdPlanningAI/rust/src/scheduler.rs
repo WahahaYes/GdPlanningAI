@@ -10,6 +10,7 @@ use crate::plan_types::*;
 use crate::planner::{DijkstraHeuristic, PlannerEngine, ProvisionKind, SearchContext, TerminationStrategy};
 use crate::precondition::{PreconditionHandler, PreconditionOp};
 use crate::requirement::{ProvisionSpec, RequirementSpec};
+use crate::gdpai_blackboard::GdPAIBlackboard;
 use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use godot::prelude::*;
 use std::collections::{HashMap, HashSet};
@@ -528,77 +529,46 @@ fn build_goal_specs(goals: &Array<VarDictionary>, registry: &mut Vec<Callable>) 
         .collect()
 }
 
+fn extract_typed_specs<T, F>(dict: &VarDictionary, key: &str, mut parse_fn: F) -> Vec<T>
+where
+    F: FnMut(&VarDictionary) -> Option<T>,
+{
+    dict.get(key)
+        .and_then(|v| {
+            v.try_to::<Array<VarDictionary>>().ok().or_else(|| {
+                v.try_to::<VarArray>().ok().map(|arr| {
+                    let mut typed = Array::<VarDictionary>::new();
+                    for item in arr.iter_shared() {
+                        if let Ok(dict) = item.try_to::<VarDictionary>() {
+                            typed.push(&dict);
+                        }
+                    }
+                    typed
+                })
+            })
+        })
+        .map(|arr| {
+            arr.iter_shared()
+                .filter_map(|d| parse_fn(&d))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 fn extract_precond_specs(
     dict: &VarDictionary,
     key: &str,
     registry: &mut Vec<Callable>,
 ) -> Vec<PreconditionSpec> {
-    dict.get(key)
-        .and_then(|v| {
-            v.try_to::<Array<VarDictionary>>().ok().or_else(|| {
-                v.try_to::<VarArray>().ok().map(|arr| {
-                    let mut typed = Array::<VarDictionary>::new();
-                    for item in arr.iter_shared() {
-                        if let Ok(dict) = item.try_to::<VarDictionary>() {
-                            typed.push(&dict);
-                        }
-                    }
-                    typed
-                })
-            })
-        })
-        .map(|arr| {
-            arr.iter_shared()
-                .filter_map(|d| precond_spec_from_dict(&d, registry))
-                .collect()
-        })
-        .unwrap_or_default()
+    extract_typed_specs(dict, key, |d| precond_spec_from_dict(d, registry))
 }
 
 fn extract_requirement_specs(dict: &VarDictionary, key: &str) -> Vec<RequirementSpec> {
-    dict.get(key)
-        .and_then(|v| {
-            v.try_to::<Array<VarDictionary>>().ok().or_else(|| {
-                v.try_to::<VarArray>().ok().map(|arr| {
-                    let mut typed = Array::<VarDictionary>::new();
-                    for item in arr.iter_shared() {
-                        if let Ok(dict) = item.try_to::<VarDictionary>() {
-                            typed.push(&dict);
-                        }
-                    }
-                    typed
-                })
-            })
-        })
-        .map(|arr| {
-            arr.iter_shared()
-                .filter_map(|d| RequirementSpec::from_dict(&d))
-                .collect()
-        })
-        .unwrap_or_default()
+    extract_typed_specs(dict, key, RequirementSpec::from_dict)
 }
 
 fn extract_provision_specs(dict: &VarDictionary, key: &str) -> Vec<ProvisionSpec> {
-    dict.get(key)
-        .and_then(|v| {
-            v.try_to::<Array<VarDictionary>>().ok().or_else(|| {
-                v.try_to::<VarArray>().ok().map(|arr| {
-                    let mut typed = Array::<VarDictionary>::new();
-                    for item in arr.iter_shared() {
-                        if let Ok(dict) = item.try_to::<VarDictionary>() {
-                            typed.push(&dict);
-                        }
-                    }
-                    typed
-                })
-            })
-        })
-        .map(|arr| {
-            arr.iter_shared()
-                .filter_map(|d| ProvisionSpec::from_dict(&d))
-                .collect()
-        })
-        .unwrap_or_default()
+    extract_typed_specs(dict, key, ProvisionSpec::from_dict)
 }
 
 fn precond_spec_from_dict(
@@ -648,14 +618,7 @@ fn dispatch_callback(callable: &Callable, kind: CallbackKind) -> CallbackRespons
             let prov_arr = provisions_to_array(&provisions);
             let bind_dict = bindings_to_dict(&bindings);
 
-            {
-                let mut bind = bb_agent.bind_mut();
-                for (name, values) in &bindings {
-                    if !values.is_empty() {
-                        bind.properties.insert(name.clone(), values[0].to_variant());
-                    }
-                }
-            }
+            inject_bindings_into_agent(&mut bb_agent, &bindings);
 
             let mut args = vec![bb_agent.to_variant(), bb_world.to_variant()];
             let expected_count = callable.get_argument_count();
@@ -687,14 +650,7 @@ fn dispatch_callback(callable: &Callable, kind: CallbackKind) -> CallbackRespons
             let prov_arr = provisions_to_array(&provisions);
             let bind_dict = bindings_to_dict(&bindings);
 
-            {
-                let mut bind = bb_agent.bind_mut();
-                for (name, values) in &bindings {
-                    if !values.is_empty() {
-                        bind.properties.insert(name.clone(), values[0].to_variant());
-                    }
-                }
-            }
+            inject_bindings_into_agent(&mut bb_agent, &bindings);
 
             let mut args = vec![bb_agent.to_variant(), bb_world.to_variant()];
             let expected_count = callable.get_argument_count();
@@ -722,14 +678,7 @@ fn dispatch_callback(callable: &Callable, kind: CallbackKind) -> CallbackRespons
             let prov_arr = provisions_to_array(&provisions);
             let bind_dict = bindings_to_dict(&bindings);
 
-            {
-                let mut bind = bb_agent.bind_mut();
-                for (name, values) in &bindings {
-                    if !values.is_empty() {
-                        bind.properties.insert(name.clone(), values[0].to_variant());
-                    }
-                }
-            }
+            inject_bindings_into_agent(&mut bb_agent, &bindings);
 
             let mut args = vec![bb_agent.to_variant(), bb_world.to_variant()];
             let expected_count = callable.get_argument_count();
@@ -742,6 +691,18 @@ fn dispatch_callback(callable: &Callable, kind: CallbackKind) -> CallbackRespons
 
             let result = callable.call(&args);
             CallbackResponse::Bool(result.try_to::<bool>().unwrap_or(false))
+        }
+    }
+}
+
+fn inject_bindings_into_agent(
+    agent_bb: &mut Gd<GdPAIBlackboard>,
+    bindings: &[(String, Vec<VariantSnapshot>)],
+) {
+    let mut bind = agent_bb.bind_mut();
+    for (name, values) in bindings {
+        if !values.is_empty() {
+            bind.properties.insert(name.clone(), values[0].to_variant());
         }
     }
 }
