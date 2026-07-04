@@ -144,6 +144,7 @@ fn get_discovery_result(
     }
 }
 
+/// Ready candidates and any pending callback ID from candidate discovery.
 pub struct CandidatesResult {
     pub ready: Vec<Candidate>,
     pub pending_id: Option<usize>,
@@ -161,9 +162,7 @@ pub fn find_candidates(branch: &PlanBranch, ctx: &SearchContext) -> CandidatesRe
     let mut some_pending = false;
     let mut last_pending_id = 0;
 
-    // ------------------------------------------------------------------
     // 1. Determine which actions to evaluate
-    // ------------------------------------------------------------------
     let mut candidate_actions: BTreeSet<usize> = BTreeSet::new();
 
     // a) Actions whose provisions match any open requirement
@@ -193,9 +192,7 @@ pub fn find_candidates(branch: &PlanBranch, ctx: &SearchContext) -> CandidatesRe
     //    actually satisfy any open need.
     candidate_actions.extend(&ctx.non_wildcard_actions);
 
-    // ------------------------------------------------------------------
     // 2. Evaluate each candidate action
-    // ------------------------------------------------------------------
     for idx in candidate_actions {
         let action = &ctx.actions[idx];
 
