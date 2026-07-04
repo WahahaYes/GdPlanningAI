@@ -92,7 +92,10 @@ impl PreconditionSpec {
         }
     }
 
-    pub fn to_string(&self) -> String {
+}
+
+impl std::fmt::Display for PreconditionSpec {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Builtin {
                 target,
@@ -115,12 +118,12 @@ impl PreconditionSpec {
                     PreconditionOp::CustomCallback => "custom",
                 };
                 if let Some(v) = value {
-                    format!("{}.{} {} {:?}", target_str, property_name, op_str, v)
+                    write!(f, "{}.{} {} {:?}", target_str, property_name, op_str, v)
                 } else {
-                    format!("{}.{} {}", target_str, property_name, op_str)
+                    write!(f, "{}.{} {}", target_str, property_name, op_str)
                 }
             }
-            Self::Custom { callable_id, .. } => format!("Custom({})", callable_id),
+            Self::Custom { callable_id, .. } => write!(f, "Custom({})", callable_id),
         }
     }
 }
@@ -211,14 +214,6 @@ fn snap_as_f64(v: &VariantSnapshot) -> Option<f64> {
     }
 }
 
-/// Policy for when to re-simulate action effects during planning.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum RipplePolicy {
-    Always,
-    OnRequirement,
-    Never,
-}
-
 /// Send-safe mirror of [`crate::action::ActionData`].
 #[derive(Clone, Debug)]
 pub struct ActionSpec {
@@ -241,14 +236,6 @@ pub struct GoalSpec {
     pub reward: f64,
     pub desired_state: Vec<PreconditionSpec>,
     pub original_index: usize,
-}
-
-/// Identifies the specific type of simulation request.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum RequestKind {
-    Precondition,
-    Cost,
-    Effect,
 }
 
 /// Sent from planner thread → main thread.

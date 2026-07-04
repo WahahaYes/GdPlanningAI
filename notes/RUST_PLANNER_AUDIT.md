@@ -59,26 +59,26 @@ The Rust planner implements a hybrid backward-chaining GOAP search but suffers f
   6. Corrected doc comments in `lib.rs` and `engine.rs`.
 - **Status:** Complete. The trait architecture is now modular — new heuristics can be plugged in without touching the search loop.
 
-### P1.2 Dead Types & Unused Structs
+### P1.2 Dead Types & Unused Structs ✅ FIXED
 
 | Item | Location | Why Dead | Fix |
 |------|----------|----------|-----|
 | `SearchAlgorithm::AStar` | `planner/mod.rs:19-23` | Priority is always `cost` | Remove enum or keep only Dijkstra |
 | `SearchAlgorithm::DepthFirst` | `planner/mod.rs:19-23` | Same | Same |
-| `RipplePolicy` | `plan_types.rs:214-220` | Never referenced anywhere | Delete |
-| `PlanFingerprint` | `plan_tree.rs:23-27` | `PlanBranch::fingerprint()` returns `u64` directly | Delete |
-| `RequestKind` | `planner/types.rs:247-252` | Never referenced | Delete |
-| `SearchTree` | `debug_tree.rs:22-27` | `TreeDump` formats directly, never builds a `SearchTree` | Delete |
-| `BranchState::Initializing` | `planner/types.rs:15-16` | Transitions to `Searching` immediately in `process_simulation` with no side effects | Delete; merge into `Searching` logic |
+| `RipplePolicy` | `plan_types.rs:214-220` | Never referenced anywhere | Deleted |
+| `PlanFingerprint` | `plan_tree.rs:23-27` | `PlanBranch::fingerprint()` returns `u64` directly | Deleted |
+| `RequestKind` | `plan_types.rs:247-252` | Never referenced | Deleted |
+| `SearchTree` | `debug_tree.rs:22-27` | `TreeDump` formats directly, never builds a `SearchTree` | Deleted; `TreeDump` doc comment updated |
+| `BranchState::Initializing` | `planner/types.rs:15-16` | Transitions to `Searching` immediately in `process_simulation` with no side effects | Deleted; initial-state precondition filtering moved into `initialize_goal()` |
 
-- **Subagent Scope:** Multi-file dead-code removal. Must compile with `cargo check` afterward.
+- **Subagent Scope:** Multi-file dead-code removal. `cargo check` and `cargo test` pass. Note: `SearchAlgorithm` variants were already removed in P1.1.
 
-### P1.3 `to_string()` Shadows `std::string::ToString`
+### P1.3 `to_string()` Shadows `std::string::ToString` ✅ FIXED
 
 - **Locations:** `src/plan_types.rs:95` (`PreconditionSpec::to_string`), `src/requirement.rs:98` (`RequirementSpec::to_string`)
-- **Root Cause:** These are hand-written `to_string()` methods, not `std::fmt::Display` impls. They work but are idiomatically wrong and can silently bypass the standard trait.
-- **Fix Guidance:** Replace with `impl std::fmt::Display` and remove the manual `to_string` methods. Update call sites.
-- **Subagent Scope:** `plan_types.rs`, `requirement.rs`, `debug_tree.rs` (which calls them).
+- **Root Cause:** These were hand-written `to_string()` methods, not `std::fmt::Display` impls. They worked but were idiomatically wrong and could silently bypass the standard trait.
+- **Fix Applied:** Replaced both with `impl std::fmt::Display`. Call sites in `engine.rs` continue to work via the blanket `ToString` impl.
+- **Subagent Scope:** `plan_types.rs`, `requirement.rs`, `engine.rs` call sites.
 
 ---
 

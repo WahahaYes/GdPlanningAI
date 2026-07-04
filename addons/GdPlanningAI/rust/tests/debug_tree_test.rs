@@ -1,10 +1,10 @@
-//! Integration tests for the debug tree builder and SearchTree structure.
+//! Integration tests for the debug tree builder.
 //!
 //! These tests verify that the TreeDump ID-based builder produces a
-//! correct SearchTree with proper parent-child relationships, outcomes,
+//! correct tree with proper parent-child relationships, outcomes,
 //! excluded actions, and forward-validation steps.
 
-use gdplanningai_rust::debug_tree::{FwdStep, NodeOutcome, SearchTree, TreeDump, TreeNode};
+use gdplanningai_rust::debug_tree::{NodeOutcome, TreeDump, TreeNode};
 
 // ── Helpers ────────────────────────────────────────────────────────
 

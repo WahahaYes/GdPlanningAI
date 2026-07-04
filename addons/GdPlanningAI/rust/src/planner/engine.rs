@@ -122,7 +122,12 @@ impl PlannerEngine {
         let mut branch = PlanBranch::new(&self.ctx.initial_agent, &self.ctx.initial_world);
         branch.goal_index = goal.original_index; // Use original index for Godot
         for pre in &goal.desired_state {
-            branch.open_preconditions.push((0, pre.clone()));
+            let satisfied_by_initial = pre
+                .evaluate_builtin(&self.ctx.initial_agent, &self.ctx.initial_world)
+                .unwrap_or(false);
+            if !satisfied_by_initial {
+                branch.open_preconditions.push((0, pre.clone()));
+            }
         }
 
         // Tree: Add root node
@@ -262,7 +267,7 @@ impl PlannerEngine {
             }
 
             match node.branch.state {
-                BranchState::Initializing | BranchState::Verifying => {
+                BranchState::Verifying => {
                     match self.process_simulation(&mut node) {
                         StepResult::Ready(_) => self.enqueue(node),
                         StepResult::Pending(id) => {
@@ -674,8 +679,8 @@ impl PlannerEngine {
                     }
                     StepResult::Ready(false) => {
                         // During Verifying, a false precondition means the chain is invalid.
-                        // During Initializing, it just means the goal isn't already satisfied;
-                        // leave the precondition in place and transition to Searching.
+                        // During Searching, a false precondition just stays open to be satisfied
+                        // by a predecessor action.
                         if branch.state == BranchState::Verifying {
                             return StepResult::Invalid;
                         }
@@ -731,10 +736,6 @@ impl PlannerEngine {
         } else {
             // Reached end of chain
             match branch.state {
-                BranchState::Initializing => {
-                    branch.state = BranchState::Searching;
-                    return StepResult::Ready(());
-                }
                 BranchState::Verifying => {
                     // Final success!
                     // Ensure no preconditions or requirements remain open anywhere in the chain

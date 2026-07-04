@@ -1,8 +1,5 @@
 //! Plan result type shared between planner and scheduler.
 
-use crate::plan_types::PreconditionSpec;
-use crate::requirement::RequirementSpec;
-
 /// Result of the planning algorithm.
 #[derive(Clone, Debug)]
 pub struct PlanResult {
@@ -17,13 +14,6 @@ pub struct PlanResult {
     /// Action-specific bindings: chain_position -> (fact_name, values)
     /// Each action occurrence gets its own bound values from wildcard provisions during planning.
     pub action_bindings: Vec<(i64, String, Vec<crate::snapshot::VariantSnapshot>)>,
-}
-
-/// A fingerprint used for cycle detection in the planner, capturing the set of open needs.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct PlanFingerprint {
-    pub open_preconditions: Vec<PreconditionSpec>,
-    pub open_requirements: Vec<(usize, RequirementSpec)>,
 }
 
 impl PlanResult {

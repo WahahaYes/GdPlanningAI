@@ -18,14 +18,6 @@ use crate::logger::LogLevel;
 
 // ── Tree data structures ───────────────────────────────────────────
 
-/// Top-level container for a planning run.
-#[derive(Clone, Debug)]
-pub struct SearchTree {
-    pub goal_attempts: Vec<GoalAttempt>,
-    pub elapsed_ms: f64,
-    pub branches_explored: usize,
-}
-
 /// One goal the planner tried to satisfy.
 #[derive(Clone, Debug)]
 pub struct GoalAttempt {
@@ -92,7 +84,7 @@ pub struct FwdStep {
 
 // ── ID-based tree builder ──────────────────────────────────────────
 
-/// Builds a [`SearchTree`] during iterative planning via flat node IDs.
+/// Structured debug tree builder for planning search visualization.
 pub struct TreeDump {
     enabled: bool,
     /// All tree nodes, indexed by their opaque ID.

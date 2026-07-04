@@ -13,7 +13,6 @@ use std::cmp::Ordering;
 /// The search state of a plan branch.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum BranchState {
-    Initializing,
     Searching,
     Verifying,
 }
@@ -160,7 +159,7 @@ impl PlanBranch {
             action_bindings: Vec::new(),
             open_preconditions: Vec::new(),
             open_requirements: Vec::new(),
-            state: BranchState::Initializing,
+            state: BranchState::Searching,
             goal_index: 0,
             simulation_index: 0,
             current_agent: initial_agent.clone(),

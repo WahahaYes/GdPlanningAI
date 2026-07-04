@@ -95,22 +95,25 @@ impl RequirementSpec {
         }
     }
 
-    pub fn to_string(&self) -> String {
+}
+
+impl std::fmt::Display for RequirementSpec {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::BindingExists { binding_name } => format!("exists({})", binding_name),
+            Self::BindingExists { binding_name } => write!(f, "exists({})", binding_name),
             Self::BindingEquals {
                 binding_name,
                 value,
-            } => format!("{} == {:?}", binding_name, value),
+            } => write!(f, "{} == {:?}", binding_name, value),
             Self::BindingInSet {
                 binding_name,
                 set_name,
-            } => format!("{} in {}", binding_name, set_name),
+            } => write!(f, "{} in {}", binding_name, set_name),
             Self::Fact { fact_name, args } => {
                 if args.is_empty() {
-                    fact_name.clone()
+                    write!(f, "{}", fact_name)
                 } else {
-                    format!("{}({:?})", fact_name, args)
+                    write!(f, "{}({:?})", fact_name, args)
                 }
             }
         }
