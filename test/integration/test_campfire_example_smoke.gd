@@ -139,7 +139,9 @@ func test_full_cooking_chain() -> void:
 	assert_true(titles.has("Cook Potato"), "Plan should include Cook Potato")
 	assert_true(titles.has("Eat Held Food"), "Plan should include Eat Held Food")
 	assert_eq(titles.count("Go To"), 2, "Plan should have exactly 2 Go To actions")
-	assert_true(titles.find("Eat Held Food") > titles.find("Cook Potato"), "Cook should precede Eat")
+	assert_true(
+		titles.find("Eat Held Food") > titles.find("Cook Potato"), "Cook should precede Eat"
+	)
 	assert_true(titles.find("Cook Potato") > titles.find("Dig Potato"), "Dig should precede Cook")
 
 

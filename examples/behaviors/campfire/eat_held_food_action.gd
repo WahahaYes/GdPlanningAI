@@ -37,7 +37,7 @@ func get_preconditions() -> Array[Precondition]:
 
 	# If we are already holding something, it must be a food item we know how to eat.
 	# We use a custom check for this since it depends on our internal map.
-	preconds.append(Precondition.custom(Callable(self , "_is_holding_food")))
+	preconds.append(Precondition.custom(Callable(self, "_is_holding_food")))
 
 	return preconds
 
