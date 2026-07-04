@@ -553,8 +553,8 @@ impl PlannerEngine {
         } else {
             // If the current goal is already satisfied (empty plan) and there are more goals,
             // skip to the next goal instead of returning the empty plan.
-            if let Some(ref plan) = self.best_plan {
-                if plan.action_chain.is_empty() && self.current_goal_index + 1 < goals.len() {
+            if let Some(ref plan) = self.best_plan
+                && plan.action_chain.is_empty() && self.current_goal_index + 1 < goals.len() {
                     self.best_plan = None;
                     self.best_cost = f64::INFINITY;
                     self.tree.end_goal(false, &[], 0.0);
@@ -562,7 +562,6 @@ impl PlannerEngine {
                     self.initialize_goal(goals, self.current_goal_index);
                     return PlannerRunResult::Pending(0);
                 }
-            }
 
             // Search exhausted for current goal. Check if there are more goals.
             if self.best_plan.is_none() && self.current_goal_index + 1 < goals.len() {

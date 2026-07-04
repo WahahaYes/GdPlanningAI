@@ -167,7 +167,7 @@ pub fn find_candidates(branch: &PlanBranch, ctx: &SearchContext) -> CandidatesRe
     let mut candidate_actions: BTreeSet<usize> = BTreeSet::new();
 
     // a) Actions whose provisions match any open requirement
-    for (_, (_pos, req)) in branch.open_requirements.iter().enumerate() {
+    for (_pos, req) in branch.open_requirements.iter() {
         let lookup_key = match req {
             RequirementSpec::BindingExists { binding_name }
             | RequirementSpec::BindingEquals { binding_name, .. }
