@@ -23,21 +23,19 @@ The Rust planner implements a hybrid backward-chaining GOAP search but suffers f
 
 ## P0 — Critical Logic Bugs
 
-### P0.1 Post-Action State Checked Against Action's Own Preconditions
+### P0.1 Post-Action State Checked Against Action's Own Preconditions ✅ FIXED
 
 - **Location:** `src/planner/engine.rs`, lines 508–526
-- **Root Cause:** After discovery-simulating a candidate action, the code removes preconditions at `pos == 0` (the newly prepended action's own preconditions) if they happen to be satisfied by the **post-action** discovery state (`disc_res.agent`, `disc_res.world`). Preconditions must hold *before* an action runs, not after.
-- **Impact:** Can incorrectly prune valid preconditions or allow invalid plans where an action satisfies its own precondition via its own effect.
-- **Fix Guidance:** Remove the block entirely, or if the intent was to use the discovery simulation to show the action's preconditions are already met by the *initial* state, check against `ctx.initial_agent`/`ctx.initial_world` instead. Given this same check is already done at lines 441–450 (skipping preconditions already met by initial state), the block is redundant and should be deleted.
-- **Subagent Scope:** Single-file edit in `engine.rs`. Add a regression Rust test proving the bug and its fix.
+- **Root Cause:** After discovery-simulating a candidate action, the code removed preconditions at `pos == 0` if they happened to be satisfied by the **post-action** discovery state. Preconditions must hold *before* an action runs, not after.
+- **Fix Applied (2026-07-03):** Deleted the entire block. The `satisfied_by_initial` check at lines 441–450 is the correct and sufficient logic — preconditions already met by the initial state are never pushed, and any that remain must be satisfied by a predecessor.
+- **Regression Test:** `tests/requirement_provision_chaining.rs::action_cannot_satisfy_its_own_precondition` proves that an action whose effect satisfies its own precondition is still rejected when the initial state does not satisfy it.
 
-### P0.2 `BindingInSet` Requirements Weakened During Forward Validation
+### P0.2 `BindingInSet` Requirements Weakened During Forward Validation ✅ FIXED
 
 - **Location:** `src/planner/engine.rs`, lines 706–712
-- **Root Cause:** `process_simulation` calls `provision_satisfies_requirement(prov, req, None)` with `world = None`. In `src/requirement.rs:317–336`, `BindingInSet` falls back to a simple name match when `world` is `None`, completely ignoring the group-membership constraint.
-- **Impact:** A `BindingInSet { binding_name: "held_item", set_name: "food" }` requirement is treated as `BindingExists { binding_name: "held_item" }` during forward validation. A non-food item could satisfy the requirement.
-- **Fix Guidance:** Pass `&branch.current_world` (or `&self.ctx.initial_world` at simulation_index 0) as the `world` argument in `provision_satisfies_requirement` during forward validation.
-- **Subagent Scope:** Two-file edit (`engine.rs`, `requirement.rs` if any signature change needed). Add a Rust integration test for `BindingInSet` forward validation.
+- **Root Cause:** `process_simulation` called `provision_satisfies_requirement(prov, req, None)` with `world = None`. In `src/requirement.rs:317–336`, `BindingInSet` fell back to a simple name match when `world` was `None`, ignoring the group-membership constraint.
+- **Fix Applied (2026-07-03):** Replaced `None` with `Some(&branch.current_world)` so the world context is available for group-membership validation.
+- **Regression Test:** `tests/requirement_provision_chaining.rs::binding_in_set_rejected_during_forward_validation` proves that a non-food item (sword) is correctly rejected as satisfying a `BindingInSet { held_item, "food" }` requirement.
 
 ---
 
@@ -162,14 +160,14 @@ The Rust integration tests (`tests/planner_integration.rs`) cover basic single-a
 
 ## Subagent Delegation Packages
 
-### Package A — Critical Logic Fixes (P0)
+### Package E — Critical Logic Fixes (P0) ✅ COMPLETE
 **Owner:** Single subagent (needs deep understanding of search loop).
-**Files:** `planner/engine.rs`, `planner/simulation.rs`, `requirement.rs`
+**Files:** `planner/engine.rs`, `tests/requirement_provision_chaining.rs`
 **Deliverables:**
-1. Delete or correct the post-action precondition check (P0.1).
-2. Pass world context into `provision_satisfies_requirement` during forward validation (P0.2).
-3. Add regression Rust tests proving both bugs and their fixes.
-4. `make test-rust` must pass.
+1. ✅ Deleted the post-action precondition check block (P0.1).
+2. ✅ Replaced `None` with `Some(&branch.current_world)` in forward validation `provision_satisfies_requirement` call (P0.2).
+3. ✅ Added regression Rust tests `action_cannot_satisfy_its_own_precondition` and `binding_in_set_rejected_during_forward_validation`.
+4. ✅ `make test-rust` passes.
 
 ### Package B — Dead-Code & Doc Cleanup (P1) ✅ COMPLETE
 **Owner:** Single subagent (mechanical cleanup, low risk).

@@ -646,3 +646,145 @@ fn binding_in_set_respects_world_group() {
     assert_eq!(plan.action_chain[0], 0i64); // pickup_food
     assert_eq!(plan.action_chain[1], 1i64); // eat
 }
+
+#[test]
+fn action_cannot_satisfy_its_own_precondition() {
+    // An action whose effect happens to satisfy its own precondition
+    // must still require that precondition from the initial state or a
+    // predecessor. The post-action state must NOT count.
+    let agent = create_test_agent(vec![("health", VariantSnapshot::Int(0))]);
+    let world = create_test_world(vec![], vec![]);
+
+    let actions = vec![ActionSpec {
+        name: "heal".to_string(),
+        cost_callable_id: None,
+        effect_callable_id: Some(1),
+        preconditions: vec![PreconditionSpec::Builtin {
+            target: PreconditionTarget::Agent,
+            operation: PreconditionOp::GreaterThan,
+            property_name: "health".to_string(),
+            value: Some(VariantSnapshot::Int(0)),
+        }],
+        validity_checks: vec![],
+        requirements: vec![],
+        provisions: vec![],
+        dependent_object_ids: vec![],
+    }];
+
+    let goals = vec![GoalSpec {
+        name: "recover".to_string(),
+        reward: 10.0,
+        desired_state: vec![PreconditionSpec::Builtin {
+            target: PreconditionTarget::Agent,
+            operation: PreconditionOp::GreaterThan,
+            property_name: "health".to_string(),
+            value: Some(VariantSnapshot::Int(5)),
+        }],
+        original_index: 0,
+    }];
+
+    let (req_tx, req_rx) = mpsc::channel::<CallbackRequest>();
+    thread::spawn(move || {
+        for req in req_rx {
+            let response = match req.kind {
+                CallbackKind::ApplyEffect {
+                    mut agent, world, ..
+                } => {
+                    agent
+                        .properties
+                        .insert("health".to_string(), VariantSnapshot::Int(10));
+                    CallbackResponse::UpdatedSnapshots(agent, world)
+                }
+                _ => CallbackResponse::Float(1.0),
+            };
+            let _ = req.response_tx.send(PlannerCallback {
+                request_id: req.request_id,
+                response,
+            });
+        }
+    });
+
+    let result = run_planner(agent, world, actions, goals, 10, req_tx);
+
+    let plan = result.expect("planner should complete");
+    // The action's own effect must NOT count as satisfying its precondition.
+    // The precondition must be met before the action runs; initial health=0
+    // does not satisfy health>0, so the plan should fail.
+    assert!(
+        !plan.success,
+        "should NOT produce a successful plan when the action's precondition is not met by the initial state"
+    );
+}
+
+#[test]
+fn binding_in_set_rejected_during_forward_validation() {
+    // BindingInSet requirements must validate group membership during
+    // forward validation, not just match binding names.
+    // World has sword (group "weapon") and apple (group "food").
+    // pickup_sword provides held_item=sword.
+    // eat requires held_item in the "food" group.
+    // The planner should reject the sword as satisfying the food requirement.
+    let agent = create_test_agent(vec![("hunger", VariantSnapshot::Int(80))]);
+    let world = create_test_world(
+        vec![],
+        vec![
+            (
+                "101",
+                create_sim_object("101", vec!["food"], vec![]),
+            ),
+            (
+                "102",
+                create_sim_object("102", vec!["weapon"], vec![]),
+            ),
+        ],
+    );
+
+    let actions = vec![
+        ActionSpec {
+            name: "pickup_sword".to_string(),
+            cost_callable_id: None,
+            effect_callable_id: None,
+            preconditions: vec![],
+            validity_checks: vec![],
+            requirements: vec![],
+            provisions: vec![ProvisionSpec::Binding {
+                binding_name: "held_item".to_string(),
+                value: VariantSnapshot::ObjectRef(102),
+            }],
+            dependent_object_ids: vec![],
+        },
+        ActionSpec {
+            name: "eat".to_string(),
+            cost_callable_id: Some(0),
+            effect_callable_id: Some(2),
+            preconditions: vec![],
+            validity_checks: vec![],
+            requirements: vec![RequirementSpec::BindingInSet {
+                binding_name: "held_item".to_string(),
+                set_name: "food".to_string(),
+            }],
+            provisions: vec![],
+            dependent_object_ids: vec![],
+        },
+    ];
+
+    let goals = vec![GoalSpec {
+        name: "satisfy_hunger".to_string(),
+        reward: 10.0,
+        desired_state: vec![hunger_less_than(30)],
+        original_index: 0,
+    }];
+
+    let (req_tx, handle) = spawn_action_aware_responder(5.0, 2, 60);
+    let result = run_planner(agent, world, actions, goals, 10, req_tx);
+    drop(handle);
+
+    let plan = result.expect("planner should complete");
+    // Forward validation must enforce the group-membership constraint.
+    // The sword is in group "weapon", not "food", so it must be rejected
+    // as satisfying the food requirement.
+    assert!(
+        !plan.success,
+        "should NOT produce a successful plan when the only held_item provider is not in the required group"
+    );
+}
