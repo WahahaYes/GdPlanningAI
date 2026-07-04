@@ -52,8 +52,9 @@ func _ready() -> void:
 	# Initial blackboard setup common for all agents.
 	blackboard.set_property("entity", entity)
 	# Collect any GdPAI nodes under this agent's entity.
-	var agent_objects: Array = GdPAIUTILS.get_children_in_group(entity, "GdPAIObjectData")
-	blackboard.set_property("GDPAI_OBJECTS", agent_objects)
+	if entity != null:
+		var agent_objects: Array = GdPAIUTILS.get_children_in_group(entity, "GdPAIObjectData")
+		blackboard.set_property("GDPAI_OBJECTS", agent_objects)
 	# Apply behavior configurations.
 	for behavior_config in config.behavior_configs:
 		behavior_config.apply_to_agent(self)
@@ -152,9 +153,14 @@ func _start_plan_async() -> void:
 		push_error("GdPAIAgent: scheduler not available; async planning is required")
 		return
 
+	if world_node == null:
+		_waiting_for_plan = false
+		push_warning("GdPAIAgent: no GdPAIWorldNode found in scene")
+		return
+
 	(
 		scheduler
-		. submit_plan(
+		.submit_plan(
 			self,
 			blackboard,
 			world_node.get_world_state(),
@@ -264,7 +270,7 @@ func _execute_plan(delta: float) -> void:
 				_current_plan_step += 1
 
 	# Post actions.
-	if _current_plan_step == action_chain.size():  # We just finished, do post actions.
+	if _current_plan_step == action_chain.size(): # We just finished, do post actions.
 		for i in range(action_chain.size()):
 			var action: Action = action_chain[i]
 			if is_instance_valid(action):
@@ -279,6 +285,8 @@ func _execute_plan(delta: float) -> void:
 ## Collects actions provided by world objects. Validity filtering is handled
 ## by the Rust engine during planning search.
 func _collect_worldly_actions() -> Array[Action]:
+	if world_node == null:
+		return [] as Array[Action]
 	var ws: GdPAIBlackboard = world_node.get_world_state()
 	var actions: Array[Action] = []
 	var raw_objects = ws.get_property("GDPAI_OBJECTS")

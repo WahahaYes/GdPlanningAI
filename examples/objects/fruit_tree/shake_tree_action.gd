@@ -25,7 +25,11 @@ func _init(
 	var fruit: Node = fruit_tree.fruit_prefab.instantiate()
 	fruit.queue_free()
 	var food_item: FoodObject = GdPAIUTILS.get_child_of_type(fruit, FoodObject)
-	_sim_hunger_gain = food_item.hunger_value * fruit_tree.drop_min_amount
+	if food_item == null:
+		push_error("ShakeTreeAction: fruit prefab has no FoodObject child")
+		_sim_hunger_gain = 0.0
+	else:
+		_sim_hunger_gain = food_item.hunger_value * fruit_tree.drop_min_amount
 
 
 # Override
