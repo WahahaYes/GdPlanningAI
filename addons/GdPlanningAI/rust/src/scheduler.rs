@@ -15,9 +15,7 @@ use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use godot::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::{Receiver, Sender};
-use std::sync::{Arc, atomic::AtomicBool, atomic::AtomicUsize};
-
-static ACTIVE_SEARCH_THREADS: AtomicUsize = AtomicUsize::new(0);
+use std::sync::{Arc, atomic::AtomicBool};
 
 struct ActiveJobHandle {
     agent: Gd<Object>,
@@ -380,9 +378,8 @@ impl GdPAIPlanScheduler {
     fn get_pool_status(&self) -> String {
         if let Some(pool) = &self.thread_pool {
             format!(
-                "Threads: {} | Active Search Threads: {} | Active Jobs: {}",
+                "Threads: {} | Active Jobs: {}",
                 pool.current_num_threads(),
-                ACTIVE_SEARCH_THREADS.load(std::sync::atomic::Ordering::Relaxed),
                 self.active_jobs.len(),
             )
         } else {
@@ -424,9 +421,7 @@ fn run_job_step(
     if let Some(tp) = thread_pool {
         let mut engine_mut = engine;
         tp.spawn(move || {
-            ACTIVE_SEARCH_THREADS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             let result = engine_mut.plan(&goals);
-            ACTIVE_SEARCH_THREADS.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
             let _ = res_tx.send((result, engine_mut));
         });
     }

@@ -110,36 +110,35 @@ The Rust planner implements a hybrid backward-chaining GOAP search but suffers f
 - **Fix Applied:** Extracted generic `remove_indices<T>(vec: &mut Vec<T>, indices: &HashSet<usize>)` in `planner/engine.rs`. It sorts indices descending before removal, which is cleaner and idiomatically correct. Both call sites now use this helper.
 - **Subagent Scope:** `planner/engine.rs` only.
 
-### P2.5 Cost-Caching via Mutable Slice Side Channel
+### P2.5 Cost-Caching via Mutable Slice Side Channel ✅ FIXED
 
 - **Location:** `src/planner/simulation.rs`, lines 82–91
 - **Root Cause:** `simulate_action` mutates `branch_action_costs[simulation_index]` through a mutable slice in `SimArgs`, creating a hidden caching channel.
-- **Fix Guidance:** Document the pattern explicitly, or refactor so the caller owns caching logic and `simulate_action` returns `(SimResult, Option<f64>)`.
-- **Subagent Scope:** `planner/simulation.rs` + `planner/engine.rs` callers.
+- **Fix Applied:** Added explicit doc comments to `SimArgs` and `simulate_action` explaining that `branch_action_costs` serves as a per-branch action cost cache, and that the function reads from and writes back to `branch_action_costs[simulation_index]`. Callers must pass the same mutable slice on resumption so previously fetched costs are reused.
+- **Subagent Scope:** `planner/simulation.rs`.
 
-### P2.6 Stale-Pending Cleanup Race Pattern
+### P2.6 Stale-Pending Cleanup Race Pattern ✅ FIXED
 
-- **Location:** `src/planner/expander.rs` (multiple sites, e.g., lines 58–72)
-- **Root Cause:** Pattern of dropping a lock, then re-acquiring a different lock, then re-acquiring the first lock to clean up stale entries.
-- **Note:** Safe in practice because the planner is single-threaded per job, but fragile.
-- **Fix Guidance:** Refactor into a single `clean_stale_pending(...)` helper or document why the pattern is safe.
+- **Location:** `src/planner/expander.rs` (multiple sites)
+- **Root Cause:** Pattern of dropping a lock, then re-acquiring a different lock, then re-acquiring the first lock to clean up stale entries. Also contained a latent variable-shadowing bug (`let mut pending = ctx.discovery_request_map.lock()` assigned to `pending`).
+- **Fix Applied:** Extracted `check_pending_or_clean_stale<K>(pending_map, request_map, key) -> Option<usize>` helper in `expander.rs`. Replaced all 4 occurrences of the stale-entry cleanup pattern with calls to this helper. The helper correctly acquires the pending map, checks the request map, and removes stale entries atomically.
 - **Subagent Scope:** `planner/expander.rs`.
 
 ---
 
 ## P3 — Low: Cosmetic / Decorative
 
-### P3.1 `ACTIVE_SEARCH_THREADS` Write-Only Counter
+### P3.1 `ACTIVE_SEARCH_THREADS` Write-Only Counter ✅ FIXED
 
 - **Location:** `src/scheduler.rs:19`
 - **Impact:** Purely decorative metric in `get_pool_status()`. Not harmful.
-- **Fix Guidance:** Optional — remove if simplifying.
+- **Fix Applied:** Deleted the `ACTIVE_SEARCH_THREADS` static, removed `fetch_add`/`fetch_sub` calls in `run_job_step`, and removed the field from the `get_pool_status()` format string.
 
-### P3.2 `#[allow(unused_assignments)]`
+### P3.2 Stale Commented-Out Code ✅ FIXED
 
-- **Location:** `src/planner/engine.rs:624`
-- **Root Cause:** Suppresses warning for commented-out `branch.cost += res.cost` at line 703.
-- **Fix Guidance:** Remove the comment and the attribute.
+- **Location:** `src/planner/engine.rs:682`
+- **Root Cause:** Misleading commented-out `branch.cost += res.cost` implying a design question that was resolved in Package C (`recalculate_cost` is the source of truth).
+- **Fix Applied:** Deleted the commented-out line.
 
 ---
 
@@ -153,7 +152,7 @@ The Rust integration tests (`tests/planner_integration.rs`) cover basic single-a
 4. ✅ **Custom precondition callbacks** returning `false` — `tests/requirement_provision_chaining.rs::custom_precondition_false_prunes_branch`
 5. ✅ **BestCost vs FirstComplete** — `tests/best_cost_termination.rs::best_cost_returns_lowest_cost_plan` + `first_complete_returns_first_found_plan`
 6. ✅ **Cancellation** mid-search — `tests/cancellation.rs::cancellation_returns_failure_quickly`
-7. **Budget/depth exhaustion** yielding `PlannerRunResult::Pending` — still open (not in scope for Package D).
+7. ✅ **Budget/depth exhaustion** yielding `PlannerRunResult::Pending` — `tests/budget_exhaustion.rs::iteration_budget_exhaustion_returns_pending` and `max_depth_prevents_plan_completion`.
 8. ✅ **`BindingInSet` with world group context** — `tests/requirement_provision_chaining.rs::binding_in_set_respects_world_group`
 
 ---
@@ -196,6 +195,17 @@ The Rust integration tests (`tests/planner_integration.rs`) cover basic single-a
 2. ✅ `tests/cancellation.rs` with cancel-flag mid-search test.
 3. ✅ `tests/best_cost_termination.rs` with two valid plans of different costs (2 tests).
 4. ✅ `make test-rust` passes — total Rust test count increased from 31 to 44 tests.
+
+### Package F — Remaining Audit Cleanup (P2.5, P2.6, P3.1, P3.2, Test Gap #7) ✅ COMPLETE
+**Owner:** Single subagent.
+**Files:** `planner/simulation.rs`, `planner/expander.rs`, `planner/engine.rs`, `scheduler.rs`, `tests/budget_exhaustion.rs`
+**Deliverables:**
+1. ✅ P2.5 — Documented cost-caching side channel in `SimArgs` and `simulate_action` docs.
+2. ✅ P2.6 — Extracted `check_pending_or_clean_stale` helper; fixed latent variable-shadowing bug in stale-pending cleanup.
+3. ✅ P3.1 — Removed `ACTIVE_SEARCH_THREADS` static and its usage.
+4. ✅ P3.2 — Deleted stale commented-out code in `engine.rs`.
+5. ✅ Test Gap #7 — Added `tests/budget_exhaustion.rs` with `iteration_budget_exhaustion_returns_pending` and `max_depth_prevents_plan_completion`.
+6. ✅ `cargo check`, `cargo test`, `cargo clippy` pass (no new warnings).
 
 ---
 

@@ -8,7 +8,7 @@ use crate::planner::types::{
     BindingMap, DiscoveryRequest, DiscoveryResult, PlanBranch, ProvisionKind, SearchContext,
 };
 use crate::requirement::{ProvisionSpec, RequirementSpec, provision_satisfies_requirement};
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 
 /// A candidate action that can potentially satisfy one or more open needs.
 pub struct Candidate {
@@ -41,6 +41,35 @@ fn get_bindings_for_match(prov: &ProvisionSpec, req: &RequirementSpec) -> Bindin
     bindings
 }
 
+/// Checks whether `key` is present in `pending_map`.
+///
+/// If the associated request ID still exists in `request_map`, the entry is
+/// genuinely pending and the ID is returned. Otherwise the entry is stale
+/// (its response was already processed but the pending map was not cleared)
+/// and it is removed, returning `None`.
+fn check_pending_or_clean_stale<K>(
+    pending_map: &std::sync::Mutex<HashMap<K, usize>>,
+    request_map: &std::sync::Mutex<HashMap<usize, DiscoveryRequest>>,
+    key: &K,
+) -> Option<usize>
+where
+    K: Clone + Eq + std::hash::Hash,
+{
+    let pending = pending_map.lock().unwrap();
+    if let Some(&id) = pending.get(key) {
+        let req_map = request_map.lock().unwrap();
+        if req_map.contains_key(&id) {
+            return Some(id);
+        } else {
+            drop(req_map);
+            drop(pending);
+            let mut pending = pending_map.lock().unwrap();
+            pending.remove(key);
+        }
+    }
+    None
+}
+
 fn get_discovery_result(
     action_idx: usize,
     bindings: &BindingMap,
@@ -55,20 +84,12 @@ fn get_discovery_result(
     }
 
     // 2. Check if pending (defend against stale entries)
-    {
-        let pending = ctx.discovery_pending.lock().unwrap();
-        if let Some(&id) = pending.get(&(action_idx, bindings.clone())) {
-            let req_map = ctx.discovery_request_map.lock().unwrap();
-            if req_map.contains_key(&id) {
-                return StepResult::Pending(id);
-            } else {
-                // Stale entry: response was processed but pending wasn't cleared.
-                drop(req_map);
-                drop(pending);
-                let mut pending = ctx.discovery_pending.lock().unwrap();
-                pending.remove(&(action_idx, bindings.clone()));
-            }
-        }
+    if let Some(id) = check_pending_or_clean_stale(
+        &ctx.discovery_pending,
+        &ctx.discovery_request_map,
+        &(action_idx, bindings.clone()),
+    ) {
+        return StepResult::Pending(id);
     }
 
     // 3. Start discovery simulation
@@ -209,23 +230,15 @@ pub fn find_candidates(
                 }
 
                 // 2. Check pending (and defend against stale entries)
-                let pending_id = {
-                    let pending = ctx.discovery_precond_pending.lock().unwrap();
-                    pending.get(&(idx, check.clone(), empty_bindings.clone())).copied()
-                };
-                if let Some(id) = pending_id {
-                    let req_map = ctx.discovery_request_map.lock().unwrap();
-                    if req_map.contains_key(&id) {
-                        some_pending = true;
-                        last_pending_id = id;
-                        validity_failed = true;
-                        break;
-                    } else {
-                        // Stale entry: response was processed but pending wasn't cleared.
-                        // Remove it and fall through to fire a fresh callback.
-                        let mut pending = ctx.discovery_precond_pending.lock().unwrap();
-                        pending.remove(&(idx, check.clone(), empty_bindings.clone()));
-                    }
+                if let Some(id) = check_pending_or_clean_stale(
+                    &ctx.discovery_precond_pending,
+                    &ctx.discovery_request_map,
+                    &(idx, check.clone(), empty_bindings.clone()),
+                ) {
+                    some_pending = true;
+                    last_pending_id = id;
+                    validity_failed = true;
+                    break;
                 }
 
                 // 3. Fire callback (no locks held)
@@ -309,18 +322,13 @@ pub fn find_candidates(
                                                 satisfied_preconditions.push(pre_idx);
                                             }
                                         } else {
-                                            let mut pending =
-                                                ctx.discovery_precond_pending.lock().unwrap();
-                                            if let Some(&id) =
-                                                pending.get(&(idx, pre.clone(), bindings.clone()))
-                                            {
-                                                let req_map = ctx.discovery_request_map.lock().unwrap();
-                                                if req_map.contains_key(&id) {
-                                                    some_pending = true;
-                                                    last_pending_id = id;
-                                                } else {
-                                                    pending.remove(&(idx, pre.clone(), bindings.clone()));
-                                                }
+                                            if let Some(id) = check_pending_or_clean_stale(
+                                                &ctx.discovery_precond_pending,
+                                                &ctx.discovery_request_map,
+                                                &(idx, pre.clone(), bindings.clone()),
+                                            ) {
+                                                some_pending = true;
+                                                last_pending_id = id;
                                             }
                                             if !some_pending {
                                                 match eval_precondition(
@@ -335,6 +343,7 @@ pub fn find_candidates(
                                                         }
                                                     }
                                                     StepResult::Pending(id) => {
+                                                        let mut pending = ctx.discovery_precond_pending.lock().unwrap();
                                                         pending.insert(
                                                             (idx, pre.clone(), bindings.clone()),
                                                             id,
@@ -413,18 +422,13 @@ pub fn find_candidates(
                                     satisfied_preconditions.push(pre_idx);
                                 }
                             } else {
-                                let mut pending = ctx.discovery_precond_pending.lock().unwrap();
-                                if let Some(&id) =
-                                    pending.get(&(idx, pre.clone(), empty_bindings.clone()))
-                                {
-                                    let req_map = ctx.discovery_request_map.lock().unwrap();
-                                    if req_map.contains_key(&id) {
-                                        some_pending = true;
-                                        last_pending_id = id;
-                                    } else {
-                                        // Stale entry: clean it up
-                                        pending.remove(&(idx, pre.clone(), empty_bindings.clone()));
-                                    }
+                                if let Some(id) = check_pending_or_clean_stale(
+                                    &ctx.discovery_precond_pending,
+                                    &ctx.discovery_request_map,
+                                    &(idx, pre.clone(), empty_bindings.clone()),
+                                ) {
+                                    some_pending = true;
+                                    last_pending_id = id;
                                 }
                                 if !some_pending {
                                     match eval_precondition(
@@ -443,6 +447,7 @@ pub fn find_candidates(
                                             }
                                         }
                                         StepResult::Pending(id) => {
+                                            let mut pending = ctx.discovery_precond_pending.lock().unwrap();
                                             pending.insert(
                                                 (idx, pre.clone(), empty_bindings.clone()),
                                                 id,

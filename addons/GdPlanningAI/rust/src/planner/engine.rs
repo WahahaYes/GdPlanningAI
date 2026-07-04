@@ -679,7 +679,6 @@ impl PlannerEngine {
                 StepResult::Ready(res) => {
                     branch.current_agent = res.agent;
                     branch.current_world = res.world;
-                    // branch.cost += res.cost; // Handled by action_costs and recalculate_cost
 
                     // Mark requirements satisfied by this action's provisions
                     let action = &self.ctx.actions[action_idx];

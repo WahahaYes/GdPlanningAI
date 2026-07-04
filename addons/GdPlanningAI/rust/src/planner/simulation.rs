@@ -23,11 +23,19 @@ pub struct SimResult {
 }
 
 /// Parameters for action simulation.
+///
+/// The `branch_action_costs` slice serves as a per-branch action cost cache.
+/// `simulate_action` both reads from and writes back to
+/// `branch_action_costs[simulation_index]`, so callers must pass the same
+/// mutable slice across resumptions of a single branch to avoid redundant
+/// Godot callback round-trips.
 pub struct SimArgs<'a> {
     pub agent: &'a BlackboardSnapshot,
     pub world: &'a BlackboardSnapshot,
     pub ctx: &'a SearchContext,
     pub response: Option<&'a CallbackResponse>,
+    /// Per-branch cost cache. `simulate_action` reads the cached cost at
+    /// `simulation_index` and writes the computed cost back to the same index.
     pub branch_action_costs: &'a mut [f64],
     pub simulation_index: usize,
     pub bindings: &'a [(String, Vec<VariantSnapshot>)],
@@ -75,6 +83,15 @@ pub fn eval_precondition(
 /// This involves potentially two round-trips to Godot:
 /// 1. Evaluate the action's cost.
 /// 2. Simulate the action's effect on the agent and world snapshots.
+///
+/// # Cost caching
+///
+/// The function reads and writes `args.branch_action_costs[args.simulation_index]`
+/// as a cache. If a non-negative cost is already present, it is returned
+/// directly. Otherwise the cost is computed (from the callback response or
+/// the global discovery cache) and written back to the same index. Callers
+/// must provide the same mutable slice on resumption so that previously
+/// fetched costs are reused.
 pub fn simulate_action(action_idx: usize, args: SimArgs) -> StepResult<SimResult> {
     let action = &args.ctx.actions[action_idx];
 
