@@ -753,6 +753,7 @@ impl PlannerEngine {
                 BranchState::Searching => {}
             }
 
+            node.callback_response = None;
             StepResult::Ready(())
         }
     }

@@ -137,7 +137,7 @@ pub fn simulate_action(action_idx: usize, args: SimArgs) -> StepResult<SimResult
         1.0 // Default cost
     };
 
-    if cost == f64::INFINITY {
+    if cost.is_infinite() {
         return StepResult::Invalid;
     }
 
