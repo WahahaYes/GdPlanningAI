@@ -9,7 +9,7 @@ use gdplanningai_rust::plan_types::{
     PlannerRunResult, PreconditionSpec,
 };
 use gdplanningai_rust::planner::{
-    PlannerEngine, SearchAlgorithm, SearchContext, TerminationStrategy,
+    DijkstraHeuristic, PlannerEngine, SearchContext, TerminationStrategy,
 };
 use gdplanningai_rust::precondition::{PreconditionOp, PreconditionTarget};
 use gdplanningai_rust::snapshot::{BlackboardSnapshot, VariantSnapshot};
@@ -121,7 +121,7 @@ fn run_planner(
     });
 
     let mut engine = PlannerEngine::new(ctx, max_depth, cancel_flag)
-        .with_search_algorithm(SearchAlgorithm::AStar)
+        .with_heuristic(Box::new(DijkstraHeuristic))
         .with_termination_strategy(TerminationStrategy::BestCost);
 
     engine.response_rx = engine_rx;

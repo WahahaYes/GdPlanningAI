@@ -50,7 +50,7 @@ pub struct PlanBranch {
     pub tree_node_id: usize,
 }
 
-/// A node in the A* priority queue.
+/// A node in the search queue.
 #[derive(Clone, Debug)]
 pub struct SearchNode {
     pub branch: PlanBranch,
@@ -61,34 +61,37 @@ pub struct SearchNode {
     pub expanded_candidates: Vec<(usize, BindingMap)>,
 }
 
-impl SearchNode {
-    /// Returns the priority value used for the search queue (lower is better).
-    pub fn priority(&self) -> f64 {
-        // Use Dijkstra (h=0) for guaranteed optimality in hybrid simulation.
-        self.branch.cost
-    }
+/// Wrapper that pairs a [`SearchNode`] with its pre-computed priority so the
+/// [`BinaryHeap`] ordering does not depend on the heuristic object.
+///
+/// The [`Ord`] implementation inverts the comparison so the heap behaves as a
+/// min-heap (lowest priority expanded first).
+#[derive(Clone, Debug)]
+pub struct PriorityNode {
+    pub priority: f64,
+    pub node: SearchNode,
 }
 
-impl PartialEq for SearchNode {
+impl PartialEq for PriorityNode {
     fn eq(&self, other: &Self) -> bool {
-        self.priority() == other.priority()
+        self.priority == other.priority
     }
 }
 
-impl Eq for SearchNode {}
+impl Eq for PriorityNode {}
 
-impl PartialOrd for SearchNode {
+impl PartialOrd for PriorityNode {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl Ord for SearchNode {
+impl Ord for PriorityNode {
     fn cmp(&self, other: &Self) -> Ordering {
-        // BinaryHeap is a max-heap, so we invert the comparison for a min-heap
+        // BinaryHeap is a max-heap, so we invert for min-heap behaviour.
         other
-            .priority()
-            .partial_cmp(&self.priority())
+            .priority
+            .partial_cmp(&self.priority)
             .unwrap_or(Ordering::Equal)
     }
 }

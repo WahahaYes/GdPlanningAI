@@ -7,7 +7,7 @@
 
 use crate::plan_tree::PlanResult;
 use crate::plan_types::*;
-use crate::planner::{PlannerEngine, ProvisionKind, SearchAlgorithm, SearchContext, TerminationStrategy};
+use crate::planner::{DijkstraHeuristic, PlannerEngine, ProvisionKind, SearchContext, TerminationStrategy};
 use crate::precondition::{PreconditionHandler, PreconditionOp};
 use crate::requirement::{ProvisionSpec, RequirementSpec};
 use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
@@ -302,7 +302,7 @@ impl GdPAIPlanScheduler {
         });
 
         let mut engine = PlannerEngine::new(ctx, max_rec, cancel_flag.clone())
-            .with_search_algorithm(SearchAlgorithm::AStar)
+            .with_heuristic(Box::new(DijkstraHeuristic))
             .with_termination_strategy(TerminationStrategy::BestCost)
             .with_iteration_budget(iter_budget);
 

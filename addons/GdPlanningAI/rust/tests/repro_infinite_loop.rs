@@ -6,7 +6,7 @@ use gdplanningai_rust::plan_types::{
     PlannerRunResult, PreconditionSpec,
 };
 use gdplanningai_rust::planner::{
-    PlannerEngine, SearchAlgorithm, SearchContext, TerminationStrategy,
+    DijkstraHeuristic, PlannerEngine, SearchContext, TerminationStrategy,
 };
 use gdplanningai_rust::precondition::{PreconditionOp, PreconditionTarget};
 use gdplanningai_rust::snapshot::{BlackboardSnapshot, VariantSnapshot};
@@ -96,7 +96,7 @@ fn test_verifying_terminal_state() {
     });
 
     let mut engine = PlannerEngine::new(ctx, 10, cancel_flag)
-        .with_search_algorithm(SearchAlgorithm::AStar)
+        .with_heuristic(Box::new(DijkstraHeuristic))
         .with_termination_strategy(TerminationStrategy::FirstComplete);
     engine.response_rx = engine_rx;
     engine.response_tx = engine_tx;

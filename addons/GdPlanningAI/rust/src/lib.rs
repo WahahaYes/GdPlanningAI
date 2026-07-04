@@ -1,6 +1,6 @@
 //! GdPlanningAI Rust extension library.
 //!
-//! Provides a forward-chaining GOAP (Goal-Oriented Action Planning) engine
+//! Provides a backward-chaining GOAP (Goal-Oriented Action Planning) engine
 //! exposed to Godot 4 via GDExtension. Users interact with it entirely from
 //! GDScript; no Rust knowledge is required.
 //!

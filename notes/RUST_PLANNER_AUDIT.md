@@ -43,18 +43,21 @@ The Rust planner implements a hybrid backward-chaining GOAP search but suffers f
 
 ## P1 — High-Priority Stale Code & Documentation
 
-### P1.1 Algorithm Mischaracterization in Crate-Level Docs
+### P1.1 Algorithm Mischaracterization in Crate-Level Docs ✅ FIXED
 
 - **Locations:**
-  - `src/lib.rs:3` — "forward-chaining GOAP"
-  - `src/planner/engine.rs:7` — "A* search algorithm"
-  - `src/planner/mod.rs:5` — "A* search"
-- **Root Cause:** The implementation is backward-chaining Dijkstra (priority = `branch.cost`, no heuristic). `SearchAlgorithm::AStar` and `::DepthFirst` are declared but never produce different behavior.
-- **Fix Guidance:**
-  1. Correct all doc comments to "backward-chaining Dijkstra".
-  2. Remove `SearchAlgorithm::AStar`, `::DepthFirst`, and the `algorithm` field from `PlannerEngine`. Keep only what is used.
-  3. If keeping `::Dijkstra` as a self-documenting enum variant, rename the enum to something meaningful or remove it entirely.
-- **Subagent Scope:** `lib.rs`, `planner/engine.rs`, `planner/mod.rs`. No behavior change; doc + dead-code removal.
+  - `src/lib.rs:3` — "forward-chaining GOAP" → "backward-chaining GOAP"
+  - `src/planner/engine.rs:7` — "A* search algorithm" → "backward-chaining Dijkstra search"
+  - `src/planner/engine.rs:27` — "A* search queue" → "backward-chaining search queue"
+- **Root Cause:** The implementation is backward-chaining Dijkstra (priority = `branch.cost`, no heuristic). `SearchAlgorithm::AStar` and `::DepthFirst` were declared but never produced different behavior.
+- **Fix Applied (2026-07-03):**
+  1. Replaced `SearchAlgorithm` enum with `SearchHeuristic` trait in `planner/mod.rs`.
+  2. Implemented `DijkstraHeuristic` (g-cost priority, `prune_threshold_met`) and `AStarHeuristic` placeholder (h=0, ready for future admissible heuristic).
+  3. Introduced `PriorityNode` wrapper in `planner/types.rs` that decouples `BinaryHeap` ordering from the heuristic object.
+  4. Added `PlannerEngine::enqueue()` helper that computes priority via the active heuristic on every push.
+  5. Updated `scheduler.rs` and all Rust tests to use `with_heuristic(Box::new(DijkstraHeuristic))`.
+  6. Corrected doc comments in `lib.rs` and `engine.rs`.
+- **Status:** Complete. The trait architecture is now modular — new heuristics can be plugged in without touching the search loop.
 
 ### P1.2 Dead Types & Unused Structs
 

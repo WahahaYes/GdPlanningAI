@@ -4,8 +4,8 @@
 //! symbolic causal links (Requirements/Provisions) with rich scene simulation
 //! (simulate_effect, eval_precondition, calculate_cost).
 //!
-//! The planning process is non-blocking and uses an A* search algorithm to find
-//! the optimal sequence of actions to satisfy a goal.
+//! The planning process is non-blocking and uses a backward-chaining Dijkstra
+//! search to find the optimal sequence of actions to satisfy a goal.
 
 use crate::debug_tree::{NodeOutcome, TreeDump};
 use crate::plan_tree::PlanResult;
@@ -15,7 +15,7 @@ use crate::planner::types::*;
 use crate::requirement::{ProvisionSpec, RequirementSpec, provision_satisfies_requirement};
 use crate::snapshot::VariantSnapshot;
 
-use super::{SearchAlgorithm, TerminationStrategy};
+use super::{SearchHeuristic, TerminationStrategy};
 use crate::planner::expander::find_candidates;
 use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::sync::Arc;
@@ -24,7 +24,7 @@ use std::sync::mpsc::{Receiver, Sender};
 
 /// The execution engine for the GOAP planner.
 ///
-/// This engine manages the A* search queue, handles Godot callbacks, and
+/// This engine manages the backward-chaining search queue, handles Godot callbacks, and
 /// orchestrates the simulation of action chains.
 pub struct PlannerEngine {
     pub ctx: Arc<SearchContext>,
@@ -34,12 +34,12 @@ pub struct PlannerEngine {
     pub response_tx: Sender<PlannerCallback>,
 
     // Config
-    pub algorithm: SearchAlgorithm,
+    pub heuristic: Box<dyn SearchHeuristic + Send + Sync>,
     pub termination: TerminationStrategy,
     pub iteration_budget: usize,
 
     // Search State
-    pub queue: BinaryHeap<SearchNode>,
+    pub queue: BinaryHeap<PriorityNode>,
     pub parked_nodes: HashMap<usize, Vec<SearchNode>>,
     pub visited: HashMap<SearchFingerprint, f64>,
     pub best_plan: Option<PlanResult>,
@@ -58,7 +58,7 @@ impl PlannerEngine {
             cancel_flag,
             response_rx: rx,
             response_tx: tx,
-            algorithm: SearchAlgorithm::AStar,
+            heuristic: Box::new(super::DijkstraHeuristic),
             termination: TerminationStrategy::BestCost,
             iteration_budget: 20000,
             queue: BinaryHeap::new(),
@@ -71,10 +71,17 @@ impl PlannerEngine {
         }
     }
 
-    /// Sets the search algorithm to use (e.g., AStar, BFS).
-    pub fn with_search_algorithm(mut self, alg: SearchAlgorithm) -> Self {
-        self.algorithm = alg;
+    /// Sets the search heuristic to use (e.g., Dijkstra, A*).
+    pub fn with_heuristic(mut self, heuristic: Box<dyn SearchHeuristic + Send + Sync>) -> Self {
+        self.heuristic = heuristic;
         self
+    }
+
+    /// Helper to push a [`SearchNode`] onto the queue with its priority
+    /// computed by the active heuristic.
+    fn enqueue(&mut self, node: SearchNode) {
+        let priority = self.heuristic.compute_priority(&node);
+        self.queue.push(PriorityNode { priority, node });
     }
     /// Sets the termination strategy (e.g., FirstComplete, BestCost).
     pub fn with_termination_strategy(mut self, strat: TerminationStrategy) -> Self {
@@ -131,7 +138,7 @@ impl PlannerEngine {
             .collect();
         branch.tree_node_id = self.tree.add_root(&open_pre, &open_req);
 
-        self.queue.push(SearchNode {
+        self.enqueue(SearchNode {
             branch,
             resumed: false,
             callback_response: None,
@@ -202,29 +209,31 @@ impl PlannerEngine {
                 for mut node in nodes {
                     node.resumed = true;
                     node.callback_response = Some(callback.response.clone());
-                    self.queue.push(node);
+                    self.enqueue(node);
                 }
             }
         }
 
         // 2. Main Search Loop
         let mut iterations = 0;
-        while let Some(mut node) = self.queue.pop() {
+        while let Some(priority_node) = self.queue.pop() {
+            let node_priority = priority_node.priority;
+            let mut node = priority_node.node;
             iterations += 1;
 
             // Optimality check: If the best node's priority (g + h) is already worse than our best plan,
             // and we want the best cost, we can stop.
             if self.termination == TerminationStrategy::BestCost
-                && node.priority() >= self.best_cost
+                && self.heuristic.prune_threshold_met(node_priority, self.best_cost)
             {
-                self.queue.push(node); // Put it back for next time if needed
+                self.enqueue(node); // Put it back for next time if needed
                 break;
             }
 
             // Increase budget for local tests
             if iterations > self.iteration_budget {
                 log_warn!("Search budget exceeded ({} iterations). Search is taking too long.", self.iteration_budget);
-                self.queue.push(node);
+                self.enqueue(node);
                 return PlannerRunResult::Pending(0);
             }
 
@@ -255,7 +264,7 @@ impl PlannerEngine {
             match node.branch.state {
                 BranchState::Initializing | BranchState::Verifying => {
                     match self.process_simulation(&mut node) {
-                        StepResult::Ready(_) => self.queue.push(node),
+                        StepResult::Ready(_) => self.enqueue(node),
                         StepResult::Pending(id) => {
                             self.parked_nodes.entry(id).or_default().push(node);
                         }
@@ -296,7 +305,7 @@ impl PlannerEngine {
                         node.branch.simulation_index = 0;
                         node.branch.current_agent = self.ctx.initial_agent.clone();
                         node.branch.current_world = self.ctx.initial_world.clone();
-                        self.queue.push(node);
+                        self.enqueue(node);
                         continue;
                     }
 
@@ -548,7 +557,7 @@ impl PlannerEngine {
                             continue;
                         }
 
-                        self.queue.push(SearchNode {
+                        self.enqueue(SearchNode {
                             branch: new_branch,
                             resumed: false,
                             callback_response: None,
@@ -621,7 +630,6 @@ impl PlannerEngine {
         }
     }
 
-    #[allow(unused_assignments)]
     fn process_simulation(&mut self, node: &mut SearchNode) -> StepResult<()> {
         let branch = &mut node.branch;
 
