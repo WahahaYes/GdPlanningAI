@@ -56,6 +56,9 @@ pub struct SearchNode {
     pub branch: PlanBranch,
     pub resumed: bool,
     pub callback_response: Option<CallbackResponse>,
+    /// Candidates already expanded from this node. Prevents duplicate child
+    /// creation when a node is resumed after pending callbacks complete.
+    pub expanded_candidates: Vec<(usize, BindingMap)>,
 }
 
 impl SearchNode {

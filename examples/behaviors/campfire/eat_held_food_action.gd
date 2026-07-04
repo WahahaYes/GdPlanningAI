@@ -37,7 +37,7 @@ func get_preconditions() -> Array[Precondition]:
 
 	# If we are already holding something, it must be a food item we know how to eat.
 	# We use a custom check for this since it depends on our internal map.
-	preconds.append(Precondition.custom(Callable(self, "_is_holding_food")))
+	preconds.append(Precondition.custom(Callable(self , "_is_holding_food")))
 
 	return preconds
 
@@ -52,9 +52,9 @@ func get_requirements() -> Array[RequirementSpec]:
 func _is_holding_food(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> bool:
 	var item = agent.get_property("held_item")
 	if item == null or str(item).is_empty():
-		# Not holding anything - this precondition is satisfied because
-		# we expect a later action in the chain to provide the food.
-		return true
+		# Not holding anything - the precondition is NOT satisfied.
+		# A predecessor action must provide valid food before Eat Held Food can run.
+		return false
 
 	return hunger_restored_by_item.has(str(item))
 

@@ -135,6 +135,7 @@ impl PlannerEngine {
             branch,
             resumed: false,
             callback_response: None,
+            expanded_candidates: Vec::new(),
         });
     }
 
@@ -241,6 +242,9 @@ impl PlannerEngine {
                 }
                 self.visited.insert(fp, node.branch.cost);
             }
+            if node.resumed {
+                node.expanded_candidates.clear();
+            }
             node.resumed = false;
 
             // 3. State Machine Processing
@@ -267,9 +271,17 @@ impl PlannerEngine {
                             // Verification pass finished and updated best_plan.
                             // If strategy is FirstComplete, we are done.
                             if self.termination == TerminationStrategy::FirstComplete
-                                && let Some(plan) = self.best_plan.take()
+                                && let Some(ref plan) = self.best_plan
                             {
-                                return PlannerRunResult::Complete(Some(plan));
+                                if plan.action_chain.is_empty()
+                                    && self.current_goal_index + 1 < goals.len()
+                                {
+                                    // Goal already satisfied (empty plan) but more goals remain.
+                                    // Don't return yet; let step_search move to the next goal.
+                                } else {
+                                    let plan = self.best_plan.take().unwrap();
+                                    return PlannerRunResult::Complete(Some(plan));
+                                }
                             }
                             // Otherwise (BestCost), we just discard this branch and keep searching.
                         }
@@ -293,9 +305,15 @@ impl PlannerEngine {
                         continue;
                     }
                     let candidates_res =
-                        find_candidates(&node.branch, &self.ctx, node.callback_response.as_ref());
+                        find_candidates(&node.branch, &self.ctx);
 
                     for cand in candidates_res.ready {
+                        let key = (cand.action_idx, cand.bindings.clone());
+                        if node.expanded_candidates.contains(&key) {
+                            continue;
+                        }
+                        node.expanded_candidates.push(key);
+
                         let mut new_branch = node.branch.clone();
                         let action = &self.ctx.actions[cand.action_idx];
 
@@ -493,8 +511,6 @@ impl PlannerEngine {
                                 .get(&(cand.action_idx, cand.bindings.clone()))
                                 .cloned()
                         } {
-                            // Clear any preconditions at pos 0 that are satisfied by the state BEFORE the chain
-                            // or by the newly prepended action.
                             let mut i = 0;
                             while i < new_branch.open_preconditions.len() {
                                 let (pos, pre) = &new_branch.open_preconditions[i];
@@ -536,6 +552,7 @@ impl PlannerEngine {
                             branch: new_branch,
                             resumed: false,
                             callback_response: None,
+                            expanded_candidates: Vec::new(),
                         });
                     }
 
@@ -550,6 +567,19 @@ impl PlannerEngine {
         if !self.parked_nodes.is_empty() {
             PlannerRunResult::Pending(*self.parked_nodes.keys().next().unwrap())
         } else {
+            // If the current goal is already satisfied (empty plan) and there are more goals,
+            // skip to the next goal instead of returning the empty plan.
+            if let Some(ref plan) = self.best_plan {
+                if plan.action_chain.is_empty() && self.current_goal_index + 1 < goals.len() {
+                    self.best_plan = None;
+                    self.best_cost = f64::INFINITY;
+                    self.tree.end_goal(false, &[], 0.0);
+                    self.current_goal_index += 1;
+                    self.initialize_goal(goals, self.current_goal_index);
+                    return PlannerRunResult::Pending(0);
+                }
+            }
+
             // Search exhausted for current goal. Check if there are more goals.
             if self.best_plan.is_none() && self.current_goal_index + 1 < goals.len() {
                 self.tree.end_goal(false, &[], 0.0);

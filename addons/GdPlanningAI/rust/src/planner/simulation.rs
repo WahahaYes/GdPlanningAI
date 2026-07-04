@@ -90,19 +90,31 @@ pub fn simulate_action(action_idx: usize, args: SimArgs) -> StepResult<SimResult
             }
             *f
         } else {
-            let request_id = crate::plan_types::next_request_id();
-            let _ = args.ctx.request_tx.send(CallbackRequest {
-                request_id,
-                callable_id: id,
-                kind: CallbackKind::GetCost {
-                    agent: args.agent.clone(),
-                    world: args.world.clone(),
-                    provisions: action.provisions.clone(),
-                    bindings: args.bindings.to_vec(),
-                },
-                response_tx: args.ctx.engine_response_tx.clone(),
-            });
-            return StepResult::Pending(request_id);
+            // Check global discovery cost cache before firing a new callback
+            let costs = args.ctx.discovery_costs.lock().unwrap();
+            let key = (action_idx, args.bindings.to_vec());
+            if let Some(&cached_cost) = costs.get(&key) {
+                drop(costs);
+                if args.simulation_index < args.branch_action_costs.len() {
+                    args.branch_action_costs[args.simulation_index] = cached_cost;
+                }
+                cached_cost
+            } else {
+                drop(costs);
+                let request_id = crate::plan_types::next_request_id();
+                let _ = args.ctx.request_tx.send(CallbackRequest {
+                    request_id,
+                    callable_id: id,
+                    kind: CallbackKind::GetCost {
+                        agent: args.agent.clone(),
+                        world: args.world.clone(),
+                        provisions: action.provisions.clone(),
+                        bindings: args.bindings.to_vec(),
+                    },
+                    response_tx: args.ctx.engine_response_tx.clone(),
+                });
+                return StepResult::Pending(request_id);
+            }
         }
     } else {
         1.0 // Default cost

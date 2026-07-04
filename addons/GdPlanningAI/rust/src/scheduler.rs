@@ -31,6 +31,7 @@ struct ActiveJobHandle {
     pending_request_id: usize,
     done: bool,
     pending_reap: bool, // New flag
+    completed_request_ids: HashSet<usize>,
 }
 
 /// Planning scheduler.
@@ -124,6 +125,11 @@ impl GdPAIPlanScheduler {
                         }
                     }
                     PlannerRunResult::Pending(id) => {
+                        log_debug!(
+                            "Engine yielded Pending({}) for agent instance {}",
+                            id,
+                            job.agent_instance_id
+                        );
                         job.pending_request_id = id;
                     }
                 }
@@ -134,6 +140,11 @@ impl GdPAIPlanScheduler {
         let mut jobs_with_responses = HashSet::new();
         for job in self.active_jobs.iter_mut().filter(|j| !j.done) {
             while let Ok(req) = job.request_rx.try_recv() {
+                log_debug!(
+                    "Processing callback request {} for agent instance {}",
+                    req.request_id,
+                    job.agent_instance_id
+                );
                 let callable = &job.callable_registry[req.callable_id];
                 let response = dispatch_callback(callable, req.kind);
 
@@ -141,6 +152,7 @@ impl GdPAIPlanScheduler {
                     request_id: req.request_id,
                     response,
                 });
+                job.completed_request_ids.insert(req.request_id);
                 jobs_with_responses.insert(job.agent_instance_id);
             }
         }
@@ -157,8 +169,20 @@ impl GdPAIPlanScheduler {
                 // Yielded for budget, always ready
                 true
             } else {
-                // Yielded for callback, only ready if we got a response
-                jobs_with_responses.contains(&job.agent_instance_id)
+                // Yielded for callback, ready if we got a response this frame
+                // OR if we already sent a response for this specific request ID
+                // in a previous frame (the response may have arrived after the
+                // engine passed its response_rx drain).
+                let has_this_frame = jobs_with_responses.contains(&job.agent_instance_id);
+                let has_previous = job.completed_request_ids.contains(&job.pending_request_id);
+                if !has_this_frame && !has_previous {
+                    log_debug!(
+                        "NOT resuming agent instance {}: pending_request_id={} but no response received",
+                        job.agent_instance_id,
+                        job.pending_request_id
+                    );
+                }
+                has_this_frame || has_previous
             };
 
             if ready_to_resume && let Some(engine) = job.engine.take() {
@@ -166,6 +190,7 @@ impl GdPAIPlanScheduler {
                     "Resuming search for agent instance {}",
                     job.agent_instance_id
                 );
+                job.completed_request_ids.clear();
                 let goals = job.goals.clone();
                 let res_tx = job.result_tx.clone();
                 run_job_step(self.thread_pool.as_ref(), goals, res_tx, engine);
@@ -298,6 +323,7 @@ impl GdPAIPlanScheduler {
             pending_request_id: 0,
             done: false,
             pending_reap: false,
+            completed_request_ids: HashSet::new(),
         };
 
         run_job_step(self.thread_pool.as_ref(), job.goals.clone(), res_tx, engine);

@@ -24,3 +24,6 @@ mono_crash.*.json
 # Ignore third-party addons managed by godot-env
 addons/gut/
 .addons/
+
+# Logs and generated output
+*.log

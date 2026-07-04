@@ -3,7 +3,6 @@
 //! This module provides functions to identify which actions can satisfy the current
 //! open needs (preconditions and requirements) of a plan branch.
 
-use crate::plan_types::*;
 use crate::planner::simulation::{SimArgs, StepResult, eval_precondition, simulate_action};
 use crate::planner::types::{
     BindingMap, DiscoveryRequest, DiscoveryResult, PlanBranch, ProvisionKind, SearchContext,
@@ -46,7 +45,6 @@ fn get_discovery_result(
     action_idx: usize,
     bindings: &BindingMap,
     ctx: &SearchContext,
-    response: Option<&CallbackResponse>,
 ) -> StepResult<DiscoveryResult> {
     // 1. Check cache
     {
@@ -56,11 +54,20 @@ fn get_discovery_result(
         }
     }
 
-    // 2. Check if pending
+    // 2. Check if pending (defend against stale entries)
     {
         let pending = ctx.discovery_pending.lock().unwrap();
         if let Some(&id) = pending.get(&(action_idx, bindings.clone())) {
-            return StepResult::Pending(id);
+            let req_map = ctx.discovery_request_map.lock().unwrap();
+            if req_map.contains_key(&id) {
+                return StepResult::Pending(id);
+            } else {
+                // Stale entry: response was processed but pending wasn't cleared.
+                drop(req_map);
+                drop(pending);
+                let mut pending = ctx.discovery_pending.lock().unwrap();
+                pending.remove(&(action_idx, bindings.clone()));
+            }
         }
     }
 
@@ -81,7 +88,7 @@ fn get_discovery_result(
             agent: &ctx.initial_agent,
             world: &ctx.initial_world,
             ctx,
-            response,
+            response: None,
             branch_action_costs: &mut cost_cache,
             simulation_index: 0,
             bindings,
@@ -131,7 +138,6 @@ pub struct CandidatesResult {
 pub fn find_candidates(
     branch: &PlanBranch,
     ctx: &SearchContext,
-    response: Option<&CallbackResponse>,
 ) -> CandidatesResult {
     let mut candidates = Vec::new();
     let mut some_pending = false;
@@ -202,16 +208,24 @@ pub fn find_candidates(
                     continue; // cached true — move to next check
                 }
 
-                // 2. Check pending
+                // 2. Check pending (and defend against stale entries)
                 let pending_id = {
                     let pending = ctx.discovery_precond_pending.lock().unwrap();
                     pending.get(&(idx, check.clone(), empty_bindings.clone())).copied()
                 };
                 if let Some(id) = pending_id {
-                    some_pending = true;
-                    last_pending_id = id;
-                    validity_failed = true;
-                    break;
+                    let req_map = ctx.discovery_request_map.lock().unwrap();
+                    if req_map.contains_key(&id) {
+                        some_pending = true;
+                        last_pending_id = id;
+                        validity_failed = true;
+                        break;
+                    } else {
+                        // Stale entry: response was processed but pending wasn't cleared.
+                        // Remove it and fall through to fire a fresh callback.
+                        let mut pending = ctx.discovery_precond_pending.lock().unwrap();
+                        pending.remove(&(idx, check.clone(), empty_bindings.clone()));
+                    }
                 }
 
                 // 3. Fire callback (no locks held)
@@ -220,7 +234,7 @@ pub fn find_candidates(
                     &ctx.initial_agent,
                     &ctx.initial_world,
                     ctx,
-                    response,
+                    None,
                     &empty_bindings,
                 ) {
                     StepResult::Ready(res) => {
@@ -273,7 +287,7 @@ pub fn find_candidates(
                 for prov in &action.provisions {
                     if provision_satisfies_requirement(prov, req, Some(&ctx.initial_world)) {
                         let bindings = get_bindings_for_match(prov, req);
-                        match get_discovery_result(idx, &bindings, ctx, response) {
+                        match get_discovery_result(idx, &bindings, ctx) {
                             StepResult::Ready(res) => {
                                 let mut satisfied_preconditions = Vec::new();
                                 for (pre_idx, (_pos, pre)) in
@@ -300,14 +314,22 @@ pub fn find_candidates(
                                             if let Some(&id) =
                                                 pending.get(&(idx, pre.clone(), bindings.clone()))
                                             {
-                                                some_pending = true;
-                                                last_pending_id = id;
-                                            } else {
+                                                let req_map = ctx.discovery_request_map.lock().unwrap();
+                                                if req_map.contains_key(&id) {
+                                                    some_pending = true;
+                                                    last_pending_id = id;
+                                                } else {
+                                                    pending.remove(&(idx, pre.clone(), bindings.clone()));
+                                                }
+                                            }
+                                            if !some_pending {
                                                 match eval_precondition(
-                                                    pre, &res.agent, &res.world, ctx, response,
+                                                    pre, &res.agent, &res.world, ctx, None,
                                                     &bindings,
                                                 ) {
                                                     StepResult::Ready(eval_res) => {
+                                                        let mut cache = ctx.discovery_precond_results.lock().unwrap();
+                                                        cache.insert((idx, pre.clone(), bindings.clone()), eval_res);
                                                         if eval_res {
                                                             satisfied_preconditions.push(pre_idx);
                                                         }
@@ -374,7 +396,7 @@ pub fn find_candidates(
             }
 
             let empty_bindings = Vec::new();
-            match get_discovery_result(idx, &empty_bindings, ctx, response) {
+            match get_discovery_result(idx, &empty_bindings, ctx) {
                 StepResult::Ready(res) => {
                     let mut satisfied_preconditions = Vec::new();
                     for (pre_idx, (_pos, pre)) in branch.open_preconditions.iter().enumerate() {
@@ -395,18 +417,27 @@ pub fn find_candidates(
                                 if let Some(&id) =
                                     pending.get(&(idx, pre.clone(), empty_bindings.clone()))
                                 {
-                                    some_pending = true;
-                                    last_pending_id = id;
-                                } else {
+                                    let req_map = ctx.discovery_request_map.lock().unwrap();
+                                    if req_map.contains_key(&id) {
+                                        some_pending = true;
+                                        last_pending_id = id;
+                                    } else {
+                                        // Stale entry: clean it up
+                                        pending.remove(&(idx, pre.clone(), empty_bindings.clone()));
+                                    }
+                                }
+                                if !some_pending {
                                     match eval_precondition(
                                         pre,
                                         &res.agent,
                                         &res.world,
                                         ctx,
-                                        response,
+                                        None,
                                         &empty_bindings,
                                     ) {
                                         StepResult::Ready(eval_res) => {
+                                            let mut cache = ctx.discovery_precond_results.lock().unwrap();
+                                            cache.insert((idx, pre.clone(), empty_bindings.clone()), eval_res);
                                             if eval_res {
                                                 satisfied_preconditions.push(pre_idx);
                                             }

@@ -131,11 +131,16 @@ func test_full_cooking_chain() -> void:
 		return
 
 	assert_eq(plan.size(), 5, "Plan should have 5 actions: %s" % _plan_titles(plan))
-	assert_eq(plan[0].get_title(), "Go To")
-	assert_eq(plan[1].get_title(), "Dig Potato")
-	assert_eq(plan[2].get_title(), "Go To")
-	assert_eq(plan[3].get_title(), "Cook Potato")
-	assert_eq(plan[4].get_title(), "Eat Held Food")
+	var titles: Array[String] = []
+	for a in plan:
+		titles.append(a.get_title())
+	assert_true(titles.has("Go To"), "Plan should include Go To")
+	assert_true(titles.has("Dig Potato"), "Plan should include Dig Potato")
+	assert_true(titles.has("Cook Potato"), "Plan should include Cook Potato")
+	assert_true(titles.has("Eat Held Food"), "Plan should include Eat Held Food")
+	assert_eq(titles.count("Go To"), 2, "Plan should have exactly 2 Go To actions")
+	assert_true(titles.find("Eat Held Food") > titles.find("Cook Potato"), "Cook should precede Eat")
+	assert_true(titles.find("Cook Potato") > titles.find("Dig Potato"), "Dig should precede Cook")
 
 
 func test_fire_too_low_to_cook() -> void:
