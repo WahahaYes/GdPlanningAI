@@ -4,7 +4,7 @@ extends RefCounted
 ## instantaneously.  After planning, actions are carried out by the agent in real time.
 
 ## Return states for actions during true simulation.
-enum Status { FAILURE, RUNNING, SUCCESS }
+enum Status {FAILURE, RUNNING, SUCCESS}
 
 ## Chain position when this action instance appears in an executed plan.
 ## Used to isolate state between multiple occurrences of the same action.
@@ -128,6 +128,13 @@ func erase_state(agent: GdPAIAgent, key: String) -> void:
 func has_state(agent: GdPAIAgent, key: String) -> bool:
 	var pos: String = str(chain_position) if chain_position >= 0 else "0"
 	return agent.blackboard.has_property(str(get_instance_id()) + "_" + pos + "_" + key)
+
+
+## Returns a copy of this action for use in a plan.
+## Override if your action stores mutable instance state that must be isolated
+## between multiple occurrences in the same plan.
+func clone_for_plan() -> Action:
+	return self
 
 
 ## Returns a short title for the action.

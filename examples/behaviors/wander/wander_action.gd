@@ -20,6 +20,11 @@ func _init(p_wander_distance: float) -> void:
 	wander_distance = p_wander_distance
 
 
+## Returns a fresh [WanderAction] instance with the same [member wander_distance].
+func clone_for_plan() -> Action:
+	return WanderAction.new(wander_distance)
+
+
 # Override
 func get_validity_checks() -> Array[Precondition]:
 	# Wander doesn't need to check a specific target location

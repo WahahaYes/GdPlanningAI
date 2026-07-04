@@ -32,7 +32,7 @@ func deserialize_plan_result(result: Dictionary, actions: Array[Action]) -> Dict
 	for chain_position in range(result.action_chain.size()):
 		var action_index: int = result.action_chain[chain_position]
 		var action: Action = actions[action_index]
-		action_chain.append(action)
+		action_chain.append(action.clone_for_plan())
 
 	return {
 		"action_chain": action_chain,
@@ -58,7 +58,7 @@ func _extract_actions(actions: Array[Action]) -> Array[Dictionary]:
 	for action in actions:
 		(
 			extracted
-			. append(
+			.append(
 				{
 					"name": action.get_title(),
 					"cost_callable": Callable(action, "get_action_cost"),
@@ -110,7 +110,7 @@ func _extract_goals(goals: Array[Goal], agent: GdPAIAgent) -> Array[Dictionary]:
 	for goal in goals:
 		(
 			extracted
-			. append(
+			.append(
 				{
 					"name": goal.get_title(),
 					"reward": goal.compute_reward(agent),

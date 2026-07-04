@@ -35,6 +35,12 @@ func _init(p_target_location: GdPAILocationData = null) -> void:
 	target_location = p_target_location
 
 
+## Returns a fresh [GoToAction] instance with [member target_location] cleared.
+## The planner will re-inject bindings at execution time.
+func clone_for_plan() -> Action:
+	return GoToAction.new()
+
+
 ## Injects a planner-provided binding into this action instance.
 ##[br]
 ##[br]
