@@ -62,18 +62,7 @@ func get_action_cost(
 
 	# During planning, the planner injects the binding into the blackboard.
 	# We should prefer this over any previously stored target_location.
-	var actual_target = null
-	var binding = agent_blackboard.get_property("at_target")
-
-	if binding != null:
-		if binding is Array:
-			var flattened = binding
-			while flattened.size() > 0 and flattened[0] is Array:
-				flattened = flattened[0]
-			if flattened.size() > 0:
-				actual_target = flattened[0]
-		else:
-			actual_target = binding
+	var actual_target = agent_blackboard.get_property("at_target")
 
 	# Fallback to stored target_location if no binding was found in blackboard.
 	if actual_target == null:
@@ -128,17 +117,7 @@ func simulate_effect(
 	world_state: GdPAIBlackboard,
 ) -> void:
 	# Prefer blackboard binding during planning.
-	var actual_target = null
-	var binding = agent_blackboard.get_property("at_target")
-	if binding != null:
-		if binding is Array:
-			var flattened = binding
-			while flattened.size() > 0 and flattened[0] is Array:
-				flattened = flattened[0]
-			if flattened.size() > 0:
-				actual_target = flattened[0]
-		else:
-			actual_target = binding
+	var actual_target = agent_blackboard.get_property("at_target")
 
 	if actual_target == null:
 		actual_target = target_location

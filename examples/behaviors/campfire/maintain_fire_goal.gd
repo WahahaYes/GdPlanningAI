@@ -41,14 +41,13 @@ func compute_reward(agent: GdPAIAgent) -> float:
 func get_desired_state(_agent: GdPAIAgent) -> Array[Precondition]:
 	# Custom precondition: campfire fuel is stored in per-object SimObjectProxy data,
 	# not in top-level world blackboard properties, so a builtin check cannot see it.
-	var target: float = desired_fuel_level
 	var check: Callable = func(_agent_bb: GdPAIBlackboard, world: GdPAIBlackboard) -> bool:
 		var campfires = world.get_proxies_in_group("CampfireObject")
 		# print("[DEBUG] MaintainFireGoal check running. Found ", campfires.size(), " campfires.")
 		for campfire in campfires:
 			var fuel: Variant = campfire.get_property("current_fuel")
 			# print("[DEBUG] Campfire fuel: ", fuel)
-			if fuel != null and float(fuel) >= target:
+			if fuel != null and float(fuel) >= desired_fuel_level:
 				return true
 		return false
 	return [Precondition.custom(check)]

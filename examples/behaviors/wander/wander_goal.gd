@@ -16,8 +16,8 @@ func compute_reward(_agent: GdPAIAgent) -> float:
 func get_desired_state(agent: GdPAIAgent) -> Array[Precondition]:
 	var agent_location_data: GdPAILocationData = (
 		agent
-		. blackboard
-		. get_node_in_group(
+		.blackboard
+		.get_node_in_group(
 			"GdPAILocationData",
 		)
 	)
@@ -33,9 +33,7 @@ func get_desired_state(agent: GdPAIAgent) -> Array[Precondition]:
 		var sim_position = sim_location.get_property("position")
 		var req_distance: float = 16.0 if sim_position is Vector2 else 1.0
 		return (sim_position - agent_position).length() > req_distance
-	var move_condition: Precondition = Precondition.custom(far_enough)
-
-	return [move_condition]
+	return [Precondition.custom(far_enough)]
 
 
 # Override
