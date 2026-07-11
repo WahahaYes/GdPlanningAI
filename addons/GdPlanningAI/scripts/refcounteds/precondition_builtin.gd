@@ -7,10 +7,21 @@ extends Precondition
 ## and can be evaluated directly on the background thread without callbacks.
 
 ## Specifies which blackboard to evaluate the precondition against.
-enum Target { AGENT, WORLD_STATE }  ## The agent's blackboard  ## The world state blackboard
+enum Target {
+	AGENT, ## The agent's blackboard
+	WORLD_STATE, ## The world state blackboard
+}
 
 ## Comparison operations supported by builtin preconditions.
-enum Op { HAS_PROPERTY, EQUAL, NOT_EQUAL, GT, GTE, LT, LTE }  ## Check if a property exists  ## Check if a property equals a value  ## Check if a property does not equal a value  ## Check if a property is greater than a value  ## Check if a property is greater than or equal to a value  ## Check if a property is less than a value  ## Check if a property is less than or equal to a value
+enum Op {
+	HAS_PROPERTY, ## Check if a property exists
+	EQUAL, ## Check if a property equals a value
+	NOT_EQUAL, ## Check if a property does not equal a value
+	GT, ## Check if a property is greater than a value
+	GTE, ## Check if a property is greater than or equal to a value
+	LT, ## Check if a property is less than a value
+	LTE, ## Check if a property is less than or equal to a value
+}
 
 ## Which blackboard to target (agent or world state).
 var target: Target
