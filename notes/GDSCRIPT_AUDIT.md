@@ -83,13 +83,13 @@ else:
 
 ## Medium Severity Issues
 
-### 5. `_execute_plan` Runs Post-Actions Even on Plan Abort
+### 5. `_execute_plan` Post-Actions Are a Guaranteed Cleanup Phase
 
 **File:** `addons/GdPlanningAI/scripts/nodes/gdpai_agent.gd:257-275`
 
-When an action returns `FAILURE`, `_current_plan_step` is set to `action_chain.size()`. On the next frame, the post-action block triggers and calls `post_perform_action` on ALL actions, including those that never ran. This is usually harmless (cleanup should be safe), but if an action's `post_perform_action` assumes the action actually executed, it could misbehave.
+When an action returns `FAILURE`, `_current_plan_step` is set to `action_chain.size()`. On the next frame, the post-action block triggers and calls `post_perform_action` on ALL actions, including those that never ran. This is the intended design: `post_perform_action` is a guaranteed cleanup phase that must be safe to call even if `pre_perform_action` or `perform_action` returned `FAILURE` or were never invoked.
 
-**Fix:** Track a separate `_plan_aborted` flag. Skip post-actions if aborted, or document that `post_perform_action` must be safe to call even if `perform_action` never succeeded.
+**Fix:** Document the cleanup contract clearly in `Action.post_perform_action` and in the agent's post-action block so action authors implement it correctly.
 
 ---
 
@@ -341,7 +341,7 @@ The test file defines inline action dictionaries with full keys (`cost_callable`
 **Task:** Harden `_on_plan_ready` and `_execute_plan` against edge cases.
 
 1. In `_on_plan_ready` (line 182), add a bounds check before indexing `goals[goal_index]`. If `goal_index` is out of bounds, `push_error` and set `_current_goal = null`.
-2. In `_execute_plan`, add an `_plan_aborted` flag (default `false`). Set it to `true` when an action returns `FAILURE`. In the post-action block, if `_plan_aborted` is true, skip calling `post_perform_action` on actions whose `chain_position` is >= the step where the failure occurred. Alternatively, if the simpler approach is preferred: skip ALL post-actions on abort and document that cleanup must happen in `perform_action`'s FAILURE path.
+2. In `_execute_plan`, document the post-action block as a guaranteed cleanup phase. `post_perform_action` is called for every action in the chain, regardless of whether the plan completed or was aborted. `Action.post_perform_action` docstring must be updated to state the cleanup contract: implementations must be safe to call even if `pre_perform_action` or `perform_action` returned `FAILURE` or were never invoked.
 
 **Do NOT touch:** Planning submission logic, `GdPAIRustBridge`, or other files.
 

@@ -98,9 +98,10 @@ func perform_action(
 	return Status.SUCCESS
 
 
-## Perform any post computations for the action.  Status currently doesn't matter because the plan
-## is already done.  All actions' post_perform methods are called, regardless of if the plan
-## succeeded.  These methods should make sure to safely de-allocate anything created for the action.
+## Perform any post computations for the action. This is a guaranteed cleanup phase: it is called
+## for every action in the chain, regardless of whether the plan completed successfully or was
+## aborted. Implementations must be safe to call even if pre_perform_action or perform_action
+## returned FAILURE or were never invoked for this action.
 func post_perform_action(_agent: GdPAIAgent) -> Status:
 	return Status.SUCCESS
 

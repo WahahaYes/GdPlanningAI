@@ -185,7 +185,12 @@ func _on_plan_ready(result: Dictionary) -> void:
 		)
 		_current_action_chain = deserialized.get("action_chain", [] as Array[Action])
 		_current_bindings_by_position = deserialized.get("bindings_by_position", {})
-		_current_goal = goals[result.get("goal_index", 0)]
+		var goal_index: int = result.get("goal_index", 0)
+		if goal_index >= 0 and goal_index < goals.size():
+			_current_goal = goals[goal_index]
+		else:
+			push_error("GdPAIAgent: goal_index %d out of bounds (goals.size()=%d)" % [goal_index, goals.size()])
+			_current_goal = null
 	else:
 		_current_action_chain = []
 		_current_bindings_by_position = {}
@@ -243,7 +248,7 @@ func _execute_plan(delta: float) -> void:
 			_inject_bindings_for_position(i, action)
 			var action_status: Action.Status = action.pre_perform_action(self)
 			if action_status == Action.Status.FAILURE:
-				# Abort the plan.
+				# Abort the plan; post_perform_action will still be called for cleanup.
 				_current_plan_step = action_chain.size()
 				break
 		# Progress to actions if we passed through the preaction stage.
@@ -260,7 +265,7 @@ func _execute_plan(delta: float) -> void:
 			_inject_bindings_for_position(_current_plan_step, current_action)
 			var action_status: Action.Status = current_action.perform_action(self, delta)
 			if action_status == Action.Status.FAILURE:
-				# Abort the plan.
+				# Abort the plan; post_perform_action will still be called for cleanup.
 				_current_plan_step = action_chain.size()
 			elif action_status == Action.Status.RUNNING:
 				# Continue performing this action.
@@ -270,7 +275,10 @@ func _execute_plan(delta: float) -> void:
 				_current_plan_step += 1
 
 	# Post actions.
-	if _current_plan_step == action_chain.size(): # We just finished, do post actions.
+	# This is a guaranteed cleanup phase: post_perform_action is called for every action
+	# in the chain, regardless of whether the plan completed or was aborted. Implementations
+	# must be safe to call even if pre_perform_action or perform_action returned FAILURE.
+	if _current_plan_step == action_chain.size():
 		for i in range(action_chain.size()):
 			var action: Action = action_chain[i]
 			if is_instance_valid(action):
