@@ -4,6 +4,8 @@
 //! in Rust for performance. Custom preconditions use Callables for GDScript evaluation.
 
 use super::gdpai_blackboard::GdPAIBlackboard;
+use crate::plan_types::PreconditionSpec;
+use crate::snapshot::VariantSnapshot;
 use godot::prelude::*;
 
 /// Handler for precondition evaluation with built-in or custom operations.
@@ -80,6 +82,33 @@ impl PreconditionHandler {
             value,
             eval_callable,
         })
+    }
+
+    /// Reconstructs a handler from a send-safe [`PreconditionSpec`] and the
+    /// callable registry it indexes into. This lets the existing synchronous
+    /// evaluation logic be reused on the main thread.
+    pub fn from_spec(spec: &PreconditionSpec, registry: &[Callable]) -> Option<Self> {
+        match spec {
+            PreconditionSpec::Builtin {
+                target,
+                operation,
+                property_name,
+                value,
+            } => Some(Self {
+                target: target.clone(),
+                operation: operation.clone(),
+                property_name: property_name.clone(),
+                value: value.as_ref().map(VariantSnapshot::to_variant),
+                eval_callable: None,
+            }),
+            PreconditionSpec::Custom { callable_id, .. } => registry.get(*callable_id).map(|c| Self {
+                target: PreconditionTarget::Agent,
+                operation: PreconditionOp::CustomCallback,
+                property_name: String::new(),
+                value: None,
+                eval_callable: Some(c.clone()),
+            }),
+        }
     }
 
     /// Maps an operation name string from the GDScript bridge to a [`PreconditionOp`] variant.

@@ -28,6 +28,9 @@ struct ActiveJobHandle {
     result_tx: Sender<(PlannerRunResult, PlannerEngine)>,
     engine: Option<PlannerEngine>,
     goals: Vec<GoalSpec>,
+    /// If all goals were already satisfied by the initial state, this is the
+    /// original index of the highest-reward satisfied goal; otherwise -1.
+    satisfied_goal_index: i64,
     cancel_flag: Arc<AtomicBool>,
     pending_request_id: usize,
     done: bool,
@@ -98,21 +101,43 @@ impl GdPAIPlanScheduler {
                         }
 
                         let Some(result) = result else {
-                            // If search exhausted with no plan, deliver a failed result
+                            // If all goals were already satisfied by the initial state,
+                            // return an empty, successful plan pointing at the highest-reward
+                            // satisfied goal. Otherwise report a failed search.
                             if job.agent.is_instance_valid() {
-                                let failed_res = PlanResult {
-                                    success: false,
-                                    action_chain: vec![],
-                                    total_cost: 0.0,
-                                    goal_index: -1,
-                                    deferred_action_indices: vec![],
-                                    action_bindings: vec![],
+                                let res = if job.satisfied_goal_index >= 0 {
+                                    PlanResult {
+                                        success: true,
+                                        action_chain: vec![],
+                                        total_cost: 0.0,
+                                        goal_index: job.satisfied_goal_index,
+                                        deferred_action_indices: vec![],
+                                        action_bindings: vec![],
+                                    }
+                                } else {
+                                    PlanResult {
+                                        success: false,
+                                        action_chain: vec![],
+                                        total_cost: 0.0,
+                                        goal_index: -1,
+                                        deferred_action_indices: vec![],
+                                        action_bindings: vec![],
+                                    }
                                 };
-                                let dict = result_to_dict(&failed_res);
+                                let dict = result_to_dict(&res);
                                 job.agent.call("_on_plan_ready", &[dict.to_variant()]);
                             }
                             continue;
                         };
+
+                        // If every goal was already satisfied, the engine returned an empty
+                        // failed plan because it had no goals to search. Report success.
+                        let mut result = result;
+                        if !result.success && job.satisfied_goal_index >= 0 {
+                            result.success = true;
+                            result.goal_index = job.satisfied_goal_index;
+                            result.total_cost = 0.0;
+                        }
 
                         if job.agent.is_instance_valid() {
                             log_info!(
@@ -244,6 +269,34 @@ impl GdPAIPlanScheduler {
         let action_specs = build_action_specs(&actions, &mut job_registry);
         let mut goal_specs = build_goal_specs(&goals, &mut job_registry);
 
+        // Detect the highest-reward goal already satisfied by the initial state.
+        // If all goals are satisfied, the scheduler can return an empty success
+        // plan instead of asking the planner to search.
+        let mut satisfied_goal_index = -1i64;
+        let mut best_satisfied_reward = f64::NEG_INFINITY;
+        let goal_satisfied = |goal: &GoalSpec| -> bool {
+            goal.desired_state.iter().all(|pre| {
+                PreconditionHandler::from_spec(pre, &job_registry)
+                    .map_or(false, |h| h.evaluate(&agent_bb, &world_bb))
+            })
+        };
+        for goal in &goal_specs {
+            if goal_satisfied(goal) && goal.reward > best_satisfied_reward {
+                best_satisfied_reward = goal.reward;
+                satisfied_goal_index = goal.original_index as i64;
+            }
+        }
+
+        // Drop goals already satisfied by the initial state so the planner never
+        // searches for a goal that is already achieved.
+        goal_specs.retain(|goal| !goal_satisfied(goal));
+
+        // If every goal was already satisfied, the index is meaningful; otherwise
+        // the planner will search the remaining unsatisfied goals.
+        if !goal_specs.is_empty() {
+            satisfied_goal_index = -1;
+        }
+
         // Sort goals by reward descending
         goal_specs.sort_by(|a, b| {
             b.reward
@@ -329,6 +382,7 @@ impl GdPAIPlanScheduler {
             result_tx: res_tx.clone(),
             engine: None,
             goals: goal_specs,
+            satisfied_goal_index,
             cancel_flag,
             pending_request_id: 0,
             done: false,

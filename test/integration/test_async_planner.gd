@@ -74,7 +74,7 @@ func _submit_plan_and_wait(
 		await get_tree().process_frame
 
 	fail_test("Timed out waiting for async plan result")
-	return {"success": false, "goal_index": -1, "action_chain": [], "total_cost": 0.0}
+	return {"success": false, "goal_index": - 1, "action_chain": [], "total_cost": 0.0}
 
 
 func test_async_empty_plan_returns_failure() -> void:
@@ -126,6 +126,51 @@ func test_async_goal_already_satisfied() -> void:
 	)
 
 
+func test_async_all_goals_satisfied() -> void:
+	var scheduler: GdPAIPlanScheduler = _make_scheduler()
+	await get_tree().process_frame
+
+	var result: Dictionary = await _submit_plan_and_wait(
+		scheduler,
+		_make_blackboard({"has_key": true, "hunger": 0.0}),
+		_make_blackboard(),
+		[],
+		[
+			{
+				"name": "HaveKey",
+				"reward": 5.0,
+				"desired_state":
+				[
+					{
+						"target": "agent",
+						"operation": "equal",
+						"property_name": "has_key",
+						"value": true
+					}
+				]
+			},
+			{
+				"name": "NotHungry",
+				"reward": 10.0,
+				"desired_state":
+				[
+					{
+						"target": "agent",
+						"operation": "less_than",
+						"property_name": "hunger",
+						"value": 1.0
+					}
+				]
+			}
+		],
+	)
+
+	assert_true(result["success"], "All goals satisfied should succeed")
+	assert_eq(result["total_cost"], 0.0, "All goals satisfied should have zero cost")
+	assert_eq(result["action_chain"].size(), 0, "All goals satisfied should have empty action chain")
+	assert_eq(result["goal_index"], 1, "Highest-reward satisfied goal should be selected")
+
+
 func test_async_simple_one_action_plan() -> void:
 	var scheduler: GdPAIPlanScheduler = _make_scheduler()
 	await get_tree().process_frame
@@ -147,7 +192,7 @@ func test_async_simple_one_action_plan() -> void:
 			"name": "HaveKey",
 			"reward": 10.0,
 			"desired_state":
-			[{"target": "agent", "operation": "equal", "property_name": "has_key", "value": true}]
+			[ {"target": "agent", "operation": "equal", "property_name": "has_key", "value": true}]
 		}
 	]
 
@@ -194,7 +239,7 @@ func test_async_chooses_lower_cost_plan() -> void:
 			"name": "HaveKey",
 			"reward": 100.0,
 			"desired_state":
-			[{"target": "agent", "operation": "equal", "property_name": "has_key", "value": true}]
+			[ {"target": "agent", "operation": "equal", "property_name": "has_key", "value": true}]
 		}
 	]
 
@@ -224,7 +269,7 @@ func test_async_action_with_failed_precondition() -> void:
 			"cost_callable": cost_1,
 			"effect_callable": effect_goal_met,
 			"preconditions":
-			[{"target": "agent", "operation": "equal", "property_name": "has_key", "value": true}],
+			[ {"target": "agent", "operation": "equal", "property_name": "has_key", "value": true}],
 			"validity_checks": []
 		}
 	]
@@ -233,7 +278,7 @@ func test_async_action_with_failed_precondition() -> void:
 			"name": "Goal",
 			"reward": 10.0,
 			"desired_state":
-			[{"target": "agent", "operation": "equal", "property_name": "goal_met", "value": true}]
+			[ {"target": "agent", "operation": "equal", "property_name": "goal_met", "value": true}]
 		}
 	]
 
@@ -351,7 +396,7 @@ func test_async_newer_submission_cancels_older_inflight_plan() -> void:
 			"name": "HaveKey",
 			"reward": 10.0,
 			"desired_state":
-			[{"target": "agent", "operation": "equal", "property_name": "has_key", "value": true}]
+			[ {"target": "agent", "operation": "equal", "property_name": "has_key", "value": true}]
 		}
 	]
 
@@ -369,7 +414,7 @@ func test_async_newer_submission_cancels_older_inflight_plan() -> void:
 			"name": "HaveFood",
 			"reward": 20.0,
 			"desired_state":
-			[{"target": "agent", "operation": "equal", "property_name": "has_food", "value": true}]
+			[ {"target": "agent", "operation": "equal", "property_name": "has_food", "value": true}]
 		}
 	]
 
@@ -379,7 +424,7 @@ func test_async_newer_submission_cancels_older_inflight_plan() -> void:
 
 	(
 		scheduler
-		. submit_plan(
+		.submit_plan(
 			self,
 			_make_blackboard({"has_key": false, "has_food": false}),
 			_make_blackboard(),
@@ -391,7 +436,7 @@ func test_async_newer_submission_cancels_older_inflight_plan() -> void:
 	)
 	(
 		scheduler
-		. submit_plan(
+		.submit_plan(
 			self,
 			_make_blackboard({"has_key": false, "has_food": false}),
 			_make_blackboard(),
@@ -433,7 +478,7 @@ func test_async_missing_property_fails_equal_true() -> void:
 			"cost_callable": cost_1,
 			"effect_callable": effect_succeed,
 			"preconditions":
-			[{"target": "agent", "operation": "equal", "property_name": "has_key", "value": true}],
+			[ {"target": "agent", "operation": "equal", "property_name": "has_key", "value": true}],
 			"validity_checks": []
 		}
 	]
@@ -442,13 +487,13 @@ func test_async_missing_property_fails_equal_true() -> void:
 			"name": "Succeed",
 			"reward": 10.0,
 			"desired_state":
-			[{"target": "agent", "operation": "equal", "property_name": "success", "value": true}]
+			[ {"target": "agent", "operation": "equal", "property_name": "success", "value": true}]
 		}
 	]
 
 	var result: Dictionary = await _submit_plan_and_wait(
 		scheduler,
-		_make_blackboard(),  # Deliberately NOT setting has_key property
+		_make_blackboard(), # Deliberately NOT setting has_key property
 		_make_blackboard(),
 		actions,
 		goals,
@@ -470,7 +515,7 @@ func test_async_missing_property_fails_equal_false() -> void:
 			"cost_callable": cost_1,
 			"effect_callable": effect_succeed,
 			"preconditions":
-			[{"target": "agent", "operation": "equal", "property_name": "has_key", "value": false}],
+			[ {"target": "agent", "operation": "equal", "property_name": "has_key", "value": false}],
 			"validity_checks": []
 		}
 	]
@@ -479,13 +524,13 @@ func test_async_missing_property_fails_equal_false() -> void:
 			"name": "Succeed",
 			"reward": 10.0,
 			"desired_state":
-			[{"target": "agent", "operation": "equal", "property_name": "success", "value": true}]
+			[ {"target": "agent", "operation": "equal", "property_name": "success", "value": true}]
 		}
 	]
 
 	var result: Dictionary = await _submit_plan_and_wait(
 		scheduler,
-		_make_blackboard(),  # Deliberately NOT setting has_key property
+		_make_blackboard(), # Deliberately NOT setting has_key property
 		_make_blackboard(),
 		actions,
 		goals,
@@ -525,13 +570,13 @@ func test_async_has_property_on_missing_property() -> void:
 			"name": "Succeed",
 			"reward": 10.0,
 			"desired_state":
-			[{"target": "agent", "operation": "equal", "property_name": "success", "value": true}]
+			[ {"target": "agent", "operation": "equal", "property_name": "success", "value": true}]
 		}
 	]
 
 	var result: Dictionary = await _submit_plan_and_wait(
 		scheduler,
-		_make_blackboard(),  # Deliberately NOT setting has_key property
+		_make_blackboard(), # Deliberately NOT setting has_key property
 		_make_blackboard(),
 		actions,
 		goals,

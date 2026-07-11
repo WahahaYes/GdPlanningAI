@@ -54,6 +54,12 @@ sync-docs: ## Copy README and LICENSE from root to addon directory
 	@cp LICENSE.txt addons/GdPlanningAI/LICENSE.txt
 	@echo "Documentation synced successfully"
 
+##@ Editor
+
+.PHONY: launch-editor
+launch-editor: ## Launch the Godot editor with this project
+	godot --editor --path .
+
 ##@ Help
 
 .PHONY: help
