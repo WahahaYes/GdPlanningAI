@@ -24,20 +24,6 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::mpsc::{Receiver, Sender};
 
-/// Removes elements at the given indices from a vector.
-///
-/// Indices are sorted descending so each removal does not affect
-/// the validity of the remaining indices.
-fn remove_indices<T>(vec: &mut Vec<T>, indices: &HashSet<usize>) {
-    let mut sorted: Vec<_> = indices.iter().copied().collect();
-    sorted.sort_unstable_by(|a, b| b.cmp(a));
-    for idx in sorted {
-        if idx < vec.len() {
-            vec.remove(idx);
-        }
-    }
-}
-
 /// The execution engine for the GOAP planner.
 ///
 /// This engine manages the backward-chaining search queue, handles Godot callbacks, and
@@ -381,27 +367,12 @@ impl PlannerEngine {
                         // Determine the insertion point: the earliest consumer position
                         // this candidate satisfies. The predecessor is placed immediately
                         // before that consumer, not at the front of the whole chain.
-                        let old_chain_len = new_branch.action_chain.len();
-                        let mut insert_pos = old_chain_len;
-                        for &idx in &cand.satisfied_preconditions {
-                            let pos = new_branch.open_preconditions[idx].0;
-                            if pos < insert_pos {
-                                insert_pos = pos;
-                            }
-                        }
-                        for (idx, _, _) in &cand.satisfied_requirements {
-                            let pos = new_branch.open_requirements[*idx].0;
-                            if pos < insert_pos {
-                                insert_pos = pos;
-                            }
-                        }
-                        // Safety fallback for the first action of a plan.
-                        if insert_pos == old_chain_len {
-                            insert_pos = 0;
-                        }
+                        let insert_pos = compute_insert_pos(
+                            &new_branch,
+                            &cand.satisfied_preconditions,
+                            &cand.satisfied_requirements,
+                        );
 
-                        // Insert the predecessor action immediately before its consumer(s)
-                        new_branch.action_chain.insert(insert_pos, cand.action_idx);
                         let discovery_cost = {
                             let cache = self.ctx.discovery_results.lock().unwrap();
                             cache
@@ -409,123 +380,50 @@ impl PlannerEngine {
                                 .map(|r| r.cost)
                                 .unwrap_or(1.0)
                         };
-                        new_branch.action_costs.insert(insert_pos, discovery_cost);
 
-                        // Update indices of existing needs and bindings at or after the insertion point
-                        new_branch.shift_positions(insert_pos, 1);
-
-                        // 1. Record and remove satisfied requirements
-                        let mut new_bindings = Vec::new();
-                        let mut reqs_to_remove = HashSet::new();
-
-                        for (_req_idx_in_branch, req, prov) in cand.satisfied_requirements {
-                            // GREEDY CLEARING: Find ALL identical requirements in the chain
-                            // This prevents multiple actions from piling up the same at_target(...) need.
-                            for (idx, (_, other_req)) in
-                                new_branch.open_requirements.iter().enumerate()
-                            {
-                                if other_req == &req {
-                                    reqs_to_remove.insert(idx);
-                                }
-                            }
-
-                            // Determine the binding values based on the provision and the specific requirement it filled
-                            let (binding_name, values) = match (&prov, &req) {
-                                (
-                                    ProvisionSpec::Binding {
-                                        binding_name,
-                                        value,
-                                    },
-                                    _,
-                                ) => (binding_name.clone(), vec![value.clone()]),
-                                (ProvisionSpec::Fact { fact_name, args }, _) => {
-                                    (fact_name.clone(), args.clone())
-                                }
-                                (
-                                    ProvisionSpec::FactWildcard { fact_name },
-                                    RequirementSpec::Fact { args, .. },
-                                ) => (fact_name.clone(), args.clone()),
-                                _ => (String::new(), vec![]),
-                            };
-
-                            if !binding_name.is_empty() {
-                                // Associate with provider (the newly inserted action at insert_pos)
-                                new_bindings.push((
-                                    insert_pos,
-                                    binding_name.clone(),
-                                    values.clone(),
-                                ));
-
-                                // Associate with ALL cleared consumers (their positions were already offset by 1)
-                                for &idx in &reqs_to_remove {
-                                    let consumer_pos = new_branch.open_requirements[idx].0;
-                                    new_bindings.push((
-                                        consumer_pos,
-                                        binding_name.clone(),
-                                        values.clone(),
-                                    ));
-                                }
-                            }
-                        }
-
-                        remove_indices(&mut new_branch.open_requirements, &reqs_to_remove);
-
-                        // 2. Remove satisfied preconditions
-                        let preconds_to_remove: HashSet<usize> =
-                            cand.satisfied_preconditions.iter().copied().collect();
-                        remove_indices(&mut new_branch.open_preconditions, &preconds_to_remove);
-
-                        // 3. Add any new needs from the prepended action
-                        // Deduplicate against existing needs to prevent congestion
-                        let existing_pre: HashSet<PreconditionSpec> = new_branch
-                            .open_preconditions
+                        // Collect the new action's own needs, deduplicating against the
+                        // branch's current open needs and skipping anything already satisfied
+                        // by the initial state.
+                        let new_preconditions: Vec<PreconditionSpec> = action
+                            .preconditions
                             .iter()
-                            .map(|(_, p)| p.clone())
+                            .filter(|pre| {
+                                !new_branch.open_preconditions.iter().any(|(_, p)| p == *pre)
+                                    && !pre
+                                        .evaluate_builtin(
+                                            &self.ctx.initial_agent,
+                                            &self.ctx.initial_world,
+                                        )
+                                        .unwrap_or(false)
+                            })
+                            .cloned()
                             .collect();
-                        for pre in &action.preconditions {
-                            if !existing_pre.contains(pre) {
-                                // Skip builtin preconditions already satisfied by the initial
-                                // state — they don't need a predecessor to achieve them.
-                                // Custom preconditions cannot be evaluated here and must stay open.
-                                let satisfied_by_initial = pre
-                                    .evaluate_builtin(
-                                        &self.ctx.initial_agent,
-                                        &self.ctx.initial_world,
-                                    )
-                                    .unwrap_or(false);
-                                if !satisfied_by_initial {
-                                    new_branch
-                                        .open_preconditions
-                                        .push((insert_pos, pre.clone()));
-                                }
-                            }
-                        }
 
-                        let existing_req: HashSet<RequirementSpec> = new_branch
-                            .open_requirements
+                        let new_requirements: Vec<RequirementSpec> = action
+                            .requirements
                             .iter()
-                            .map(|(_, r)| r.clone())
-                            .collect();
-                        for req in &action.requirements {
-                            if !existing_req.contains(req) {
-                                // Check if initial state satisfies this requirement
-                                let satisfied_by_initial =
-                                    self.ctx.initial_provisions.iter().any(|prov| {
+                            .filter(|req| {
+                                !new_branch.open_requirements.iter().any(|(_, r)| r == *req)
+                                    && !self.ctx.initial_provisions.iter().any(|prov| {
                                         provision_satisfies_requirement(
                                             prov,
                                             req,
                                             Some(&self.ctx.initial_world),
                                         )
-                                    });
+                                    })
+                            })
+                            .cloned()
+                            .collect();
 
-                                if !satisfied_by_initial {
-                                    new_branch.open_requirements.push((insert_pos, req.clone()));
-                                }
-                            }
-                        }
-
-                        // 4. Merge action bindings
-                        new_branch.action_bindings.extend(new_bindings);
+                        let _new_bindings = new_branch.insert_action_at(
+                            insert_pos,
+                            cand.action_idx,
+                            discovery_cost,
+                            cand.satisfied_requirements,
+                            cand.satisfied_preconditions.iter().copied().collect(),
+                            new_preconditions,
+                            new_requirements,
+                        );
 
                         // Tree: Add child node now that needs are updated
                         let open_pre: Vec<String> = new_branch
