@@ -9,6 +9,7 @@ The planner is a **hybrid backward-chaining GOAP** search engine:
 - **Simulation layer:** GDScript callbacks evaluate costs, effects, and custom preconditions against agent/world snapshots.
 - **Search:** Dijkstra (uniform-cost) via a modular `SearchHeuristic` trait. A* is available as a no-op placeholder until an admissible heuristic is designed.
 - **Async:** Every Godot callback can yield `Pending`; the engine parks the node and resumes when the response arrives.
+- **Multi-goal:** Goals are sorted by reward descending. Before planning, the scheduler checks which goals are already satisfied by the initial state. **If ALL goals are satisfied**, an empty successful plan is returned for the highest-reward one. **If ANY goals are unsatisfied**, all satisfied goals are dropped and the planner searches only the unsatisfied goals. There is no fallback to satisfied goals if the search fails.
 
 ---
 
@@ -28,6 +29,7 @@ current_agent:        BlackboardSnapshot      // State after simulating simulati
 current_world:        BlackboardSnapshot
 cost:                 f64                     // Sum of action_costs (recalculated after each change)
 tree_node_id:         usize                   // Debug tree node reference
+goal_index:           usize                   // Which goal this branch is solving
 ```
 
 ### `SearchNode`
@@ -35,7 +37,7 @@ A wrapper that couples a branch with its async state.
 ```
 branch:               PlanBranch
 resumed:              bool                    // True if this node just received a callback response
-callback_response:      Option<CallbackResponse>// Most recent Godot callback payload
+callback_response:    Option<CallbackResponse>// Most recent Godot callback payload
 expanded_candidates:  Vec<(action_idx, bindings)> // Candidates already processed; prevents dup children
 ```
 
@@ -50,14 +52,23 @@ node:     SearchNode
 ```
 ctx:               Arc<SearchContext>
 max_depth:         usize
-heuristic:         Box<dyn SearchHeuristic>
+cancel_flag:       Arc<AtomicBool>
+response_rx:       Receiver<PlannerCallback>
+response_tx:       Sender<PlannerCallback>
+
+// Config
+heuristic:         Box<dyn SearchHeuristic + Send + Sync>
 termination:       TerminationStrategy   // FirstComplete | BestCost
 iteration_budget:  usize
+
+// Search State
 queue:             BinaryHeap<PriorityNode>
 parked_nodes:      HashMap<request_id, Vec<SearchNode>>
 visited:           HashMap<SearchFingerprint, cost>
 best_plan:         Option<PlanResult>
 best_cost:         f64
+current_goal_index: usize               // Which goal we're currently solving
+tree:              TreeDump
 ```
 
 ---
@@ -70,9 +81,12 @@ For each `PlannerCallback`:
 1. If it is a **Discovery response** (cost/effect/precondition cache):
    - Write the result into the appropriate discovery cache.
    - Remove the request from `discovery_pending` and `discovery_request_map`.
-2. Find all **parked nodes** waiting on this `request_id`.
-3. If `cancel_flag` is set, clear parked nodes and abort.
-4. For each parked node:
+2. If it is a **Precondition discovery response**:
+   - Cache the boolean result in `discovery_precond_results`.
+   - Remove from `discovery_precond_pending`.
+3. Find all **parked nodes** waiting on this `request_id`.
+4. If `cancel_flag` is set, clear parked nodes and abort.
+5. For each parked node:
    - Set `node.resumed = true`, `node.callback_response = response`.
    - Re-enqueue the node.
 
@@ -106,52 +120,58 @@ For each popped `PriorityNode`:
 For each **ready** `Candidate`:
 1. Skip if `(action_idx, bindings)` already in `expanded_candidates`.
 2. `new_branch = branch.clone()`.
-3. Prepend `candidate.action_idx` to `new_branch.action_chain`.
-4. Insert discovery cost into `new_branch.action_costs[0]`.
-5. Call `new_branch.shift_positions(1)` — increments all `pos` values in open needs and bindings.
-
-**Update open needs:**
-1. **Remove satisfied requirements:**
-   - For each requirement matched by the candidate, do **greedy clearing**: scan ALL `open_requirements` and remove every entry with an identical spec.
-   - Collect binding data from the provision that satisfied each requirement.
-   - Add bindings for the provider (position 0) and for every cleared consumer (their positions).
-2. **Remove satisfied preconditions:** Remove all preconditions listed in `candidate.satisfied_preconditions`.
-3. **Add new needs from the prepended action:**
-   - For each precondition, skip if already in `open_preconditions` (dedup).
-   - Skip builtin preconditions already satisfied by the **initial state**.
-   - Add remaining at `pos = 0`.
-   - For each requirement, skip if already in `open_requirements` (dedup).
-   - Skip requirements already satisfied by **initial provisions**.
-   - Add remaining at `pos = 0`.
-4. Merge new bindings into `new_branch.action_bindings`.
-5. `recalculate_cost()`.
-
-**Cycle guard:** If `open_requirements.len() > max_depth`, prune (too many accumulated requirements).
-
-**Enqueue** `new_branch` as a fresh `SearchNode`.
+3. **Compute insertion position** `insert_pos` as the minimum chain position among all consumers (preconditions/requirements) this candidate satisfies. Fallback to `0` for empty chain.
+4. Insert `candidate.action_idx` into `new_branch.action_chain` at `insert_pos`.
+5. Insert discovery cost into `new_branch.action_costs` at `insert_pos`.
+6. Call `new_branch.shift_positions(insert_pos, 1)` — increments all `pos` values in open needs and bindings at or after `insert_pos`.
+7. **Update open needs:**
+   a. **Remove satisfied requirements:** For each requirement matched by the candidate, do **greedy clearing**: scan ALL `open_requirements` and remove every entry with an identical spec. Collect binding data from the provision that satisfied each requirement. Add provider binding at `insert_pos` and consumer bindings at each cleared consumer's shifted position.
+   b. **Remove satisfied preconditions:** Remove all preconditions listed in `candidate.satisfied_preconditions` (indices are pre-shift).
+   c. **Add new needs from the inserted action:**
+      - For each precondition, skip if already in `open_preconditions` (dedup) or if builtin and already satisfied by the **initial state**. Add remaining at `pos = insert_pos`.
+      - For each requirement, skip if already in `open_requirements` (dedup) or already satisfied by **initial provisions**. Add remaining at `pos = insert_pos`.
+   d. Merge new bindings into `new_branch.action_bindings`.
+   e. `recalculate_cost()`.
+8. **Cycle guard:** If `open_requirements.len() > max_depth`, prune (too many accumulated requirements).
+9. **Tree:** Add child node to debug tree with updated open needs.
+10. **Enqueue** `new_branch` as a fresh `SearchNode`.
+11. If **ALL** needs are satisfied, transition to `Verifying` immediately (reset simulation state to initial).
 
 **Handle pending:** If `find_candidates` returned a `pending_id`, park the original node.
 
 #### `BranchState::Verifying` (forward validation)
 
-Call `process_simulation(node)`:
-1. **Initial-state provisions:** If `simulation_index == 0`, clear any `open_requirements` at `pos == 0` that are satisfied by `initial_provisions`.
+Call `process_simulation(node)` which delegates to helpers in order:
+
+1. **Initial-state bookkeeping** (`clear_initial_state_requirements`):
+   If `simulation_index == 0`, clear any `open_requirements` at `pos == 0` satisfied by `initial_provisions`.
+
 2. **Gather bindings** for the current `simulation_index`.
-3. **Evaluate preconditions** at this position:
-   - Loop through `open_preconditions`. For each matching `pos`:
-     - Call `eval_precondition`.
-     - If `Ready(true)`, remove it and **return Ready** (one precond per step, for async safety).
-     - If `Ready(false)` and `state == Verifying`, return `Invalid`.
-     - If `Pending`, return `Pending`.
-4. **Simulate the action** at `simulation_index`:
-   - Call `simulate_action` with `branch_action_costs` slice (reads/writes cached cost).
-   - Update `current_agent`, `current_world`.
-   - Clear any downstream `open_requirements` satisfied by this action's `provisions`.
-   - Increment `simulation_index`.
-   - `recalculate_cost()`.
-5. **End of chain:** If `simulation_index == action_chain.len()`:
-   - If `open_preconditions` or `open_requirements` remain, return `Invalid`.
-   - If `cost < best_cost`, update `best_plan` and `best_cost`.
+
+3. **Re-evaluate action's own preconditions** (`validate_action_against_current_state`):
+   For each builtin precondition of the current action that is NOT in `open_preconditions` for this position:
+   - Evaluate against `current_agent`/`current_world` snapshots.
+   - `Ready(false)` during `Verifying` → `Invalid`.
+   - `Pending` → return `Pending`.
+   - Custom preconditions are skipped (handled via `open_preconditions`).
+
+4. **Evaluate open preconditions** at this position (`evaluate_open_preconditions_for_position`):
+   Loop through `open_preconditions` matching current position:
+   - Call `eval_precondition`.
+   - If `Ready(true)`, remove it and **return `Ready(())`** (one precond per step, for async safety).
+   - If `Ready(false)` during `Verifying`, return `Invalid`.
+   - If `Pending`, return `Pending`.
+
+5. **Simulate the current action** (`simulate_and_advance`):
+   - If `state == Verifying`, validate all `action.requirements` against current state via `requirement_holds_in_state` (checks bindings, agent properties, world objects). Any failure → `Invalid`.
+   - Call `simulate_action` with `SimArgs` (includes local `action_costs` slice for cost caching).
+   - On `Ready(res)`: update `current_agent`, `current_world`; call `clear_requirements_from_provisions` to concretize `FactWildcard` provisions using current bindings and clear later `open_requirements`; increment `simulation_index`; `recalculate_cost()`; return `Ready(())`.
+   - `Pending`/`Invalid` propagate.
+
+6. **End of chain** (`finalize_verified_branch`):
+   If `simulation_index == action_chain.len()`:
+   - If any `open_preconditions` or `open_requirements` remain → `Invalid`.
+   - If `cost < best_cost`: update `best_plan`, `best_cost`, mark debug tree `Complete`.
    - Return `Complete`.
 
 **Process result:**
@@ -171,23 +191,23 @@ Call `process_simulation(node)`:
 
 ### Step 2: Evaluate each candidate action
 
-**Validity filter:**
-- Evaluate each `validity_check` against `initial_state`.
-- Builtin checks are evaluated directly.
+**Validity filter (against InitialState):**
+- Evaluate each `validity_check` against `initial_agent`/`initial_world`.
+- Builtin checks evaluated directly.
 - Custom checks use the precondition discovery cache (`discovery_precond_results`) and may fire async callbacks.
 - If any check fails, skip the action.
 
 **Two code paths depending on whether the action has wildcard provisions:**
 
-#### Path A: Action has wildcard provisions
+#### Path A: Action has wildcard provisions (`FactWildcard`)
 For each `open_requirement`:
 - For each `provision` of the action:
-  - If `provision_satisfies_requirement(prov, req)`:
+  - If `provision_satisfies_requirement(prov, req, Some(&initial_world))`:
     - Build bindings from the match.
     - Call `get_discovery_result(action_idx, bindings, ctx)`:
       - Checks `discovery_results` cache first.
       - Checks `discovery_pending` (with stale cleanup via `check_pending_or_clean_stale`).
-      - If ready, simulates effect from initial state.
+      - If ready, simulates effect from initial state via `simulate_action`.
       - If pending, records request and returns `Pending(id)`.
     - If discovery is ready, evaluate all `open_preconditions` against the discovery result:
       - Builtin preconditions evaluated directly.
@@ -226,9 +246,24 @@ CandidatesResult {
 3. If no effect callable, return identity (unchanged agent/world).
 
 ### `eval_precondition(spec, agent, world, ctx, response, bindings) -> StepResult<bool>`
-
 - **Builtin:** Evaluate directly (`evaluate_builtin`). Return `Ready(true/false)`.
 - **Custom:** If `response` contains `CallbackResponse::Bool(b)`, return `Ready(b)`. Otherwise fire `EvalCustomPrecond` callback and return `Pending(id)`.
+
+### `requirement_holds_in_state(req, agent, world, current_bindings) -> bool`
+Validates a requirement against the current simulated state, considering:
+- **Bindings:** `BindingExists`, `BindingEquals`, `BindingInSet` check `current_bindings` first (any-of semantics for multiple bindings with the same name).
+- **Agent properties:** Fallback for bindings not yet materialized in snapshots.
+- **World objects:** For `BindingInSet` with `ObjectRef`, checks world object groups. For `Fact { fact_name: "at_target", args: [target] }`, compares agent's location object position against target's position from world. Falls back to bindings if no location state available.
+
+### `provision_satisfies_requirement(prov, req, world) -> bool`
+Symbolic matching used during candidate discovery and forward validation:
+- `Binding` ↔ `BindingExists`/`BindingEquals`/`BindingInSet` (with world context for `BindingInSet`).
+- `Fact` ↔ `Fact` (exact name and args match).
+- `FactWildcard` ↔ `Fact` (name match only; args ignored).
+- `world` context is `Some` during forward validation, `None` during discovery (except initial-world discovery which passes `Some(&initial_world)`).
+
+### `concretize_wildcard_provision(prov, current_bindings) -> ProvisionSpec`
+If `prov` is `FactWildcard { fact_name }` and a binding exists for `fact_name` in `current_bindings`, returns `Fact { fact_name, args: binding_values }`. Otherwise returns `prov` unchanged.
 
 ---
 
@@ -251,4 +286,78 @@ CandidatesResult {
 4. **One precond per simulation step.** `process_simulation` returns `Ready` after clearing a single precondition, then gets re-queued. This prevents async state accumulation.
 5. **Cost is recalculated, not accumulated.** `branch.cost` is always `action_costs.iter().sum()`; no incremental `+=` during simulation.
 6. **Discovery caches are per-planning-run.** They live in `SearchContext` and are shared across branches, but not across separate `plan()` invocations.
+7. **Action insertion position = earliest consumer.** Predecessor actions are inserted immediately before the first action that consumes their provision/precondition, not at the front of the chain. Positions of subsequent actions are shifted accordingly.
+8. **Goal handling.** Goals are sorted by reward descending. Before planning, the scheduler checks which goals are already satisfied by the initial state. **If ALL goals are satisfied**, an empty successful plan is returned for the highest-reward one. **If ANY goals are unsatisfied**, ALL satisfied goals are dropped and the planner searches only the unsatisfied goals. There is no fallback to satisfied goals if the search fails.
+9. **Binding injection.** All callbacks (`GetCost`, `ApplyEffect`, `EvalCustomPrecond`) receive `agent` and `world` snapshots with bindings already injected into the agent blackboard. The callback contract is always `(agent, world)` — 2 arguments.
+10. **Greedy requirement clearing.** When an action satisfies a requirement, ALL identical open requirements in the branch are cleared by that one action (single provider for multiple consumers).
+11. **Stale pending cleanup.** Discovery and precondition pending maps are defended against stale entries: if a request ID no longer exists in `discovery_request_map`, the pending entry is removed and the action is re-evaluated.
 
+---
+
+## 8. Data Specifications (Send-Safe Mirrors)
+
+### `PreconditionSpec`
+```
+Builtin { target: Agent|WorldState, operation: HasProperty|Equal|NotEqual|GreaterThan|..., property_name: String, value: Option<VariantSnapshot> }
+Custom  { callable_id: usize, dependent_object_ids: Vec<i64> }
+```
+
+### `RequirementSpec`
+```
+BindingExists { binding_name: String }
+BindingEquals { binding_name: String, value: VariantSnapshot }
+BindingInSet  { binding_name: String, set_name: String }
+Fact          { fact_name: String, args: Vec<VariantSnapshot> }
+```
+
+### `ProvisionSpec`
+```
+Binding       { binding_name: String, value: VariantSnapshot }
+Fact          { fact_name: String, args: Vec<VariantSnapshot> }
+FactWildcard  { fact_name: String }
+```
+
+### `ActionSpec`
+```
+name: String
+cost_callable_id: Option<usize>
+effect_callable_id: Option<usize>
+preconditions: Vec<PreconditionSpec>
+validity_checks: Vec<PreconditionSpec>
+requirements: Vec<RequirementSpec>
+provisions: Vec<ProvisionSpec>
+dependent_object_ids: Vec<i64>
+```
+
+### `GoalSpec`
+```
+name: String
+reward: f64
+desired_state: Vec<PreconditionSpec>
+original_index: usize
+```
+
+### `CallbackKind` (Planner → Main Thread)
+```
+GetCost      { agent: BlackboardSnapshot, world: BlackboardSnapshot }
+ApplyEffect  { agent: BlackboardSnapshot, world: BlackboardSnapshot }
+EvalCustomPrecond { agent: BlackboardSnapshot, world: BlackboardSnapshot }
+```
+Bindings are pre-injected into `agent` before the call.
+
+### `CallbackResponse` (Main Thread → Planner)
+```
+Float(f64)                    // GetCost
+Bool(bool)                    // EvalCustomPrecond
+UpdatedSnapshots(agent, world) // ApplyEffect
+```
+
+### `PlanResult` (Final Output)
+```
+success: bool
+action_chain: Vec<i64>          // Action indices (for Godot)
+total_cost: f64
+goal_index: i64
+deferred_action_indices: Vec<i64>  // Currently unused, reserved
+action_bindings: Vec<(i64, String, Vec<VariantSnapshot>)>  // pos, name, values
+```
