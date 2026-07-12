@@ -6,6 +6,7 @@
 use crate::planner::simulation::{SimArgs, StepResult, eval_precondition, simulate_action};
 use crate::planner::types::{
     BindingMap, DiscoveryRequest, DiscoveryResult, PlanBranch, ProvisionKind, SearchContext,
+    binding_values_from_match,
 };
 use crate::requirement::{ProvisionSpec, RequirementSpec, provision_satisfies_requirement};
 use std::collections::{BTreeSet, HashMap};
@@ -19,26 +20,12 @@ pub struct Candidate {
 }
 
 fn get_bindings_for_match(prov: &ProvisionSpec, req: &RequirementSpec) -> BindingMap {
-    let mut bindings = Vec::new();
-    match (prov, req) {
-        (
-            ProvisionSpec::Binding {
-                binding_name,
-                value,
-            },
-            _,
-        ) => {
-            bindings.push((binding_name.clone(), vec![value.clone()]));
-        }
-        (ProvisionSpec::Fact { fact_name, args }, _) => {
-            bindings.push((fact_name.clone(), args.clone()));
-        }
-        (ProvisionSpec::FactWildcard { fact_name }, RequirementSpec::Fact { args, .. }) => {
-            bindings.push((fact_name.clone(), args.clone()));
-        }
-        _ => {}
+    let (name, values) = binding_values_from_match(prov, req);
+    if name.is_empty() {
+        Vec::new()
+    } else {
+        vec![(name, values)]
     }
-    bindings
 }
 
 /// Checks whether `key` is present in `pending_map`.
