@@ -12,7 +12,9 @@ use crate::plan_tree::PlanResult;
 use crate::plan_types::*;
 use crate::planner::simulation::{SimArgs, StepResult, eval_precondition, simulate_action};
 use crate::planner::types::*;
-use crate::requirement::{ProvisionSpec, RequirementSpec, provision_satisfies_requirement};
+use crate::requirement::{
+    ProvisionSpec, RequirementSpec, provision_satisfies_requirement, requirement_holds_in_state,
+};
 use crate::snapshot::VariantSnapshot;
 
 use super::{SearchHeuristic, TerminationStrategy};
@@ -287,7 +289,22 @@ impl PlannerEngine {
 
             match node.branch.state {
                 BranchState::Verifying => {
-                    match self.process_simulation(&mut node) {
+                    let sim_idx = node.branch.simulation_index;
+                    let action_name = if sim_idx < node.branch.action_chain.len() {
+                        self.ctx.actions[node.branch.action_chain[sim_idx]]
+                            .name
+                            .clone()
+                    } else {
+                        "<terminal>".to_string()
+                    };
+                    let proc_res = self.process_simulation(&mut node);
+                    log_debug!(
+                        "process_simulation result for sim_idx={} action={}: {:?}",
+                        sim_idx,
+                        action_name,
+                        std::mem::discriminant(&proc_res)
+                    );
+                    match proc_res {
                         StepResult::Ready(_) => self.enqueue(node),
                         StepResult::Pending(id) => {
                             self.parked_nodes.entry(id).or_default().push(node);
@@ -361,8 +378,30 @@ impl PlannerEngine {
                             .map(|(_, req, _)| req.to_string())
                             .collect();
 
-                        // Prepend action
-                        new_branch.action_chain.insert(0, cand.action_idx);
+                        // Determine the insertion point: the earliest consumer position
+                        // this candidate satisfies. The predecessor is placed immediately
+                        // before that consumer, not at the front of the whole chain.
+                        let old_chain_len = new_branch.action_chain.len();
+                        let mut insert_pos = old_chain_len;
+                        for &idx in &cand.satisfied_preconditions {
+                            let pos = new_branch.open_preconditions[idx].0;
+                            if pos < insert_pos {
+                                insert_pos = pos;
+                            }
+                        }
+                        for (idx, _, _) in &cand.satisfied_requirements {
+                            let pos = new_branch.open_requirements[*idx].0;
+                            if pos < insert_pos {
+                                insert_pos = pos;
+                            }
+                        }
+                        // Safety fallback for the first action of a plan.
+                        if insert_pos == old_chain_len {
+                            insert_pos = 0;
+                        }
+
+                        // Insert the predecessor action immediately before its consumer(s)
+                        new_branch.action_chain.insert(insert_pos, cand.action_idx);
                         let discovery_cost = {
                             let cache = self.ctx.discovery_results.lock().unwrap();
                             cache
@@ -370,10 +409,10 @@ impl PlannerEngine {
                                 .map(|r| r.cost)
                                 .unwrap_or(1.0)
                         };
-                        new_branch.action_costs.insert(0, discovery_cost);
+                        new_branch.action_costs.insert(insert_pos, discovery_cost);
 
-                        // Update indices of existing needs and bindings
-                        new_branch.shift_positions(1);
+                        // Update indices of existing needs and bindings at or after the insertion point
+                        new_branch.shift_positions(insert_pos, 1);
 
                         // 1. Record and remove satisfied requirements
                         let mut new_bindings = Vec::new();
@@ -410,8 +449,12 @@ impl PlannerEngine {
                             };
 
                             if !binding_name.is_empty() {
-                                // Associate with provider (the newly prepended action at pos 0)
-                                new_bindings.push((0, binding_name.clone(), values.clone()));
+                                // Associate with provider (the newly inserted action at insert_pos)
+                                new_bindings.push((
+                                    insert_pos,
+                                    binding_name.clone(),
+                                    values.clone(),
+                                ));
 
                                 // Associate with ALL cleared consumers (their positions were already offset by 1)
                                 for &idx in &reqs_to_remove {
@@ -451,7 +494,9 @@ impl PlannerEngine {
                                     )
                                     .unwrap_or(false);
                                 if !satisfied_by_initial {
-                                    new_branch.open_preconditions.push((0, pre.clone()));
+                                    new_branch
+                                        .open_preconditions
+                                        .push((insert_pos, pre.clone()));
                                 }
                             }
                         }
@@ -474,7 +519,7 @@ impl PlannerEngine {
                                     });
 
                                 if !satisfied_by_initial {
-                                    new_branch.open_requirements.push((0, req.clone()));
+                                    new_branch.open_requirements.push((insert_pos, req.clone()));
                                 }
                             }
                         }
@@ -554,14 +599,16 @@ impl PlannerEngine {
             // If the current goal is already satisfied (empty plan) and there are more goals,
             // skip to the next goal instead of returning the empty plan.
             if let Some(ref plan) = self.best_plan
-                && plan.action_chain.is_empty() && self.current_goal_index + 1 < goals.len() {
-                    self.best_plan = None;
-                    self.best_cost = f64::INFINITY;
-                    self.tree.end_goal(false, &[], 0.0);
-                    self.current_goal_index += 1;
-                    self.initialize_goal(goals, self.current_goal_index);
-                    return PlannerRunResult::Pending(0);
-                }
+                && plan.action_chain.is_empty()
+                && self.current_goal_index + 1 < goals.len()
+            {
+                self.best_plan = None;
+                self.best_cost = f64::INFINITY;
+                self.tree.end_goal(false, &[], 0.0);
+                self.current_goal_index += 1;
+                self.initialize_goal(goals, self.current_goal_index);
+                return PlannerRunResult::Pending(0);
+            }
 
             // Search exhausted for current goal. Check if there are more goals.
             if self.best_plan.is_none() && self.current_goal_index + 1 < goals.len() {
@@ -627,6 +674,52 @@ impl PlannerEngine {
             .collect();
 
         // 1. Check open preconditions for current index
+        if branch.simulation_index < branch.action_chain.len() {
+            let action_idx = branch.action_chain[branch.simulation_index];
+            let action = &self.ctx.actions[action_idx];
+
+            // Pre-conditions that were satisfied by the initial state may not have been
+            // added to open_preconditions. Re-check the action's own preconditions against
+            // the current state so earlier actions that invalidate them are caught.
+            let open_pre_for_current: HashSet<PreconditionSpec> = branch
+                .open_preconditions
+                .iter()
+                .filter(|(pos, _)| *pos == branch.simulation_index)
+                .map(|(_, pre)| pre.clone())
+                .collect();
+            for pre in &action.preconditions {
+                if open_pre_for_current.contains(pre) {
+                    continue;
+                }
+                // Custom preconditions are evaluated in the open_pre loop above. If one is not
+                // in open_pre, find_candidates already confirmed it with the appropriate action
+                // bindings; re-evaluating it here could use a stale UpdatedSnapshots callback.
+                if matches!(pre, PreconditionSpec::Custom { .. }) {
+                    continue;
+                }
+                match eval_precondition(
+                    pre,
+                    &branch.current_agent,
+                    &branch.current_world,
+                    &self.ctx,
+                    node.callback_response.as_ref(),
+                    &current_bindings,
+                ) {
+                    StepResult::Ready(true) => {}
+                    StepResult::Ready(false) => {
+                        if branch.state == BranchState::Verifying {
+                            return StepResult::Invalid;
+                        }
+                    }
+                    StepResult::Pending(id) => return StepResult::Pending(id),
+                    StepResult::Invalid => return StepResult::Invalid,
+                    StepResult::Complete => {
+                        unreachable!("eval_precondition cannot return Complete")
+                    }
+                }
+            }
+        }
+
         let mut i = 0;
         while i < branch.open_preconditions.len() {
             if branch.open_preconditions[i].0 == branch.simulation_index {
@@ -667,6 +760,46 @@ impl PlannerEngine {
         // 2. Step simulation forward
         if branch.simulation_index < branch.action_chain.len() {
             let action_idx = branch.action_chain[branch.simulation_index];
+            let action = &self.ctx.actions[action_idx];
+            log_debug!(
+                "process_simulation sim_idx={} action={} open_pre={:?} open_req={:?}",
+                branch.simulation_index,
+                action.name,
+                branch
+                    .open_preconditions
+                    .iter()
+                    .map(|(p, s)| format!("{}:{}", p, s))
+                    .collect::<Vec<_>>(),
+                branch
+                    .open_requirements
+                    .iter()
+                    .map(|(p, r)| format!("{}:{}", p, r))
+                    .collect::<Vec<_>>()
+            );
+
+            // Requirements (e.g. at_target, binding constraints) are cleared during search
+            // when a predecessor is inserted, but we must still forward-validate them at the
+            // consumer action to catch chains where a Go To was not immediately before it.
+            if branch.state == BranchState::Verifying {
+                for req in &action.requirements {
+                    if !requirement_holds_in_state(
+                        req,
+                        &branch.current_agent,
+                        &branch.current_world,
+                        &current_bindings,
+                    ) {
+                        log_debug!(
+                            "process_simulation requirement failed sim_idx={} action={} req={} bindings={:?}",
+                            branch.simulation_index,
+                            action.name,
+                            req,
+                            current_bindings
+                        );
+                        return StepResult::Invalid;
+                    }
+                }
+            }
+
             match simulate_action(
                 action_idx,
                 SimArgs {
@@ -683,9 +816,30 @@ impl PlannerEngine {
                     branch.current_agent = res.agent;
                     branch.current_world = res.world;
 
-                    // Mark requirements satisfied by this action's provisions
+                    // Mark requirements satisfied by this action's provisions.
+                    // Wildcard facts must be concretized with the chain-position binding
+                    // so a single Go To does not clear every later at_target(...) need.
                     let action = &self.ctx.actions[action_idx];
-                    for prov in &action.provisions {
+                    let concrete_provisions: Vec<ProvisionSpec> = action
+                        .provisions
+                        .iter()
+                        .map(|prov| {
+                            if let ProvisionSpec::FactWildcard { fact_name } = prov {
+                                if let Some((_, values)) =
+                                    current_bindings.iter().find(|(name, _)| name == fact_name)
+                                {
+                                    if !values.is_empty() {
+                                        return ProvisionSpec::Fact {
+                                            fact_name: fact_name.clone(),
+                                            args: values.clone(),
+                                        };
+                                    }
+                                }
+                            }
+                            prov.clone()
+                        })
+                        .collect();
+                    for prov in &concrete_provisions {
                         branch.open_requirements.retain(|(pos, req)| {
                             !(*pos >= branch.simulation_index
                                 && provision_satisfies_requirement(

@@ -101,13 +101,15 @@ impl PreconditionHandler {
                 value: value.as_ref().map(VariantSnapshot::to_variant),
                 eval_callable: None,
             }),
-            PreconditionSpec::Custom { callable_id, .. } => registry.get(*callable_id).map(|c| Self {
-                target: PreconditionTarget::Agent,
-                operation: PreconditionOp::CustomCallback,
-                property_name: String::new(),
-                value: None,
-                eval_callable: Some(c.clone()),
-            }),
+            PreconditionSpec::Custom { callable_id, .. } => {
+                registry.get(*callable_id).map(|c| Self {
+                    target: PreconditionTarget::Agent,
+                    operation: PreconditionOp::CustomCallback,
+                    property_name: String::new(),
+                    value: None,
+                    eval_callable: Some(c.clone()),
+                })
+            }
         }
     }
 

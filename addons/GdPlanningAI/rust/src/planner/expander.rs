@@ -293,6 +293,7 @@ pub fn find_candidates(branch: &PlanBranch, ctx: &SearchContext) -> CandidatesRe
                         match get_discovery_result(idx, &bindings, ctx) {
                             StepResult::Ready(res) => {
                                 let mut satisfied_preconditions = Vec::new();
+                                let mut precond_pending_for_this_candidate = false;
                                 for (pre_idx, (_pos, pre)) in
                                     branch.open_preconditions.iter().enumerate()
                                 {
@@ -319,8 +320,9 @@ pub fn find_candidates(branch: &PlanBranch, ctx: &SearchContext) -> CandidatesRe
                                             ) {
                                                 some_pending = true;
                                                 last_pending_id = id;
+                                                precond_pending_for_this_candidate = true;
                                             }
-                                            if !some_pending {
+                                            if !precond_pending_for_this_candidate {
                                                 match eval_precondition(
                                                     pre, &res.agent, &res.world, ctx, None,
                                                     &bindings,
@@ -361,6 +363,7 @@ pub fn find_candidates(branch: &PlanBranch, ctx: &SearchContext) -> CandidatesRe
                                                         );
                                                         some_pending = true;
                                                         last_pending_id = id;
+                                                        precond_pending_for_this_candidate = true;
                                                     }
                                                     _ => {}
                                                 }
@@ -368,16 +371,18 @@ pub fn find_candidates(branch: &PlanBranch, ctx: &SearchContext) -> CandidatesRe
                                         }
                                     }
                                 }
-                                candidates.push(Candidate {
-                                    action_idx: idx,
-                                    satisfied_requirements: vec![(
-                                        req_idx,
-                                        req.clone(),
-                                        prov.clone(),
-                                    )],
-                                    satisfied_preconditions,
-                                    bindings,
-                                });
+                                if !precond_pending_for_this_candidate {
+                                    candidates.push(Candidate {
+                                        action_idx: idx,
+                                        satisfied_requirements: vec![(
+                                            req_idx,
+                                            req.clone(),
+                                            prov.clone(),
+                                        )],
+                                        satisfied_preconditions,
+                                        bindings,
+                                    });
+                                }
                             }
                             StepResult::Pending(id) => {
                                 some_pending = true;
@@ -494,6 +499,16 @@ pub fn find_candidates(branch: &PlanBranch, ctx: &SearchContext) -> CandidatesRe
                 _ => {}
             }
         }
+    }
+
+    if !candidates.is_empty() {
+        let names: Vec<String> = candidates
+            .iter()
+            .map(|c| ctx.actions[c.action_idx].name.clone())
+            .collect();
+        log_debug!("find_candidates ready: {:?}", names);
+    } else if !some_pending {
+        log_debug!("find_candidates ready empty and not pending");
     }
 
     CandidatesResult {

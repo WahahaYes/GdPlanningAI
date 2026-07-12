@@ -199,16 +199,23 @@ impl PlanBranch {
         self.cost = self.action_costs.iter().sum();
     }
 
-    /// Increments the chain position of all open needs and bindings by `delta`.
-    pub fn shift_positions(&mut self, delta: usize) {
+    /// Increments the chain position of all open needs and bindings at or after
+    /// `from` by `delta`.
+    pub fn shift_positions(&mut self, from: usize, delta: usize) {
         for (pos, _) in self.open_preconditions.iter_mut() {
-            *pos += delta;
+            if *pos >= from {
+                *pos += delta;
+            }
         }
         for (pos, _) in self.open_requirements.iter_mut() {
-            *pos += delta;
+            if *pos >= from {
+                *pos += delta;
+            }
         }
         for (pos, _, _) in self.action_bindings.iter_mut() {
-            *pos += delta;
+            if *pos >= from {
+                *pos += delta;
+            }
         }
     }
 }

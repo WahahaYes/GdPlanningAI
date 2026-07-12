@@ -283,6 +283,103 @@ pub fn extract_initial_provisions(
     provisions
 }
 
+/// Returns `true` if `requirement` is currently satisfied by the given `agent` and `world` state,
+/// optionally considering the `current_bindings` for the action being validated.
+///
+/// `current_bindings` are the per-chain-position bindings for the current action. For `Binding`
+/// requirements and the `at_target` fact, they represent the concrete value a predecessor action
+/// has promised. The actual `agent` state (e.g. `agent_location` position) is preferred for
+/// `at_target` so that a later Go To which moved the agent correctly invalidates an earlier one.
+/// If no state information is available, the bindings are used as a fallback so forward
+/// validation still works for actions whose `simulate_effect` does not explicitly set a property.
+pub fn requirement_holds_in_state(
+    requirement: &RequirementSpec,
+    agent: &crate::snapshot::BlackboardSnapshot,
+    world: &crate::snapshot::BlackboardSnapshot,
+    current_bindings: &[(String, Vec<crate::snapshot::VariantSnapshot>)],
+) -> bool {
+    match requirement {
+        RequirementSpec::BindingExists { binding_name } => {
+            if current_bindings
+                .iter()
+                .any(|(n, vals)| n == binding_name && !vals.is_empty())
+            {
+                return true;
+            }
+            agent
+                .properties
+                .get(binding_name)
+                .map_or(false, |v| !v.is_null() && !v.is_empty_string())
+        }
+        RequirementSpec::BindingEquals {
+            binding_name,
+            value,
+        } => {
+            if current_bindings
+                .iter()
+                .any(|(n, vals)| n == binding_name && vals.len() == 1 && &vals[0] == value)
+            {
+                return true;
+            }
+            agent
+                .properties
+                .get(binding_name)
+                .map_or(false, |v| v == value)
+        }
+        RequirementSpec::BindingInSet {
+            binding_name,
+            set_name,
+        } => {
+            if current_bindings.iter().any(|(n, vals)| {
+                n == binding_name
+                    && !vals.is_empty()
+                    && vals.first().map_or(false, |value| {
+                        if let crate::snapshot::VariantSnapshot::ObjectRef(id) = value {
+                            if let Some(obj_data) = world.get_object_by_instance_id(*id) {
+                                return obj_data.groups.contains(set_name);
+                            }
+                        }
+                        false
+                    })
+            }) {
+                return true;
+            }
+            agent.properties.get(binding_name).map_or(false, |value| {
+                if let crate::snapshot::VariantSnapshot::ObjectRef(id) = value {
+                    if let Some(obj_data) = world.get_object_by_instance_id(*id) {
+                        return obj_data.groups.contains(set_name);
+                    }
+                }
+                false
+            })
+        }
+        RequirementSpec::Fact { fact_name, args } => {
+            if fact_name == "at_target" && !args.is_empty() {
+                let target_pos = if let crate::snapshot::VariantSnapshot::ObjectRef(id) = &args[0] {
+                    world
+                        .get_object_by_instance_id(*id)
+                        .and_then(|obj| obj.properties.get("position"))
+                } else {
+                    None
+                };
+                let agent_loc = agent.get_object_by_group("GdPAILocationData");
+                let agent_pos = agent_loc.and_then(|obj| obj.properties.get("position"));
+                if let (Some(tp), Some(ap)) = (target_pos, agent_pos) {
+                    return tp == ap;
+                }
+                // No agent location state available; fall back to the bound value.
+                if let Some((_, vals)) = current_bindings.iter().find(|(n, _)| n == fact_name) {
+                    return vals == args;
+                }
+                return false;
+            }
+            // State-less or otherwise unknown facts cannot be validated here; assume true
+            // rather than rejecting plans. In practice these are covered by preconditions.
+            true
+        }
+    }
+}
+
 /// Returns `true` if a provision satisfies a requirement.
 pub fn provision_satisfies_requirement(
     provision: &ProvisionSpec,
@@ -373,4 +470,54 @@ fn extract_variant_snapshots(dict: &VarDictionary, key: &str) -> Vec<VariantSnap
                 .collect()
         })
         .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::snapshot::{BlackboardSnapshot, SimObjectData, VariantSnapshot};
+    use std::collections::HashMap;
+
+    #[test]
+    fn binding_in_set_checks_all_matching_bindings() {
+        let agent = BlackboardSnapshot {
+            properties: HashMap::new(),
+            objects: HashMap::new(),
+        };
+        let mut world = BlackboardSnapshot {
+            properties: HashMap::new(),
+            objects: HashMap::new(),
+        };
+        world.objects.insert(
+            "1".to_string(),
+            SimObjectData {
+                uid: "1".to_string(),
+                groups: vec!["weapon".to_string()],
+                properties: HashMap::new(),
+            },
+        );
+        world.objects.insert(
+            "2".to_string(),
+            SimObjectData {
+                uid: "2".to_string(),
+                groups: vec!["food".to_string()],
+                properties: HashMap::new(),
+            },
+        );
+
+        let current_bindings = vec![
+            ("held_item".to_string(), vec![VariantSnapshot::ObjectRef(1)]),
+            ("held_item".to_string(), vec![VariantSnapshot::ObjectRef(2)]),
+        ];
+
+        let req = RequirementSpec::BindingInSet {
+            binding_name: "held_item".to_string(),
+            set_name: "food".to_string(),
+        };
+
+        assert!(
+            requirement_holds_in_state(&req, &agent, &world, &current_bindings),
+            "BindingInSet should pass when any matching binding is in the requested set"
+        );
+    }
 }

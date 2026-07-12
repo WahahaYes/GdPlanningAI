@@ -143,6 +143,18 @@ pub struct BlackboardSnapshot {
 }
 
 impl BlackboardSnapshot {
+    /// Returns the first object that belongs to the given group, if any.
+    pub fn get_object_by_group(&self, group: &str) -> Option<&SimObjectData> {
+        self.objects
+            .values()
+            .find(|obj| obj.groups.contains(&group.to_string()))
+    }
+
+    /// Returns the object with the given Godot instance ID, if any.
+    pub fn get_object_by_instance_id(&self, id: i64) -> Option<&SimObjectData> {
+        self.objects.get(&id.to_string())
+    }
+
     /// Snapshot a live [`GdPAIBlackboard`]. **Must be called on the main thread.**
     pub fn from_blackboard(bb: &GdPAIBlackboard) -> Self {
         let properties = bb
