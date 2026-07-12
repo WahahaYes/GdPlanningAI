@@ -160,7 +160,7 @@ func _start_plan_async() -> void:
 
 	(
 		scheduler
-		.submit_plan(
+		. submit_plan(
 			self,
 			blackboard,
 			world_node.get_world_state(),
@@ -189,7 +189,12 @@ func _on_plan_ready(result: Dictionary) -> void:
 		if goal_index >= 0 and goal_index < goals.size():
 			_current_goal = goals[goal_index]
 		else:
-			push_error("GdPAIAgent: goal_index %d out of bounds (goals.size()=%d)" % [goal_index, goals.size()])
+			push_error(
+				(
+					"GdPAIAgent: goal_index %d out of bounds (goals.size()=%d)"
+					% [goal_index, goals.size()]
+				)
+			)
 			_current_goal = null
 	else:
 		_current_action_chain = []
