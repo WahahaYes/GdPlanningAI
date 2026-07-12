@@ -277,7 +277,7 @@ impl GdPAIPlanScheduler {
         let goal_satisfied = |goal: &GoalSpec| -> bool {
             goal.desired_state.iter().all(|pre| {
                 PreconditionHandler::from_spec(pre, &job_registry)
-                    .map_or(false, |h| h.evaluate(&agent_bb, &world_bb))
+                    .is_some_and(|h| h.evaluate(&agent_bb, &world_bb))
             })
         };
         for goal in &goal_specs {
