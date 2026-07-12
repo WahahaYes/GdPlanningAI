@@ -16,8 +16,8 @@ func compute_reward(_agent: GdPAIAgent) -> float:
 func get_desired_state(agent: GdPAIAgent) -> Array[Precondition]:
 	var agent_location_data: GdPAILocationData = (
 		agent
-		.blackboard
-		.get_node_in_group(
+		. blackboard
+		. get_node_in_group(
 			"GdPAILocationData",
 		)
 	)
