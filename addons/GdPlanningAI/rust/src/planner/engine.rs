@@ -865,15 +865,13 @@ fn concretize_wildcard_provision(
     prov: &ProvisionSpec,
     current_bindings: &[(String, Vec<VariantSnapshot>)],
 ) -> ProvisionSpec {
-    if let ProvisionSpec::FactWildcard { fact_name } = prov {
-        if let Some((_, values)) = current_bindings.iter().find(|(name, _)| name == fact_name) {
-            if !values.is_empty() {
+    if let ProvisionSpec::FactWildcard { fact_name } = prov
+        && let Some((_, values)) = current_bindings.iter().find(|(name, _)| name == fact_name)
+            && !values.is_empty() {
                 return ProvisionSpec::Fact {
                     fact_name: fact_name.clone(),
                     args: values.clone(),
                 };
             }
-        }
-    }
     prov.clone()
 }

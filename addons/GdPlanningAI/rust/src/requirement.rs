@@ -309,7 +309,7 @@ pub fn requirement_holds_in_state(
             agent
                 .properties
                 .get(binding_name)
-                .map_or(false, |v| !v.is_null() && !v.is_empty_string())
+                .is_some_and(|v| !v.is_null() && !v.is_empty_string())
         }
         RequirementSpec::BindingEquals {
             binding_name,
@@ -323,8 +323,7 @@ pub fn requirement_holds_in_state(
             }
             agent
                 .properties
-                .get(binding_name)
-                .map_or(false, |v| v == value)
+                .get(binding_name) == Some(value)
         }
         RequirementSpec::BindingInSet {
             binding_name,
@@ -333,23 +332,21 @@ pub fn requirement_holds_in_state(
             if current_bindings.iter().any(|(n, vals)| {
                 n == binding_name
                     && !vals.is_empty()
-                    && vals.first().map_or(false, |value| {
-                        if let crate::snapshot::VariantSnapshot::ObjectRef(id) = value {
-                            if let Some(obj_data) = world.get_object_by_instance_id(*id) {
+                    && vals.first().is_some_and(|value| {
+                        if let crate::snapshot::VariantSnapshot::ObjectRef(id) = value
+                            && let Some(obj_data) = world.get_object_by_instance_id(*id) {
                                 return obj_data.groups.contains(set_name);
                             }
-                        }
                         false
                     })
             }) {
                 return true;
             }
-            agent.properties.get(binding_name).map_or(false, |value| {
-                if let crate::snapshot::VariantSnapshot::ObjectRef(id) = value {
-                    if let Some(obj_data) = world.get_object_by_instance_id(*id) {
+            agent.properties.get(binding_name).is_some_and(|value| {
+                if let crate::snapshot::VariantSnapshot::ObjectRef(id) = value
+                    && let Some(obj_data) = world.get_object_by_instance_id(*id) {
                         return obj_data.groups.contains(set_name);
                     }
-                }
                 false
             })
         }
