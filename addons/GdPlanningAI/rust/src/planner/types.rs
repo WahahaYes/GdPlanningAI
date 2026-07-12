@@ -199,6 +199,19 @@ impl PlanBranch {
         self.cost = self.action_costs.iter().sum();
     }
 
+    /// Returns all action bindings associated with the given chain position,
+    /// collapsed into `(name, values)` pairs.
+    pub fn collect_bindings_for_position(
+        &self,
+        position: usize,
+    ) -> Vec<(String, Vec<VariantSnapshot>)> {
+        self.action_bindings
+            .iter()
+            .filter(|(pos, _, _)| *pos == position)
+            .map(|(_, name, vals)| (name.clone(), vals.clone()))
+            .collect()
+    }
+
     /// Increments the chain position of all open needs and bindings at or after
     /// `from` by `delta`.
     pub fn shift_positions(&mut self, from: usize, delta: usize) {

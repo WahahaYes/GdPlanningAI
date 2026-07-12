@@ -8,6 +8,7 @@ use crate::planner::types::SearchContext;
 use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
 
 /// The result of a single simulation step.
+#[derive(Debug, PartialEq)]
 pub enum StepResult<T> {
     Ready(T),
     Pending(usize),
@@ -16,6 +17,7 @@ pub enum StepResult<T> {
 }
 
 /// The result of a successful action simulation.
+#[derive(Clone, Debug, PartialEq)]
 pub struct SimResult {
     pub agent: BlackboardSnapshot,
     pub world: BlackboardSnapshot,

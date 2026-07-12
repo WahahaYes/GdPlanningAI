@@ -654,72 +654,126 @@ impl PlannerEngine {
     fn process_simulation(&mut self, node: &mut SearchNode) -> StepResult<()> {
         let branch = &mut node.branch;
 
-        // 0. Check open requirements for current index against InitialState or previous action
+        // 0. Initial-state bookkeeping at the start of the chain.
         if branch.simulation_index == 0 {
-            // InitialState provisions satisfy requirements at pos 0
-            branch.open_requirements.retain(|(pos, req)| {
-                !(*pos == 0
-                    && self.ctx.initial_provisions.iter().any(|prov| {
-                        provision_satisfies_requirement(prov, req, Some(&self.ctx.initial_world))
-                    }))
-            });
+            self.clear_initial_state_requirements(branch);
         }
 
-        // Gather bindings for current simulation_index
-        let current_bindings: Vec<(String, Vec<VariantSnapshot>)> = branch
-            .action_bindings
-            .iter()
-            .filter(|(pos, _, _)| *pos == branch.simulation_index)
-            .map(|(_, name, vals)| (name.clone(), vals.clone()))
-            .collect();
+        let current_bindings = branch.collect_bindings_for_position(branch.simulation_index);
 
         // 1. Check open preconditions for current index
         if branch.simulation_index < branch.action_chain.len() {
             let action_idx = branch.action_chain[branch.simulation_index];
             let action = &self.ctx.actions[action_idx];
 
-            // Pre-conditions that were satisfied by the initial state may not have been
-            // added to open_preconditions. Re-check the action's own preconditions against
-            // the current state so earlier actions that invalidate them are caught.
-            let open_pre_for_current: HashSet<PreconditionSpec> = branch
-                .open_preconditions
-                .iter()
-                .filter(|(pos, _)| *pos == branch.simulation_index)
-                .map(|(_, pre)| pre.clone())
-                .collect();
-            for pre in &action.preconditions {
-                if open_pre_for_current.contains(pre) {
-                    continue;
-                }
-                // Custom preconditions are evaluated in the open_pre loop above. If one is not
-                // in open_pre, find_candidates already confirmed it with the appropriate action
-                // bindings; re-evaluating it here could use a stale UpdatedSnapshots callback.
-                if matches!(pre, PreconditionSpec::Custom { .. }) {
-                    continue;
-                }
-                match eval_precondition(
-                    pre,
-                    &branch.current_agent,
-                    &branch.current_world,
-                    &self.ctx,
-                    node.callback_response.as_ref(),
-                    &current_bindings,
-                ) {
-                    StepResult::Ready(true) => {}
-                    StepResult::Ready(false) => {
-                        if branch.state == BranchState::Verifying {
-                            return StepResult::Invalid;
-                        }
-                    }
-                    StepResult::Pending(id) => return StepResult::Pending(id),
-                    StepResult::Invalid => return StepResult::Invalid,
-                    StepResult::Complete => {
-                        unreachable!("eval_precondition cannot return Complete")
-                    }
-                }
+            if let Some(result) = self.validate_action_against_current_state(
+                branch,
+                action,
+                &current_bindings,
+                node.callback_response.as_ref(),
+            ) {
+                return result;
             }
         }
 
+        if let Some(result) = self.evaluate_open_preconditions_for_position(
+            branch,
+            &current_bindings,
+            node.callback_response.as_ref(),
+        ) {
+            if matches!(result, StepResult::Ready(())) {
+                node.callback_response = None;
+            }
+            return result;
+        }
+
+        // 2. Simulate the current action or finalize the chain.
+        if branch.simulation_index < branch.action_chain.len() {
+            let action_idx = branch.action_chain[branch.simulation_index];
+            let action = &self.ctx.actions[action_idx];
+
+            let result = self.simulate_and_advance(
+                branch,
+                action_idx,
+                action,
+                &current_bindings,
+                node.callback_response.as_ref(),
+            );
+            if matches!(result, StepResult::Ready(())) {
+                node.callback_response = None;
+            }
+            return result;
+        }
+
+        let result = self.finalize_verified_branch(branch);
+        if matches!(result, StepResult::Ready(())) {
+            node.callback_response = None;
+        }
+        result
+    }
+
+    /// Removes position-0 open requirements that are already satisfied by the
+    /// initial state provisions.
+    pub fn clear_initial_state_requirements(&self, branch: &mut PlanBranch) {
+        branch.open_requirements.retain(|(pos, req)| {
+            !(*pos == 0
+                && self.ctx.initial_provisions.iter().any(|prov| {
+                    provision_satisfies_requirement(prov, req, Some(&self.ctx.initial_world))
+                }))
+        });
+    }
+
+    /// Re-evaluates an action's built-in preconditions against the current
+    /// simulated state. Returns `None` if no short-circuit is required.
+    pub fn validate_action_against_current_state(
+        &self,
+        branch: &PlanBranch,
+        action: &ActionSpec,
+        current_bindings: &[(String, Vec<VariantSnapshot>)],
+        callback_response: Option<&CallbackResponse>,
+    ) -> Option<StepResult<()>> {
+        let open_pre_for_current: HashSet<PreconditionSpec> = branch
+            .open_preconditions
+            .iter()
+            .filter(|(pos, _)| *pos == branch.simulation_index)
+            .map(|(_, pre)| pre.clone())
+            .collect();
+
+        for pre in &action.preconditions {
+            if open_pre_for_current.contains(pre) || matches!(pre, PreconditionSpec::Custom { .. })
+            {
+                continue;
+            }
+            match eval_precondition(
+                pre,
+                &branch.current_agent,
+                &branch.current_world,
+                &self.ctx,
+                callback_response,
+                current_bindings,
+            ) {
+                StepResult::Ready(true) => {}
+                StepResult::Ready(false) => {
+                    if branch.state == BranchState::Verifying {
+                        return Some(StepResult::Invalid);
+                    }
+                }
+                StepResult::Pending(id) => return Some(StepResult::Pending(id)),
+                StepResult::Invalid => return Some(StepResult::Invalid),
+                StepResult::Complete => unreachable!("eval_precondition cannot return Complete"),
+            }
+        }
+        None
+    }
+
+    /// Evaluates open preconditions at the current chain position, removing the
+    /// first satisfied one and returning `Ready` to keep async processing safe.
+    pub fn evaluate_open_preconditions_for_position(
+        &self,
+        branch: &mut PlanBranch,
+        current_bindings: &[(String, Vec<VariantSnapshot>)],
+        callback_response: Option<&CallbackResponse>,
+    ) -> Option<StepResult<()>> {
         let mut i = 0;
         while i < branch.open_preconditions.len() {
             if branch.open_preconditions[i].0 == branch.simulation_index {
@@ -728,27 +782,20 @@ impl PlannerEngine {
                     &branch.current_agent,
                     &branch.current_world,
                     &self.ctx,
-                    node.callback_response.as_ref(),
-                    &current_bindings,
+                    callback_response,
+                    current_bindings,
                 ) {
                     StepResult::Ready(true) => {
                         branch.open_preconditions.remove(i);
-                        node.callback_response = None;
-                        // We satisfied one precond. Instead of looping, we return Ready
-                        // so the engine re-queues us and we check the next one in the next iteration.
-                        // This is slightly slower but MUCH safer for async.
-                        return StepResult::Ready(());
+                        return Some(StepResult::Ready(()));
                     }
                     StepResult::Ready(false) => {
-                        // During Verifying, a false precondition means the chain is invalid.
-                        // During Searching, a false precondition just stays open to be satisfied
-                        // by a predecessor action.
                         if branch.state == BranchState::Verifying {
-                            return StepResult::Invalid;
+                            return Some(StepResult::Invalid);
                         }
                     }
-                    StepResult::Pending(id) => return StepResult::Pending(id),
-                    StepResult::Invalid => return StepResult::Invalid,
+                    StepResult::Pending(id) => return Some(StepResult::Pending(id)),
+                    StepResult::Invalid => return Some(StepResult::Invalid),
                     StepResult::Complete => {
                         unreachable!("eval_precondition cannot return Complete")
                     }
@@ -756,166 +803,179 @@ impl PlannerEngine {
             }
             i += 1;
         }
+        None
+    }
 
-        // 2. Step simulation forward
-        if branch.simulation_index < branch.action_chain.len() {
-            let action_idx = branch.action_chain[branch.simulation_index];
-            let action = &self.ctx.actions[action_idx];
-            log_debug!(
-                "process_simulation sim_idx={} action={} open_pre={:?} open_req={:?}",
-                branch.simulation_index,
-                action.name,
-                branch
-                    .open_preconditions
-                    .iter()
-                    .map(|(p, s)| format!("{}:{}", p, s))
-                    .collect::<Vec<_>>(),
-                branch
-                    .open_requirements
-                    .iter()
-                    .map(|(p, r)| format!("{}:{}", p, r))
-                    .collect::<Vec<_>>()
-            );
+    /// Simulates the current action, validates its requirements, clears later
+    /// requirements satisfied by its provisions, and advances the simulation index.
+    pub fn simulate_and_advance(
+        &self,
+        branch: &mut PlanBranch,
+        action_idx: usize,
+        action: &ActionSpec,
+        current_bindings: &[(String, Vec<VariantSnapshot>)],
+        callback_response: Option<&CallbackResponse>,
+    ) -> StepResult<()> {
+        log_debug!(
+            "process_simulation sim_idx={} action={} open_pre={:?} open_req={:?}",
+            branch.simulation_index,
+            action.name,
+            branch
+                .open_preconditions
+                .iter()
+                .map(|(p, s)| format!("{}:{}", p, s))
+                .collect::<Vec<_>>(),
+            branch
+                .open_requirements
+                .iter()
+                .map(|(p, r)| format!("{}:{}", p, r))
+                .collect::<Vec<_>>()
+        );
 
-            // Requirements (e.g. at_target, binding constraints) are cleared during search
-            // when a predecessor is inserted, but we must still forward-validate them at the
-            // consumer action to catch chains where a Go To was not immediately before it.
-            if branch.state == BranchState::Verifying {
-                for req in &action.requirements {
-                    if !requirement_holds_in_state(
+        if branch.state == BranchState::Verifying {
+            for req in &action.requirements {
+                if !requirement_holds_in_state(
+                    req,
+                    &branch.current_agent,
+                    &branch.current_world,
+                    current_bindings,
+                ) {
+                    log_debug!(
+                        "process_simulation requirement failed sim_idx={} action={} req={} bindings={:?}",
+                        branch.simulation_index,
+                        action.name,
                         req,
-                        &branch.current_agent,
-                        &branch.current_world,
-                        &current_bindings,
-                    ) {
-                        log_debug!(
-                            "process_simulation requirement failed sim_idx={} action={} req={} bindings={:?}",
-                            branch.simulation_index,
-                            action.name,
-                            req,
-                            current_bindings
-                        );
-                        return StepResult::Invalid;
-                    }
+                        current_bindings
+                    );
+                    return StepResult::Invalid;
                 }
             }
+        }
 
-            match simulate_action(
-                action_idx,
-                SimArgs {
-                    agent: &branch.current_agent,
-                    world: &branch.current_world,
-                    ctx: &self.ctx,
-                    response: node.callback_response.as_ref(),
-                    branch_action_costs: &mut branch.action_costs,
-                    simulation_index: branch.simulation_index,
-                    bindings: &current_bindings,
-                },
-            ) {
-                StepResult::Ready(res) => {
-                    branch.current_agent = res.agent;
-                    branch.current_world = res.world;
+        match simulate_action(
+            action_idx,
+            SimArgs {
+                agent: &branch.current_agent,
+                world: &branch.current_world,
+                ctx: &self.ctx,
+                response: callback_response,
+                branch_action_costs: &mut branch.action_costs,
+                simulation_index: branch.simulation_index,
+                bindings: current_bindings,
+            },
+        ) {
+            StepResult::Ready(res) => {
+                branch.current_agent = res.agent;
+                branch.current_world = res.world;
 
-                    // Mark requirements satisfied by this action's provisions.
-                    // Wildcard facts must be concretized with the chain-position binding
-                    // so a single Go To does not clear every later at_target(...) need.
-                    let action = &self.ctx.actions[action_idx];
-                    let concrete_provisions: Vec<ProvisionSpec> = action
-                        .provisions
-                        .iter()
-                        .map(|prov| {
-                            if let ProvisionSpec::FactWildcard { fact_name } = prov {
-                                if let Some((_, values)) =
-                                    current_bindings.iter().find(|(name, _)| name == fact_name)
-                                {
-                                    if !values.is_empty() {
-                                        return ProvisionSpec::Fact {
-                                            fact_name: fact_name.clone(),
-                                            args: values.clone(),
-                                        };
-                                    }
-                                }
-                            }
-                            prov.clone()
-                        })
-                        .collect();
-                    for prov in &concrete_provisions {
-                        branch.open_requirements.retain(|(pos, req)| {
-                            !(*pos >= branch.simulation_index
-                                && provision_satisfies_requirement(
-                                    prov,
-                                    req,
-                                    Some(&branch.current_world),
-                                ))
-                        });
-                    }
+                self.clear_requirements_from_provisions(branch, action_idx, current_bindings);
 
-                    branch.simulation_index += 1;
-                    branch.recalculate_cost();
-                    node.callback_response = None;
-                    StepResult::Ready(())
-                }
-                StepResult::Pending(id) => StepResult::Pending(id),
-                StepResult::Invalid => StepResult::Invalid,
-                StepResult::Complete => unreachable!("simulate_action cannot return Complete"),
+                branch.simulation_index += 1;
+                branch.recalculate_cost();
+                StepResult::Ready(())
             }
-        } else {
-            // Reached end of chain
-            match branch.state {
-                BranchState::Verifying => {
-                    // Final success!
-                    // Ensure no preconditions or requirements remain open anywhere in the chain
-                    if !branch.open_preconditions.is_empty() {
-                        self.tree.set_outcome(
-                            branch.tree_node_id,
-                            NodeOutcome::Pruned {
-                                reason: "Unsatisfied preconditions remain".to_string(),
-                            },
-                        );
-                        return StepResult::Invalid;
-                    }
-
-                    if !branch.open_requirements.is_empty() {
-                        self.tree.set_outcome(
-                            branch.tree_node_id,
-                            NodeOutcome::Pruned {
-                                reason: "Unsatisfied requirements remain".to_string(),
-                            },
-                        );
-                        return StepResult::Invalid;
-                    }
-
-                    if branch.cost < self.best_cost {
-                        self.tree.set_outcome(
-                            branch.tree_node_id,
-                            NodeOutcome::Complete {
-                                chain_len: branch.action_chain.len(),
-                                total_cost: branch.cost,
-                                fwd_ok: true,
-                            },
-                        );
-                        self.best_cost = branch.cost;
-                        self.best_plan = Some(PlanResult {
-                            success: true,
-                            action_chain: branch.action_chain.iter().map(|&i| i as i64).collect(),
-                            total_cost: branch.cost,
-                            goal_index: branch.goal_index as i64,
-                            deferred_action_indices: vec![],
-                            action_bindings: branch
-                                .action_bindings
-                                .iter()
-                                .map(|(pos, name, vals)| (*pos as i64, name.clone(), vals.clone()))
-                                .collect(),
-                        });
-                    }
-
-                    return StepResult::Complete;
-                }
-                BranchState::Searching => {}
-            }
-
-            node.callback_response = None;
-            StepResult::Ready(())
+            StepResult::Pending(id) => StepResult::Pending(id),
+            StepResult::Invalid => StepResult::Invalid,
+            StepResult::Complete => unreachable!("simulate_action cannot return Complete"),
         }
     }
+
+    /// Clears later open requirements that are satisfied by the current action's
+    /// provisions, concretizing wildcard facts with the chain-position binding.
+    pub fn clear_requirements_from_provisions(
+        &self,
+        branch: &mut PlanBranch,
+        action_idx: usize,
+        current_bindings: &[(String, Vec<VariantSnapshot>)],
+    ) {
+        let action = &self.ctx.actions[action_idx];
+        let concrete_provisions: Vec<ProvisionSpec> = action
+            .provisions
+            .iter()
+            .map(|prov| concretize_wildcard_provision(prov, current_bindings))
+            .collect();
+
+        for prov in &concrete_provisions {
+            branch.open_requirements.retain(|(pos, req)| {
+                !(*pos >= branch.simulation_index
+                    && provision_satisfies_requirement(prov, req, Some(&branch.current_world)))
+            });
+        }
+    }
+
+    /// Handles the end of the action chain, pruning remaining open needs or
+    /// recording the branch as the best plan found so far.
+    pub fn finalize_verified_branch(&mut self, branch: &mut PlanBranch) -> StepResult<()> {
+        match branch.state {
+            BranchState::Verifying => {
+                if !branch.open_preconditions.is_empty() {
+                    self.tree.set_outcome(
+                        branch.tree_node_id,
+                        NodeOutcome::Pruned {
+                            reason: "Unsatisfied preconditions remain".to_string(),
+                        },
+                    );
+                    return StepResult::Invalid;
+                }
+
+                if !branch.open_requirements.is_empty() {
+                    self.tree.set_outcome(
+                        branch.tree_node_id,
+                        NodeOutcome::Pruned {
+                            reason: "Unsatisfied requirements remain".to_string(),
+                        },
+                    );
+                    return StepResult::Invalid;
+                }
+
+                if branch.cost < self.best_cost {
+                    self.tree.set_outcome(
+                        branch.tree_node_id,
+                        NodeOutcome::Complete {
+                            chain_len: branch.action_chain.len(),
+                            total_cost: branch.cost,
+                            fwd_ok: true,
+                        },
+                    );
+                    self.best_cost = branch.cost;
+                    self.best_plan = Some(PlanResult {
+                        success: true,
+                        action_chain: branch.action_chain.iter().map(|&i| i as i64).collect(),
+                        total_cost: branch.cost,
+                        goal_index: branch.goal_index as i64,
+                        deferred_action_indices: vec![],
+                        action_bindings: branch
+                            .action_bindings
+                            .iter()
+                            .map(|(pos, name, vals)| (*pos as i64, name.clone(), vals.clone()))
+                            .collect(),
+                    });
+                }
+
+                StepResult::Complete
+            }
+            BranchState::Searching => StepResult::Ready(()),
+        }
+    }
+}
+
+/// Concretizes a [`ProvisionSpec::FactWildcard`] using the current chain-position binding.
+///
+/// If the provision is not a wildcard, or no binding exists for the wildcard fact name,
+/// the original provision is returned unchanged.
+fn concretize_wildcard_provision(
+    prov: &ProvisionSpec,
+    current_bindings: &[(String, Vec<VariantSnapshot>)],
+) -> ProvisionSpec {
+    if let ProvisionSpec::FactWildcard { fact_name } = prov {
+        if let Some((_, values)) = current_bindings.iter().find(|(name, _)| name == fact_name) {
+            if !values.is_empty() {
+                return ProvisionSpec::Fact {
+                    fact_name: fact_name.clone(),
+                    args: values.clone(),
+                };
+            }
+        }
+    }
+    prov.clone()
 }

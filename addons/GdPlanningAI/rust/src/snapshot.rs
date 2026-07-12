@@ -124,7 +124,7 @@ impl VariantSnapshot {
 }
 
 /// Send-safe mirror of [`SimObjectProxy`].
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SimObjectData {
     pub uid: String,
     pub groups: Vec<String>,
@@ -136,7 +136,7 @@ pub struct SimObjectData {
 /// The planner thread operates exclusively on these. The
 /// `GDPAI_OBJECTS` key is excluded from `properties`; world objects live
 /// in `objects` as [`SimObjectData`].
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BlackboardSnapshot {
     pub properties: HashMap<String, VariantSnapshot>,
     pub objects: HashMap<String, SimObjectData>,
