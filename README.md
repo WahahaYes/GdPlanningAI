@@ -148,6 +148,13 @@ The debugger still lacks some useful features, like listing preconditions or the
 
 The `examples/` folder contains demonstration scenes. See `examples/README.md` for setup instructions and detailed documentation.
 
+**Quick start:**
+- **`hunger_basic_2d.tscn`** — Single agent foraging (simplest)
+- **`campfire_2d.tscn`** — Multi-goal: maintain campfire + manage hunger (shows Requirements/Provisions, GoTo chaining, object actions)
+- **`hunger_multi_agent_2d.tscn`** — Multiple competing agents
+- **`hunger_stress_test_2d.tscn`** — Performance test with many agents
+- **`campfire_3d.tscn`** — 3D version of campfire demo
+
 ### License
 
 GdPlanningAI, Copyright 2025 Ethan Wilson

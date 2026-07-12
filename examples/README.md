@@ -30,7 +30,24 @@
   - Many agents (configurable spawner)
   - Tests planning engine performance under load
 
+- **`campfire_2d.tscn`** — Multi-goal planning with object interactions
+  - Agent maintains campfire fuel while managing hunger
+  - Demonstrates Requirements/Provisions, GoToAction chaining, and object-provided actions
+  - Uses `CampfireBehaviorConfig` + `HungerBehaviorConfig` combined
+
 **To run:** Open any `.tscn` file at `examples/` root and press **Play Scene** (F6)
+
+---
+
+### 3D Demos
+
+**Navigate to:** `examples/` (root level)
+
+- **`campfire_3d.tscn`** — 3D version of the campfire demo
+  - Same multi-goal logic in a 3D scene
+  - Uses 3D navigation and prefabs
+
+**To run:** Open `campfire_3d.tscn` and press **Play Scene** (F6)
 
 ---
 
@@ -56,8 +73,13 @@
 |---|---|
 | `behaviors/hunger/` | `Goal`, `PropertyUpdater`, `GdPAIBehaviorConfig` |
 | `behaviors/wander/` | `Goal`, `Action`, `GdPAIBehaviorConfig` |
+| `behaviors/campfire/` | `Goal`, `Action`, `GdPAIBehaviorConfig` (multi-goal with Hunger) |
 | `objects/food/` | `GdPAIObjectData`, interaction actions |
 | `objects/fruit_tree/` | `GdPAIObjectData`, interaction actions, validity checks with external state |
+| `objects/wood_pile/` | `GdPAIObjectData`, `PickUpWoodAction`, Requirements/Provisions |
+| `objects/holdable/` | `GdPAIObjectData`, `PickupAction`, `DropItemAction` |
+| `objects/campfire/` | `GdPAIObjectData`, `AddFuelAction`, `CookPotatoAction`, `CampfireRuntime` |
+| `objects/potato/` | `GdPAIObjectData`, `DigPotatoAction` |
 
 ---
 
