@@ -57,8 +57,36 @@ sync-docs: ## Copy README and LICENSE from root to addon directory
 ##@ Editor
 
 .PHONY: launch-editor
-launch-editor: ## Launch the Godot editor with this project
-	godot --editor --path .
+launch-editor: ## Launch the Godot editor with this project (uses godotenv pinned version if available)
+	@if command -v godotenv >/dev/null 2>&1; then \
+		echo "Using godotenv pinned Godot version..."; \
+		$$(godotenv godot env get) --editor --path .; \
+	else \
+		echo "Warning: godotenv not found, falling back to system godot"; \
+		godot --editor --path .; \
+	fi
+
+##@ Addons
+
+.PHONY: addons-install
+addons-install: ## Install Godot addons from addons.jsonc
+	godotenv addons install
+
+##@ Godot Version
+
+.PHONY: godot-pin
+godot-pin: ## Pin current Godot version to .godotrc (uses godotenv)
+	godotenv godot pin
+
+.PHONY: godot-pin-version
+godot-pin-version: ## Pin specific Godot version (usage: make godot-pin-version VERSION=4.6-stable)
+	@if [ -z "$(VERSION)" ]; then echo "Usage: make godot-pin-version VERSION=4.6-stable"; exit 1; fi
+	godotenv godot use $(VERSION) --no-dotnet
+	godotenv godot pin
+
+.PHONY: godot-install-pinned
+godot-install-pinned: ## Install the pinned Godot version (uses godotenv)
+	godotenv godot install --no-dotnet
 
 ##@ Help
 
