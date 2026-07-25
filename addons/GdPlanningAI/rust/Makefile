@@ -9,19 +9,31 @@ TARGET_DIR = $(RUST_DIR)/target
 build-release: ## Build release binary for current platform
 	@cargo build --release --quiet --message-format=short
 	@echo "Copying release binary for current platform..."
-	@mkdir -p $(BIN_DIR)/linux 2>/dev/null || true
-	@mkdir -p $(BIN_DIR)/windows 2>/dev/null || true
-	@cp $(TARGET_DIR)/release/*.so $(BIN_DIR)/linux/ 2>/dev/null || true
-	@cp $(TARGET_DIR)/release/*.dll $(BIN_DIR)/windows/
+	@if [ "$$(uname -s)" = "Linux" ]; then \
+		mkdir -p $(BIN_DIR)/linux && \
+		cp $(TARGET_DIR)/release/*.so $(BIN_DIR)/linux/; \
+	elif [ "$$(uname -s)" = "Darwin" ]; then \
+		mkdir -p $(BIN_DIR)/macos && \
+		cp $(TARGET_DIR)/release/*.dylib $(BIN_DIR)/macos/; \
+	else \
+		mkdir -p $(BIN_DIR)/windows && \
+		cp $(TARGET_DIR)/release/*.dll $(BIN_DIR)/windows/; \
+	fi
 
 .PHONY: build-debug
 build-debug: ## Build debug binary for current platform
 	@cargo build --quiet --message-format=short
 	@echo "Copying debug binary for current platform..."
-	@mkdir -p $(BIN_DIR)/linux 2>/dev/null || true
-	@mkdir -p $(BIN_DIR)/windows 2>/dev/null || true
-	@cp $(TARGET_DIR)/debug/*.so $(BIN_DIR)/linux/ 2>/dev/null || true
-	@cp $(TARGET_DIR)/debug/*.dll $(BIN_DIR)/windows/ 2>/dev/null || true
+	@if [ "$$(uname -s)" = "Linux" ]; then \
+		mkdir -p $(BIN_DIR)/linux && \
+		cp $(TARGET_DIR)/debug/*.so $(BIN_DIR)/linux/; \
+	elif [ "$$(uname -s)" = "Darwin" ]; then \
+		mkdir -p $(BIN_DIR)/macos && \
+		cp $(TARGET_DIR)/debug/*.dylib $(BIN_DIR)/macos/; \
+	else \
+		mkdir -p $(BIN_DIR)/windows && \
+		cp $(TARGET_DIR)/debug/*.dll $(BIN_DIR)/windows/; \
+	fi
 
 .PHONY: build-all
 build-all: ## Build for all supported platforms
