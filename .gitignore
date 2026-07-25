@@ -17,6 +17,7 @@ mono_crash.*.json
 
 # General ignores
 .DS_Store
+.omo/
 
 # IDE ignores
 .vscode/
@@ -27,3 +28,6 @@ addons/gut/
 
 # Logs and generated output
 *.log
+addons/*
+!addons/.editorconfig
+.addons/*
