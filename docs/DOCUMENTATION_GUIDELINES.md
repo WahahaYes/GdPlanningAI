@@ -5,29 +5,29 @@ Code documentation standards for GdPlanningAI.
 ## General Principles
 
 ### No Decorative Comment Headers
-Never use comment borders as section headers in any language.  If a file is large
-enough to need section headers, consider splitting it into smaller files.
 
-GDScript (bad):
+Never use comment borders as section headers in any language. If a file is large enough to need section headers, consider splitting it into smaller files.
+
+**GDScript (bad):**
 ```gdscript
 # ---------------------------------------------------------------------------
 # Section Name
 # ---------------------------------------------------------------------------
 ```
 
-GDScript (good):
+**GDScript (good):**
 ```gdscript
 ## Brief description of section purpose.
 ```
 
-Rust (bad):
+**Rust (bad):**
 ```rust
 // ---------------------------------------------------------------------------
 // Section Name
 // ---------------------------------------------------------------------------
 ```
 
-Rust (good):
+**Rust (good):**
 ```rust
 /// Module or item documentation.
 ```
@@ -39,6 +39,7 @@ Keep comments purposeful. Use docstrings for documentation, simple comments for 
 ## GDScript
 
 ### Class Documentation
+
 Place `##` docstring immediately after `class_name`/`extends`. Use `[ClassName]` to link related classes. Use `[br]` for paragraph breaks.
 
 ```gdscript
@@ -50,6 +51,7 @@ extends Action
 ```
 
 ### Variable Declarations
+
 Always use explicit type annotations. Never use type inference (`:=`).
 
 ```gdscript
@@ -59,6 +61,7 @@ var agent_name: String = ""
 ```
 
 ### Variable Documentation
+
 Document `@export` and significant non-exported variables with `##` directly above. Describe semantic meaning, not implementation.
 
 ```gdscript
@@ -70,6 +73,7 @@ var is_on_cooldown: bool = false
 ```
 
 ### Function Documentation
+
 All functions get `##` docstrings. Use `[param name]` for parameters, `[code]...[/code]` for inline code, `[b]...[/b]` for critical constraints.
 
 ```gdscript
@@ -79,13 +83,14 @@ All functions get `##` docstrings. Use `[param name]` for parameters, `[code]...
 ##[br]
 ## [b]Do not use await from this method.[/b]
 func get_action_cost(
-		_agent_blackboard: GdPAIBlackboard,
-		_world_state: GdPAIBlackboard,
+	_agent_blackboard: GdPAIBlackboard,
+	_world_state: GdPAIBlackboard,
 ) -> float:
 	return 0
 ```
 
 ### Function Spacing
+
 Two blank lines between function definitions.
 
 ```gdscript
@@ -100,6 +105,7 @@ func second() -> void:
 ```
 
 ### Override Annotations
+
 Mark abstract base class method implementations with `# Override`. Use for contractual overrides like `Action.get_action_cost()` or `Goal.compute_reward()`.
 
 ```gdscript
@@ -113,6 +119,7 @@ func get_provided_actions() -> Array[Action]:
 ## Rust
 
 ### Module Documentation
+
 Use `//!` at file top. Describe purpose and public interface.
 
 ```rust
@@ -122,6 +129,7 @@ Use `//!` at file top. Describe purpose and public interface.
 ```
 
 ### Type Documentation
+
 Use `///` for structs, enums, functions. Cross-reference with ``[`TypeName`]``.
 
 ```rust
@@ -135,6 +143,7 @@ pub struct ActionData {
 ```
 
 ### Function Documentation
+
 Reference types with ``[`TypeName`]``. Document parameter semantics.
 
 ```rust
@@ -147,11 +156,13 @@ pub fn run_plan(
 ```
 
 ### Naming Conventions
+
 - Types: `PascalCase` (`ActionData`, `PlanResult`)
 - Functions/variables: `snake_case` (`run_plan`, `cost_callable`)
 - Constants: `SCREAMING_SNAKE_CASE`
 
 ### Visibility
+
 Explicit `pub` or private. Prefer private by default.
 
 ---
