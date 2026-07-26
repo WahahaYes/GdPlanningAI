@@ -49,6 +49,75 @@ pub struct TreeNode {
     pub children: Vec<usize>,
 }
 
+/// Builder for TreeNode child creation to reduce argument count.
+#[derive(Debug, Default)]
+pub struct ChildNodeBuilder {
+    action_name: Option<String>,
+    estimated_cost: f64,
+    accumulated_cost: f64,
+    open_preconditions: Vec<String>,
+    open_requirements: Vec<String>,
+    satisfied_preconditions: Vec<String>,
+    satisfied_requirements: Vec<String>,
+}
+
+impl ChildNodeBuilder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn action_name(mut self, name: impl Into<String>) -> Self {
+        self.action_name = Some(name.into());
+        self
+    }
+
+    pub fn estimated_cost(mut self, cost: f64) -> Self {
+        self.estimated_cost = cost;
+        self
+    }
+
+    pub fn accumulated_cost(mut self, cost: f64) -> Self {
+        self.accumulated_cost = cost;
+        self
+    }
+
+    pub fn open_preconditions(mut self, pre: Vec<String>) -> Self {
+        self.open_preconditions = pre;
+        self
+    }
+
+    pub fn open_requirements(mut self, req: Vec<String>) -> Self {
+        self.open_requirements = req;
+        self
+    }
+
+    pub fn satisfied_preconditions(mut self, pre: Vec<String>) -> Self {
+        self.satisfied_preconditions = pre;
+        self
+    }
+
+    pub fn satisfied_requirements(mut self, req: Vec<String>) -> Self {
+        self.satisfied_requirements = req;
+        self
+    }
+
+    pub fn build(self) -> TreeNode {
+        TreeNode {
+            action_name: self.action_name,
+            estimated_cost: self.estimated_cost,
+            accumulated_cost: self.accumulated_cost,
+            open_preconditions: self.open_preconditions,
+            open_requirements: self.open_requirements,
+            satisfied_preconditions: self.satisfied_preconditions,
+            satisfied_requirements: self.satisfied_requirements,
+            excluded_actions: Vec::new(),
+            outcome: NodeOutcome::Expanded,
+            forward_validation: Vec::new(),
+            children: Vec::new(),
+        }
+    }
+}
+
 /// An action that was considered but excluded from candidates.
 #[derive(Clone, Debug)]
 pub struct ExcludedAction {
@@ -83,6 +152,18 @@ pub struct FwdStep {
 }
 
 // ── ID-based tree builder ──────────────────────────────────────────
+
+/// Configuration for creating a child node.
+#[derive(Debug, Default)]
+pub struct ChildNodeConfig<'a> {
+    pub action_name: &'a str,
+    pub estimated_cost: f64,
+    pub accumulated_cost: f64,
+    pub open_pre: &'a [String],
+    pub open_req: &'a [String],
+    pub satisfied_pre: &'a [String],
+    pub satisfied_req: &'a [String],
+}
 
 /// Structured debug tree builder for planning search visualization.
 pub struct TreeDump {
@@ -170,9 +251,9 @@ impl TreeDump {
             ga.plan_actions = plan_actions.to_vec();
             ga.plan_cost = plan_cost;
         }
-    }
+}
 
-    // ── Node-level operations ──────────────────────────────────────
+// ── Node-level operations ──────────────────────────────────────
 
     /// Create the root node for the current goal. Returns the node ID.
     /// Must be called after `begin_goal`.
@@ -201,29 +282,19 @@ impl TreeDump {
     }
 
     /// Add a child node under `parent_id`. Returns the new node's ID.
-    pub fn add_child(
-        &mut self,
-        parent_id: usize,
-        action_name: &str,
-        estimated_cost: f64,
-        accumulated_cost: f64,
-        open_pre: &[String],
-        open_req: &[String],
-        satisfied_pre: &[String],
-        satisfied_req: &[String],
-    ) -> usize {
+    pub fn add_child(&mut self, parent_id: usize, config: ChildNodeConfig<'_>) -> usize {
         if !self.enabled {
             return 0;
         }
         let child_id = self.nodes.len();
         self.nodes.push(TreeNode {
-            action_name: Some(action_name.to_string()),
-            estimated_cost,
-            accumulated_cost,
-            open_preconditions: open_pre.to_vec(),
-            open_requirements: open_req.to_vec(),
-            satisfied_preconditions: satisfied_pre.to_vec(),
-            satisfied_requirements: satisfied_req.to_vec(),
+            action_name: Some(config.action_name.to_string()),
+            estimated_cost: config.estimated_cost,
+            accumulated_cost: config.accumulated_cost,
+            open_preconditions: config.open_pre.to_vec(),
+            open_requirements: config.open_req.to_vec(),
+            satisfied_preconditions: config.satisfied_pre.to_vec(),
+            satisfied_requirements: config.satisfied_req.to_vec(),
             excluded_actions: Vec::new(),
             outcome: NodeOutcome::Expanded,
             forward_validation: Vec::new(),

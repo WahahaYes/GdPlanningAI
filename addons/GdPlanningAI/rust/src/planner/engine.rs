@@ -439,13 +439,15 @@ impl PlannerEngine {
 
                         new_branch.tree_node_id = self.tree.add_child(
                             node.branch.tree_node_id,
-                            &action.name,
-                            discovery_cost,
-                            node.branch.cost + discovery_cost,
-                            &open_pre,
-                            &open_req,
-                            &satisfied_pre,
-                            &satisfied_req,
+                            crate::debug_tree::ChildNodeConfig {
+                                action_name: &action.name,
+                                estimated_cost: discovery_cost,
+                                accumulated_cost: node.branch.cost + discovery_cost,
+                                open_pre: &open_pre,
+                                open_req: &open_req,
+                                satisfied_pre: &satisfied_pre,
+                                satisfied_req: &satisfied_req,
+                            },
                         );
 
                         // Reset search state for the new branch

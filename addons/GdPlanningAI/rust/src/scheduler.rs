@@ -234,6 +234,7 @@ impl GdPAIPlanScheduler {
 
     /// Submit a planning job for `agent`.
     #[func]
+    #[allow(clippy::too_many_arguments)]
     fn submit_plan(
         &mut self,
         agent: Gd<Object>,
