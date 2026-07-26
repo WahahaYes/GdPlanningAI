@@ -4,37 +4,7 @@
 //! correct tree with proper parent-child relationships, outcomes,
 //! excluded actions, and forward-validation steps.
 
-use gdplanningai_rust::debug_tree::{ChildNodeConfig, NodeOutcome, TreeDump, TreeNode};
-
-// ── Helpers ────────────────────────────────────────────────────────
-
-fn assert_node(node: &TreeNode, expected_name: Option<&str>, expected_children: usize) {
-    assert_eq!(
-        node.action_name.as_deref(),
-        expected_name,
-        "wrong action_name"
-    );
-    assert_eq!(
-        node.children.len(),
-        expected_children,
-        "wrong child count for {:?}",
-        node.action_name
-    );
-}
-
-fn assert_outcome_pruned(node: &TreeNode, reason_contains: &str) {
-    match &node.outcome {
-        NodeOutcome::Pruned { reason } => {
-            assert!(
-                reason.contains(reason_contains),
-                "prune reason '{}' does not contain '{}'",
-                reason,
-                reason_contains
-            );
-        }
-        other => panic!("expected Pruned, got {:?}", other),
-    }
-}
+use gdplanningai_rust::debug_tree::{ChildNodeConfig, NodeOutcome, TreeDump};
 
 // ── Tests ──────────────────────────────────────────────────────────
 

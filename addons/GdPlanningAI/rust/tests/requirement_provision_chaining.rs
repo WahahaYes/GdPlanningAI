@@ -56,6 +56,7 @@ fn build_non_wildcard_actions(actions: &[ActionSpec]) -> Vec<usize> {
         .collect()
 }
 
+#[allow(dead_code)]
 fn spawn_callback_responder(
     cost_value: f64,
     hunger_reduction: i64,

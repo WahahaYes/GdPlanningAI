@@ -37,6 +37,7 @@ pub fn create_test_world(
 }
 
 /// Create a simple SimObjectData for testing.
+#[allow(dead_code)]
 pub fn create_sim_object(
     uid: &str,
     groups: Vec<&str>,

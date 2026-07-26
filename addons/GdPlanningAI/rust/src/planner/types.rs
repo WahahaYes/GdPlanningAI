@@ -324,7 +324,10 @@ impl PlanBranch {
                 new_bindings.push((insert_pos, binding_name.clone(), values.clone()));
 
                 // Consumer bindings: at each shifted consumer position.
-                for &idx in &reqs_to_remove {
+                // Sort indices for deterministic iteration order (HashSet is unordered).
+                let mut sorted_indices: Vec<usize> = reqs_to_remove.iter().copied().collect();
+                sorted_indices.sort_unstable();
+                for idx in sorted_indices {
                     let consumer_pos = self.open_requirements[idx].0;
                     new_bindings.push((consumer_pos, binding_name.clone(), values.clone()));
                 }
