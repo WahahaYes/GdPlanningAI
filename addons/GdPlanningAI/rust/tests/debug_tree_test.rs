@@ -4,7 +4,7 @@
 //! correct tree with proper parent-child relationships, outcomes,
 //! excluded actions, and forward-validation steps.
 
-use gdplanningai_rust::debug_tree::{NodeOutcome, TreeDump, TreeNode};
+use gdplanningai_rust::debug_tree::{ChildNodeConfig, NodeOutcome, TreeDump, TreeNode};
 
 // ── Helpers ────────────────────────────────────────────────────────
 
@@ -70,7 +70,15 @@ fn single_candidate_completes() {
     dump.begin_goal("goal", 10.0, &["need_x".to_string()]);
     let root_id = dump.add_root(&["need_x".to_string()], &[]);
 
-    let child_id = dump.add_child(root_id, "do_x", 3.0, 3.0, &[], &[], &[], &[]);
+    let child_id = dump.add_child(root_id, ChildNodeConfig {
+        action_name: "do_x",
+        estimated_cost: 3.0,
+        accumulated_cost: 3.0,
+        open_pre: &[],
+        open_req: &[],
+        satisfied_pre: &[],
+        satisfied_req: &[],
+    });
     dump.set_outcome(
         child_id,
         NodeOutcome::Complete {
@@ -96,13 +104,15 @@ fn candidate_pruned_by_cost() {
 
     let child_id = dump.add_child(
         root_id,
-        "expensive_action",
-        100.0,
-        100.0,
-        &[],
-        &[],
-        &[],
-        &[],
+        ChildNodeConfig {
+            action_name: "expensive_action",
+            estimated_cost: 100.0,
+            accumulated_cost: 100.0,
+            open_pre: &[],
+            open_req: &[],
+            satisfied_pre: &[],
+            satisfied_req: &[],
+        },
     );
     dump.set_outcome(
         child_id,
@@ -149,7 +159,15 @@ fn forward_validation_steps_attached_to_completing_node() {
     dump.begin_goal("goal", 10.0, &["need_x".to_string()]);
     let root_id = dump.add_root(&["need_x".to_string()], &[]);
 
-    let child_id = dump.add_child(root_id, "do_x", 3.0, 3.0, &[], &[], &[], &[]);
+    let child_id = dump.add_child(root_id, ChildNodeConfig {
+        action_name: "do_x",
+        estimated_cost: 3.0,
+        accumulated_cost: 3.0,
+        open_pre: &[],
+        open_req: &[],
+        satisfied_pre: &[],
+        satisfied_req: &[],
+    });
     dump.add_fwd_step(child_id, "do_x", "dependencies", "valid", true);
     dump.add_fwd_step(child_id, "do_x", "precondition", "1 checks passed", true);
     dump.add_fwd_step(child_id, "do_x", "cost", "3.00", true);
@@ -184,7 +202,15 @@ fn multiple_goal_attempts() {
     // Second goal succeeds
     dump.begin_goal("goal_b", 10.0, &["pre_b".to_string()]);
     let root_b = dump.add_root(&["pre_b".to_string()], &[]);
-    let child_b = dump.add_child(root_b, "do_b", 2.0, 2.0, &[], &[], &[], &[]);
+    let child_b = dump.add_child(root_b, ChildNodeConfig {
+        action_name: "do_b",
+        estimated_cost: 2.0,
+        accumulated_cost: 2.0,
+        open_pre: &[],
+        open_req: &[],
+        satisfied_pre: &[],
+        satisfied_req: &[],
+    });
     dump.set_outcome(
         child_b,
         NodeOutcome::Complete {
@@ -208,10 +234,26 @@ fn branches_counted_by_nodes() {
     dump.begin_goal("goal", 10.0, &["need".to_string()]);
     let root_id = dump.add_root(&["need".to_string()], &[]);
 
-    let a = dump.add_child(root_id, "a", 1.0, 1.0, &[], &[], &[], &[]);
+    let a = dump.add_child(root_id, ChildNodeConfig {
+        action_name: "a",
+        estimated_cost: 1.0,
+        accumulated_cost: 1.0,
+        open_pre: &[],
+        open_req: &[],
+        satisfied_pre: &[],
+        satisfied_req: &[],
+    });
     dump.set_outcome(a, NodeOutcome::DeadEnd);
 
-    let b = dump.add_child(root_id, "b", 2.0, 2.0, &[], &[], &[], &[]);
+    let b = dump.add_child(root_id, ChildNodeConfig {
+        action_name: "b",
+        estimated_cost: 2.0,
+        accumulated_cost: 2.0,
+        open_pre: &[],
+        open_req: &[],
+        satisfied_pre: &[],
+        satisfied_req: &[],
+    });
     dump.set_outcome(
         b,
         NodeOutcome::Pruned {
@@ -219,7 +261,15 @@ fn branches_counted_by_nodes() {
         },
     );
 
-    let c = dump.add_child(root_id, "c", 3.0, 3.0, &[], &[], &[], &[]);
+    let c = dump.add_child(root_id, ChildNodeConfig {
+        action_name: "c",
+        estimated_cost: 3.0,
+        accumulated_cost: 3.0,
+        open_pre: &[],
+        open_req: &[],
+        satisfied_pre: &[],
+        satisfied_req: &[],
+    });
     dump.set_outcome(
         c,
         NodeOutcome::Complete {
@@ -241,7 +291,15 @@ fn format_produces_output() {
     let mut dump = TreeDump::new_forced();
     dump.begin_goal("goal", 10.0, &["need_x".to_string()]);
     let root_id = dump.add_root(&["need_x".to_string()], &[]);
-    let child_id = dump.add_child(root_id, "do_x", 3.0, 3.0, &[], &[], &[], &[]);
+    let child_id = dump.add_child(root_id, ChildNodeConfig {
+        action_name: "do_x",
+        estimated_cost: 3.0,
+        accumulated_cost: 3.0,
+        open_pre: &[],
+        open_req: &[],
+        satisfied_pre: &[],
+        satisfied_req: &[],
+    });
     dump.set_outcome(
         child_id,
         NodeOutcome::Complete {
@@ -268,16 +326,26 @@ fn nested_candidates_build_correct_tree() {
 
     let outer_id = dump.add_child(
         root_id,
-        "outer_action",
-        2.0,
-        2.0,
-        &["inner_need".to_string()],
-        &[],
-        &[],
-        &[],
+        ChildNodeConfig {
+            action_name: "outer_action",
+            estimated_cost: 2.0,
+            accumulated_cost: 2.0,
+            open_pre: &["inner_need".to_string()],
+            open_req: &[],
+            satisfied_pre: &[],
+            satisfied_req: &[],
+        },
     );
 
-    let inner_id = dump.add_child(outer_id, "inner_action", 1.0, 3.0, &[], &[], &[], &[]);
+    let inner_id = dump.add_child(outer_id, ChildNodeConfig {
+        action_name: "inner_action",
+        estimated_cost: 1.0,
+        accumulated_cost: 3.0,
+        open_pre: &[],
+        open_req: &[],
+        satisfied_pre: &[],
+        satisfied_req: &[],
+    });
     dump.set_outcome(
         inner_id,
         NodeOutcome::Complete {
