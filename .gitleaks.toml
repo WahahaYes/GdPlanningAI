@@ -1,0 +1,12 @@
+title = "Gitleaks config for GdPlanningAI"
+
+[allowlist]
+description = "Allow false positives"
+paths = [
+    "(?i)test",
+    "(?i)example",
+    "README.md",
+    "LICENSE.txt",
+]
+
+# Standard rules are fine - we just want to avoid noise from test files
