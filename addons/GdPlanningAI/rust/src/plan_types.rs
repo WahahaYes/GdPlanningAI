@@ -124,7 +124,7 @@ impl std::fmt::Display for PreconditionSpec {
                 let target_str = match target {
                     PreconditionTarget::Agent => "Agent",
                     PreconditionTarget::WorldState => "World",
-                    PreconditionTarget::WorldObjectProxy { group, .. } => "WorldObjectProxy",
+                    PreconditionTarget::WorldObjectProxy { .. } => "WorldObjectProxy",
                 };
                 let op_str = match operation {
                     PreconditionOp::HasProperty => "has",
