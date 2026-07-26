@@ -21,11 +21,11 @@
 - **`hunger_basic_2d.tscn`** — Basic single-agent hunger management
   - One agent foraging for food and shaking fruit trees
   - Good starting point to understand core concepts
-  
+
 - **`hunger_multi_agent_2d.tscn`** — Multiple agents competing for resources
   - Several agents with independent planning
   - Demonstrates resource contention and goal prioritization
-  
+
 - **`hunger_stress_test_2d.tscn`** — Performance stress test
   - Many agents (configurable spawner)
   - Tests planning engine performance under load
@@ -57,7 +57,7 @@
 
 **Dimension-agnostic code:**
 - `behaviors/` - Goals, PropertyUpdaters, BehaviorConfigs
-- `objects/` - ObjectData + Actions  
+- `objects/` - ObjectData + Actions
 - `shared/` - Utility scripts
 - `configs/` - Agent configuration resources
 
