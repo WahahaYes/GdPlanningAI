@@ -67,9 +67,15 @@ func simulate_effect(
 
 	if current_pos is Vector2:
 		sim_location.set_property("position", current_pos + random_dir * wander_distance)
+		# Also track origin position for wander goal evaluation
+		if not sim_location.has_property("wander_origin"):
+			sim_location.set_property("wander_origin", current_pos)
 	elif current_pos is Vector3:
 		var random_dir_3d: Vector3 = Vector3(random_dir.x, 0, random_dir.y)
 		sim_location.set_property("position", current_pos + random_dir_3d * wander_distance)
+		# Also track origin position for wander goal evaluation
+		if not sim_location.has_property("wander_origin"):
+			sim_location.set_property("wander_origin", current_pos)
 
 
 # Override

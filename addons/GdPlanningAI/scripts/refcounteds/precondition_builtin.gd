@@ -10,6 +10,7 @@ extends Precondition
 enum Target {
 	AGENT,  ## The agent's blackboard
 	WORLD_STATE,  ## The world state blackboard
+	WORLD_OBJECT_PROXY,  ## Properties on world objects in a specific group
 }
 
 ## Comparison operations supported by builtin preconditions.
@@ -23,37 +24,45 @@ enum Op {
 	LTE,  ## Check if a property is less than or equal to a value
 }
 
-## Which blackboard to target (agent or world state).
+## Which blackboard to target (agent, world state, or world object proxy).
 var target: Target
 ## The comparison operation to perform.
 var operation: Op
 ## The name of the property to check.
 var property: String
+## For WORLD_OBJECT_PROXY: the group name to filter objects.
+var group: String
 ## The value to compare against (not used for HAS_PROPERTY operation).
 var value: Variant
 
 
 ## Creates a new builtin precondition with the specified parameters.
 ##
-## @param t The target blackboard (AGENT or WORLD_STATE)
+## @param t The target blackboard (AGENT, WORLD_STATE, or WORLD_OBJECT_PROXY)
 ## @param op The comparison operation to perform
 ## @param prop The property name to check
 ## @param val The value to compare against (optional, not used for HAS_PROPERTY)
-func _init(t: Target, op: Op, prop: String, val: Variant = null) -> void:
+## @param grp The group name (required for WORLD_OBJECT_PROXY target)
+func _init(t: Target, op: Op, prop: String, val: Variant = null, grp: String = "") -> void:
 	target = t
 	operation = op
 	property = prop
+	group = grp
 	value = val
 
 
 ## Serializes this precondition into the dictionary format expected by the Rust bridge.
 func to_bridge_dict() -> Dictionary:
-	return {
+	var dict = {
 		"target": _target_to_string(target),
 		"operation": _operation_to_string(operation),
 		"property_name": property,
 		"value": value,
 	}
+	if target == Target.WORLD_OBJECT_PROXY:
+		dict["group"] = group
+		dict["property"] = property
+	return dict
 
 
 ## Converts a Target enum value to its string representation for the Rust bridge.
@@ -63,6 +72,8 @@ static func _target_to_string(t: Target) -> String:
 			return "agent"
 		Target.WORLD_STATE:
 			return "world_state"
+		Target.WORLD_OBJECT_PROXY:
+			return "world_object_proxy"
 		_:
 			return "agent"
 

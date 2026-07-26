@@ -4,7 +4,7 @@ extends Goal
 ##[br]
 ##[br]
 ## Demonstrates a goal that inspects shared world-object state instead of only the
-## agent blackboard.
+## agent blackboard. Uses builtin WorldObjectProxy precondition for planner visibility.
 
 ## Fixed reward used when comparing fire maintenance against other goals.
 var reward_value: float = 40.0
@@ -39,18 +39,9 @@ func compute_reward(agent: GdPAIAgent) -> float:
 
 # Override
 func get_desired_state(_agent: GdPAIAgent) -> Array[Precondition]:
-	# Custom precondition: campfire fuel is stored in per-object SimObjectProxy data,
-	# not in top-level world blackboard properties, so a builtin check cannot see it.
-	var check: Callable = func(_agent_bb: GdPAIBlackboard, world: GdPAIBlackboard) -> bool:
-		var campfires = world.get_proxies_in_group("CampfireObject")
-		# print("[DEBUG] MaintainFireGoal check running. Found ", campfires.size(), " campfires.")
-		for campfire in campfires:
-			var fuel: Variant = campfire.get_property("current_fuel")
-			# print("[DEBUG] Campfire fuel: ", fuel)
-			if fuel != null and float(fuel) >= desired_fuel_level:
-				return true
-		return false
-	return [Precondition.custom(check)]
+	# Use builtin WorldObjectProxy precondition so the planner can discover
+	# actions that modify campfire fuel (e.g., AddFuelAction).
+	return [Precondition.world_object_property_geq_than("CampfireObject", "current_fuel", desired_fuel_level)]
 
 
 # Override

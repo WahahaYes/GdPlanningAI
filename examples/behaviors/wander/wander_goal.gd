@@ -31,8 +31,11 @@ func get_desired_state(agent: GdPAIAgent) -> Array[Precondition]:
 		if sim_location == null:
 			return false
 		var sim_position = sim_location.get_property("position")
+		var origin = sim_location.get_property("wander_origin")
+		if origin == null:
+			origin = agent_position
 		var req_distance: float = 16.0 if sim_position is Vector2 else 1.0
-		return (sim_position - agent_position).length() > req_distance
+		return (sim_position - origin).length() > req_distance
 	return [Precondition.custom(far_enough)]
 
 

@@ -28,6 +28,13 @@ pub struct PreconditionHandler {
 pub enum PreconditionTarget {
     Agent,
     WorldState,
+    /// Evaluate against properties of world objects in a specific group.
+    /// The planner iterates all SimObjectProxy snapshots in the world state
+    /// that belong to the given group and checks the property on each.
+    WorldObjectProxy {
+        group: String,
+        property: String,
+    },
 }
 
 /// Types of precondition operations.
@@ -54,6 +61,17 @@ impl PreconditionHandler {
             .and_then(|v| v.try_to::<String>().ok())
             .map(|s| match s.to_lowercase().as_str() {
                 "world_state" => PreconditionTarget::WorldState,
+                "world_object_proxy" => {
+                    let group = dict
+                        .get("group")
+                        .and_then(|v| v.try_to::<String>().ok())
+                        .unwrap_or_default();
+                    let property = dict
+                        .get("property")
+                        .and_then(|v| v.try_to::<String>().ok())
+                        .unwrap_or_default();
+                    PreconditionTarget::WorldObjectProxy { group, property }
+                }
                 _ => PreconditionTarget::Agent,
             })
             .unwrap_or(PreconditionTarget::Agent);
@@ -153,26 +171,138 @@ impl PreconditionHandler {
             return false;
         }
 
-        let source = match self.target {
-            PreconditionTarget::Agent => agent_state,
-            PreconditionTarget::WorldState => world_state,
+        match self.target {
+            PreconditionTarget::Agent => {
+                let source = agent_state;
+                Self::evaluate_on_blackboard(source, &self.operation, &self.property_name, &self.value)
+            }
+            PreconditionTarget::WorldState => {
+                let source = world_state;
+                Self::evaluate_on_blackboard(source, &self.operation, &self.property_name, &self.value)
+            }
+            PreconditionTarget::WorldObjectProxy { ref group, ref property } => {
+                // Iterate all objects in the world state that belong to the specified group
+                let world_bind = world_state.bind();
+                let objects = world_bind.get_proxies_in_group(GString::from(group.as_str()));
+                for obj in objects.iter_shared() {
+                    let prop = obj.bind().get_property(GString::from(property.as_str()));
+                    if !prop.is_nil() {
+                        let val = match &self.value {
+                            Some(v) => v.to_variant(),
+                            None => Variant::nil(),
+                        };
+                        // Compare prop with val based on operation
+                        if Self::compare_variants(&prop, &val, &self.operation) {
+                            return true;
+                        }
+                    }
+                }
+                false
+            }
+        }
+    }
+
+    /// Evaluate a builtin operation on a GdPAIBlackboard source.
+    fn evaluate_on_blackboard(
+        source: &Gd<GdPAIBlackboard>,
+        op: &PreconditionOp,
+        property_name: &str,
+        value: &Option<Variant>,
+    ) -> bool {
+        let bind = source.bind();
+        let prop = bind.get_property(GString::from(property_name));
+        if prop.is_nil() {
+            return false;
+        }
+
+        let compare_val = match value {
+            Some(v) => v,
+            None => return false,
         };
 
-        match &self.operation {
-            PreconditionOp::HasProperty => source
-                .bind()
-                .has_property(GString::from(&self.property_name)),
-            PreconditionOp::Equal => self.evaluate_equal(source),
-            PreconditionOp::NotEqual => !self.evaluate_equal(source),
-            PreconditionOp::GreaterThan => self.evaluate_greater_than(source),
+        match op {
+            PreconditionOp::HasProperty => !prop.is_nil(),
+            PreconditionOp::Equal => {
+                if prop == *compare_val {
+                    return true;
+                }
+                // Numeric comparison with epsilon
+                if let (Ok(p), Ok(v)) = (prop.try_to::<f64>(), compare_val.try_to::<f64>()) {
+                    return (p - v).abs() < f64::EPSILON;
+                }
+                false
+            }
+            PreconditionOp::NotEqual => !Self::compare_variants_equal(&prop, compare_val),
+            PreconditionOp::GreaterThan => {
+                if let (Ok(p), Ok(v)) = (prop.try_to::<f64>(), compare_val.try_to::<f64>()) {
+                    return p > v;
+                }
+                false
+            }
             PreconditionOp::GreaterThanOrEqual => {
-                self.evaluate_greater_than(source) || self.evaluate_equal(source)
+                if let (Ok(p), Ok(v)) = (prop.try_to::<f64>(), compare_val.try_to::<f64>()) {
+                    return p >= v;
+                }
+                false
             }
-            PreconditionOp::LessThan => self.evaluate_less_than(source),
+            PreconditionOp::LessThan => {
+                if let (Ok(p), Ok(v)) = (prop.try_to::<f64>(), compare_val.try_to::<f64>()) {
+                    return p < v;
+                }
+                false
+            }
             PreconditionOp::LessThanOrEqual => {
-                self.evaluate_less_than(source) || self.evaluate_equal(source)
+                if let (Ok(p), Ok(v)) = (prop.try_to::<f64>(), compare_val.try_to::<f64>()) {
+                    return p <= v;
+                }
+                false
             }
-            PreconditionOp::CustomCallback => false, // Handled above
+            PreconditionOp::CustomCallback => false,
+        }
+    }
+
+    /// Compare two Variants for equality (numeric with epsilon).
+    fn compare_variants_equal(prop: &Variant, val: &Variant) -> bool {
+        if *prop == *val {
+            return true;
+        }
+        if let (Ok(p), Ok(v)) = (prop.try_to::<f64>(), val.try_to::<f64>()) {
+            return (p - v).abs() < f64::EPSILON;
+        }
+        false
+    }
+
+    /// Compare two Variants using the given operation.
+    fn compare_variants(prop: &Variant, val: &Variant, op: &PreconditionOp) -> bool {
+        match op {
+            PreconditionOp::HasProperty => !prop.is_nil(),
+            PreconditionOp::Equal => Self::compare_variants_equal(prop, val),
+            PreconditionOp::NotEqual => !Self::compare_variants_equal(prop, val),
+            PreconditionOp::GreaterThan => {
+                if let (Ok(p), Ok(v)) = (prop.try_to::<f64>(), val.try_to::<f64>()) {
+                    return p > v;
+                }
+                false
+            }
+            PreconditionOp::GreaterThanOrEqual => {
+                if let (Ok(p), Ok(v)) = (prop.try_to::<f64>(), val.try_to::<f64>()) {
+                    return p >= v;
+                }
+                false
+            }
+            PreconditionOp::LessThan => {
+                if let (Ok(p), Ok(v)) = (prop.try_to::<f64>(), val.try_to::<f64>()) {
+                    return p < v;
+                }
+                false
+            }
+            PreconditionOp::LessThanOrEqual => {
+                if let (Ok(p), Ok(v)) = (prop.try_to::<f64>(), val.try_to::<f64>()) {
+                    return p <= v;
+                }
+                false
+            }
+            PreconditionOp::CustomCallback => false,
         }
     }
 

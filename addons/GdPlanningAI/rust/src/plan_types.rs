@@ -3,6 +3,7 @@
 use crate::precondition::{PreconditionOp, PreconditionTarget};
 use crate::requirement::{ProvisionSpec, RequirementSpec};
 use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::Sender;
 
@@ -50,16 +51,40 @@ impl PreconditionSpec {
                 property_name,
                 value,
             } => {
-                let source = match target {
-                    PreconditionTarget::Agent => agent,
-                    PreconditionTarget::WorldState => world,
+                let result = match target {
+                    PreconditionTarget::Agent => eval_builtin_on_snapshot(
+                        operation,
+                        property_name,
+                        value.as_ref(),
+                        agent,
+                    ),
+                    PreconditionTarget::WorldState => eval_builtin_on_snapshot(
+                        operation,
+                        property_name,
+                        value.as_ref(),
+                        world,
+                    ),
+                    PreconditionTarget::WorldObjectProxy { group, property } => {
+                        // Evaluate against all world objects in the given group
+                        // Returns true if ANY object in the group satisfies the condition
+                        world.objects.iter().any(|(_, obj)| {
+                            if obj.groups.contains(group) {
+                                eval_builtin_on_snapshot(
+                                    operation,
+                                    property,
+                                    value.as_ref(),
+                                    &BlackboardSnapshot {
+                                        properties: obj.properties.clone(),
+                                        objects: HashMap::new(),
+                                    },
+                                )
+                            } else {
+                                false
+                            }
+                        })
+                    }
                 };
-                Some(eval_builtin_on_snapshot(
-                    operation,
-                    property_name,
-                    value.as_ref(),
-                    source,
-                ))
+                Some(result)
             }
             Self::Custom { .. } => None,
         }
@@ -105,6 +130,7 @@ impl std::fmt::Display for PreconditionSpec {
                 let target_str = match target {
                     PreconditionTarget::Agent => "Agent",
                     PreconditionTarget::WorldState => "World",
+                    PreconditionTarget::WorldObjectProxy { group, .. } => "WorldObjectProxy",
                 };
                 let op_str = match operation {
                     PreconditionOp::HasProperty => "has",
