@@ -31,3 +31,4 @@ addons/gut/
 addons/*
 !addons/.editorconfig
 .addons/*
+media/captures/
