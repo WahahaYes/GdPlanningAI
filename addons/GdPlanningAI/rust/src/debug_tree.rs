@@ -62,45 +62,54 @@ pub struct ChildNodeBuilder {
 }
 
 impl ChildNodeBuilder {
+    /// Creates a new ChildNodeBuilder with default values.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Sets the action name for the child node.
     pub fn action_name(mut self, name: impl Into<String>) -> Self {
         self.action_name = Some(name.into());
         self
     }
 
+    /// Sets the estimated cost for the child node.
     pub fn estimated_cost(mut self, cost: f64) -> Self {
         self.estimated_cost = cost;
         self
     }
 
+    /// Sets the accumulated cost for the child node.
     pub fn accumulated_cost(mut self, cost: f64) -> Self {
         self.accumulated_cost = cost;
         self
     }
 
+    /// Sets the open preconditions for the child node.
     pub fn open_preconditions(mut self, pre: Vec<String>) -> Self {
         self.open_preconditions = pre;
         self
     }
 
+    /// Sets the open requirements for the child node.
     pub fn open_requirements(mut self, req: Vec<String>) -> Self {
         self.open_requirements = req;
         self
     }
 
+    /// Sets the satisfied preconditions for the child node.
     pub fn satisfied_preconditions(mut self, pre: Vec<String>) -> Self {
         self.satisfied_preconditions = pre;
         self
     }
 
+    /// Sets the satisfied requirements for the child node.
     pub fn satisfied_requirements(mut self, req: Vec<String>) -> Self {
         self.satisfied_requirements = req;
         self
     }
 
+    /// Builds the TreeNode from the configured builder.
     pub fn build(self) -> TreeNode {
         TreeNode {
             action_name: self.action_name,

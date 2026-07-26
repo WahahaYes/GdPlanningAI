@@ -303,7 +303,7 @@ mod tests {
     #[test]
     fn objects_hashmap_supports_insertion_and_lookup() {
         // Test operations used for object storage
-        let mut objects: HashMap<String, Gd<SimObjectProxy>> = HashMap::new();
+        let objects: HashMap<String, Gd<SimObjectProxy>> = HashMap::new();
         let uid = "12345".to_string();
 
         // Can't create Gd<SimObjectProxy> without Godot runtime,
@@ -321,10 +321,10 @@ mod tests {
         assert!(objects.is_empty());
     }
 
-    #[test]
+#[test]
     fn source_objects_hashmap_supports_storage() {
-        // Test the source_objects HashMap structure
-        let mut source_objects: HashMap<String, Gd<Node>> = HashMap::new();
+        // Verify the HashMap type used for source objects
+        let source_objects: HashMap<String, Gd<Node>> = HashMap::new();
         // Can't create Gd<Node> without Godot runtime, but verify type
         assert!(source_objects.is_empty());
     }

@@ -6,7 +6,7 @@
 mod common;
 use common::{create_test_agent, create_test_world};
 
-use gdplanningai_rust::plan_types::{ActionSpec, PreconditionSpec};
+use gdplanningai_rust::plan_types::PreconditionSpec;
 use gdplanningai_rust::planner::types::PlanBranch;
 use gdplanningai_rust::requirement::{ProvisionSpec, RequirementSpec};
 use gdplanningai_rust::snapshot::VariantSnapshot;
@@ -23,19 +23,6 @@ fn make_prov(name: &str, arg: i64) -> ProvisionSpec {
     ProvisionSpec::Fact {
         fact_name: name.to_string(),
         args: vec![VariantSnapshot::ObjectRef(arg)],
-    }
-}
-
-fn empty_action(name: &str) -> ActionSpec {
-    ActionSpec {
-        name: name.to_string(),
-        cost_callable_id: None,
-        effect_callable_id: None,
-        preconditions: vec![],
-        validity_checks: vec![],
-        requirements: vec![],
-        provisions: vec![],
-        dependent_object_ids: vec![],
     }
 }
 

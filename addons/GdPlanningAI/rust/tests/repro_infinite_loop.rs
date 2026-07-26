@@ -1,6 +1,5 @@
 //! Regression test for a potential infinite loop in the planner's Verifying state.
 
-use gdplanningai_rust::plan_tree::PlanResult;
 use gdplanningai_rust::plan_types::{
     ActionSpec, CallbackKind, CallbackRequest, CallbackResponse, GoalSpec, PlannerCallback,
     PlannerRunResult, PreconditionSpec,
