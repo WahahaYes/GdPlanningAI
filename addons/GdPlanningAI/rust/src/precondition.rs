@@ -174,13 +174,26 @@ impl PreconditionHandler {
         match self.target {
             PreconditionTarget::Agent => {
                 let source = agent_state;
-                Self::evaluate_on_blackboard(source, &self.operation, &self.property_name, &self.value)
+                Self::evaluate_on_blackboard(
+                    source,
+                    &self.operation,
+                    &self.property_name,
+                    &self.value,
+                )
             }
             PreconditionTarget::WorldState => {
                 let source = world_state;
-                Self::evaluate_on_blackboard(source, &self.operation, &self.property_name, &self.value)
+                Self::evaluate_on_blackboard(
+                    source,
+                    &self.operation,
+                    &self.property_name,
+                    &self.value,
+                )
             }
-            PreconditionTarget::WorldObjectProxy { ref group, ref property } => {
+            PreconditionTarget::WorldObjectProxy {
+                ref group,
+                ref property,
+            } => {
                 // Iterate all objects in the world state that belong to the specified group
                 let world_bind = world_state.bind();
                 let objects = world_bind.get_proxies_in_group(GString::from(group.as_str()));

@@ -867,11 +867,12 @@ fn concretize_wildcard_provision(
 ) -> ProvisionSpec {
     if let ProvisionSpec::FactWildcard { fact_name } = prov
         && let Some((_, values)) = current_bindings.iter().find(|(name, _)| name == fact_name)
-            && !values.is_empty() {
-                return ProvisionSpec::Fact {
-                    fact_name: fact_name.clone(),
-                    args: values.clone(),
-                };
-            }
+        && !values.is_empty()
+    {
+        return ProvisionSpec::Fact {
+            fact_name: fact_name.clone(),
+            args: values.clone(),
+        };
+    }
     prov.clone()
 }

@@ -52,18 +52,12 @@ impl PreconditionSpec {
                 value,
             } => {
                 let result = match target {
-                    PreconditionTarget::Agent => eval_builtin_on_snapshot(
-                        operation,
-                        property_name,
-                        value.as_ref(),
-                        agent,
-                    ),
-                    PreconditionTarget::WorldState => eval_builtin_on_snapshot(
-                        operation,
-                        property_name,
-                        value.as_ref(),
-                        world,
-                    ),
+                    PreconditionTarget::Agent => {
+                        eval_builtin_on_snapshot(operation, property_name, value.as_ref(), agent)
+                    }
+                    PreconditionTarget::WorldState => {
+                        eval_builtin_on_snapshot(operation, property_name, value.as_ref(), world)
+                    }
                     PreconditionTarget::WorldObjectProxy { group, property } => {
                         // Evaluate against all world objects in the given group
                         // Returns true if ANY object in the group satisfies the condition

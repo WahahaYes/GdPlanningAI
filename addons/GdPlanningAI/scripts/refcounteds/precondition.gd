@@ -192,7 +192,11 @@ static func world_object_property_equal_to(
 	value: Variant,
 ) -> Precondition:
 	return _create_property_precondition(
-		PreconditionBuiltin.Target.WORLD_OBJECT_PROXY, property, PreconditionBuiltin.Op.EQUAL, value, group
+		PreconditionBuiltin.Target.WORLD_OBJECT_PROXY,
+		property,
+		PreconditionBuiltin.Op.EQUAL,
+		value,
+		group
 	)
 
 
@@ -203,7 +207,11 @@ static func world_object_property_not_equal_to(
 	value: Variant,
 ) -> Precondition:
 	return _create_property_precondition(
-		PreconditionBuiltin.Target.WORLD_OBJECT_PROXY, property, PreconditionBuiltin.Op.NOT_EQUAL, value, group
+		PreconditionBuiltin.Target.WORLD_OBJECT_PROXY,
+		property,
+		PreconditionBuiltin.Op.NOT_EQUAL,
+		value,
+		group
 	)
 
 
@@ -214,7 +222,11 @@ static func world_object_property_greater_than(
 	value: Variant,
 ) -> Precondition:
 	return _create_property_precondition(
-		PreconditionBuiltin.Target.WORLD_OBJECT_PROXY, property, PreconditionBuiltin.Op.GT, value, group
+		PreconditionBuiltin.Target.WORLD_OBJECT_PROXY,
+		property,
+		PreconditionBuiltin.Op.GT,
+		value,
+		group
 	)
 
 
@@ -225,7 +237,11 @@ static func world_object_property_geq_than(
 	value: Variant,
 ) -> Precondition:
 	return _create_property_precondition(
-		PreconditionBuiltin.Target.WORLD_OBJECT_PROXY, property, PreconditionBuiltin.Op.GTE, value, group
+		PreconditionBuiltin.Target.WORLD_OBJECT_PROXY,
+		property,
+		PreconditionBuiltin.Op.GTE,
+		value,
+		group
 	)
 
 
@@ -236,7 +252,11 @@ static func world_object_property_less_than(
 	value: Variant,
 ) -> Precondition:
 	return _create_property_precondition(
-		PreconditionBuiltin.Target.WORLD_OBJECT_PROXY, property, PreconditionBuiltin.Op.LT, value, group
+		PreconditionBuiltin.Target.WORLD_OBJECT_PROXY,
+		property,
+		PreconditionBuiltin.Op.LT,
+		value,
+		group
 	)
 
 
@@ -247,14 +267,22 @@ static func world_object_property_leq_than(
 	value: Variant,
 ) -> Precondition:
 	return _create_property_precondition(
-		PreconditionBuiltin.Target.WORLD_OBJECT_PROXY, property, PreconditionBuiltin.Op.LTE, value, group
+		PreconditionBuiltin.Target.WORLD_OBJECT_PROXY,
+		property,
+		PreconditionBuiltin.Op.LTE,
+		value,
+		group
 	)
 
 
 ## Check if any object in a group in the world state has the specified property.
 static func world_object_has_property(group: String, property: String) -> Precondition:
 	return _create_property_precondition(
-		PreconditionBuiltin.Target.WORLD_OBJECT_PROXY, property, PreconditionBuiltin.Op.HAS_PROPERTY, null, group
+		PreconditionBuiltin.Target.WORLD_OBJECT_PROXY,
+		property,
+		PreconditionBuiltin.Op.HAS_PROPERTY,
+		null,
+		group
 	)
 
 
