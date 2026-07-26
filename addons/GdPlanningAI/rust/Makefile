@@ -83,7 +83,7 @@ lint: ## Run clippy linter
 
 .PHONY: lint-fix
 lint-fix: ## Run clippy linter with autofix
-	rustup component add clippy && cargo clippy --fix --allow-dirty
+	rustup component add clippy && cargo clippy --fix --allow-dirty --allow-no-vcs
 
 .PHONY: clean
 clean: ## Clean build artifacts
