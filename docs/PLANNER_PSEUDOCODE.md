@@ -10,6 +10,7 @@ The planner is a **hybrid backward-chaining GOAP** search engine:
 - **Search:** Dijkstra (uniform-cost) via a modular `SearchHeuristic` trait. A* is available as a no-op placeholder until an admissible heuristic is designed.
 - **Async:** Every Godot callback can yield `Pending`; the engine parks the node and resumes when the response arrives.
 - **Multi-goal:** Goals are sorted by reward descending. Before planning, the scheduler checks which goals are already satisfied by the initial state. **If ALL goals are satisfied**, an empty successful plan is returned for the highest-reward one. **If ANY goals are unsatisfied**, all satisfied goals are dropped and the planner searches only the unsatisfied goals. There is no fallback to satisfied goals if the search fails.
+- **Threading:** The planner runs on a background thread pool (Rayon). GDScript callables cannot be invoked from background threads, so all cost queries, effect simulations, and custom precondition evaluations are sent as callback requests through a channel to the main thread. The main thread drains these requests each frame and delivers results back to the planner thread.
 
 ---
 
@@ -69,6 +70,51 @@ best_plan:         Option<PlanResult>
 best_cost:         f64
 current_goal_index: usize               // Which goal we're currently solving
 tree:              TreeDump
+```
+
+### `SearchContext` (Shared, per-planning-run)
+```
+actions:                   Vec<ActionSpec>
+initial_agent:             BlackboardSnapshot
+initial_world:             BlackboardSnapshot
+initial_provisions:        Vec<ProvisionSpec>        // From agent blackboard + world objects
+request_tx:                Sender<CallbackRequest>
+engine_response_tx:        Sender<PlannerCallback>
+
+// Discovery Cache (Thread-safe)
+discovery_results:         Mutex<HashMap<(action_idx, bindings), DiscoveryResult>>
+discovery_costs:           Mutex<HashMap<(action_idx, bindings), f64>>
+discovery_pending:         Mutex<HashMap<(action_idx, bindings), request_id>>
+discovery_request_map:     Mutex<HashMap<request_id, DiscoveryRequest>>
+
+// Precondition Caching for Discovery (Initial State)
+discovery_precond_results: Mutex<HashMap<(action_idx, PreconditionSpec, bindings), bool>>
+discovery_precond_pending: Mutex<HashMap<(action_idx, PreconditionSpec, bindings), request_id>>
+
+// Provision Index: maps (ProvisionKind, name) -> action indices that provide it.
+provision_index:           HashMap<(ProvisionKind, String), Vec<usize>>
+// Action indices that have no wildcard provisions (can be discovered with empty bindings).
+non_wildcard_actions:      Vec<usize>
+```
+
+### `ActionSpec`
+```
+name: String
+cost_callable_id: Option<usize>
+effect_callable_id: Option<usize>
+preconditions: Vec<PreconditionSpec>        // Dynamic preconditions for backward chaining
+validity_checks: Vec<PreconditionSpec>      // Hard requirements checked against INITIAL state only (during discovery)
+requirements: Vec<RequirementSpec>
+provisions: Vec<ProvisionSpec>
+dependent_object_ids: Vec<i64>              // Object instance IDs this action depends on; if freed, action is excluded
+```
+
+### `GoalSpec`
+```
+name: String
+reward: f64
+desired_state: Vec<PreconditionSpec>
+original_index: usize
 ```
 
 ---
@@ -194,7 +240,7 @@ Call `process_simulation(node)` which delegates to helpers in order:
 **Validity filter (against InitialState):**
 - Evaluate each `validity_check` against `initial_agent`/`initial_world`.
 - Builtin checks evaluated directly.
-- Custom checks use the precondition discovery cache (`discovery_precond_results`) and may fire async callbacks.
+- **Custom validity checks are NOT evaluated during discovery** — they are only evaluated during forward validation (`validate_action_against_current_state`). This is because validity checks are runtime guards, not planning constraints.
 - If any check fails, skip the action.
 
 **Two code paths depending on whether the action has wildcard provisions:**
@@ -227,6 +273,11 @@ CandidatesResult {
     pending_id: Option<usize>,  // The most recent pending request ID encountered
 }
 ```
+
+### Stale Pending Cleanup (`check_pending_or_clean_stale`)
+When checking `discovery_pending` or `discovery_precond_pending`:
+- If the key exists and its `request_id` is still in `discovery_request_map`, the entry is genuinely pending → return the ID.
+- If the `request_id` is NOT in `discovery_request_map`, the entry is stale (response was already processed but pending map wasn't cleared) → remove the stale entry and return `None`.
 
 ---
 
@@ -291,6 +342,8 @@ If `prov` is `FactWildcard { fact_name }` and a binding exists for `fact_name` i
 9. **Binding injection.** All callbacks (`GetCost`, `ApplyEffect`, `EvalCustomPrecond`) receive `agent` and `world` snapshots with bindings already injected into the agent blackboard. The callback contract is always `(agent, world)` — 2 arguments.
 10. **Greedy requirement clearing.** When an action satisfies a requirement, ALL identical open requirements in the branch are cleared by that one action (single provider for multiple consumers).
 11. **Stale pending cleanup.** Discovery and precondition pending maps are defended against stale entries: if a request ID no longer exists in `discovery_request_map`, the pending entry is removed and the action is re-evaluated.
+12. **Validity checks are initial-state only.** `validity_checks` are evaluated against the initial agent/world snapshots during candidate discovery. Custom validity checks are deferred to forward validation; they do not fire async during discovery.
+13. **Non-wildcard actions assume no binding variation.** Actions without `FactWildcard` provisions are discovered once with empty bindings. Their cost/effect is computed generically.
 
 ---
 
@@ -361,3 +414,132 @@ goal_index: i64
 deferred_action_indices: Vec<i64>  // Currently unused, reserved
 action_bindings: Vec<(i64, String, Vec<VariantSnapshot>)>  // pos, name, values
 ```
+
+### `DiscoveryRequest`
+```
+Simulation(action_idx, bindings)
+Precondition(action_idx, PreconditionSpec, bindings)
+```
+
+### `DiscoveryResult`
+```
+agent: BlackboardSnapshot
+world: BlackboardSnapshot
+cost: f64
+```
+
+### `CallbackRequest` (Planner → Main Thread)
+```
+request_id: usize
+callable_id: usize
+kind: CallbackKind
+bindings: Vec<(String, Vec<VariantSnapshot>)>
+response_tx: Sender<PlannerCallback>
+```
+
+### `PlannerCallback` (Main Thread → Planner)
+```
+request_id: usize
+response: CallbackResponse
+```
+
+### `PlannerRunResult`
+```
+Complete(Option<PlanResult>)
+Pending(request_id)
+```
+
+### `TerminationStrategy`
+```
+FirstComplete
+BestCost
+```
+
+### `BranchState`
+```
+Searching
+Verifying
+```
+
+### `ProvisionKind`
+```
+Binding
+Fact
+FactWildcard
+```
+
+---
+
+## 9. Scheduler Integration (GDScript Entry Point)
+
+The `GdPAIPlanScheduler` (GDScript-facing autoload) manages the planning lifecycle:
+
+### `submit_plan(agent, agent_bb, world_bb, actions, goals, max_recursion, iteration_budget)`
+1. Cancel any existing jobs for the same agent.
+2. Snapshot agent/world blackboards into `BlackboardSnapshot`.
+3. Extract `initial_provisions` from agent properties + world objects (objects with `provides` fact).
+4. Build `ActionSpec` and `GoalSpec` from GDScript dictionaries, registering callables.
+5. **Pre-filter goals:** Evaluate each goal's `desired_state` against initial state using `PreconditionHandler`. Track highest-reward satisfied goal.
+6. Drop goals already satisfied by initial state. **If ALL goals were satisfied**, record `satisfied_goal_index` and submit empty goal list to planner.
+7. Sort remaining goals by reward descending.
+8. Build `provision_index` and `non_wildcard_actions`.
+9. Create `SearchContext` with all caches and channels.
+10. Create `PlannerEngine` with Dijkstra heuristic, BestCost termination, iteration budget.
+11. Spawn engine on Rayon thread pool via `run_job_step`.
+12. Store `ActiveJobHandle` with engine, channels, cancel flag, goal list, `satisfied_goal_index`.
+
+### `process_callbacks()` (Called each frame from GDScript)
+1. **Recover engines:** Drain `result_rx` for completed/paused engines. Store engine back in handle.
+   - If `Complete(Some(plan))`: If `satisfied_goal_index >= 0` and plan failed, convert to empty success plan for that goal. Call `agent._on_plan_ready(dict)`.
+   - If `Pending(id)`: Record `pending_request_id`.
+2. **Process Godot callbacks:** Drain `request_rx` for each active job.
+   - Dispatch callable with `kind` (GetCost/ApplyEffect/EvalCustomPrecond).
+   - Inject `bindings` into agent blackboard before call.
+   - Send `PlannerCallback` back via `response_tx`.
+   - Track completed request IDs per job.
+3. **Resume ready engines:** For each job not done:
+   - If `pending_request_id == 0` (budget yield) → ready.
+   - If `pending_request_id > 0` → ready only if response received this frame OR already processed in previous frame.
+   - Resume via `run_job_step` with cloned goals and engine.
+4. Clean up finished jobs after one frame grace period.
+
+### `cancel_agent_jobs(agent)` / `cancel_all_jobs()` / `clear_active_jobs()`
+Set `cancel_flag` on matching jobs. Engine checks flag at loop start and returns `Complete(None)`.
+
+---
+
+## 10. Debug Tree (`TreeDump`)
+
+Enabled when log level ≥ Debug. Flat ID-based structure:
+
+```
+GoalAttempt {
+    goal_name, goal_reward, goal_preconditions, already_satisfied,
+    root_id, success, plan_actions, plan_cost
+}
+
+TreeNode {
+    action_name: Option<String>      // None for root
+    estimated_cost, accumulated_cost: f64
+    open_preconditions: Vec<String>
+    open_requirements: Vec<String>
+    satisfied_preconditions: Vec<String>
+    satisfied_requirements: Vec<String>
+    excluded_actions: Vec<ExcludedAction>  // {action_name, reason}
+    outcome: NodeOutcome
+    forward_validation: Vec<FwdStep>
+    children: Vec<usize>
+}
+
+NodeOutcome:
+    Expanded
+    Pruned { reason }
+    DeadEnd
+    Complete { chain_len, total_cost, fwd_ok }
+```
+
+Methods: `begin_goal`, `add_root`, `add_child`, `set_outcome`, `exclude_action`, `end_goal`, `format()`.
+
+---
+
+(End of document)
