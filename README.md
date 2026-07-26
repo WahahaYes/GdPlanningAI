@@ -61,7 +61,7 @@ Agents are driven by `Goals`.  An agent will balance however many goals it is as
 
 When an agent attempts to form a `Plan`, it essentially takes a snapshot of the current environment and simulates what would occur if various actions were taken.  The simulation creates temporary copies of all relevant action, blackboard, worldstate, and object data.  The copies exist outside of the scene graph, so here the planning agent is free to experiment and manipulate data attributes to test out various action sequences.
 
-The below image gives a simple visual example for a planning sequence.  The agent's goal is to reduce hunger, which is ultimately resolved by eating food.  A prerequisite to eat food is to pick up the food, so the agent must first move towards the food.  
+The below image gives a simple visual example for a planning sequence.  The agent's goal is to reduce hunger, which is ultimately resolved by eating food.  A prerequisite to eat food is to pick up the food, so the agent must first move towards the food.
 
 ![A visual example of an agent's planning sequence](https://raw.githubusercontent.com/WahahaYes/GdPlanningAI/refs/heads/main/media/planning_sequence.png)
 
@@ -71,7 +71,7 @@ Note that planning actually occurs in reverse based on whether actions are viabl
 
 Plans are formed by chaining `Actions`.  After planning, these function similarly to leaf nodes of behavior trees, in that they *do* concrete actions.  For planning, actions have an additional set of `Preconditions` which are used to determine valid actions and pathfinding chains of actions.
 
-An action has its preconditions organized via `Action.get_validity_checks()` and `Action.get_preconditions()`.  Validity checks are hard requirements which need to be true in order for the action to be considered at all during planning.  An example validity check is that the agent's blackboard contains a *hunger* attribute for a `eat_food` action.  
+An action has its preconditions organized via `Action.get_validity_checks()` and `Action.get_preconditions()`.  Validity checks are hard requirements which need to be true in order for the action to be considered at all during planning.  An example validity check is that the agent's blackboard contains a *hunger* attribute for a `eat_food` action.
 
 **Precondition**
 
@@ -104,10 +104,10 @@ The new configuration system makes it easy to set up agents without writing code
    # HungerBehaviorConfig.gd
    class_name HungerBehaviorConfig
    extends GdPAIBehaviorConfig
-   
+
    @export var hunger_decay: float = 5.0
    @export var initial_hunger: float = 100.0
-   
+
    func _self_init() -> void:
        super()
        goals.append(SampleHungerGoal.new())
@@ -136,7 +136,7 @@ This modular approach allows you to:
 
 ### Debugging
 
-There's now a visual debugger!  Located as its own debugger tab in the debugger window, it shows the plan graph and allows you to step through the plan to see which actions are a part of the current plan, their current status, and the traversal throughout the tree.  
+There's now a visual debugger!  Located as its own debugger tab in the debugger window, it shows the plan graph and allows you to step through the plan to see which actions are a part of the current plan, their current status, and the traversal throughout the tree.
 
 ![Illustration of the debugger tab](https://raw.githubusercontent.com/WahahaYes/GdPlanningAI/refs/heads/main/media/debugger_screenshot.png)
 

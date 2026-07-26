@@ -321,7 +321,7 @@ mod tests {
         assert!(objects.is_empty());
     }
 
-#[test]
+    #[test]
     fn source_objects_hashmap_supports_storage() {
         // Verify the HashMap type used for source objects
         let source_objects: HashMap<String, Gd<Node>> = HashMap::new();

@@ -260,9 +260,9 @@ impl TreeDump {
             ga.plan_actions = plan_actions.to_vec();
             ga.plan_cost = plan_cost;
         }
-}
+    }
 
-// ── Node-level operations ──────────────────────────────────────
+    // ── Node-level operations ──────────────────────────────────────
 
     /// Create the root node for the current goal. Returns the node ID.
     /// Must be called after `begin_goal`.
