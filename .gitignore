@@ -32,3 +32,11 @@ addons/*
 !addons/.editorconfig
 .addons/*
 media/captures/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
