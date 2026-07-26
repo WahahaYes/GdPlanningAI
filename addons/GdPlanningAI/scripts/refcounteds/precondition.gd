@@ -45,8 +45,9 @@ static func _create_property_precondition(
 	prop: String,
 	operation: PreconditionBuiltin.Op,
 	value: Variant = null,
+	grp: String = "",
 ) -> Precondition:
-	return PreconditionBuiltin.new(target, operation, prop, value)
+	return PreconditionBuiltin.new(target, operation, prop, value, grp)
 
 
 ## Instantiate a precondition that checks whether a property in the agent blackboard exists.
@@ -181,6 +182,79 @@ static func world_state_property_equal_to(
 ) -> Precondition:
 	return _create_property_precondition(
 		PreconditionBuiltin.Target.WORLD_STATE, prop, PreconditionBuiltin.Op.EQUAL, value
+	)
+
+
+## Check if any object in a group in the world state has a property equal to the given value.
+static func world_object_property_equal_to(
+	group: String,
+	property: String,
+	value: Variant,
+) -> Precondition:
+	return _create_property_precondition(
+		PreconditionBuiltin.Target.WORLD_OBJECT_PROXY, property, PreconditionBuiltin.Op.EQUAL, value, group
+	)
+
+
+## Check if any object in a group in the world state has a property not equal to the given value.
+static func world_object_property_not_equal_to(
+	group: String,
+	property: String,
+	value: Variant,
+) -> Precondition:
+	return _create_property_precondition(
+		PreconditionBuiltin.Target.WORLD_OBJECT_PROXY, property, PreconditionBuiltin.Op.NOT_EQUAL, value, group
+	)
+
+
+## Check if any object in a group in the world state has a property greater than the given value.
+static func world_object_property_greater_than(
+	group: String,
+	property: String,
+	value: Variant,
+) -> Precondition:
+	return _create_property_precondition(
+		PreconditionBuiltin.Target.WORLD_OBJECT_PROXY, property, PreconditionBuiltin.Op.GT, value, group
+	)
+
+
+## Check if any object in a group in the world state has a property greater than or equal to the given value.
+static func world_object_property_geq_than(
+	group: String,
+	property: String,
+	value: Variant,
+) -> Precondition:
+	return _create_property_precondition(
+		PreconditionBuiltin.Target.WORLD_OBJECT_PROXY, property, PreconditionBuiltin.Op.GTE, value, group
+	)
+
+
+## Check if any object in a group in the world state has a property less than the given value.
+static func world_object_property_less_than(
+	group: String,
+	property: String,
+	value: Variant,
+) -> Precondition:
+	return _create_property_precondition(
+		PreconditionBuiltin.Target.WORLD_OBJECT_PROXY, property, PreconditionBuiltin.Op.LT, value, group
+	)
+
+
+## Check if any object in a group in the world state has a property less than or equal to the given value.
+static func world_object_property_leq_than(
+	group: String,
+	property: String,
+	value: Variant,
+) -> Precondition:
+	return _create_property_precondition(
+		PreconditionBuiltin.Target.WORLD_OBJECT_PROXY, property, PreconditionBuiltin.Op.LTE, value, group
+	)
+
+
+## Check if any object in a group in the world state has the specified property.
+static func world_object_has_property(group: String, property: String) -> Precondition:
+	return _create_property_precondition(
+		PreconditionBuiltin.Target.WORLD_OBJECT_PROXY, property, PreconditionBuiltin.Op.HAS_PROPERTY, null, group
 	)
 
 
