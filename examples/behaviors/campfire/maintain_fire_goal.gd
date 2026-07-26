@@ -41,7 +41,11 @@ func compute_reward(agent: GdPAIAgent) -> float:
 func get_desired_state(_agent: GdPAIAgent) -> Array[Precondition]:
 	# Use builtin WorldObjectProxy precondition so the planner can discover
 	# actions that modify campfire fuel (e.g., AddFuelAction).
-	return [Precondition.world_object_property_geq_than("CampfireObject", "current_fuel", desired_fuel_level)]
+	return [
+		Precondition.world_object_property_geq_than(
+			"CampfireObject", "current_fuel", desired_fuel_level
+		)
+	]
 
 
 # Override

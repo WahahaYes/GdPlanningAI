@@ -321,9 +321,7 @@ pub fn requirement_holds_in_state(
             {
                 return true;
             }
-            agent
-                .properties
-                .get(binding_name) == Some(value)
+            agent.properties.get(binding_name) == Some(value)
         }
         RequirementSpec::BindingInSet {
             binding_name,
@@ -334,9 +332,10 @@ pub fn requirement_holds_in_state(
                     && !vals.is_empty()
                     && vals.first().is_some_and(|value| {
                         if let crate::snapshot::VariantSnapshot::ObjectRef(id) = value
-                            && let Some(obj_data) = world.get_object_by_instance_id(*id) {
-                                return obj_data.groups.contains(set_name);
-                            }
+                            && let Some(obj_data) = world.get_object_by_instance_id(*id)
+                        {
+                            return obj_data.groups.contains(set_name);
+                        }
                         false
                     })
             }) {
@@ -344,9 +343,10 @@ pub fn requirement_holds_in_state(
             }
             agent.properties.get(binding_name).is_some_and(|value| {
                 if let crate::snapshot::VariantSnapshot::ObjectRef(id) = value
-                    && let Some(obj_data) = world.get_object_by_instance_id(*id) {
-                        return obj_data.groups.contains(set_name);
-                    }
+                    && let Some(obj_data) = world.get_object_by_instance_id(*id)
+                {
+                    return obj_data.groups.contains(set_name);
+                }
                 false
             })
         }
