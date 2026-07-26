@@ -1,8 +1,0 @@
-Godot Engine v4.6.1.stable.mono.official.14d19694e - https://godotengine.org
-
-ERROR: Attempt to open script 'res://addons/gut/gut_cmdln.gd' resulted in error 'File not found'.
-   at: load_source_code (modules/gdscript/gdscript.cpp:1127)
-ERROR: Failed loading resource: res://addons/gut/gut_cmdln.gd.
-   at: _load (core/io/resource_loader.cpp:343)
-ERROR: Can't load script: addons/gut/gut_cmdln.gd
-   at: start (main/main.cpp:4238)
