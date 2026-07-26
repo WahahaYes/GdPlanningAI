@@ -93,3 +93,9 @@ godot-install-pinned: ## Install the pinned Godot version (uses godotenv)
 .PHONY: help
 help: ## Show this help message
 	@awk 'BEGIN {FS = ":.*?## "}; /^##@ / {printf "\n\033[1m%s\033[0m\n", substr($$0, 5)}; /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+##@ Recording
+
+.PHONY: record-obs
+record-obs: ## Record scene via OBS (requires OBS_PASSWORD env var, DURATION defaults to 10)
+	@uv run scripts/capture_obs.py $(SCENE) -d $(DURATION) -o $(OUTPUT)
