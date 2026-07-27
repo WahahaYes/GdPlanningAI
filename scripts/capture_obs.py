@@ -26,6 +26,7 @@ Environment variables:
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -222,11 +223,19 @@ def main() -> int:
     )
     time.sleep(2)
 
-    # ── Step 5: Start recording ────────────────────────────────────────────
-    obs.start_recording(args.scene_name)
+    # ── Step 4.5: Stop any OBS recording left from a previous run ────────
+    if obs.is_recording():
+        print("  OBS was already recording — stopping previous session...")
+        obs.stop_recording()
+        time.sleep(0.5)
 
-    # ── Step 6: Wait for duration or Godot exit (wall-clock time) ─────────
+    # ── Steps 5–7: record, wait, stop (with cleanup guarantee) ──────────
+    recording_stopped = False
     try:
+        # Step 5: Start recording
+        obs.start_recording(args.scene_name)
+
+        # Step 6: Wait for duration or Godot exit (wall-clock time)
         if args.no_quit_wait:
             print(f"\nRecording — waiting for Godot (PID {godot_proc.pid}) to exit...")
             godot_proc.wait()
@@ -244,25 +253,38 @@ def main() -> int:
                 godot_proc.kill()
                 godot_proc.wait()
                 print(f"  {args.duration}s elapsed — Godot killed")
-    except KeyboardInterrupt:
-        print("\nInterrupted by user")
-        godot_proc.kill()
 
-    # ── Step 7: Stop recording ────────────────────────────────────────────
-    stopped_path = obs.stop_recording()
-    if stopped_path:
-        if stopped_path != output_path:
+        # Step 7: Stop recording
+        stopped_path = obs.stop_recording()
+        recording_stopped = True
+        if stopped_path:
+            if stopped_path != output_path:
+                try:
+                    shutil.move(str(stopped_path), str(output_path))
+                    print(f"✓ Moved to: {output_path}")
+                except Exception as e:
+                    print(f"⚠ Could not move output: {e}")
+                    print(f"  File saved at: {stopped_path}")
+        else:
+            print("⚠ No output file received from OBS")
+
+        return 0
+    except Exception:
+        print("✗ Recording failed")
+        return 1
+    finally:
+        # Always kill lingering Godot
+        if godot_proc is not None and godot_proc.poll() is None:
+            godot_proc.kill()
+            godot_proc.wait()
+        # Stop OBS recording only if Step 7 was never reached (error path)
+        if not recording_stopped:
             try:
-                stopped_path.rename(output_path)
-                print(f"✓ Moved to: {output_path}")
-            except Exception as e:
-                print(f"⚠ Could not rename output: {e}")
-                print(f"  File saved at: {stopped_path}")
-    else:
-        print("⚠ No output file received from OBS")
-
-    obs.close()
-    return 0
+                if obs.is_recording():
+                    obs.stop_recording()
+            except Exception:
+                pass
+        obs.close()
 
 
 if __name__ == "__main__":
