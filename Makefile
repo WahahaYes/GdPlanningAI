@@ -96,6 +96,19 @@ help: ## Show this help message
 
 ##@ Recording
 
+# Defaults for recording
+SCENE       ?= examples/hunger_basic_2d.tscn
+DURATION    ?= 10
+OUTPUT      ?= media/captures
+
 .PHONY: record-obs
-record-obs: ## Record scene via OBS (requires OBS_PASSWORD env var, DURATION defaults to 10)
-	@uv run scripts/capture_obs.py $(SCENE) -d $(DURATION) -o $(OUTPUT)
+record-obs: ## Record scene via OBS (auto-loads .env)
+	@bash -c 'set -a; test -f .env && . .env; set +a; \
+		args="$(SCENE) -d $(DURATION) --start-obs"; \
+		[ "$(FULLSCREEN)" = "1" ] && args="$$args -f"; \
+		[ -n "$(OUTPUT)" ] && args="$$args -o $(OUTPUT)"; \
+		uv run scripts/capture_obs.py $$args'
+
+.PHONY: record-obs-fullscreen
+record-obs-fullscreen: ## Record scene via OBS in fullscreen mode (-f)
+	@$(MAKE) record-obs FULLSCREEN=1

@@ -53,23 +53,18 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "gdtoolkit" },
+    { name = "obsws-python" },
     { name = "pre-commit" },
     { name = "ruff" },
-]
-
-[package.optional-dependencies]
-obs = [
-    { name = "obsws-python" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "gdtoolkit", specifier = ">=4.0" },
-    { name = "obsws-python", marker = "extra == 'obs'", specifier = ">=1.7.0" },
+    { name = "obsws-python", specifier = ">=1.7.0" },
     { name = "pre-commit", specifier = ">=4.6.1" },
     { name = "ruff", specifier = ">=0.16.0" },
 ]
-provides-extras = ["obs"]
 
 [[package]]
 name = "gdtoolkit"

@@ -7,9 +7,5 @@ dependencies = [
     "gdtoolkit>=4.0",
     "pre-commit>=4.6.1",
     "ruff>=0.16.0",
-]
-
-[project.optional-dependencies]
-obs = [
     "obsws-python>=1.7.0",
 ]

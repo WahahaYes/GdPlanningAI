@@ -33,10 +33,12 @@ addons/*
 .addons/*
 media/captures/
 
-# Secrets
+# Secrets - OBS password configuration
 .env
-.env.*
-!.env.example
+.env.local
+
+# OBS capture RestoreToken (persists portal window selection)
+.obs_capture_token.json
 
 # Python
 __pycache__/

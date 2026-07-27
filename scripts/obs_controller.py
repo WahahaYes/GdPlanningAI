@@ -7,36 +7,52 @@ Uses environment variables for configuration:
     OBS_PORT      - WebSocket port (default: 4455)
     OBS_PASSWORD  - WebSocket password (required)
 
-Usage:
-    # Install with: uv pip install -e ".[obs]"
-    # Or: uv add obsws-python
+Supports PipeWire screen capture with RestoreToken persistence for Wayland,
+allowing automatic capture reconnection across OBS restarts.
 
+Usage:
     OBS_PASSWORD=your_password python obs_controller.py --start
     OBS_PASSWORD=your_password python obs_controller.py --stop
 """
 
 from __future__ import annotations
 
+import json
 import os
 import sys
+import time
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from obsws_python import ReqClient
 
 if TYPE_CHECKING:
     from obsws_python.types import RecordStatus, GetVersionResponse
 
+# Path for persisting RestoreTokens so they survive source recreation
+TOKEN_DIR = Path(__file__).resolve().parent
+TOKEN_FILE = TOKEN_DIR / ".obs_capture_token.json"
+
+INPUT_NAME = "GodotCapture"
+
 
 class OBSController:
-    """Control OBS recording via WebSocket."""
+    """Control OBS recording via WebSocket.
+
+    Manages PipeWire monitor capture with RestoreToken persistence,
+    allowing automated fullscreen recording setup on Wayland.
+    """
 
     # Known screen capture input kinds by priority (prefer pipewire on Linux)
-    SCREEN_CAPTURE_KINDS = [
+    SCREEN_CAPTURE_KINDS: list[str] = [
         "pipewire-screen-capture-source",  # Linux Wayland
         "xcomposite_screen",  # Linux X11
         "monitor_capture",  # Windows/macOS display capture
     ]
+
+    # Known RestoreToken for full-monitor capture.
+    # Obtained from xdg-desktop-portal when user selected "Monitor source".
+    _MONITOR_TOKEN = "aa49d601-3119-47a0-a5e5-095f99b35036"
 
     def __init__(
         self,
@@ -55,22 +71,117 @@ class OBSController:
 
         self._client: ReqClient | None = None
 
-    def connect(self) -> None:
-        """Establish WebSocket connection to OBS."""
+    # ── Token persistence ─────────────────────────────────────────────────
+
+    @staticmethod
+    def _token_file_path() -> Path:
+        return TOKEN_FILE
+
+    def _user_token_path(self) -> Path:
+        """User-level token storage (survives project deletion or repo wipe)."""
+        return Path.home() / ".config" / "gdplanningai-obs" / "capture_token"
+
+    def load_monitor_token(self) -> str:
+        """Load monitor RestoreToken with fallback chain.
+
+        Priority: user config dir → project token file → hardcoded fallback.
+        This ensures the token survives project moves, repo wipes, and OBS scene resets.
+        """
+        # 1. User config dir (most persistent)
+        p = self._user_token_path()
+        if p.exists():
+            try:
+                token = p.read_text().strip()
+                if token and len(token) > 4:
+                    return token
+            except OSError:
+                pass
+
+        # 2. Project-local token file
+        path = self._token_file_path()
+        if path.exists():
+            try:
+                data = json.loads(path.read_text())
+                token = data.get("monitor")
+                if token and len(token) > 4:
+                    return token
+            except (json.JSONDecodeError, OSError):
+                pass
+
+        # 3. Hardcoded fallback (last resort)
+        return self._MONITOR_TOKEN
+
+    def persist_monitor_token(self, token: str) -> None:
+        """Save monitor RestoreToken to user config dir AND project file."""
+        # User config (primary — survives repo operations)
+        config_path = self._user_token_path()
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text(token + "\n")
+
+        # Project-local (secondary — lives alongside the project)
+        path = self._token_file_path()
+        data: dict[str, Any] = {}
+        if path.exists():
+            try:
+                data = json.loads(path.read_text())
+            except (json.JSONDecodeError, OSError):
+                pass
+        data["monitor"] = token
+        path.write_text(json.dumps(data, indent=2) + "\n")
+
+        print(f"✓ Monitor RestoreToken persisted ({token[:16]}...)")
+
+    def _read_active_token(self) -> str | None:
+        """Read the current RestoreToken from the OBS GodotCapture source."""
         try:
-            self._client = ReqClient(
-                host=self.host,
-                port=self.port,
-                password=self.password,
-                timeout=self.timeout if hasattr(self, "timeout") else 10.0,
-            )
-            version = self.get_version()
-            print(
-                f"✓ Connected to OBS {version.obs_version} (WebSocket {version.obs_web_socket_version})"
-            )
-        except Exception as e:
-            print(f"✗ Failed to connect to OBS at {self.host}:{self.port}: {e}")
-            raise
+            if self._input_exists(INPUT_NAME):
+                s = self.client.get_input_settings(INPUT_NAME)
+                token = s.input_settings.get("RestoreToken", "")
+                if token and len(token) > 4:
+                    return token
+        except Exception:
+            pass
+        return None
+
+    # ── Connection ────────────────────────────────────────────────────────
+
+    def connect(self) -> None:
+        """Establish WebSocket connection to OBS.  Raises on failure (no print)."""
+        self._client = ReqClient(
+            host=self.host,
+            port=self.port,
+            password=self.password,
+            timeout=10.0,
+        )
+        version = self.get_version()
+        print(
+            f"✓ Connected to OBS {version.obs_version} "
+            f"(WebSocket {version.obs_web_socket_version})"
+        )
+
+    def _wait_for_connection(self, max_retries: int = 12, delay: float = 2.0) -> None:
+        """Retry connection until OBS WebSocket is ready.  Silent on retries."""
+        last_error = None
+        for attempt in range(max_retries):
+            try:
+                self._client = ReqClient(
+                    host=self.host,
+                    port=self.port,
+                    password=self.password,
+                    timeout=5.0,
+                )
+                version = self.get_version()
+                print(
+                    f"✓ Connected to OBS {version.obs_version} "
+                    f"(WebSocket {version.obs_web_socket_version})"
+                )
+                return
+            except Exception as e:
+                last_error = e
+                if attempt < max_retries - 1:
+                    time.sleep(delay)
+        msg = f"Failed to connect after {max_retries} attempts: {last_error}"
+        raise ConnectionError(msg)
 
     @property
     def client(self) -> ReqClient:
@@ -78,42 +189,76 @@ class OBSController:
             raise RuntimeError("Not connected - call connect() first")
         return self._client
 
-    def ensure_screen_capture(self, scene_name: str = "Scene") -> bool:
-        """Ensure a screen capture input exists in the specified scene."""
-        # Check if we already have a capture source in this scene
+    # ── Screen capture source management ──────────────────────────────────
+
+    def _find_available_capture_kind(self) -> str | None:
+        """Find the first available screen capture input kind."""
+        kinds = self.client.get_input_kind_list(unversioned=False)
+        return next(
+            (k for k in self.SCREEN_CAPTURE_KINDS if k in kinds.input_kinds),
+            None,
+        )
+
+    def _input_exists(self, name: str = INPUT_NAME) -> bool:
+        """Check if an input with the given name exists."""
+        inputs = self.client.get_input_list()
+        return any(i.get("inputName") == name for i in inputs.inputs)
+
+    def _has_capture_in_scene(self, scene_name: str) -> bool:
+        """Check if a screen-capture-like source exists in the scene."""
         items = self.client.get_scene_item_list(scene_name)
-        has_capture = any(
+        return any(
             "capture" in item.get("sourceName", "").lower()
             for item in items.scene_items
         )
-        if has_capture:
+
+    def ensure_screen_capture(self, scene_name: str = "Scene") -> bool:
+        """Ensure a monitor capture source exists in the scene.
+
+        If the source already exists (from a previous OBS session), reads
+        back its RestoreToken and persists it.  If no source exists, creates
+        one using the best available token from the fallback chain, then
+        reads the resulting token back and persists it.
+
+        This auto-persist loop keeps the token fresh across OBS restarts
+        and scene wipes.
+        """
+        if self._has_capture_in_scene(scene_name):
+            token = self._read_active_token()
+            if token:
+                self.persist_monitor_token(token)
             return True
 
-        # Find available screen capture kind
-        kinds = self.client.get_input_kind_list(unversioned=False)
-        input_kinds = kinds.input_kinds
-        available_kind = next(
-            (k for k in self.SCREEN_CAPTURE_KINDS if k in input_kinds), None
-        )
-
+        available_kind = self._find_available_capture_kind()
         if not available_kind:
             print("✗ No screen capture input kind available")
-            print(f"   Available: {input_kinds}")
             return False
+
+        token = self.load_monitor_token()
+        settings: dict[str, Any] = {"RestoreToken": token} if token else {}
 
         try:
             self.client.create_input(
                 sceneName=scene_name,
-                inputName="GodotCapture",
+                inputName=INPUT_NAME,
                 inputKind=available_kind,
-                inputSettings={},
+                inputSettings=settings,
                 sceneItemEnabled=True,
             )
-            print(f"✓ Created {available_kind} input for screen capture")
-            return True
+            kind_label = available_kind.replace("-source", "").replace("_", " ")
+            print(f"✓ Created {kind_label}" + (" with saved token" if token else ""))
         except Exception as e:
             print(f"⚠ Could not create screen capture: {e}")
             return False
+
+        # Give the portal a moment to settle, then read back the active token
+        time.sleep(0.5)
+        active_token = self._read_active_token()
+        if active_token:
+            self.persist_monitor_token(active_token)
+        return True
+
+    # ── Recording control ─────────────────────────────────────────────────
 
     def get_version(self) -> GetVersionResponse:
         """Get OBS version info."""
@@ -174,7 +319,6 @@ class OBSController:
     def close(self) -> None:
         """Close the connection."""
         if self._client is not None:
-            # ReqClient doesn't expose disconnect, but we can clear reference
             self._client = None
 
 
@@ -182,7 +326,8 @@ def main() -> int:
     """CLI entry point."""
     import argparse
 
-    parser = argparse.ArgumentParser(description="OBS WebSocket controller")
+    description = "OBS WebSocket controller for Godot scene recording"
+    parser = argparse.ArgumentParser(description=description)
     parser.add_argument("--host", default=os.getenv("OBS_HOST", "localhost"))
     parser.add_argument("--port", type=int, default=int(os.getenv("OBS_PORT", "4455")))
     parser.add_argument("--password", default=os.getenv("OBS_PASSWORD"))
