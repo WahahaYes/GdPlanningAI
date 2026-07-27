@@ -2,8 +2,9 @@
 #
 # capture_all_showcase.sh — Record footage from all key showcase commits.
 #
-# Uses the OBS-based capture_obs.py for hardware-accelerated recording,
-# avoiding Godot's MovieWriter frame-rate penalty.
+# Uses git worktrees to check out each target commit without disturbing
+# the working tree, then runs the OBS-based capture_obs.py from the
+# worktree directory.
 #
 # Usage:
 #   ./scripts/capture_all_showcase.sh [--dry-run] [--commit-only <hash>]
@@ -25,7 +26,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+WORKTREE_BASE="${PROJECT_DIR}/.worktrees"
 CAPTURE_DIR="${PROJECT_DIR}/media/captures"
+VENV_PYTHON="${PROJECT_DIR}/.venv/bin/python"
+
 DRY_RUN=""
 COMMIT_ONLY=""
 SCENE_ONLY=""
@@ -56,31 +60,58 @@ if [[ -z "${OBS_PASSWORD:-}" ]]; then
     exit 1
 fi
 
+if [[ ! -x "$VENV_PYTHON" ]]; then
+    echo "[error] Virtual environment Python not found at ${VENV_PYTHON}"
+    echo "       Run 'uv sync' first."
+    exit 1
+fi
+
+# Rust (cargo) may not be in PATH — use the standard location as fallback
+CARGO="${CARGO:-"${HOME}/.cargo/bin/cargo"}"
+if [[ ! -x "$CARGO" ]]; then
+    # Last resort: look for cargo on PATH
+    CARGO="$(command -v cargo 2>/dev/null || true)"
+fi
+
 # ─── Capture Manifest ────────────────────────────────────────────────────────
-# Format: "commit|scene|label"
+# Format: "commit|scene|label|act"
 # commit: git ref to checkout
 # scene:  scene path relative to project root
 # label:  human-readable name for the clip
+# act:    era subdirectory for organizing output files
 
 MANIFEST=(
-    # Act 1 — The Foundation
-    "dc48fe5|examples/hunger_basic_2d.tscn|01_before_pure_gdscript"
+    # ── Act 1 — The Foundation ────────────────────────────────────────────────
+    # Pure GDScript era. Old scene layout under addons/GdPlanningAI/examples/2D/demo_scenes/.
+    "dc48fe5|addons/GdPlanningAI/examples/2D/demo_scenes/single_agent_demo.tscn|01_before_pure_gdscript|act1_foundation"
+    "dc48fe5|addons/GdPlanningAI/examples/2D/demo_scenes/multi_agent_demo.tscn|01b_multi_agent|act1_foundation"
+    "dc48fe5|addons/GdPlanningAI/examples/2D/demo_scenes/multithreading_stress_test.tscn|01c_stress_test|act1_foundation"
 
-    # Act 2 — The Rust Leap
-    "3429296|examples/hunger_basic_2d.tscn|02_first_rust_demos_working"
-    "7b7b968|examples/hunger_basic_2d.tscn|03_rust_tests_exist"
+    # ── Act 2 — The Rust Leap ─────────────────────────────────────────────────
+    # Early Rust integration. Scene layout under addons/GdPlanningAI/examples/demo_2d/scenes/.
+    "3429296|addons/GdPlanningAI/examples/demo_2d/scenes/single_agent_demo.tscn|02_first_rust_demos_working|act2_rust_leap"
+    "3429296|addons/GdPlanningAI/examples/demo_2d/scenes/multi_agent_demo.tscn|02b_multi_agent|act2_rust_leap"
 
-    # Act 3 — The Rewrites & Breakthrough
-    "6947d24|examples/hunger_basic_2d.tscn|04_reimplementation_status"
-    "a55ea1f|examples/hunger_basic_2d.tscn|05_rust_suite_passing"
-    "a55ea1f|examples/hunger_multi_agent_2d.tscn|05b_multi_agent_passing"
+    "7b7b968|addons/GdPlanningAI/examples/demo_2d/scenes/single_agent_demo.tscn|03_rust_tests_exist|act2_rust_leap"
+    "7b7b968|addons/GdPlanningAI/examples/demo_2d/scenes/multi_agent_demo.tscn|03b_multi_agent|act2_rust_leap"
 
-    # Act 4 — The Polish (current state demos)
-    "a9bda00|examples/hunger_basic_2d.tscn|06_final_hunger_basic"
-    "a9bda00|examples/hunger_multi_agent_2d.tscn|07_final_multi_agent"
-    "a9bda00|examples/hunger_stress_test_2d.tscn|08_final_stress_test"
-    "a9bda00|examples/campfire_2d.tscn|09_final_campfire_2d"
-    "a9bda00|examples/campfire_3d.tscn|10_final_campfire_3d"
+    # ── Act 3 — The Rewrites & Breakthrough ──────────────────────────────────
+    # Modern scene names first appear under examples/.
+    "6947d24|examples/hunger_basic_2d.tscn|04_reimplementation_status|act3_rewrites"
+    "6947d24|examples/hunger_multi_agent_2d.tscn|04b_multi_agent|act3_rewrites"
+    "6947d24|examples/hunger_stress_test_2d.tscn|04c_stress_test|act3_rewrites"
+
+    "a55ea1f|examples/hunger_basic_2d.tscn|05_rust_suite_passing|act3_rewrites"
+    "a55ea1f|examples/hunger_multi_agent_2d.tscn|05b_multi_agent_passing|act3_rewrites"
+    "a55ea1f|examples/hunger_stress_test_2d.tscn|05c_stress_test|act3_rewrites"
+
+    # ── Act 4 — The Polish ───────────────────────────────────────────────────
+    # Current state demos — the full set.
+    "a9bda00|examples/hunger_basic_2d.tscn|06_final_hunger_basic|act4_polish"
+    "a9bda00|examples/hunger_multi_agent_2d.tscn|07_final_multi_agent|act4_polish"
+    "a9bda00|examples/hunger_stress_test_2d.tscn|08_final_stress_test|act4_polish"
+    "a9bda00|examples/campfire_2d.tscn|09_final_campfire_2d|act4_polish"
+    "a9bda00|examples/campfire_3d.tscn|10_final_campfire_3d|act4_polish"
 )
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -97,30 +128,38 @@ run() {
     "$@"
 }
 
-# ─── Run Captures ───────────────────────────────────────────────────────────
+# ─── Worktree cleanup on exit ───────────────────────────────────────────────
 
-mkdir -p "$CAPTURE_DIR"
-TOTAL=${#MANIFEST[@]}
-COUNT=0
-FAILED=0
+WORKTREES_CREATED=()
 
-ORIGINAL_REF=$(git -C "$PROJECT_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || git -C "$PROJECT_DIR" rev-parse HEAD)
-restore_ref() {
-    if [[ -n "$ORIGINAL_REF" ]]; then
-        info "Restoring ref: ${ORIGINAL_REF}"
-        git -C "$PROJECT_DIR" checkout "$ORIGINAL_REF" --quiet 2>/dev/null || true
-    fi
+cleanup_worktrees() {
+    for wt in "${WORKTREES_CREATED[@]}"; do
+        if [[ -d "$wt" ]]; then
+            info "Removing worktree: $wt"
+            git -C "$PROJECT_DIR" worktree remove "$wt" --force 2>/dev/null || true
+        fi
+    done
 }
-trap restore_ref EXIT
+trap cleanup_worktrees EXIT
 
+# ─── Print summary ──────────────────────────────────────────────────────────
+
+TOTAL=${#MANIFEST[@]}
 echo "=============================================="
 echo " GdPlanningAI Showcase Capture"
 echo " ${TOTAL} clips via OBS (${FPS}fps)"
+echo " Worktrees in: ${WORKTREE_BASE}/"
 echo "=============================================="
 echo ""
 
+# ─── Run Captures ───────────────────────────────────────────────────────────
+
+mkdir -p "$CAPTURE_DIR"
+COUNT=0
+FAILED=0
+
 for entry in "${MANIFEST[@]}"; do
-    IFS='|' read -r commit scene label <<< "$entry"
+    IFS='|' read -r commit scene label act <<< "$entry"
     COUNT=$((COUNT + 1))
 
     # Filter by --commit-only
@@ -133,29 +172,95 @@ for entry in "${MANIFEST[@]}"; do
         continue
     fi
 
-    OUTPUT="${CAPTURE_DIR}/${label}.mp4"
+    scene_name="$(basename "$scene" .tscn)"
+    OUTPUT_DIR="${CAPTURE_DIR}/${act}"
+    OUTPUT="${OUTPUT_DIR}/${label}--${scene_name}--${commit}.mp4"
+    WORKTREE_DIR="${WORKTREE_BASE}/${label}"
+    mkdir -p "$OUTPUT_DIR"
 
     echo "──────────────────────────────────────────────"
     echo "[${COUNT}/${TOTAL}] ${label}"
     echo "  Commit:  ${commit}"
     echo "  Scene:   ${scene}"
+    echo "  Act:     ${act}"
     echo "  Output:  ${OUTPUT}"
     echo "──────────────────────────────────────────────"
 
-    # Checkout the target commit
-    run git -C "$PROJECT_DIR" checkout "$commit" --quiet
-
-    # Build Rust planner for this commit
+    # Create git worktree for this commit (isolated checkout)
     if [[ -z "$DRY_RUN" ]]; then
-        info "Building Rust planner..."
-        if [[ -f "${PROJECT_DIR}/addons/GdPlanningAI/rust/Makefile" ]]; then
-            make -C "${PROJECT_DIR}/addons/GdPlanningAI/rust" build-release 2>&1 | tail -3 || true
+        if [[ -d "$WORKTREE_DIR" ]]; then
+            git -C "$PROJECT_DIR" worktree remove "$WORKTREE_DIR" --force 2>/dev/null || true
+            rm -rf "$WORKTREE_DIR"
         fi
-        ok "Build complete"
+        mkdir -p "$WORKTREE_BASE"
+        git -C "$PROJECT_DIR" worktree add "$WORKTREE_DIR" "$commit" --quiet
+        WORKTREES_CREATED+=("$WORKTREE_DIR")
+        info "Worktree created at ${WORKTREE_DIR}"
+    else
+        info "Would create worktree at ${WORKTREE_DIR} for ${commit}"
+    fi
+
+    # Verify scene file exists in the worktree
+    if [[ ! -f "${WORKTREE_DIR}/${scene}" ]]; then
+        err "Scene not found in worktree: ${WORKTREE_DIR}/${scene}"
+        echo "  Skipping."
+        FAILED=$((FAILED + 1))
+        continue
+    fi
+
+    # Symlink recording scripts into the worktree (don't exist in old commits)
+    # Symlinks let capture_obs.py resolve its parent dir to the worktree root,
+    # so godot --path finds the correct project.godot.
+    if [[ -z "$DRY_RUN" ]]; then
+        mkdir -p "$WORKTREE_DIR/scripts"
+        ln -sf "$SCRIPT_DIR/capture_obs.py"   "$WORKTREE_DIR/scripts/capture_obs.py"
+        ln -sf "$SCRIPT_DIR/obs_controller.py" "$WORKTREE_DIR/scripts/obs_controller.py"
+    else
+        info "Would symlink scripts into ${WORKTREE_DIR}/scripts/"
+    fi
+
+    # Build Rust binary with shared artifact cache and safe parallelism.
+    #   - Symlinks the worktree's target/ to `.worktrees/cargo-target/` so
+    #     every commit shares the same incremental build cache.
+    #   - Uses `cargo build` (debug profile) — no LTO, far less RAM than
+    #     `--release`, and the .gdextension loads the same .so either way.
+    #   - `CARGO_BUILD_JOBS=2` caps peak memory well under 6.6GB.
+    #   - Commits without Rust (e.g. dc48fe5) are skipped automatically.
+    if [[ -z "$DRY_RUN" ]]; then
+        RUST_DIR="${WORKTREE_DIR}/addons/GdPlanningAI/rust"
+        if [[ -f "${RUST_DIR}/Cargo.toml" ]]; then
+            SHARED_TARGET="${PROJECT_DIR}/.worktrees/cargo-target"
+            mkdir -p "$SHARED_TARGET"
+            rm -rf "${RUST_DIR}/target"
+            ln -sfn "$SHARED_TARGET" "${RUST_DIR}/target"
+
+            info "Building Rust (debug, jobs=2)..."
+            CARGO_BUILD_JOBS=2 \
+            "$CARGO" build --manifest-path "${RUST_DIR}/Cargo.toml" 2>&1 | tail -5
+            mkdir -p "${RUST_DIR}/../bin/linux"
+            cp "${SHARED_TARGET}/debug/libgdplanningai_rust.so" \
+               "${RUST_DIR}/../bin/linux/libgdplanningai_rust.so" 2>/dev/null || true
+            ok "Rust built (debug)"
+        else
+            info "No Rust code at this commit — skipping build"
+        fi
+    fi
+
+    # Copy .godot/ from the main repo into the worktree.
+    # A fresh worktree has no .godot/ — this causes autoload UID resolution to
+    # fail, which prevents the GDExtension (Rust) from loading, which means
+    # GdPAIBlackboard and all Rust-backed classes are never registered, and
+    # every script referencing them fails to parse → completely blank scene.
+    if [[ -z "$DRY_RUN" ]]; then
+        if [[ -d "${PROJECT_DIR}/.godot" ]]; then
+            cp -a "${PROJECT_DIR}/.godot" "${WORKTREE_DIR}/.godot"
+        fi
     fi
 
     # Record via OBS
-    if run uv run "${SCRIPT_DIR}/capture_obs.py" \
+    # Use the main repo's venv Python (not uv run) so it works regardless
+    # of the worktree's pyproject.toml contents.
+    if run "$VENV_PYTHON" "$WORKTREE_DIR/scripts/capture_obs.py" \
         "$scene" \
         -d "$DURATION" \
         -o "$OUTPUT" \
@@ -169,6 +274,8 @@ for entry in "${MANIFEST[@]}"; do
     fi
     echo ""
 done
+
+# ─── Done ────────────────────────────────────────────────────────────────────
 
 echo "=============================================="
 echo " Done. ${COUNT} attempted, ${FAILED} failed."

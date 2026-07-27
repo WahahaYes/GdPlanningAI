@@ -42,3 +42,6 @@ media/captures/
 
 # Python
 __pycache__/
+
+# Git worktrees for showcase recording
+.worktrees/
