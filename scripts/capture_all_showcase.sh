@@ -2,8 +2,8 @@
 #
 # capture_all_showcase.sh — Record footage from all key showcase commits.
 #
-# Runs capture_scene.sh against each milestone commit + scene combo.
-# Outputs numbered clips ready for video editing.
+# Uses the OBS-based capture_obs.py for hardware-accelerated recording,
+# avoiding Godot's MovieWriter frame-rate penalty.
 #
 # Usage:
 #   ./scripts/capture_all_showcase.sh [--dry-run] [--commit-only <hash>]
@@ -13,6 +13,12 @@
 #   --commit-only <hash>   Only capture footage for a specific commit
 #   --scene-only <scene>   Only capture a specific scene across all commits
 #   --duration <secs>      Override duration for all captures (default: 30)
+#   --fps <fps>            Override Godot render FPS (default: 60)
+#
+# Dependencies:
+#   - OBS Studio with WebSocket server enabled (port 4455)
+#   - OBS_PASSWORD in .env or environment
+#   - godot (via godotenv or PATH)
 #
 
 set -euo pipefail
@@ -24,6 +30,7 @@ DRY_RUN=""
 COMMIT_ONLY=""
 SCENE_ONLY=""
 DURATION=30
+FPS=60
 
 # ─── Parse Args ──────────────────────────────────────────────────────────────
 
@@ -33,15 +40,27 @@ while [[ $# -gt 0 ]]; do
         --commit-only)   COMMIT_ONLY="$2"; shift 2 ;;
         --scene-only)    SCENE_ONLY="$2"; shift 2 ;;
         --duration)      DURATION="$2"; shift 2 ;;
+        --fps)           FPS="$2"; shift 2 ;;
         *) echo "Unknown option: $1"; exit 1 ;;
     esac
 done
 
-# ─── Capture Manifest ───────────────────────────────────────────────────────
+# ─── Load .env for OBS_PASSWORD ─────────────────────────────────────────────
+
+if [[ -f "${PROJECT_DIR}/.env" ]]; then
+    set -a; source "${PROJECT_DIR}/.env"; set +a
+fi
+
+if [[ -z "${OBS_PASSWORD:-}" ]]; then
+    echo "[error] OBS_PASSWORD is required. Set it in .env or export it."
+    exit 1
+fi
+
+# ─── Capture Manifest ────────────────────────────────────────────────────────
 # Format: "commit|scene|label"
 # commit: git ref to checkout
-# scene: scene path relative to project root
-# label: human-readable name for the clip
+# scene:  scene path relative to project root
+# label:  human-readable name for the clip
 
 MANIFEST=(
     # Act 1 — The Foundation
@@ -64,6 +83,20 @@ MANIFEST=(
     "a9bda00|examples/campfire_3d.tscn|10_final_campfire_3d"
 )
 
+# ─── Helpers ─────────────────────────────────────────────────────────────────
+
+info()  { echo -e "\033[0;34m[info]\033[0m  $*"; }
+ok()    { echo -e "\033[0;32m[ok]\033[0m    $*"; }
+err()   { echo -e "\033[0;31m[error]\033[0m $*" >&2; }
+
+run() {
+    if [[ -n "$DRY_RUN" ]]; then
+        echo -e "\033[1;33m[dry-run]\033[0m $*"
+        return 0
+    fi
+    "$@"
+}
+
 # ─── Run Captures ───────────────────────────────────────────────────────────
 
 mkdir -p "$CAPTURE_DIR"
@@ -71,9 +104,18 @@ TOTAL=${#MANIFEST[@]}
 COUNT=0
 FAILED=0
 
+ORIGINAL_REF=$(git -C "$PROJECT_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || git -C "$PROJECT_DIR" rev-parse HEAD)
+restore_ref() {
+    if [[ -n "$ORIGINAL_REF" ]]; then
+        info "Restoring ref: ${ORIGINAL_REF}"
+        git -C "$PROJECT_DIR" checkout "$ORIGINAL_REF" --quiet 2>/dev/null || true
+    fi
+}
+trap restore_ref EXIT
+
 echo "=============================================="
 echo " GdPlanningAI Showcase Capture"
-echo " ${TOTAL} clips to capture"
+echo " ${TOTAL} clips via OBS (${FPS}fps)"
 echo "=============================================="
 echo ""
 
@@ -100,12 +142,26 @@ for entry in "${MANIFEST[@]}"; do
     echo "  Output:  ${OUTPUT}"
     echo "──────────────────────────────────────────────"
 
-    if "$SCRIPT_DIR/capture_scene.sh" \
+    # Checkout the target commit
+    run git -C "$PROJECT_DIR" checkout "$commit" --quiet
+
+    # Build Rust planner for this commit
+    if [[ -z "$DRY_RUN" ]]; then
+        info "Building Rust planner..."
+        if [[ -f "${PROJECT_DIR}/addons/GdPlanningAI/rust/Makefile" ]]; then
+            make -C "${PROJECT_DIR}/addons/GdPlanningAI/rust" build-release 2>&1 | tail -3 || true
+        fi
+        ok "Build complete"
+    fi
+
+    # Record via OBS
+    if run uv run "${SCRIPT_DIR}/capture_obs.py" \
         "$scene" \
-        -c "$commit" \
         -d "$DURATION" \
         -o "$OUTPUT" \
-        $DRY_RUN; then
+        -f \
+        --start-obs \
+        --max-fps "$FPS"; then
         echo "  ✓ Captured"
     else
         echo "  ✗ FAILED"
