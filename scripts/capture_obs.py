@@ -72,25 +72,26 @@ def launch_godot_scene(
     project_dir: Path,
     scene_path: Path,
     fullscreen: bool = False,
-    duration: int | None = None,
-    fixed_fps: int = 30,
+    max_fps: int = 60,
 ) -> subprocess.Popen:
-    """Launch a Godot scene in the background and return the process handle."""
+    """Launch a Godot scene in the background and return the process handle.
+
+    Uses ``--max-fps`` (not ``--fixed-fps``) to cap rendering without
+    disabling real-time synchronization, so physics, animations, and
+    ``_process(delta)`` all advance at wall-clock speed.
+    """
     godot_cmd = [
         "godot",
         "--path",
         str(project_dir),
         "--scene",
         f"res://{scene_path.relative_to(project_dir)}",
-        "--fixed-fps",
-        str(fixed_fps),
+        "--max-fps",
+        str(max_fps),
     ]
 
     if fullscreen:
         godot_cmd.append("-f")
-
-    if duration is not None and duration > 0:
-        godot_cmd.extend(["--quit-after", str(duration * fixed_fps)])
 
     print(f"Launching: {' '.join(godot_cmd)}")
     proc = subprocess.Popen(
@@ -145,6 +146,12 @@ def main() -> int:
         action="store_true",
         help="Attempt to start OBS if not running",
     )
+    parser.add_argument(
+        "--max-fps",
+        type=int,
+        default=60,
+        help="Godot max render FPS (default: 60)",
+    )
 
     args = parser.parse_args()
 
@@ -173,7 +180,11 @@ def main() -> int:
         output_path = output_dir / f"{scene_name}_{timestamp}.mp4"
 
     print(f"Scene: {scene_path}")
-    print(f"Duration: {args.duration}s (OBS records until Godot exits)")
+    print(
+        f"Duration: {args.duration}s"
+        if not args.no_quit_wait
+        else "Duration: indefinite"
+    )
     print(f"Output: {output_path}")
     if args.fullscreen:
         print("Mode: fullscreen")
@@ -207,18 +218,32 @@ def main() -> int:
         project_dir=project_dir,
         scene_path=scene_path,
         fullscreen=args.fullscreen,
-        duration=None if args.no_quit_wait else args.duration,
+        max_fps=args.max_fps,
     )
     time.sleep(2)
 
     # ── Step 5: Start recording ────────────────────────────────────────────
     obs.start_recording(args.scene_name)
 
-    # ── Step 6: Wait for Godot to finish ───────────────────────────────────
+    # ── Step 6: Wait for duration or Godot exit (wall-clock time) ─────────
     try:
-        print(f"\nRecording — waiting for Godot (PID {godot_proc.pid}) to exit...")
-        godot_proc.wait()
-        print(f"  Godot exited with code {godot_proc.returncode}")
+        if args.no_quit_wait:
+            print(f"\nRecording — waiting for Godot (PID {godot_proc.pid}) to exit...")
+            godot_proc.wait()
+            print(f"  Godot exited with code {godot_proc.returncode}")
+        else:
+            print(f"\nRecording for {args.duration}s...")
+            deadline = time.monotonic() + args.duration
+            while time.monotonic() < deadline:
+                ret = godot_proc.poll()
+                if ret is not None:
+                    print(f"  Godot exited early with code {ret}")
+                    break
+                time.sleep(0.1)
+            else:
+                godot_proc.kill()
+                godot_proc.wait()
+                print(f"  {args.duration}s elapsed — Godot killed")
     except KeyboardInterrupt:
         print("\nInterrupted by user")
         godot_proc.kill()

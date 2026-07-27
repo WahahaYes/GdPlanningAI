@@ -99,12 +99,13 @@ help: ## Show this help message
 # Defaults for recording
 SCENE       ?= examples/hunger_basic_2d.tscn
 DURATION    ?= 10
+FPS         ?= 60
 OUTPUT      ?= media/captures
 
 .PHONY: record-obs
 record-obs: ## Record scene via OBS (auto-loads .env)
 	@bash -c 'set -a; test -f .env && . .env; set +a; \
-		args="$(SCENE) -d $(DURATION) --start-obs"; \
+		args="$(SCENE) -d $(DURATION) --start-obs --max-fps $(FPS)"; \
 		[ "$(FULLSCREEN)" = "1" ] && args="$$args -f"; \
 		[ -n "$(OUTPUT)" ] && args="$$args -o $(OUTPUT)"; \
 		uv run scripts/capture_obs.py $$args'
