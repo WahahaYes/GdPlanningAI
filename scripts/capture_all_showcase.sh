@@ -66,6 +66,81 @@ if [[ ! -x "$VENV_PYTHON" ]]; then
     exit 1
 fi
 
+# ─── godotenv — manage Godot versions per commit ──────────────────────────
+# Detect godotenv CLI (manages multiple Godot installations). When available,
+# we resolve the per-commit Godot version from project.godot and use the
+# matching binary — both for the editor --quit regeneration and the capture.
+GODOTENV_CMD=""
+for candidate in godotenv "${HOME}/.dotnet/tools/godotenv" "${HOME}/.local/bin/godotenv"; do
+    if command -v "$candidate" &>/dev/null; then
+        GODOTENV_CMD="$candidate"
+        break
+    fi
+done
+if [[ -z "$GODOTENV_CMD" ]]; then
+    info "godotenv not found — will use 'godot' from PATH"
+fi
+
+# ─── Resolve Godot binary per commit ──────────────────────────────────────
+# Extracts the target Godot version from the commit's project.godot and uses
+# godotenv to provide the matching binary. Falls back to plain 'godot'.
+resolve_godot_bin() {
+    local commit="$1"
+    local features minor
+
+    features=$(git -C "$PROJECT_DIR" show "$commit:project.godot" 2>/dev/null \
+        | grep -oP 'config/features=PackedStringArray\("\K[^"]+' || true)
+
+    if [[ -z "$features" ]]; then
+        # Fallback — no version info
+        echo "godot"
+        return
+    fi
+
+    # Extract major.minor (e.g. "4.5" from "4.5" or "4.5" from "4.5.0")
+    minor="${features%%.*}.${features#*.}"
+    minor="${minor%[^0-9.]*}"
+
+    # godotenv manages version strings like "4.5-stable"
+    local ver="${minor}-stable"
+    local godotenv_bin
+
+    if [[ -n "$GODOTENV_CMD" ]]; then
+        # Check if already installed
+        if "$GODOTENV_CMD" godot list 2>/dev/null | grep -q "$ver"; then
+            "$GODOTENV_CMD" godot use "$ver" &>/dev/null || true
+            godotenv_bin=$("$GODOTENV_CMD" godot env target 2>/dev/null) || true
+            if [[ -n "$godotenv_bin" && -x "$godotenv_bin" ]]; then
+                echo "$godotenv_bin"
+                return
+            fi
+        fi
+
+        # Try to install
+        info "Installing Godot $ver via godotenv..."
+        if "$GODOTENV_CMD" godot install "$ver" &>/dev/null; then
+            "$GODOTENV_CMD" godot use "$ver" &>/dev/null || true
+            godotenv_bin=$("$GODOTENV_CMD" godot env target 2>/dev/null) || true
+            if [[ -n "$godotenv_bin" && -x "$godotenv_bin" ]]; then
+                echo "$godotenv_bin"
+                return
+            fi
+        else
+            info "Could not install Godot $ver — falling back to default"
+        fi
+
+        # Fallback to current active version
+        godotenv_bin=$("$GODOTENV_CMD" godot env target 2>/dev/null) || true
+        if [[ -n "$godotenv_bin" && -x "$godotenv_bin" ]]; then
+            echo "$godotenv_bin"
+            return
+        fi
+    fi
+
+    # Final fallback — plain 'godot'
+    echo "godot"
+}
+
 # Rust (cargo) may not be in PATH — use the standard location as fallback
 CARGO="${CARGO:-"${HOME}/.cargo/bin/cargo"}"
 if [[ ! -x "$CARGO" ]]; then
@@ -246,27 +321,47 @@ for entry in "${MANIFEST[@]}"; do
         fi
     fi
 
-    # Copy .godot/ from the main repo into the worktree.
-    # A fresh worktree has no .godot/ — this causes autoload UID resolution to
-    # fail, which prevents the GDExtension (Rust) from loading, which means
-    # GdPAIBlackboard and all Rust-backed classes are never registered, and
-    # every script referencing them fails to parse → completely blank scene.
+    # Resolve the Godot binary for this commit (via godotenv if available)
+    GODOT_BIN=$(resolve_godot_bin "$commit")
+    info "Godot binary: ${GODOT_BIN} ($($GODOT_BIN --version 2>/dev/null || echo 'unknown'))"
+
+    # Regenerate .godot/ by running the editor briefly and quitting.
+    # A fresh worktree has no .godot/ — without it, global_script_class_cache.cfg
+    # is missing, so GDScript class_name declarations are never registered at
+    # runtime, and every script referencing types like GdPAIBlackboard fails to
+    # parse.  The editor startup scans all .gd files, writes class_name cache +
+    # UID cache + extension_list.cfg into .godot/, then quits.  This is the
+    # correct per-commit initialization — unlike copying .godot/ from HEAD
+    # (which can carry stale extension_list.cfg referencing GDExtensions that
+    # didn't exist at older commits, cascading into type-registration failure).
+    #
+    # Note: the --editor startup also compiles shaders, so first invocation is
+    # slow (~2-4s).  This is a one-time cost per worktree.
     if [[ -z "$DRY_RUN" ]]; then
-        if [[ -d "${PROJECT_DIR}/.godot" ]]; then
-            cp -a "${PROJECT_DIR}/.godot" "${WORKTREE_DIR}/.godot"
+        rm -rf "${WORKTREE_DIR}/.godot"
+        info "Regenerating .godot/ via godot --editor --quit..."
+        if ! "$GODOT_BIN" --path "$WORKTREE_DIR" --editor --quit &>/dev/null; then
+            err "godot --editor --quit failed for ${commit}"
+            FAILED=$((FAILED + 1))
+            continue
         fi
+        ok ".godot/ regenerated"
+    else
+        info "[dry-run] Would regenerate .godot/ in ${WORKTREE_DIR}"
     fi
 
     # Record via OBS
     # Use the main repo's venv Python (not uv run) so it works regardless
     # of the worktree's pyproject.toml contents.
+    # Pass the resolved Godot binary so capture_obs.py uses the same version.
     if run "$VENV_PYTHON" "$WORKTREE_DIR/scripts/capture_obs.py" \
         "$scene" \
         -d "$DURATION" \
         -o "$OUTPUT" \
         -f \
         --start-obs \
-        --max-fps "$FPS"; then
+        --max-fps "$FPS" \
+        --godot-path "$GODOT_BIN"; then
         echo "  ✓ Captured"
     else
         echo "  ✗ FAILED"

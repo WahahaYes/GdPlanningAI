@@ -74,6 +74,7 @@ def launch_godot_scene(
     scene_path: Path,
     fullscreen: bool = False,
     max_fps: int = 60,
+    godot_path: str = "godot",
 ) -> subprocess.Popen:
     """Launch a Godot scene in the background and return the process handle.
 
@@ -82,7 +83,7 @@ def launch_godot_scene(
     ``_process(delta)`` all advance at wall-clock speed.
     """
     godot_cmd = [
-        "godot",
+        godot_path,
         "--path",
         str(project_dir),
         "--scene",
@@ -153,6 +154,11 @@ def main() -> int:
         default=60,
         help="Godot max render FPS (default: 60)",
     )
+    parser.add_argument(
+        "--godot-path",
+        default="godot",
+        help="Path to the Godot binary (default: godot from PATH)",
+    )
 
     args = parser.parse_args()
 
@@ -220,6 +226,7 @@ def main() -> int:
         scene_path=scene_path,
         fullscreen=args.fullscreen,
         max_fps=args.max_fps,
+        godot_path=args.godot_path,
     )
     time.sleep(2)
 
