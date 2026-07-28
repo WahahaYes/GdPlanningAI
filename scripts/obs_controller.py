@@ -2,24 +2,16 @@
 """
 OBS WebSocket controller for Godot scene recording.
 
-Uses environment variables for configuration:
-    OBS_HOST      - WebSocket host (default: localhost)
-    OBS_PORT      - WebSocket port (default: 4455)
-    OBS_PASSWORD  - WebSocket password (required)
-
-Supports PipeWire screen capture with RestoreToken persistence for Wayland,
-allowing automatic capture reconnection across OBS restarts.
-
-Usage:
-    OBS_PASSWORD=your_password python obs_controller.py --start
-    OBS_PASSWORD=your_password python obs_controller.py --stop
+Environment:
+    OBS_HOST      WebSocket host (default: localhost)
+    OBS_PORT      WebSocket port (default: 4455)
+    OBS_PASSWORD  WebSocket password (required)
 """
 
 from __future__ import annotations
 
 import json
 import os
-import sys
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -27,7 +19,7 @@ from typing import TYPE_CHECKING, Any
 from obsws_python import ReqClient
 
 if TYPE_CHECKING:
-    from obsws_python.types import RecordStatus, GetVersionResponse
+    from obsws_python.types import GetVersionResponse, RecordStatus
 
 # Path for persisting RestoreTokens so they survive source recreation
 TOKEN_DIR = Path(__file__).resolve().parent
@@ -44,11 +36,11 @@ class OBSController:
     """
 
     # Known screen capture input kinds by priority (prefer pipewire on Linux)
-    SCREEN_CAPTURE_KINDS: list[str] = [
-        "pipewire-screen-capture-source",  # Linux Wayland
-        "xcomposite_screen",  # Linux X11
-        "monitor_capture",  # Windows/macOS display capture
-    ]
+    SCREEN_CAPTURE_KINDS: tuple[str, ...] = (
+        "pipewire-screen-capture-source",
+        "xcomposite_screen",
+        "monitor_capture",
+    )
 
     # Known RestoreToken for full-monitor capture.
     # Obtained from xdg-desktop-portal when user selected "Monitor source".
@@ -139,25 +131,11 @@ class OBSController:
                 token = s.input_settings.get("RestoreToken", "")
                 if token and len(token) > 4:
                     return token
-        except Exception:
+        except Exception:  # noqa: BLE001, S110
             pass
         return None
 
     # ── Connection ────────────────────────────────────────────────────────
-
-    def connect(self) -> None:
-        """Establish WebSocket connection to OBS.  Raises on failure (no print)."""
-        self._client = ReqClient(
-            host=self.host,
-            port=self.port,
-            password=self.password,
-            timeout=10.0,
-        )
-        version = self.get_version()
-        print(
-            f"✓ Connected to OBS {version.obs_version} "
-            f"(WebSocket {version.obs_web_socket_version})"
-        )
 
     def _wait_for_connection(self, max_retries: int = 12, delay: float = 2.0) -> None:
         """Retry connection until OBS WebSocket is ready.  Silent on retries."""
@@ -176,7 +154,7 @@ class OBSController:
                     f"(WebSocket {version.obs_web_socket_version})"
                 )
                 return
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — retry loop
                 last_error = e
                 if attempt < max_retries - 1:
                     time.sleep(delay)
@@ -247,8 +225,8 @@ class OBSController:
             )
             kind_label = available_kind.replace("-source", "").replace("_", " ")
             print(f"✓ Created {kind_label}" + (" with saved token" if token else ""))
-        except Exception as e:
-            print(f"⚠ Could not create screen capture: {e}")
+        except Exception as e:  # noqa: BLE001
+            print(f"\u26a0 Could not create screen capture: {e}")
             return False
 
         # Give the portal a moment to settle, then read back the active token
@@ -301,72 +279,11 @@ class OBSController:
             self.client.set_current_program_scene(sceneName=scene_name)
             print(f"✓ Scene changed to: {scene_name}")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"✗ Failed to change scene to '{scene_name}': {e}")
             return False
-
-    def list_scenes(self) -> list[str]:
-        """List all available scene names."""
-        response = self.client.get_scene_list()
-        scenes = [
-            s["sceneName"] if isinstance(s, dict) else s.sceneName
-            for s in response.scenes
-        ]
-        for scene in scenes:
-            print(f"  - {scene}")
-        return scenes
 
     def close(self) -> None:
         """Close the connection."""
         if self._client is not None:
             self._client = None
-
-
-def main() -> int:
-    """CLI entry point."""
-    import argparse
-
-    description = "OBS WebSocket controller for Godot scene recording"
-    parser = argparse.ArgumentParser(description=description)
-    parser.add_argument("--host", default=os.getenv("OBS_HOST", "localhost"))
-    parser.add_argument("--port", type=int, default=int(os.getenv("OBS_PORT", "4455")))
-    parser.add_argument("--password", default=os.getenv("OBS_PASSWORD"))
-    parser.add_argument("--scene", "-s", help="Scene to switch to before recording")
-
-    group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("--start", action="store_true", help="Start recording")
-    group.add_argument("--stop", action="store_true", help="Stop recording")
-    group.add_argument("--status", action="store_true", help="Show recording status")
-    group.add_argument(
-        "--list-scenes", action="store_true", help="List available scenes"
-    )
-
-    args = parser.parse_args()
-
-    if not args.password:
-        print("✗ OBS_PASSWORD is required")
-        return 1
-
-    try:
-        obs = OBSController(host=args.host, port=args.port, password=args.password)
-        obs.connect()
-
-        if args.start:
-            obs.start_recording(args.scene)
-        elif args.stop:
-            obs.stop_recording()
-        elif args.status:
-            status = obs.get_record_status()
-            print(f"Recording: {'active' if status.output_active else 'inactive'}")
-        elif args.list_scenes:
-            print("Available scenes:")
-            obs.list_scenes()
-
-        return 0
-    except Exception as e:
-        print(f"Error: {e}")
-        return 1
-
-
-if __name__ == "__main__":
-    sys.exit(main())
