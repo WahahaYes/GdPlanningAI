@@ -265,6 +265,15 @@ def main() -> int:
         stopped_path = obs.stop_recording()
         recording_stopped = True
         if stopped_path:
+            # OBS hybrid-fragmented MP4 buffers all frames in a single fragment
+            # that is flushed ASYNCHRONOUSLY after stop_record() returns.
+            # Wait for the file to be written before proceeding.
+            if stopped_path.exists():
+                for _ in range(10):  # up to 5 s
+                    sz = stopped_path.stat().st_size
+                    if sz > 0:
+                        break
+                    time.sleep(0.5)
             if stopped_path != output_path:
                 try:
                     shutil.move(str(stopped_path), str(output_path))
