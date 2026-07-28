@@ -77,9 +77,15 @@ format: ## Format code using rustfmt
 	@cargo fmt 2>&1 | grep -E "(error|Error)" || true
 
 .PHONY: lint
-lint: ## Run clippy linter
+lint: ## Run clippy (errors block commit, warnings print only)
 	@rustup component add clippy 2>&1 | grep -E "(error|Error)" || true
-	@cargo clippy --message-format=short 2>&1 | grep -E "(error|Error|warning|Warning)" || true
+	@result=$$(cargo clippy --message-format=short 2>&1); \
+	errors=$$(echo "$$result" | grep -cE "^error" || true); \
+	warnings=$$(echo "$$result" | grep -cE "^warning" || true); \
+	echo "$$result" | grep -vE "^\s*$$" || true; \
+	echo "clippy: $$errors error(s), $$warnings warning(s)"; \
+	[ "$$errors" -gt 0 ] && exit 1; \
+	exit 0
 
 .PHONY: lint-fix
 lint-fix: ## Run clippy linter with autofix
