@@ -1,4 +1,4 @@
-# Godot OBS Recorder — Architecture Sketch
+# GdTimeMachine — Architecture Sketch
 
 Date: 2026-07-29
 Status: Pre-implementation design
@@ -8,7 +8,7 @@ Status: Pre-implementation design
 ## Addon directory layout
 
 ```
-addons/godot-obs-recorder/
+addons/gd-time-machine/
 ├── plugin.cfg                      # Addon metadata (name, version, author)
 ├── plugin.gd                       # EditorPlugin — lifecycle, dock, toolbar
 │
@@ -34,7 +34,7 @@ addons/godot-obs-recorder/
 ├── settings_ui.gd                  # Settings dialog logic
 ├── settings_ui.tscn                # Settings dialog scene
 │
-├── LICENSE                         # Apache-2.0 (matching GdPlanningAI)
+├── LICENSE                         # Apache-2.0
 └── README.md                       # Addon docs
 ```
 
@@ -195,7 +195,7 @@ func _exit_tree() -> void:
 
 ```
 ┌──────────────────────────────────┐
-│  ● Godot Recorder          [⚙]  │  ← title bar + settings
+│  ● GdTimeMachine           [⚙]  │  ← title bar + settings
 ├──────────────────────────────────┤
 │  Backend:  [OBS Studio       ▼]  │  ← backend selector
 │  Status:  ● Connected (OBS v31)  │  ← live status
@@ -224,18 +224,18 @@ Wraps these persisted settings (stored in addon's own config file, not project.g
 
 | Setting | Key | Default |
 |---------|-----|---------|
-| OBS host | `obs/host` | `localhost` |
-| OBS port | `obs/port` | `4455` |
-| OBS password | `obs/password` | (empty, stored in editor config) |
-| OBS scene name | `obs/scene` | `Scene` |
-| Default backend | `recorder/default_backend` | `obs` |
-| Default duration | `recorder/default_duration` | `30` |
-| Default FPS | `recorder/default_fps` | `60` |
-| Output directory | `recorder/output_dir` | `res://media/captures` |
-| Launch OBS automatically | `obs/auto_launch` | `false` |
-| Fullscreen mode | `recorder/fullscreen` | `true` |
+| OBS host | `gd_time_machine/obs/host` | `localhost` |
+| OBS port | `gd_time_machine/obs/port` | `4455` |
+| OBS password | `gd_time_machine/obs/password` | (empty, stored in editor config) |
+| OBS scene name | `gd_time_machine/obs/scene` | `Scene` |
+| Default backend | `gd_time_machine/recorder/default_backend` | `obs` |
+| Default duration | `gd_time_machine/recorder/default_duration` | `30` |
+| Default FPS | `gd_time_machine/recorder/default_fps` | `60` |
+| Output directory | `gd_time_machine/recorder/output_dir` | `res://media/captures` |
+| Launch OBS automatically | `gd_time_machine/obs/auto_launch` | `false` |
+| Fullscreen mode | `gd_time_machine/recorder/fullscreen` | `true` |
 
-Stored in `EditorInterface.get_editor_settings()` under `"godot_obs_recorder/"` prefix — doesn't pollute project settings.
+Stored in `EditorInterface.get_editor_settings()` under `"gd_time_machine/"` prefix — doesn't pollute project settings.
 
 ---
 
