@@ -1,4 +1,4 @@
-# Implementation Plan: Godot OBS Recorder Addon
+# Implementation Plan: GdTimeMachine
 
 Date: 2026-07-29
 Based on: `ARCHITECTURE.md`, Metis pre-planning analysis
@@ -30,7 +30,7 @@ Create the addon skeleton. No backends yet, just a plugin that Godot recognizes.
 
 **Files to create:**
 ```
-addons/godot-obs-recorder/
+addons/gd-time-machine/
 ├── plugin.cfg
 ├── plugin.gd
 └── README.md
@@ -39,8 +39,8 @@ addons/godot-obs-recorder/
 **`plugin.cfg`:**
 ```ini
 [plugin]
-name="Godot OBS Recorder"
-description="Record Godot scenes via OBS Studio or built-in Movie Maker. Zero-overhead real-time capture for devlogs and showcases."
+name="GdTimeMachine"
+description="Time machine for your Godot project. Rewind any commit, record any scene — via OBS or built-in Movie Maker."
 author="Ethan Wilson"
 version="0.1.0"
 script="plugin.gd"
@@ -65,7 +65,7 @@ func _exit_tree() -> void:
 ```
 
 **Acceptance:**
-- Copy `addons/godot-obs-recorder/` into a test project
+- Copy `addons/gd-time-machine/` into a test project
 - Enable plugin in Project Settings → Plugins
 - Verify no errors in the editor output
 
@@ -77,7 +77,7 @@ The core abstraction layer. Everything else builds on this.
 
 **Files to create:**
 ```
-addons/godot-obs-recorder/
+addons/gd-time-machine/
 ├── controller/
 │   └── recorder_controller.gd     # Signal router, backend lifecycle
 └── backend/
@@ -148,7 +148,7 @@ The "works immediately" path. After this phase, the addon can record scenes with
 
 **Files to create:**
 ```
-addons/godot-obs-recorder/
+addons/gd-time-machine/
 ├── backend/
 │   └── backend_movie_maker.gd
 ├── ui/
@@ -260,7 +260,7 @@ Fetch the OBS WebSocket GDScript library and verify it can handshake with a runn
 
 **Files to create:**
 ```
-addons/godot-obs-recorder/
+addons/gd-time-machine/
 └── vendor/
     └── obs_websocket_gd/
         ├── obs_websocket.gd        # Main file from upstream
@@ -301,7 +301,7 @@ Port the existing Python `obs_controller.py` logic into GDScript. This is the pr
 
 **Files to create:**
 ```
-addons/godot-obs-recorder/
+addons/gd-time-machine/
 └── backend/
     ├── backend_obs.gd              # Main OBS backend
     └── platform_capture.gd         # Platform-specific capture source helpers
@@ -499,7 +499,7 @@ func _unregister_settings() -> void:
 ## File manifest (complete)
 
 ```
-addons/godot-obs-recorder/
+addons/gd-time-machine/
 ├── plugin.cfg                          # Phase 0
 ├── plugin.gd                           # Phase 0, updated Phase 5
 ├── README.md                           # Phase 0
@@ -576,6 +576,41 @@ addons/godot-obs-recorder/
 **Time to first value (Phase 2 complete):** ~7–11 hours. At that point you have a working addon with the Movie Maker path.
 
 ---
+
+## GdTimeMachine Historical Capture — design from day one
+
+The historical commit capture (CLI companion) is GdTimeMachine's **core differentiator** — no other Godot recording tool can rewind your project to any commit, resolve the right Godot version via godotenv, rebuild native extensions, and record. This is what makes GdTimeMachine a time machine for your project's visual history.
+
+The manifest format and batch concepts are designed into v0.1 even though the CLI execution comes later:
+
+- The **RecorderBackend base class** already accepts a `Dictionary` config — a batch manifest entry maps 1:1 to that config shape.
+- GdTimeMachine's dock UI should **reserve space** for the batch manifest editor (even if hidden in v0.1), so the manifest JSON format is stable before the CLI tool exists.
+- The **batch JSON schema** is defined during v0.1 development, not retrofitted.
+
+This means Phase 5 includes defining the manifest JSON schema and adding a "Export Manifest" button that serializes a single capture config to the format the CLI will consume later.
+
+## Naming reference
+
+| Thing | Name |
+|-------|------|
+| Addon directory | `addons/gd-time-machine/` |
+| Plugin name (in `plugin.cfg`) | `GdTimeMachine` |
+| CLI companion (future) | `gdtime-cli` (or `gdtm-cli`) |
+| Scene dock | `res://addons/gd-time-machine/ui/time_machine_dock.tscn` |
+| Settings prefix | `gd_time_machine/` |
+
+## Future enhancements (not in v0.1 scope)
+
+These are captured for later.
+
+| Feature | Source | Notes |
+|---------|--------|-------|
+| **"Record That" replay buffer** | `BRAINSTORM.md` | OBS replay buffer saves last N seconds on demand. Like NVIDIA Shadowplay for Godot dev — zero overhead until you hit save. Triggerable via dock button or hotkey. Requires OBS replay buffer to be pre-configured. |
+| **CLI companion execution** | `ENHANCEMENT_CLI_COMPANION.md` | The CLI tool itself — reads the manifest JSON, runs the git worktree + godotenv + Rust rebuild + record loop. Python in v1, potentially Rust later. |
+| **Batch recording UI** | `ARCHITECTURE.md`, `ENHANCEMENT_CLI_COMPANION.md` | Full GUI manifest editor in GdTimeMachine dock (add/remove/reorder entries, pick commits from git log, drag-drop scenes). Exports JSON that the CLI companion consumes. |
+| **CI integration** | `BRAINSTORM.md` | Automated capture as CI artifacts for visual diff / PR review. The manifest JSON format makes this straightforward — the CLI companion can run in CI without any UI. |
+| **Windows/macOS OBS backends** | `RESEARCH.md` | Platform-specific capture source creation for Windows (window_capture) and macOS (display_capture). Documented in `platform_capture.gd` as stub branches. |
+| **`BackendMovieMakerCLI`** | `ARCHITECTURE.md` | Launch separate Godot instance via `OS.create_process()`. Non-blocking, but complex process lifecycle management. Marginal value over the editor-integrated Movie Maker backend. |
 
 ## Decisions (confirmed)
 
