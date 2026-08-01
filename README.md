@@ -4,19 +4,22 @@
 
 1. [Intro](#gdplanningai)
 1. [Installation](#installation)
-1. [Usage](#usage)
-1. [Examples](#examples)
+1. [Quick Start](#quick-start)
+1. [Debugging](#debugging)
+1. [Documentation](#documentation)
 1. [License](#license)
 1. [Frequently Asked Questions (FAQ)](#faq)
 1. [TODOs](#todos)
 
 # GdPlanningAI
 
-GdPlanningAI (shortened as **GdPAI**) is an agent planning addon for Godot that allows you to build sophisticated AI agents for your game world. These agents are able to reason in real-time and plan actions based on their own attributes and nearby interactable objects.
+GdPlanningAI (shortened as **GdPAI**) is a GOAP-based agent planning addon for Godot 4. Agents reason in real time and plan action chains from their own attributes and nearby interactable objects, instead of following hand-authored condition transitions. This can greatly reduce developer overhead when creating AI behaviors, but it is a more complex, less intuitive system than a behavior tree.
 
 ![GIF of the multi_agent_demo.tscn scene running](https://raw.githubusercontent.com/WahahaYes/GdPlanningAI/refs/heads/main/media/2d_demo.gif)
 
-This framework is originally based on Goal Oriented Action Planning (GOAP), a planning system developed by Jeff Orkin in the early 2000's. GOAP has been used in many games since; some popular titles using GOAP systems include F.E.A.R., Fallout 3, and Alien Isolation. This framework started as a reimplementation of GOAP. I noticed some areas for improvement and expanded the planning logics and place more emphasis on interactable objects.
+The framework started as a reimplementation of Goal Oriented Action Planning (GOAP), the planning system developed by Jeff Orkin and used in games like F.E.A.R., Fallout 3, and Alien Isolation. It was then expanded with a stronger emphasis on interactable objects and object-oriented simulation.
+
+Under the hood the addon is two languages: a Rust planning engine with a GDScript API on top. See [docs/CODEBASE_OVERVIEW.md](docs/CODEBASE_OVERVIEW.md) for the repo map and [docs/ALGORITHM.md](docs/ALGORITHM.md) for how the search works.
 
 The original motivation and "making of" process is covered here:
 
@@ -24,140 +27,44 @@ The original motivation and "making of" process is covered here:
 
 ### Installation
 
-This repo is structured as a Godot addon. This makes it straightforward to install via Godot's asset library. The project is configured to copy `addons/GdPlanningAI` and the related `script_templates` folder to your project when you install the addon.
+This repo is structured as a Godot addon, which makes it straightforward to install via Godot's asset library. Installing the addon copies `addons/GdPlanningAI` and the related `script_templates` folder into your project.
 
-Release versions are available on the Godot asset library [https://godotengine.org/asset-library/asset](https://godotengine.org/asset-library/asset).
+Release versions are available on the Godot asset library at [https://godotengine.org/asset-library/asset](https://godotengine.org/asset-library/asset).
 
 **Script Templates**
 
-A number of useful templates are included in the `script_templates` folder. They guide usage when subclassing `Action`, `Goal`, `GdPAIObjectData`, etc.
+The `script_templates` folder contains templates that guide you when subclassing `Action`, `Goal`, `GdPAIObjectData`, and the other core classes.
 
-### Usage
+### Quick Start
 
-In this framework, agents form chains of actions at runtime rather than relying on premade state change conditions or behavior trees. This can greatly reduce the amount of developer overhead when creating AI behaviors, but it is a more complex / less intuitive system.
+The `examples/` folder contains demo scenes you can run right away. See `examples/README.md` for setup instructions and `docs/EXAMPLES.md` for step-by-step walkthroughs.
 
-**Behavior System Architecture**
+- **`hunger_basic_2d.tscn`**: single agent foraging, the simplest scene to start with.
+- **`campfire_2d.tscn`**: multi-goal behavior: maintain the campfire and manage hunger.
+- **`hunger_multi_agent_2d.tscn`**: multiple competing agents.
+- **`hunger_stress_test_2d.tscn`**: performance test with many agents.
+- **`campfire_3d.tscn`**: 3D version of the campfire demo.
 
-The framework now uses a modular behavior system that allows you to semantically group actions, goals, and properties. This system consists of:
+The core extension points, in short:
 
-- **GdPAIBehaviorConfig**: Base class for behavior configurations that group related goals, actions, and property updaters.
-- **GdPAIAgentConfig**: Configuration resource that defines planning strategies and combines multiple behavior configs.
-- **PropertyUpdater**: Components that modify agent blackboard properties over time (e.g., hunger decay, stamina regeneration).
+- **`GdPAIAgent`**: the agent node. Each agent keeps two `GdPAIBlackboard` instances: one for its own attributes (hunger, health, inventory) and one for the world state (time of day, interactable objects).
+- **`Goal`**: drives the agent. Each goal computes a reward function from the two blackboards, and planning pursues the most rewarding achievable goal. Use dynamic reward functions (for example a hunger goal with reward `100 - current_hunger`) so priorities shift with the agent's needs.
+- **`Action` and `Precondition`**: actions form the plan and then execute it. Validity checks are hard requirements for an action to be considered during planning; preconditions are conditions that earlier actions in the chain can satisfy.
+- **`GdPAIObjectData`**: subclasses broadcast the actions the world object provides. During simulation, copies of the object data are moved outside the scene tree so the planner can manipulate them freely.
+- **`GdPAIBehaviorConfig` and `GdPAIAgentConfig`**: reusable behavior modules that group related goals, actions, and property updaters. The agent config picks a planning strategy (`CONTINUOUS`, `ON_INTERVAL`, `ON_DEMAND`, `ON_INTERVAL_FORCED`) and combines behavior configs to build different agent types.
+- **`GoToAction`**: the generic navigation action provided by the agent. Its wildcard `at_target` provision satisfies any interaction action's location requirement, so the planner automatically chains `GoToAction` -> interaction action (for example `GoToAction` -> `PickupAction` -> `EatHeldFoodAction`).
 
-This approach allows you to create reusable behavior modules (like "HungerBehavior" or "WanderBehavior") and combine them in different ways for different agent types.
-
-**GdPAIAgent**
-
-In this framework, each `GdPAIAgent` maintains two `GdPAIBlackboard` instances storing relevant information about their self and the broader world state. An agent's own blackboard is used to maintain their internal attributes. Possible attributes include *health*, *hunger*, *thirst*, *inventory*, etc. The world state maintains common information, like *time of day* and information about interactable objects in-world (see `GdPAIObjectData` description below).
-
-**Goal**
-
-Agents are driven by `Goals`. An agent will balance however many goals it is assigned it tries to maintain based on priority. Given the agent and world states, a reward function is computed for each goal. When planning, the agent pursues the most rewarding goal that is currently achieveable. When designing goals, it is important to create dynamic reward functions so that the agent prioritizes different goals based on its needs (such as making a `hunger_goal` reward equal to `100 - current_hunger`, adding more priority the hungrier the agent gets).
-
-![Goal planning diagram](https://raw.githubusercontent.com/WahahaYes/GdPlanningAI/refs/heads/main/media/goal_planning_diagram.png)
-
-**Plan**
-
-When an agent attempts to form a `Plan`, it essentially takes a snapshot of the current environment and simulates what would occur if various actions were taken. The simulation creates temporary copies of all relevant action, blackboard, worldstate, and object data. The copies exist outside of the scene graph, so here the planning agent is free to experiment and manipulate data attributes to test out various action sequences.
-
-The below image gives a simple visual example for a planning sequence. The agent's goal is to reduce hunger, which is ultimately resolved by eating food. A prerequisite to eat food is to pick up the food, so the agent must first move towards the food.
-
-![A visual example of an agent's planning sequence](https://raw.githubusercontent.com/WahahaYes/GdPlanningAI/refs/heads/main/media/planning_sequence.png)
-
-Note that planning actually occurs in reverse based on whether actions are viable for satisfying the plan or following actions. This constrains the agent's exploration to only consider efficient, relevant actions. The alternative would be a breadth-first search over a potentially huge state space. In the above example, the agent first determined that the food on the map could decrease its hunger. Then, the *pseudo-goal* became to determine how that food could be eaten (-> by going towards it).
-
-**Action**
-
-Plans are formed by chaining `Actions`. After planning, these function similarly to leaf nodes of behavior trees, in that they *do* concrete actions. For planning, actions have an additional set of `Preconditions` which are used to determine valid actions and pathfinding chains of actions.
-
-An action has its preconditions organized via `Action.get_validity_checks()` and `Action.get_preconditions()`. Validity checks are hard requirements which need to be true in order for the action to be considered at all during planning. An example validity check is that the agent's blackboard contains a *hunger* attribute for a `eat_food` action.
-
-**Precondition**
-
-Preconditions in `Action.get_preconditions()` are dynamic and necessary for the planning logic. These are conditions that may not be true *yet*, but could be satisfied by other actions earlier on in a plan. In the earlier example, a precondition for an `eat_food` action could be that the agent is holding food. A `pickup_object` action satisfies this but has its own `object_nearby` precondition. The `goto` action satisfies this and has no preconditions of its own (maybe `goto` had a validity check that the object in question was on the navmesh, which returned true). By chaining preconditions together, the agent determined the chain of `goto` -> `pickup_object` -> `eat_food` as a valid solution.
-
-The `Precondition` class evaluates a lambda function `eval_func(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard)`. Please check the implemented preconditions in the example setup to get an understanding of how they can be written. There are also a number of static functions in `Precondition` for common conditions. **If you find yourself commonly creating preconditions of a certain format, please suggest an inclusion to the Precondition class or make a pull request!**
-
-**GdPAIObjectData**
-
-The final major component of this framework, and the most novel improvement over GOAP, is the inclusion of `GdPAIObjectData`. This framework introduces an object-oriented approach where interactable objects broadcast the actions they provide. Each subclass of `GdPAIObjectData` may broadcast its own action and functionality, and the composition of multiple of these under a single object results in an object that's usable in multiple ways. During simulation, copies of this object data are moved outside the scene tree entirely so that it can be manipulated and simulated by the agent. This enables much greater simulation potential than GOAP's dictionary-based simulation.
-
-In addition to an agent's self-actions, which are not dependent on external factors (for example, maybe an agent has the action to rest to regain stamina), these `GdPAIObjectData` broadcast their relevent actions. A `banana` object may broadcast the `eat_food` action. The relevant subclass of `GdPAIObjectData` contains a `hunger_restored` attribute that the `eat_food` action references. Through a validity check, the `eat_food` action ensures that agents have a `hunger` property, to prevent unnecessary computations for agents that don't become hungry.
-
-The templates in `script_templates` and the examples in the `examples/` folder are verbosely commented to help with initial understanding of the framework. Using the script templates is highly recommended when creating your own actions, goals, and object data classes.
-
-**GoToAction and Interaction Actions**
-
-The framework uses a compositional approach for object interactions: navigation is handled by a generic `GoToAction` provided by the agent, while interaction-specific actions are provided by world objects. This separates concerns and makes actions more reusable.
-
-The `GoToAction` provides a wildcard `at_target` provision that can satisfy any interaction action's location requirement. The planner automatically chains `GoToAction` → `InteractionAction` when needed. For example, to pick up a banana, the planner chains: `GoToAction` → `PickupAction` → `EatHeldFoodAction`.
-
-Interaction actions (like `PickupAction` or `ShakeTreeAction`) extend `Action` and declare their location dependencies via `get_requirements()`. They handle only the interaction logic, not navigation.
-
-### Agent Configuration
-
-The new configuration system makes it easy to set up agents without writing code. Here's how to configure an agent:
-
-1. **Create Behavior Configurations**: Extend `GdPAIBehaviorConfig` to create semantic behavior modules. For example:
-
-   ```gdscript
-   # HungerBehaviorConfig.gd
-   class_name HungerBehaviorConfig
-   extends GdPAIBehaviorConfig
-
-   @export var hunger_decay: float = 5.0
-   @export var initial_hunger: float = 100.0
-
-   func _self_init() -> void:
-       super()
-       goals.append(SampleHungerGoal.new())
-       property_updaters.append(HungerPropertyUpdater.new(hunger_decay, initial_hunger))
-   ```
-
-1. **Create Agent Configuration**: Create a `GdPAIAgentConfig` resource and assign behavior configs:
-
-   - Choose planning strategy (continuous, interval-based, on-demand)
-   - Configure multithreading settings if needed
-   - Add multiple behavior configs to create complex agent personalities
-   - Set up the blackboard plan with required properties
-
-1. **Apply to Agent**: Assign the agent config to your `GdPAIAgent` node in the inspector
-
-The system supports multiple planning strategies:
-
-- **CONTINUOUS**: Plan every frame (default behavior).
-- **ON_INTERVAL**: Plan at fixed time intervals (better for performance).
-- **ON_DEMAND**: Plan only when explicitly requested.
-- **ON_INTERVAL_FORCED**: Force planning at intervals, even if plan is active.
-
-This modular approach allows you to:
-
-- Mix and match behaviors (e.g., HungerBehavior + WanderBehavior + CombatBehavior).
-- Create different agent types from the same building blocks.
-- Easily tweak behavior parameters through the inspector.
-- Share behavior configurations between different agent types.
+Full authoring guide: [docs/AUTHORING_GUIDE.md](docs/AUTHORING_GUIDE.md). Algorithm details: [docs/ALGORITHM.md](docs/ALGORITHM.md).
 
 ### Debugging
 
-There's now a visual debugger! Located as its own debugger tab in the debugger window, it shows the plan graph and allows you to step through the plan to see which actions are a part of the current plan, their current status, and the traversal throughout the tree.
+The interactive debugger tab was removed as part of the Rust refactor and has not been reintroduced yet. Until it returns, the engine exposes the search tree as a text dump: `GdPAIPlanScheduler.get_debug_tree(agent)` returns a human-readable rendering of the agent's most recent planning job.
 
-![Illustration of the debugger tab](https://raw.githubusercontent.com/WahahaYes/GdPlanningAI/refs/heads/main/media/debugger_screenshot.png)
+### Documentation
 
-The debugger still lacks some useful features, like listing preconditions or the ability to step through the plan and see the agent's blackboard state at each step. But this initial implementation should greatly help to understand the agents' behavior and the planning process.
+The relative links below resolve when reading this file on GitHub. On a local copy of the addon, the `docs/` links won't work; the latest version of the docs always lives at [github.com/WahahaYes/GdPlanningAI](https://github.com/WahahaYes/GdPlanningAI).
 
-![Illustration of the debugger tab](https://raw.githubusercontent.com/WahahaYes/GdPlanningAI/refs/heads/main/media/debugger_screenshot2.png)
-
-### Examples
-
-The `examples/` folder contains demonstration scenes. See `examples/README.md` for setup instructions and detailed documentation.
-
-**Quick start:**
-
-- **`hunger_basic_2d.tscn`** — Single agent foraging (simplest)
-- **`campfire_2d.tscn`** — Multi-goal: maintain campfire + manage hunger (shows Requirements/Provisions, GoTo chaining, object actions)
-- **`hunger_multi_agent_2d.tscn`** — Multiple competing agents
-- **`hunger_stress_test_2d.tscn`** — Performance test with many agents
-- **`campfire_3d.tscn`** — 3D version of campfire demo
+| Doc | Purpose | |-----|---------| | `docs/CODEBASE_OVERVIEW.md` | Repo map: addon anatomy, the two-language architecture (Rust engine + GDScript API), class hierarchy, build system, testing, and tooling. | | `docs/ALGORITHM.md` | How the planning search works: two-phase symbolic backward chaining plus forward simulation. | | `docs/PLANNER_PSEUDOCODE.md` | Terse algorithmic reference for the planning search. | | `docs/AUTHORING_GUIDE.md` | How to write actions, goals, preconditions, and object data. | | `docs/EXAMPLES.md` | Demo scenes: how to run them, behavior modules, object types, and plan-formation chains. | | `docs/DOCUMENTATION_GUIDELINES.md` | Code documentation style for this repo. |
 
 ### License
 
@@ -165,36 +72,30 @@ GdPlanningAI, Copyright 2025 Ethan Wilson
 
 This work is licensed under the Apache License, Version 2.0. The license file can be viewed at [LICENSE.txt](LICENSE.txt) and at [http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0).
 
-**Demo assets**
+**Demo Assets**
 
-The 2D demo assets belong to the Tiny Swords asset pack by Pixel Frog. Link to the project page here: [https://pixelfrog-assets.itch.io/tiny-swords](https://pixelfrog-assets.itch.io/tiny-swords).
+The 2D demo assets belong to the Tiny Swords asset pack by Pixel Frog: [https://pixelfrog-assets.itch.io/tiny-swords](https://pixelfrog-assets.itch.io/tiny-swords).
 
 ### FAQ
 
 <details>
 <summary><b>What is the difference between GdPlanningAI and behavior tree frameworks (like Beehave or LimboAI)?</b></summary>
 
-These are all structured frameworks to develop agents / NPCS / enemies inside a game world. Behavior trees have defined transitions to enable agent actions based on conditionals, but they require a ton of developer oversight (and design hours) as they become more complex. Planning systems like GOAP and GdPlanningAI are more dynamic and can lead to emergent behaviors. Even if the developer created every possible action, there may be combinations they didn't anticipate. Because of this, planning systems can fit better for projects that have large numbers of possible interactions.
+These are all structured frameworks for developing agents, NPCs, and enemies inside a game world. Behavior trees give you defined transitions that enable agent actions based on conditionals, but they require a lot of developer oversight as they become more complex. Planning systems like GOAP and GdPlanningAI are more dynamic and can lead to emergent behaviors: even if the developer created every possible action, there may be combinations they did not anticipate. Because of this, planning systems can fit better for projects with large numbers of possible interactions.
 
-Below is a quote from a [blog post](https://zhuanlan.zhihu.com/p/110419210) with a good breakdown of the differences:
+Below is an abridged quote from a [blog post](https://zhuanlan.zhihu.com/p/110419210) with a good breakdown of the differences:
 
-> BTs, roughly speaking, are a fancy way to encode complex sequences of rules. A Bt acts as a a sequence of programming statements (e.g., “if … then … else …") and basic loops. It takes as input the current state of the world and additional data (the blackboard) and return an action (or sequence of actions). For instances, rules can be like: “if your life is less than 40% then run away”, or “if do not have a weapon, go to the closest weapon”, and so on. If you want more info on BTs, there is this super-old introduction I did. The main point here is that you are writing all this rules. BTs are “reactive” in the sense that they “react” to the state of the world. There is no search, no thought about the future outcome of specific actions. It is the developer's job to specify which action is right in a certain situation. GOAP (and other plan-based AI technique), instead, works in a different way. You give to the character a goal (expressed as a desired state of the world) and a set of actions (the things that the character can do) and then you say to the character “now find your own rules”. There is no predefined sequence of actions in GOAP. Every time you run the algorithm, depending on the situation, it generates a different sequence of actions. Now, on paper, this is awesome. Why we are still writing all the sequence of actions and rules by hand! Unfortunately, we pay such power with three main drawbacks:
->
-> 1. Much higher implementation complexity. BTs are quite easy to understand and to implement. Moreover, BTs are already built-in into a lot of game engines! GOAP, on the other hand, is not as simple. It harder to implement and it is harder to debug.
-> 1. In general, plan-based techniques are computationally more expensive than BTs. Implementing GOAP in a way that is good enough for real-time games requires fine-tuning and a good design for the “state representation” and the set of possible actions (and we came back to point 1).
-> 1. By not writing the rules of AI by ourselves, we lose control on the AI. If we say that the character goal is to kill the player, we may have some situation in which the solution to this goal is too effective or, in general, not fun. Because fun is the goal, we need to change this, but we can only act on the goal, not the way the character reaches the goal. For another example, if the character starts doing something strange it will be harder to understand “why”. In BTs, we can follow the tree and find the problem. In GOAP, this is much harder.
+> Behavior trees are, roughly speaking, a way to encode complex sequences of rules. They react to the current world state, but there is no search and no thought about the future outcome of actions; it is the developer's job to specify which action is right in a given situation. Plan-based techniques like GOAP work differently: you give the character a goal and a set of actions, then tell it to find its own rules. There is no predefined sequence, and every run generates a different sequence of actions depending on the situation. That power comes with three main drawbacks: much higher implementation complexity, generally higher computational cost for real-time games, and less direct control over how the AI reaches its goals.
 
 </details>
 
 ### TODOs
 
-The framework is stable for creating planning agents but is still in an early phase of development. I plan to make additions as I work on my game projects, and **I am open to feedback or contributions from the community!** Please raise issues on the Github to discuss any bugs or requested features, and feel free to fork the repo and make pull requests with any additions.
+The framework is stable for creating planning agents but is still in an early phase of development. **I am open to feedback or contributions from the community.** Please raise issues on GitHub to discuss bugs or requested features, and feel free to fork the repo and submit pull requests.
 
-Here is a running list of todo items *(if anyone wants to claim one, like logo or sprite artwork, please let me know!)*:
-
-- Making a true project logo! I quickly threw something together, but welcome a more professional looking logo.
-- Making icons for the custom nodes that have been introduced. Not that important for functionality, but they'd look nice!
+- A true project logo (the current one is a quick placeholder; artwork welcome).
+- Icons for the custom nodes.
 - More varied and complex demo scenes.
-- Increased number of baseline action templates (externable starting points that handle common functionality of many actions).
-- Tutorial video.
-- Extending configuration for agents (such as planning strategy (continuous, on interval, etc.), how the world state is sourced, etc.).
+- More baseline action templates.
+- A tutorial video.
+- Extending agent configuration (planning strategy, world-state sourcing, and more).
