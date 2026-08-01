@@ -28,9 +28,6 @@ addons/gut/
 
 # Logs and generated output
 *.log
-addons/*
-!addons/.editorconfig
-.addons/*
 media/captures/
 
 # Secrets - OBS password configuration
