@@ -1,22 +1,23 @@
 # Backward-Chaining GOAP Planner — Algorithmic Pseudocode
 
-> **Source:** `addons/GdPlanningAI/rust/src/planner/` + `scheduler.rs` (audited July 2026)
-> **Purpose:** Algorithmic reference — not a type spec. See source for exact types.
+> **Source:** `addons/GdPlanningAI/rust/src/planner/` + `scheduler.rs` (audited
+> July 2026) **Purpose:** Algorithmic reference — not a type spec. See source
+> for exact types.
 
----
+______________________________________________________________________
 
 ## 1. Architecture
 
-| Layer | Role |
-|-------|------|
-| **Symbolic** | Requirements ↔ Provisions (causal links, backward chaining) |
-| **Simulation** | GDScript callbacks for costs, effects, custom preconditions |
-| **Search** | Dijkstra (uniform-cost) via `SearchHeuristic`; A* placeholder |
-| **Async** | Every callback yields `Pending(id)`; node parked, resumed on response |
-| **Threading** | Planner on Rayon pool; callbacks on Godot main thread |
-| **Multi-Goal** | Goals sorted by reward desc. Pre-filter: satisfied goals dropped. If ALL satisfied → empty plan for highest-reward. If ANY unsatisfied → search only unsatisfied. |
+| Layer | Role | |-------|------| | **Symbolic** | Requirements ↔ Provisions
+(causal links, backward chaining) | | **Simulation** | GDScript callbacks for
+costs, effects, custom preconditions | | **Search** | Dijkstra (uniform-cost)
+via `SearchHeuristic`; A\* placeholder | | **Async** | Every callback yields
+`Pending(id)`; node parked, resumed on response | | **Threading** | Planner on
+Rayon pool; callbacks on Godot main thread | | **Multi-Goal** | Goals sorted by
+reward desc. Pre-filter: satisfied goals dropped. If ALL satisfied → empty plan
+for highest-reward. If ANY unsatisfied → search only unsatisfied. |
 
----
+______________________________________________________________________
 
 ## 2. Key Types (Conceptual)
 
@@ -34,12 +35,13 @@ SearchContext  { actions[], initial_agent, initial_world, initial_provisions[], 
 ```
 
 **Caches (per planning run, thread-safe):**
+
 - `discovery_results[(action_idx,bindings)] → {agent,world,cost}`
 - `discovery_costs[(action_idx,bindings)] → f64`
 - `discovery_precond_results[(action_idx,spec,bindings)] → bool`
 - Pending maps with stale-entry cleanup via `request_map`
 
----
+______________________________________________________________________
 
 ## 3. Search Loop (`step_search`)
 
@@ -133,7 +135,7 @@ function step_search(goals):
     return Complete(best_plan or failure)
 ```
 
----
+______________________________________________________________________
 
 ## 4. Candidate Discovery (`find_candidates`)
 
@@ -204,9 +206,10 @@ function find_candidates(branch, ctx) → {ready[], pending_id?}:
     return {ready: candidates, pending_id: some_pending ? last_pending : None}
 ```
 
-**Stale cleanup:** `check_pending_or_clean_stale(pending_map, request_map, key)` — if `request_map` lacks the ID, remove stale entry.
+**Stale cleanup:** `check_pending_or_clean_stale(pending_map, request_map, key)`
+— if `request_map` lacks the ID, remove stale entry.
 
----
+______________________________________________________________________
 
 ## 5. Forward Verification (`process_simulation`)
 
@@ -255,11 +258,12 @@ function process_simulation(node) → StepResult:
     return Complete
 ```
 
----
+______________________________________________________________________
 
 ## 6. Simulation & Evaluation
 
 **Cost (3-tier cache):**
+
 ```
 branch_action_costs[sim_idx] ≥ 0  → cached
 response has Float                  → use & cache
@@ -268,6 +272,7 @@ else                                → fire GetCost callback → Pending
 ```
 
 **Effect:**
+
 ```
 has effect_callable:
     response has UpdatedSnapshots → Ready(agent, world, cost)
@@ -276,29 +281,27 @@ no effect_callable → Ready(identity, cost)
 ```
 
 **`eval_precondition(spec, agent, world, ctx, response, bindings)`**
+
 ```
 Builtin → Ready(evaluate_builtin(agent, world))
 Custom  → response has Bool ? Ready(bool) : fire EvalCustomPrecond → Pending
 ```
 
-**`requirement_holds(req, agent, world, bindings)`**
-| Requirement | Check |
-|-------------|-------|
-| `BindingExists(n)` | bindings[n] non-empty OR agent.properties[n] non-null |
-| `BindingEquals(n,v)` | bindings[n] == v OR agent.properties[n] == v |
-| `BindingInSet(n,set)` | bindings[n] is ObjectRef in world.objects[set] OR agent.property same |
-| `Fact(at_target, [target])` | agent.location.position == target.position (from world); fallback to bindings |
+**`requirement_holds(req, agent, world, bindings)`** | Requirement | Check |
+|-------------|-------| | `BindingExists(n)` | bindings[n] non-empty OR
+agent.properties[n] non-null | | `BindingEquals(n,v)` | bindings[n] == v OR
+agent.properties[n] == v | | `BindingInSet(n,set)` | bindings[n] is ObjectRef in
+world.objects[set] OR agent.property same | | `Fact(at_target, [target])` |
+agent.location.position == target.position (from world); fallback to bindings |
 
-**`provision_satisfies(prov, req, world_opt)`**
-| Provision → Requirement | Match |
-|------------------------|-------|
-| Binding(n,v) → BindingExists(n) | n == n |
-| Binding(n,v) → BindingEquals(n,v) | n==n ∧ v==v |
-| Binding(n,obj) → BindingInSet(n,set) | n match ∧ world_opt has obj in set |
-| Fact(n,args) → Fact(n,args) | n match ∧ (args empty ∨ args==args) |
-| FactWildcard(n) → Fact(n,_) | n match |
+**`provision_satisfies(prov, req, world_opt)`** | Provision → Requirement |
+Match | |------------------------|-------| | Binding(n,v) → BindingExists(n) | n
+== n | | Binding(n,v) → BindingEquals(n,v) | n==n ∧ v==v | | Binding(n,obj) →
+BindingInSet(n,set) | n match ∧ world_opt has obj in set | | Fact(n,args) →
+Fact(n,args) | n match ∧ (args empty ∨ args==args) | | FactWildcard(n) →
+Fact(n,\_) | n match |
 
----
+______________________________________________________________________
 
 ## 7. Callback Protocol
 
@@ -312,7 +315,7 @@ Main → Planner:  PlannerCallback { request_id, response }
 Bindings injected into agent.properties only (not world).
 ```
 
----
+______________________________________________________________________
 
 ## 8. Scheduler (`GdPAIPlanScheduler`)
 
@@ -353,36 +356,39 @@ process_callbacks()  // each frame:
     4. Cleanup finished jobs (one frame grace)
 ```
 
----
+______________________________________________________________________
 
 ## 9. Key Invariants
 
-1. Preconditions hold *before* action runs (own effect never satisfies own preconditions).
-2. Forward validation uses full world context (`Some(&branch.current_world)`).
-3. Branch identity = goal + open needs + bindings + state (fingerprint hashes all).
-4. One precondition per simulation step (re-queue after each).
-5. Cost = sum(action_costs) always (recalculated, not accumulated).
-6. Discovery caches per planning run (shared across branches).
-7. Insertion position = earliest consumer (predecessor before first consumer).
-8. Goal handling: see Scheduler step 5.
-9. Bindings injected into agent only.
-10. Greedy requirement clearing: one action clears ALL identical open requirements.
-11. Stale pending cleanup via `request_map`.
-12. Validity checks during discovery: builtin sync, custom async.
-13. Custom preconditions evaluated during discovery (against initial-state sim) + tracked for verification.
-14. Non-wildcard actions discovered once with empty bindings.
+1. Preconditions hold *before* action runs (own effect never satisfies own
+   preconditions).
+1. Forward validation uses full world context (`Some(&branch.current_world)`).
+1. Branch identity = goal + open needs + bindings + state (fingerprint hashes
+   all).
+1. One precondition per simulation step (re-queue after each).
+1. Cost = sum(action_costs) always (recalculated, not accumulated).
+1. Discovery caches per planning run (shared across branches).
+1. Insertion position = earliest consumer (predecessor before first consumer).
+1. Goal handling: see Scheduler step 5.
+1. Bindings injected into agent only.
+1. Greedy requirement clearing: one action clears ALL identical open
+   requirements.
+1. Stale pending cleanup via `request_map`.
+1. Validity checks during discovery: builtin sync, custom async.
+1. Custom preconditions evaluated during discovery (against initial-state sim) +
+   tracked for verification.
+1. Non-wildcard actions discovered once with empty bindings.
 
----
+______________________________________________________________________
 
 ## 10. Termination
 
-| Strategy | Behavior |
-|----------|----------|
-| `FirstComplete` | Return first valid plan |
-| `BestCost` | Exhaust search (prune via `heuristic.prune_threshold_met`) |
+| Strategy | Behavior | |----------|----------| | `FirstComplete` | Return first
+valid plan | | `BestCost` | Exhaust search (prune via
+`heuristic.prune_threshold_met`) |
 
 Default: **BestCost** + Dijkstra.
 
----
+______________________________________________________________________
 
 *End of Algorithmic Pseudocode*
