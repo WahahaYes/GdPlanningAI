@@ -8,8 +8,7 @@ ______________________________________________________________________
 1. Enable the GdPlanningAI addon if not already enabled:
    - Project → Project Settings → Plugins
    - Enable "GdPlanningAI"
-1. Navigate to `examples/` in the FileSystem dock - **demo scenes are at the top
-   level!**
+1. Navigate to `examples/` in the FileSystem dock - **demo scenes are at the top level!**
 
 ______________________________________________________________________
 
@@ -37,12 +36,10 @@ ______________________________________________________________________
 - **`campfire_2d.tscn`** — Multi-goal planning with object interactions
 
   - Agent maintains campfire fuel while managing hunger
-  - Demonstrates Requirements/Provisions, GoToAction chaining, and
-    object-provided actions
+  - Demonstrates Requirements/Provisions, GoToAction chaining, and object-provided actions
   - Uses `CampfireBehaviorConfig` + `HungerBehaviorConfig` combined
 
-**To run:** Open any `.tscn` file at `examples/` root and press **Play Scene**
-(F6)
+**To run:** Open any `.tscn` file at `examples/` root and press **Play Scene** (F6)
 
 ______________________________________________________________________
 
@@ -78,48 +75,27 @@ ______________________________________________________________________
 
 ## Concept Map
 
-| Folder | GdPAI class demonstrated | |---|---| | `behaviors/hunger/` | `Goal`,
-`PropertyUpdater`, `GdPAIBehaviorConfig` | | `behaviors/wander/` | `Goal`,
-`Action`, `GdPAIBehaviorConfig` | | `behaviors/campfire/` | `Goal`, `Action`,
-`GdPAIBehaviorConfig` (multi-goal with Hunger) | | `objects/food/` |
-`GdPAIObjectData`, interaction actions | | `objects/fruit_tree/` |
-`GdPAIObjectData`, interaction actions, validity checks with external state | |
-`objects/wood_pile/` | `GdPAIObjectData`, `PickUpWoodAction`,
-Requirements/Provisions | | `objects/holdable/` | `GdPAIObjectData`,
-`PickupAction`, `DropItemAction` | | `objects/campfire/` | `GdPAIObjectData`,
-`AddFuelAction`, `CookPotatoAction`, `CampfireRuntime` | | `objects/potato/` |
-`GdPAIObjectData`, `DigPotatoAction` |
+| Folder | GdPAI class demonstrated | |---|---| | `behaviors/hunger/` | `Goal`, `PropertyUpdater`, `GdPAIBehaviorConfig` | | `behaviors/wander/` | `Goal`, `Action`, `GdPAIBehaviorConfig` | | `behaviors/campfire/` | `Goal`, `Action`, `GdPAIBehaviorConfig` (multi-goal with Hunger) | | `objects/food/` | `GdPAIObjectData`, interaction actions | | `objects/fruit_tree/` | `GdPAIObjectData`, interaction actions, validity checks with external state | | `objects/wood_pile/` | `GdPAIObjectData`, `PickUpWoodAction`, Requirements/Provisions | | `objects/holdable/` | `GdPAIObjectData`, `PickupAction`, `DropItemAction` | | `objects/campfire/` | `GdPAIObjectData`, `AddFuelAction`, `CookPotatoAction`, `CampfireRuntime` | | `objects/potato/` | `GdPAIObjectData`, `DigPotatoAction` |
 
 ______________________________________________________________________
 
 ## The Demo Scenario
 
-The 2D demo places agents in a tiled world containing **food items** and **fruit
-trees**. Agents have a hunger value that decays over time. Their goals and
-priorities work as follows:
+The 2D demo places agents in a tiled world containing **food items** and **fruit trees**. Agents have a hunger value that decays over time. Their goals and priorities work as follows:
 
-- **Hunger goal** — reward scales from 0 to 100 as hunger drops. At low hunger,
-  this goal dominates and the agent will seek out food or shake a tree.
-- **Wander goal** — fixed reward of 10. Kicks in when the agent is nearly full,
-  or when no food-related actions are reachable.
+- **Hunger goal** — reward scales from 0 to 100 as hunger drops. At low hunger, this goal dominates and the agent will seek out food or shake a tree.
+- **Wander goal** — fixed reward of 10. Kicks in when the agent is nearly full, or when no food-related actions are reachable.
 
-The planner chains actions together: e.g. navigate to tree → shake tree →
-navigate to fallen fruit → eat fruit. Cost is distance-based, so agents prefer
-the closest option.
+The planner chains actions together: e.g. navigate to tree → shake tree → navigate to fallen fruit → eat fruit. Cost is distance-based, so agents prefer the closest option.
 
 ______________________________________________________________________
 
 ## Using Behaviors and Objects in Your Own Project
 
-The files in `behaviors/` and `objects/` are dimension-agnostic and
-intentionally self-contained. To adapt them:
+The files in `behaviors/` and `objects/` are dimension-agnostic and intentionally self-contained. To adapt them:
 
 1. Copy the relevant folder (e.g., `behaviors/hunger/`) into your project.
-1. Rename the class (e.g., `HungerGoal` → `EnergyGoal`) and adjust the
-   blackboard property name and reward formula for your domain.
+1. Rename the class (e.g., `HungerGoal` → `EnergyGoal`) and adjust the blackboard property name and reward formula for your domain.
 1. Register your `BehaviorConfig` subclass in a `GdPAIAgentConfig` resource.
 
-The `source_2d/` folder contains 2D-specific prefabs and assets. The `shared/`
-folder contains dimension-agnostic utility scripts (UI helpers, spawners). The
-runnable demos at the root (`hunger_basic_2d.tscn`, etc.) reference these source
-files.
+The `source_2d/` folder contains 2D-specific prefabs and assets. The `shared/` folder contains dimension-agnostic utility scripts (UI helpers, spawners). The runnable demos at the root (`hunger_basic_2d.tscn`, etc.) reference these source files.

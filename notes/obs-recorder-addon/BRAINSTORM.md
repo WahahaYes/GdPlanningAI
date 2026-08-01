@@ -17,9 +17,7 @@ ______________________________________________________________________
 
 ### "Record That" button
 
-What if the addon added a small button to the **debugger toolbar** or **scene
-tree dock** that does "record last N seconds"? Like NVIDIA Shadowplay but for
-Godot dev. Uses OBS replay buffer.
+What if the addon added a small button to the **debugger toolbar** or **scene tree dock** that does "record last N seconds"? Like NVIDIA Shadowplay but for Godot dev. Uses OBS replay buffer.
 
 ```
 OBS replay buffer:
@@ -27,13 +25,11 @@ OBS replay buffer:
   obs.save_replay_buffer()       # triggered by button → saves last 30s to disk
 ```
 
-Zero overhead until you hit save. Perfect for capturing unexpected emergent AI
-behavior without planning ahead.
+Zero overhead until you hit save. Perfect for capturing unexpected emergent AI behavior without planning ahead.
 
 ### CI integration
 
-The batch recording workflow (`capture_all_showcase.sh`) could be adapted to run
-in CI:
+The batch recording workflow (`capture_all_showcase.sh`) could be adapted to run in CI:
 
 - Spin up Godot in headless-ish mode
 - Use OBS virtual camera or direct encoder output
@@ -44,12 +40,9 @@ Probably overkill but interesting.
 
 ### Python-free fallback
 
-For users who can't/won't install Python: fall back to `obs-websocket-js` via
-Node.js, or even a simple shell script that calls `curl` against the OBS
-WebSocket REST-like endpoints.
+For users who can't/won't install Python: fall back to `obs-websocket-js` via Node.js, or even a simple shell script that calls `curl` against the OBS WebSocket REST-like endpoints.
 
-Actually, OBS WebSocket is a real WebSocket (not REST). Can't use curl. So you'd
-need Node or Python or GDScript.
+Actually, OBS WebSocket is a real WebSocket (not REST). Can't use curl. So you'd need Node or Python or GDScript.
 
 ### OBS installation detection
 
@@ -62,8 +55,7 @@ On Linux you might find OBS at:
 ~/.local/bin/obs
 ```
 
-Could use `OS.execute("which", ["obs"])` → check return code. Store in settings
-with a "Locate OBS..." file picker fallback.
+Could use `OS.execute("which", ["obs"])` → check return code. Store in settings with a "Locate OBS..." file picker fallback.
 
 ### Potential pitfalls
 
@@ -74,27 +66,20 @@ with a "Locate OBS..." file picker fallback.
    - System keychain via custom tool
    - Simplest: text field in addon settings with a warning tooltip
 
-1. **OBS version detection** — OBS 28+ has WebSocket built-in. Older versions
-   need plugin.
+1. **OBS version detection** — OBS 28+ has WebSocket built-in. Older versions need plugin.
 
    - On connect, check `GetVersion` response
    - Warn if WebSocket version is < 5.0.0
 
 1. **Multiple monitors** — Which monitor gets captured?
 
-   - Current: full-screen Godot window → PipeWire capture captures the monitor
-     Godot is on
+   - Current: full-screen Godot window → PipeWire capture captures the monitor Godot is on
    - Could let user pick monitor in OBS scene config
-   - Or always capture the "Godot" window specifically (window capture, not
-     screen capture)
+   - Or always capture the "Godot" window specifically (window capture, not screen capture)
 
-1. **Godot embedded game window** — The new Godot 4 "embedded game" feature puts
-   the game inside the editor as a sub-window. OBS can't easily capture just
-   that sub-window. Known issue (godot#103154). Workaround: launch a separate
-   instance.
+1. **Godot embedded game window** — The new Godot 4 "embedded game" feature puts the game inside the editor as a sub-window. OBS can't easily capture just that sub-window. Known issue (godot#103154). Workaround: launch a separate instance.
 
-1. **Audio** — Our current pipeline doesn't capture game audio. OBS can capture
-   desktop audio, but we'd want:
+1. **Audio** — Our current pipeline doesn't capture game audio. OBS can capture desktop audio, but we'd want:
 
    - Game audio separate from mic/desktop
    - Configurable audio sources
@@ -129,8 +114,7 @@ OBS uses opcodes:
 - 7: RequestResponse
 - 9: BatchRequest (10: BatchResponse)
 
-The GDScript `WebSocketPeer` can handle this — Godot 4 has good WebSocket
-support.
+The GDScript `WebSocketPeer` can handle this — Godot 4 has good WebSocket support.
 
 ## Reference: obs-websocket-gd API surface
 
@@ -148,20 +132,15 @@ methods:
   send_command(command: String, data: Dictionary) -> void
 ```
 
-It uses GDScript + Godot's built-in `WebSocketClient`. This means we can use
-GDScript for OBS WebSocket and entirely avoid the Python dependency.
+It uses GDScript + Godot's built-in `WebSocketClient`. This means we can use GDScript for OBS WebSocket and entirely avoid the Python dependency.
 
-If we vendor this (it's Apache-2.0, same as our project), we could build our
-editor plugin on top of it directly.
+If we vendor this (it's Apache-2.0, same as our project), we could build our editor plugin on top of it directly.
 
 ______________________________________________________________________
 
 ## Timeline sketch
 
-**Phase 1** (days): Wrap existing Python scripts with EditorPlugin → usable
-internally **Phase 2** (weeks): Port WebSocket to GDScript → drop Python
-dependency **Phase 3** (months): Platform capture sources, dock UI, batch UI →
-public release
+**Phase 1** (days): Wrap existing Python scripts with EditorPlugin → usable internally **Phase 2** (weeks): Port WebSocket to GDScript → drop Python dependency **Phase 3** (months): Platform capture sources, dock UI, batch UI → public release
 
 ______________________________________________________________________
 
