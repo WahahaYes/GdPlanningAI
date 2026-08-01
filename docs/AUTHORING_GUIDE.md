@@ -76,7 +76,7 @@ These are the building blocks. The examples demonstrate concrete implementations
 
 ## Debugging
 
-Open the **GdPlanningAI** debugger tab. It shows the active goal, the action chain with costs, open preconditions/requirements at each step, and pruned branches with reasons. Enable debug logging via `GdPAIAutoload.get_scheduler().set_log_level(3)` to see candidate discovery, simulation steps, and forward validation in the output log.
+The interactive debugger tab was removed during the Rust refactor and has not been reintroduced yet. For now, the engine exposes the search tree as a text dump: `GdPAIPlanScheduler.get_debug_tree(agent)` returns a human-readable rendering of the agent's most recent planning job. Enable debug logging via `GdPAIAutoload.get_scheduler().set_log_level(3)` to see candidate discovery, simulation steps, and forward validation in the output log.
 
 **Empty plan, goal not satisfied**: No action provides a needed provision, or a validity check filters everything out. Check that your action's provisions match the requirement types exactly (Binding vs Fact, group names match).
 
