@@ -43,8 +43,8 @@ lint-style: ## Check GDScript and Rust files for style-guide violations
 .PHONY: check-docs
 check-docs: ## Check consistency of README and LICENSE between root and addon directory
 	@echo "Checking documentation consistency..."
-	@diff README.md addons/GdPlanningAI/README.md || (echo "README.md differs between root and addon directory" && exit 1)
-	@diff LICENSE.txt addons/GdPlanningAI/LICENSE.txt || (echo "LICENSE.txt differs between root and addon directory" && exit 1)
+	@diff -u README.md addons/GdPlanningAI/README.md || (echo "ERROR: README.md differs between root and addon directory (see diff above). Run 'make sync-docs' to sync." && exit 1)
+	@diff -u LICENSE.txt addons/GdPlanningAI/LICENSE.txt || (echo "ERROR: LICENSE.txt differs between root and addon directory (see diff above). Run 'make sync-docs' to sync." && exit 1)
 	@echo "Documentation is consistent"
 
 .PHONY: sync-docs
