@@ -1,23 +1,25 @@
 # GdTimeMachine Historical Capture (CLI Companion)
 
-Status: Core differentiator (design from v0.1, implement after core addon stabilizes)
+Status: Core differentiator (design from v0.1, implement after core addon
+stabilizes)
 
----
+______________________________________________________________________
 
 ## Why this matters
 
-Most Godot recording tools can only capture the current editor state. GdTimeMachine's
-standout feature is being able to rewind your project to any commit and record
-it — automatically resolving the correct Godot version, rebuilding native
-extensions, and regenerating resource caches.
+Most Godot recording tools can only capture the current editor state.
+GdTimeMachine's standout feature is being able to rewind your project to any
+commit and record it — automatically resolving the correct Godot version,
+rebuilding native extensions, and regenerating resource caches.
 
 This is a **time machine for your project's visual history**. It's what makes
-GdTimeMachine more than a record button: it's a tool for telling the story of your
-game's development.
+GdTimeMachine more than a record button: it's a tool for telling the story of
+your game's development.
 
 ## The problem
 
 GdTimeMachine's editor dock can record the current scene, but it cannot:
+
 - Check out historical git commits
 - Resolve + install the correct Godot version for an old commit (via godotenv)
 - Rebuild Rust GDExtensions at old commits
@@ -29,11 +31,13 @@ directory, making them impossible to execute from inside an editor plugin.
 
 ## The solution
 
-A standalone CLI tool (bundled with GdTimeMachine but executed outside the editor) that:
+A standalone CLI tool (bundled with GdTimeMachine but executed outside the
+editor) that:
 
 1. Reads a **batch manifest** created by GdTimeMachine's dock UI
-2. For each entry: git worktree → resolve godotenv → rebuild Rust → regenerate .godot/ → record
-3. Reports results back to GdTimeMachine (via exit code + log file)
+1. For each entry: git worktree → resolve godotenv → rebuild Rust → regenerate
+   .godot/ → record
+1. Reports results back to GdTimeMachine (via exit code + log file)
 
 ## Manifest format
 
@@ -130,38 +134,42 @@ GdTimeMachine's dock UI provides:
 └──────────────────────────────────┘
 ```
 
-GdTimeMachine never executes the batch — it configures, exports, and tracks results.
-The CLI owns execution.
+GdTimeMachine never executes the batch — it configures, exports, and tracks
+results. The CLI owns execution.
 
 ## Language choice
 
 Two options for the CLI tool:
 
-| Option | Pros | Cons |
-|--------|------|------|
-| **Python** (bundled venv) | Reuses our existing `capture_obs.py` and `obs_controller.py` directly. Minimal new code. | Requires Python 3.9+ on user's machine. |
-| **Rust** (single binary) | Zero dependencies. Cross-platform binary. Matches the project's Rust tooling. | Rewrite the OBS WebSocket logic from Python. More effort for first version. |
+| Option | Pros | Cons | |--------|------|------| | **Python** (bundled venv) |
+Reuses our existing `capture_obs.py` and `obs_controller.py` directly. Minimal
+new code. | Requires Python 3.9+ on user's machine. | | **Rust** (single binary)
+| Zero dependencies. Cross-platform binary. Matches the project's Rust tooling.
+| Rewrite the OBS WebSocket logic from Python. More effort for first version. |
 
-**Recommendation**: Python for v1 (our scripts already work), Rust if there's demand for a self-contained binary later.
+**Recommendation**: Python for v1 (our scripts already work), Rust if there's
+demand for a self-contained binary later.
 
 ## Relationship to GdPlanningAI
 
-The existing `capture_all_showcase.sh` is purpose-built for **GdPlanningAI's devlog** with a hardcoded manifest of commits. The CLI companion generalizes this into a reusable tool that works for any Godot project, with the manifest created by GdTimeMachine's UI.
+The existing `capture_all_showcase.sh` is purpose-built for **GdPlanningAI's
+devlog** with a hardcoded manifest of commits. The CLI companion generalizes
+this into a reusable tool that works for any Godot project, with the manifest
+created by GdTimeMachine's UI.
 
-Long-term, `capture_all_showcase.sh` either gets replaced by `gdclip-cli run` or lives on as a thin wrapper with the GdPlanningAI-specific manifest.
+Long-term, `capture_all_showcase.sh` either gets replaced by `gdclip-cli run` or
+lives on as a thin wrapper with the GdPlanningAI-specific manifest.
 
----
+______________________________________________________________________
 
 ## Effort estimate
 
-| Part | Time | Notes |
-|------|------|-------|
-| JSON manifest schema + validation | 1–2 hrs | Shared with GdTimeMachine dock |
-| `gdclip-cli run` (core loop) | 3–4 hrs | Port of `capture_all_showcase.sh` logic |
-| Worktree management | 1 hr | Already solved in the shell script |
-| Godot binary resolution | 1 hr | godotenv integration |
-| Rust build integration | 1 hr | Same as current script |
-| Dry-run, resume, error handling | 2 hrs | UX polish |
+| Part | Time | Notes | |------|------|-------| | JSON manifest schema +
+validation | 1–2 hrs | Shared with GdTimeMachine dock | | `gdclip-cli run` (core
+loop) | 3–4 hrs | Port of `capture_all_showcase.sh` logic | | Worktree
+management | 1 hr | Already solved in the shell script | | Godot binary
+resolution | 1 hr | godotenv integration | | Rust build integration | 1 hr |
+Same as current script | | Dry-run, resume, error handling | 2 hrs | UX polish |
 | **Total** | **9–11 hrs** | |
 
 ## Dependencies

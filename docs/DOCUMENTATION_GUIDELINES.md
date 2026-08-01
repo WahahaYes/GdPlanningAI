@@ -6,9 +6,11 @@ Code documentation standards for GdPlanningAI.
 
 ### No Decorative Comment Headers
 
-Never use comment borders as section headers in any language. If a file is large enough to need section headers, consider splitting it into smaller files.
+Never use comment borders as section headers in any language. If a file is large
+enough to need section headers, consider splitting it into smaller files.
 
 **GDScript (bad):**
+
 ```gdscript
 # ---------------------------------------------------------------------------
 # Section Name
@@ -16,11 +18,13 @@ Never use comment borders as section headers in any language. If a file is large
 ```
 
 **GDScript (good):**
+
 ```gdscript
 ## Brief description of section purpose.
 ```
 
 **Rust (bad):**
+
 ```rust
 // ---------------------------------------------------------------------------
 // Section Name
@@ -28,19 +32,22 @@ Never use comment borders as section headers in any language. If a file is large
 ```
 
 **Rust (good):**
+
 ```rust
 /// Module or item documentation.
 ```
 
-Keep comments purposeful. Use docstrings for documentation, simple comments for implementation notes.
+Keep comments purposeful. Use docstrings for documentation, simple comments for
+implementation notes.
 
----
+______________________________________________________________________
 
 ## GDScript
 
 ### Class Documentation
 
-Place `##` docstring immediately after `class_name`/`extends`. Use `[ClassName]` to link related classes. Use `[br]` for paragraph breaks.
+Place `##` docstring immediately after `class_name`/`extends`. Use `[ClassName]`
+to link related classes. Use `[br]` for paragraph breaks.
 
 ```gdscript
 class_name MyAction
@@ -62,7 +69,8 @@ var agent_name: String = ""
 
 ### Variable Documentation
 
-Document `@export` and significant non-exported variables with `##` directly above. Describe semantic meaning, not implementation.
+Document `@export` and significant non-exported variables with `##` directly
+above. Describe semantic meaning, not implementation.
 
 ```gdscript
 ## Seconds between shakes.
@@ -74,7 +82,8 @@ var is_on_cooldown: bool = false
 
 ### Function Documentation
 
-All functions get `##` docstrings. Use `[param name]` for parameters, `[code]...[/code]` for inline code, `[b]...[/b]` for critical constraints.
+All functions get `##` docstrings. Use `[param name]` for parameters,
+`[code]...[/code]` for inline code, `[b]...[/b]` for critical constraints.
 
 ```gdscript
 ## Computes action cost during Rust planning simulation.[br]
@@ -106,7 +115,9 @@ func second() -> void:
 
 ### Override Annotations
 
-Mark abstract base class method implementations with `# Override`. Use for contractual overrides like `Action.get_action_cost()` or `Goal.compute_reward()`.
+Mark abstract base class method implementations with `# Override`. Use for
+contractual overrides like `Action.get_action_cost()` or
+`Goal.compute_reward()`.
 
 ```gdscript
 # Override
@@ -114,7 +125,7 @@ func get_provided_actions() -> Array[Action]:
 	return []
 ```
 
----
+______________________________________________________________________
 
 ## Rust
 
@@ -130,7 +141,8 @@ Use `//!` at file top. Describe purpose and public interface.
 
 ### Type Documentation
 
-Use `///` for structs, enums, functions. Cross-reference with ``[`TypeName`]``.
+Use `///` for structs, enums, functions. Cross-reference with
+`` [`TypeName`] ``.
 
 ```rust
 /// Action data from GDScript.
@@ -144,7 +156,7 @@ pub struct ActionData {
 
 ### Function Documentation
 
-Reference types with ``[`TypeName`]``. Document parameter semantics.
+Reference types with `` [`TypeName`] ``. Document parameter semantics.
 
 ```rust
 /// Entry point for background planning.
@@ -165,17 +177,13 @@ pub fn run_plan(
 
 Explicit `pub` or private. Prefer private by default.
 
----
+______________________________________________________________________
 
 ## Docstring Quick Reference
 
-| Language | Tag | Purpose |
-|----------|-----|---------|
-| GDScript | `[param name]` | Parameter reference |
-| GDScript | `[member name]` | Class member reference |
-| GDScript | `[ClassName]` | Type reference |
-| GDScript | `[code]...[/code]` | Inline code |
-| GDScript | `[b]...[/b]` | Bold/emphasis |
-| GDScript | `[br]` | Line break |
-| Rust | ``[`Type`]`` | Type cross-reference |
-| Rust | ``[`crate::mod::Type`]`` | Full path reference |
+| Language | Tag | Purpose | |----------|-----|---------| | GDScript |
+`[param name]` | Parameter reference | | GDScript | `[member name]` | Class
+member reference | | GDScript | `[ClassName]` | Type reference | | GDScript |
+`[code]...[/code]` | Inline code | | GDScript | `[b]...[/b]` | Bold/emphasis | |
+GDScript | `[br]` | Line break | | Rust | `` [`Type`] `` | Type cross-reference
+| | Rust | `` [`crate::mod::Type`] `` | Full path reference |

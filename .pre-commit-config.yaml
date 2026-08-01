@@ -48,6 +48,14 @@ repos:
         args: ["--config", ".gitleaks.toml"]
         verbose: true
 
+  # Markdown formatting
+  - repo: https://github.com/executablebooks/mdformat
+    rev: 0.7.19
+    hooks:
+      - id: mdformat
+        args: ["--wrap=80"]
+        types: [markdown]
+
   # Python formatting/linting for scripts
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.6.0

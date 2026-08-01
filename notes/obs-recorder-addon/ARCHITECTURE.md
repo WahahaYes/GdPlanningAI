@@ -1,9 +1,8 @@
 # GdTimeMachine — Architecture Sketch
 
-Date: 2026-07-29
-Status: Pre-implementation design
+Date: 2026-07-29 Status: Pre-implementation design
 
----
+______________________________________________________________________
 
 ## Addon directory layout
 
@@ -38,7 +37,7 @@ addons/gd-time-machine/
 └── README.md                       # Addon docs
 ```
 
----
+______________________________________________________________________
 
 ## Core flow
 
@@ -68,7 +67,7 @@ addons/gd-time-machine/
         └── signals: recording_progress, recording_finished, recording_error
 ```
 
----
+______________________________________________________________________
 
 ## RecorderBackend (abstract base)
 
@@ -94,7 +93,7 @@ signal recording_stopped(backend_name, output_path)
 signal recording_error(backend_name, error_message)
 ```
 
----
+______________________________________________________________________
 
 ## OBS backend detail
 
@@ -122,7 +121,7 @@ func start(config: Dictionary) -> void:
     # 6. Wait for Godot process to exit, move file
 ```
 
----
+______________________________________________________________________
 
 ## Movie Maker backend (editor)
 
@@ -157,7 +156,7 @@ func stop() -> void:
     EditorInterface.stop_playing()
 ```
 
----
+______________________________________________________________________
 
 ## Plugin entry point
 
@@ -189,7 +188,7 @@ func _exit_tree() -> void:
     remove_tool_menu_item("Record Scene...")
 ```
 
----
+______________________________________________________________________
 
 ## Dock panel layout
 
@@ -216,28 +215,29 @@ func _exit_tree() -> void:
 └──────────────────────────────────┘
 ```
 
----
+______________________________________________________________________
 
 ## Settings panel
 
-Wraps these persisted settings (stored in addon's own config file, not project.godot):
+Wraps these persisted settings (stored in addon's own config file, not
+project.godot):
 
-| Setting | Key | Default |
-|---------|-----|---------|
-| OBS host | `gd_time_machine/obs/host` | `localhost` |
-| OBS port | `gd_time_machine/obs/port` | `4455` |
-| OBS password | `gd_time_machine/obs/password` | (empty, stored in editor config) |
-| OBS scene name | `gd_time_machine/obs/scene` | `Scene` |
-| Default backend | `gd_time_machine/recorder/default_backend` | `obs` |
-| Default duration | `gd_time_machine/recorder/default_duration` | `30` |
-| Default FPS | `gd_time_machine/recorder/default_fps` | `60` |
-| Output directory | `gd_time_machine/recorder/output_dir` | `res://media/captures` |
-| Launch OBS automatically | `gd_time_machine/obs/auto_launch` | `false` |
-| Fullscreen mode | `gd_time_machine/recorder/fullscreen` | `true` |
+| Setting | Key | Default | |---------|-----|---------| | OBS host |
+`gd_time_machine/obs/host` | `localhost` | | OBS port |
+`gd_time_machine/obs/port` | `4455` | | OBS password |
+`gd_time_machine/obs/password` | (empty, stored in editor config) | | OBS scene
+name | `gd_time_machine/obs/scene` | `Scene` | | Default backend |
+`gd_time_machine/recorder/default_backend` | `obs` | | Default duration |
+`gd_time_machine/recorder/default_duration` | `30` | | Default FPS |
+`gd_time_machine/recorder/default_fps` | `60` | | Output directory |
+`gd_time_machine/recorder/output_dir` | `res://media/captures` | | Launch OBS
+automatically | `gd_time_machine/obs/auto_launch` | `false` | | Fullscreen mode
+| `gd_time_machine/recorder/fullscreen` | `true` |
 
-Stored in `EditorInterface.get_editor_settings()` under `"gd_time_machine/"` prefix — doesn't pollute project settings.
+Stored in `EditorInterface.get_editor_settings()` under `"gd_time_machine/"`
+prefix — doesn't pollute project settings.
 
----
+______________________________________________________________________
 
 ## Backend selection UX
 
@@ -249,19 +249,26 @@ The dock's backend dropdown shows each backend with its availability:
 [Godot Movie Maker (CLI)]   ⚠ limited (no audio config)
 ```
 
-Selection is remembered per-project. Fallback: if OBS backend is selected but OBS isn't running, show a warning toast but still allow using it (they can start OBS).
+Selection is remembered per-project. Fallback: if OBS backend is selected but
+OBS isn't running, show a warning toast but still allow using it (they can start
+OBS).
 
----
+______________________________________________________________________
 
 ## Open design questions to resolve later
 
-1. **OBS password storage**: Editor settings are plaintext. Should we warn users?
-2. **Audit output size**: Movie Maker produces .avi — user wants mp4? Transcode after?
-3. **Progress indication**: OBS recording has no progress — we just wait. Show countdown timer?
-4. **Multi-scene batch**: Like our `capture_all_showcase.sh` but with a GUI manifest editor. Phase 2.
-5. **Replay buffer**: The "Record That" button (saves last N seconds) — cool but requires OBS replay buffer to be active.
+1. **OBS password storage**: Editor settings are plaintext. Should we warn
+   users?
+1. **Audit output size**: Movie Maker produces .avi — user wants mp4? Transcode
+   after?
+1. **Progress indication**: OBS recording has no progress — we just wait. Show
+   countdown timer?
+1. **Multi-scene batch**: Like our `capture_all_showcase.sh` but with a GUI
+   manifest editor. Phase 2.
+1. **Replay buffer**: The "Record That" button (saves last N seconds) — cool but
+   requires OBS replay buffer to be active.
 
----
+______________________________________________________________________
 
 ## Dependency graph
 
@@ -280,17 +287,19 @@ plugin.gd
 
 No circular deps. Backends are loaded on-demand, not all at startup.
 
----
+______________________________________________________________________
 
 ## First implementation target
 
 For the first cut, I'd implement:
 
 1. `plugin.gd` + `plugin.cfg` — skeleton plugin that registers a dock
-2. `backend/recorder_backend.gd` — abstract base
-3. `backend/backend_movie_maker.gd` — the zero-dep path, works immediately
-4. `ui/recorder_dock.gd` + `ui/recorder_dock.tscn` — the UI shell
-5. `backend/backend_obs.gd` — Linux-only OBS backend (our existing logic ported to GDScript)
-6. `vendor/obs_websocket.gd` — vendored, untouched
+1. `backend/recorder_backend.gd` — abstract base
+1. `backend/backend_movie_maker.gd` — the zero-dep path, works immediately
+1. `ui/recorder_dock.gd` + `ui/recorder_dock.tscn` — the UI shell
+1. `backend/backend_obs.gd` — Linux-only OBS backend (our existing logic ported
+   to GDScript)
+1. `vendor/obs_websocket.gd` — vendored, untouched
 
-This gives a working addon with the Movie Maker path day one, and OBS as a bonus for users who have it.
+This gives a working addon with the Movie Maker path day one, and OBS as a bonus
+for users who have it.
