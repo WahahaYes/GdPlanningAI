@@ -1,50 +1,35 @@
 # Custom Precondition Audit & Refactoring Plan
 
-**Date**: 2025-07-25 **Context**: Analysis of opaque custom preconditions
-hindering backward-chaining planner discovery
+**Date**: 2025-07-25 **Context**: Analysis of opaque custom preconditions hindering backward-chaining planner discovery
 
 ______________________________________________________________________
 
 ## The Problem
 
-Custom preconditions (`Precondition.custom(callable)`) are **black boxes** to
-the Rust planner:
+Custom preconditions (`Precondition.custom(callable)`) are **black boxes** to the Rust planner:
 
-- Cannot be evaluated during candidate discovery without a GDScript callback
-  round-trip
+- Cannot be evaluated during candidate discovery without a GDScript callback round-trip
 - Planner cannot know *which actions* might satisfy them
 - Forces users to manually chain actions they already know work
 
 The planner has two discovery paths:
 
 1. **Symbolic** (Requirements ↔ Provisions) — fully visible, zero callbacks
-1. **Simulation** (Builtin Preconditions) — evaluated on simulated snapshots in
-   Rust, zero callbacks
+1. **Simulation** (Builtin Preconditions) — evaluated on simulated snapshots in Rust, zero callbacks
 
-Custom preconditions fall into neither — they require main-thread callbacks
-*during* discovery, blocking the search.
+Custom preconditions fall into neither — they require main-thread callbacks *during* discovery, blocking the search.
 
 ______________________________________________________________________
 
 ## Current Custom Precondition Usages (4 total)
 
-| File | Type | What It Checks | Refactorable? |
-|------|------|----------------|---------------| | `shake_tree_action.gd` |
-Validity check | `fruit_tree.is_on_cooldown` (property on specific object
-instance) | **Yes** → WorldObjectProxy property | | `wander_goal.gd` | Desired
-state | Agent position moved ≥ 16px from start | **Yes** → WorldObjectProxy
-property on agent's own location data | | `eat_held_food_action.gd` |
-Precondition | `held_item` exists in `hunger_restored_by_item` dict |
-**Partial** — needs binding-aware builtin | | `maintain_fire_goal.gd` | Desired
-state | Any `CampfireObject` has `current_fuel ≥ desired_fuel_level` | **Yes** →
-WorldObjectProxy property |
+| File | Type | What It Checks | Refactorable? | |------|------|----------------|---------------| | `shake_tree_action.gd` | Validity check | `fruit_tree.is_on_cooldown` (property on specific object instance) | **Yes** → WorldObjectProxy property | | `wander_goal.gd` | Desired state | Agent position moved ≥ 16px from start | **Yes** → WorldObjectProxy property on agent's own location data | | `eat_held_food_action.gd` | Precondition | `held_item` exists in `hunger_restored_by_item` dict | **Partial** — needs binding-aware builtin | | `maintain_fire_goal.gd` | Desired state | Any `CampfireObject` has `current_fuel ≥ desired_fuel_level` | **Yes** → WorldObjectProxy property |
 
 ______________________________________________________________________
 
 ## Proposed Solution: WorldObjectProxy Builtin Preconditions
 
-Add new `PreconditionTarget::WorldObjectProxy { group, property }` that
-evaluates directly on simulated `SimObjectProxy` snapshots in Rust.
+Add new `PreconditionTarget::WorldObjectProxy { group, property }` that evaluates directly on simulated `SimObjectProxy` snapshots in Rust.
 
 ### New Builtin Operations
 
@@ -112,9 +97,7 @@ return [Precondition.custom(far_enough)]
 preconds.append(Precondition.custom(Callable(self, "_is_holding_food")))
 ```
 
-**After:** This checks a *binding-dependent* condition (held_item must be in
-action's internal dict). Not directly expressible as world object property.
-Could add:
+**After:** This checks a *binding-dependent* condition (held_item must be in action's internal dict). Not directly expressible as world object property. Could add:
 
 ```gdscript
 Precondition.binding_in_set("held_item", "allowed_food_items")
@@ -147,21 +130,16 @@ ______________________________________________________________________
 
 ### Phase 1: Core Rust Changes
 
-1. `precondition.rs` — Add
-   `WorldObjectProxy { group: String, property: String }` to
-   `PreconditionTarget`
-1. `plan_types.rs` — Add `eval_builtin_on_snapshot` handling for proxy target
-   (iterate `world.objects` by group)
+1. `precondition.rs` — Add `WorldObjectProxy { group: String, property: String }` to `PreconditionTarget`
+1. `plan_types.rs` — Add `eval_builtin_on_snapshot` handling for proxy target (iterate `world.objects` by group)
 1. `precondition.gd` — Add static constructors
 
 ### Phase 2: Refactor Examples
 
 1. `maintain_fire_goal.gd` — Use `world_object_property_geq_than`
-1. `shake_tree_action.gd` — Use `world_object_property_equal_to` (or new
-   instance-specific variant)
+1. `shake_tree_action.gd` — Use `world_object_property_equal_to` (or new instance-specific variant)
 1. `wander_goal.gd` — Requires virtual property or simulate_effect augmentation
-1. `eat_held_food_action.gd` — Add `binding_in_set` requirement/provision
-   pattern
+1. `eat_held_food_action.gd` — Add `binding_in_set` requirement/provision pattern
 
 ### Phase 3: Virtual Property System (Optional but Powerful)
 
@@ -206,9 +184,5 @@ ______________________________________________________________________
 
 ## Notes
 
-- `ShakeTreeAction` validity check uses `is_instance_valid(fruit_tree)` — the
-  object-specific check. Group-based proxy checks all objects in group. May need
-  `Precondition.object_property_*` for instance-specific.
-- `WanderGoal` distance check is inherently relative to *original* position, not
-  a stored property. Best solved by having `WanderAction.simulate_effect` record
-  origin position as a simulated property.
+- `ShakeTreeAction` validity check uses `is_instance_valid(fruit_tree)` — the object-specific check. Group-based proxy checks all objects in group. May need `Precondition.object_property_*` for instance-specific.
+- `WanderGoal` distance check is inherently relative to *original* position, not a stored property. Best solved by having `WanderAction.simulate_effect` record origin position as a simulated property.
