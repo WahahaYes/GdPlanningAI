@@ -1,16 +1,56 @@
 ##@ Testing
 
+# test-godot runs the GUT suite and reports failures concisely.
+# Exits 0 to preserve context; GUT-SUITE-OK/FAILED summary at end.
+SHELL := /bin/bash
+
 .PHONY: test
-test: test-rust test-godot ## Run all tests (Rust + Godot)
+test: ## Run all tests (Rust + Godot); exits nonzero if any sub-suite fails
+	@LOG=$$(mktemp /tmp/gdplanningai-test.XXXXXX); \
+	STATUS=0; \
+	echo "==> test-rust" >> $$LOG; \
+	"$(MAKE)" test-rust >> $$LOG 2>&1 || STATUS=1; \
+	echo "==> test-godot" >> $$LOG; \
+	"$(MAKE)" test-godot >> $$LOG 2>&1 || STATUS=1; \
+	cat $$LOG; \
+	if [ $$STATUS -ne 0 ] || grep -qE "^GUT-SUITE-FAILED:|^CARGO-TEST-FAILED:" $$LOG; then \
+		echo "ALL-TESTS-FAILED: a sub-suite failed (full log at $$LOG)"; \
+		exit 1; \
+	fi; \
+	echo "ALL-TESTS-OK"; \
+	exit 0
 
 .PHONY: test-rust
-test-rust: ## Run Rust tests only
+test-rust: ## Run Rust tests only (propagates cargo test exit code)
 	"$(MAKE)" -C addons/GdPlanningAI/rust test
 
 .PHONY: test-godot
-test-godot: ## Run Godot integration tests
+test-godot: ## Run Godot integration tests (GUT headless); concise output, exits 0
 	@echo "Running tests..."
-	@godot --headless -s --path . addons/gut/gut_cmdln.gd -gexit 2>&1 | grep -E "(Failed|Error|PASSED|passed)" || true
+	@LOG=$$(mktemp /tmp/gut-XXXXXX.log); \
+	godot --headless -s --path . addons/gut/gut_cmdln.gd -gexit > $$LOG 2>&1; \
+	STATUS=$$?; \
+	OK=1; \
+	for PAT in "SCRIPT ERROR" "Failed to load script" "Parse error"; do \
+		if grep -qF "$$PAT" $$LOG; then \
+			echo "GUT-SUITE-FAILED: output contains '$$PAT' (a test file failed to LOAD/parse)"; \
+			OK=0; \
+		fi; \
+	done; \
+	if [ $$STATUS -ne 0 ]; then \
+		echo "GUT-SUITE-FAILED: gut_cmdln exited with $$STATUS"; \
+		OK=0; \
+	fi; \
+	if [ $$OK -ne 1 ]; then \
+		echo "GUT-SUITE-FAILED: see full log at $$LOG"; \
+		grep -E "^(Passing Tests|Failing Tests|Asserts|Scripts|Warnings|Orphans)" $$LOG || cat $$LOG; \
+	else \
+		PASS=$$(grep -E "^Passing Tests" $$LOG | awk '{print $$NF}'); \
+		FAIL=$$(grep -E "^Failing Tests" $$LOG | awk '{print $$NF}'); \
+		[ -z "$$FAIL" ] && FAIL=0; \
+		echo "GUT-SUITE-OK ($$PASS passing, $$FAIL failing)"; \
+	fi; \
+	exit 0
 
 .PHONY: test-godot-pipe-output
 test-godot-pipe-output: ## Run Godot integration tests with full output to file

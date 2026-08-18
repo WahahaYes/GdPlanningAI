@@ -67,9 +67,21 @@ clean-binaries: ## Clean all binary directories
 
 ##@ Development
 
+SHELL := /bin/bash
+
 .PHONY: test
-test: ## Run unit tests
-	@cargo test --message-format=short 2>&1 | grep -E "(test result|error|Error|FAILED|failed)" || true
+test: ## Run unit tests (full log capture; CARGO-TEST-OK/FAILED verdict; propagates cargo exit code)
+	@echo "Running tests..."
+	@LOG=$$(mktemp /tmp/cargo-test.XXXXXX); \
+	cargo test --message-format=short > $$LOG 2>&1; \
+	STATUS=$$?; \
+	cat $$LOG; \
+	if [ $$STATUS -ne 0 ]; then \
+		echo "CARGO-TEST-FAILED: cargo test exited with status $$STATUS (full log at $$LOG)"; \
+	else \
+		echo "CARGO-TEST-OK"; \
+	fi; \
+	exit $$STATUS
 
 .PHONY: format
 format: ## Format code using rustfmt
