@@ -6,7 +6,7 @@ ______________________________________________________________________
 
 ## GDScript tests (GUT framework, test/)
 
-`.gutconfig.json`: `dirs ["res://test"]`, `include_subdirs true`, `log_level 2`, `should_exit true`. Run: `make test-godot` → `godot --headless -s --path . addons/gut/gut_cmdln.gd -gexit` (grep-filtered; trailing `|| true` means the Make target never fails the build even on test failure).
+`.gutconfig.json`: `dirs ["res://test"]`, `include_subdirs true`, `log_level 2`, `should_exit true`. Run: `make test-godot` → `godot --headless -s --path . addons/gut/gut_cmdln.gd -gexit` (captures full log, checks load/parse-error markers + exit status, prints `GUT-SUITE-OK`/`GUT-SUITE-FAILED` verdict; target exits 0).
 
 ### test/unit/ (2 files)
 
@@ -49,7 +49,7 @@ Run: `make test-rust` → `cargo test`. Integration tests construct PlannerEngin
 
 ### Root Makefile
 
-- Testing: `test`, `test-rust`, `test-godot` (grep-filtered, `|| true`), `test-godot-pipe-output` (full log to test_output.log).
+- Testing: `test` (runs Rust + Godot suites, exits nonzero if any sub-suite fails), `test-rust` (cargo test, propagates exit code, `CARGO-TEST-OK`/`FAILED` verdict), `test-godot` (GUT, `GUT-SUITE-OK`/`FAILED` verdict, exits 0), `test-godot-pipe-output` (full log to test_output.log).
 - Formatting: `format`, `format-rust` (rustfmt), `format-godot` (fix_gd_spacing.py + gdformat via uv).
 - Linting: `lint-style` → `uv run scripts/lint_style.py`.
 - Docs: `check-docs` (diff README/LICENSE root vs addon), `sync-docs`.
