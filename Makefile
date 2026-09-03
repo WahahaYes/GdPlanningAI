@@ -133,23 +133,3 @@ godot-install-pinned: ## Install the pinned Godot version (uses godotenv)
 .PHONY: help
 help: ## Show this help message
 	@awk 'BEGIN {FS = ":.*?## "}; /^##@ / {printf "\n\033[1m%s\033[0m\n", substr($$0, 5)}; /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
-
-##@ Recording
-
-# Defaults for recording
-SCENE       ?= examples/hunger_basic_2d.tscn
-DURATION    ?= 10
-FPS         ?= 60
-OUTPUT      ?= media/captures
-
-.PHONY: record-obs
-record-obs: ## Record scene via OBS (auto-loads .env)
-	@bash -c 'set -a; test -f .env && . .env; set +a; \
-		args="$(SCENE) -d $(DURATION) --start-obs --max-fps $(FPS)"; \
-		[ "$(FULLSCREEN)" = "1" ] && args="$$args -f"; \
-		[ -n "$(OUTPUT)" ] && args="$$args -o $(OUTPUT)"; \
-		uv run scripts/capture_obs.py $$args'
-
-.PHONY: record-obs-fullscreen
-record-obs-fullscreen: ## Record scene via OBS in fullscreen mode (-f)
-	@$(MAKE) record-obs FULLSCREEN=1

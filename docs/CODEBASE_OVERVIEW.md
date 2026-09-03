@@ -10,9 +10,9 @@ ______________________________________________________________________
 
 The top-level of the repo:
 
-| Path | Purpose | |------|---------| | `addons/` | The plugin itself: `addons/GdPlanningAI/` is the installable addon. | | `docs/` | Project documentation (see [section 9](#9-documentation-map)). | | `examples/` | Demonstration scenes (hunger, campfire, multi-agent, stress test). | | `notes/` | Session-scoped research and plans; scratch material, not reference docs. | | `script_templates/` | Godot script templates for subclassing `Action`, `Goal`, `GdPAIObjectData`, and friends. | | `scripts/` | Developer tooling scripts (OBS recording, style linting). | | `test/` | GUT GDScript test suite (`test/unit/`, `test/integration/`). | | `media/` | Demo assets used by the README (banner, gifs, screenshots). | | `.worktrees/` | Git worktree checkouts used during development (numbered milestones like `01_before_pure_gdscript`). | | `.omo/` | omo tooling state (for example, run-continuation hooks). |
+| Path | Purpose | |------|---------| | `addons/` | The plugin itself: `addons/GdPlanningAI/` is the installable addon. | | `docs/` | Project documentation (see [section 9](#9-documentation-map)). | | `examples/` | Demonstration scenes (hunger, campfire, multi-agent, stress test). | | `notes/` | Session-scoped research and plans; scratch material, not reference docs. | | `script_templates/` | Godot script templates for subclassing `Action`, `Goal`, `GdPAIObjectData`, and friends. | | `scripts/` | Developer tooling scripts (style linting; recording now via `GdTimeMachine` addon). | | `test/` | GUT GDScript test suite (`test/unit/`, `test/integration/`). | | `media/` | Demo assets used by the README (banner, gifs, screenshots). | | `.omo/` | omo tooling state (for example, run-continuation hooks). |
 
-Other files of note at the root: `Makefile` (see [section 6](#6-build-system)), `project.godot` (Godot 4.7 project, no main scene), `addons.jsonc` (third-party addon manifest, currently `gut` v9.6.0), `.pre-commit-config.yaml`, and `AGENTS.md` (agent working guidelines).
+Other files of note at the root: `Makefile` (see [section 6](#6-build-system)), `project.godot` (Godot 4.7 project, no main scene), `addons.jsonc` (third-party addon manifest, `gut` v9.6.0 + `GdTimeMachine` via symlink to `../GdTimeMachine`), `.pre-commit-config.yaml`, and `AGENTS.md` (agent working guidelines).
 
 ______________________________________________________________________
 
@@ -123,7 +123,7 @@ Prefer `make` targets over ad hoc commands. Two Makefiles exist.
 
 ### Root `Makefile`
 
-| Target | Purpose | |--------|---------| | `test`, `test-rust`, `test-godot` | Run all / Rust / Godot suites. `test` runs both and exits nonzero if any sub-suite fails. `test-godot` exits 0 with a `GUT-SUITE-OK`/`GUT-SUITE-FAILED` verdict line (checks load/parse error markers + gut exit status); `test-rust` propagates cargo test's exit code with a `CARGO-TEST-OK`/`CARGO-TEST-FAILED` verdict. | | `test-godot-pipe-output` | Full GUT log written to `test_output.log`. | | `format`, `format-rust`, `format-godot` | Format all / Rust (rustfmt) / GDScript (`fix_gd_spacing.py` + gdformat via uv). | | `lint-style` | Run `uv run scripts/lint_style.py`. | | `check-docs`, `sync-docs` | Diff/sync README + LICENSE between the repo root and the addon copy. | | `launch-editor`, `addons-install`, `godot-pin`, `godot-install-pinned` | Editor and Godot version management. | | `record-obs`, `record-obs-fullscreen` | Scene recording via OBS (SCENE/DURATION/FPS/OUTPUT/FULLSCREEN vars). |
+| Target | Purpose | |--------|---------| | `test`, `test-rust`, `test-godot` | Run all / Rust / Godot suites. `test` runs both and exits nonzero if any sub-suite fails. `test-godot` exits 0 with a `GUT-SUITE-OK`/`GUT-SUITE-FAILED` verdict line (checks load/parse error markers + gut exit status); `test-rust` propagates cargo test's exit code with a `CARGO-TEST-OK`/`CARGO-TEST-FAILED` verdict. | | `test-godot-pipe-output` | Full GUT log written to `test_output.log`. | | `format`, `format-rust`, `format-godot` | Format all / Rust (rustfmt) / GDScript (`fix_gd_spacing.py` + gdformat via uv). | | `lint-style` | Run `uv run scripts/lint_style.py`. | | `check-docs`, `sync-docs` | Diff/sync README + LICENSE between the repo root and the addon copy. | | `launch-editor`, `addons-install`, `godot-pin`, `godot-install-pinned` | Editor and Godot version management (GodotEnv). Recording is via colocated `GdTimeMachine` addon (`../GdTimeMachine`) — see `notes/GODOTENV_GDTIMEMACHINE_AUDIT.md`. |
 
 ### `addons/GdPlanningAI/rust/Makefile`
 
@@ -157,9 +157,9 @@ ______________________________________________________________________
 ## 8. Developer tooling
 
 - **Formatting and linting**: `make format-rust` (rustfmt), `make format-godot` (spacing fixer + gdformat), `make lint-style` (style linter over git-tracked `.gd`/`.rs` files: bans `:=`, checks borders, docstrings, and spacing).
-- **`scripts/` one-liners**: `fix_gd_spacing.py` (2 blank lines before top-level funcs), `lint_style.py` (style linter), `capture_obs.py` + `obs_controller.py` (OBS WebSocket recording), `capture_all_showcase.sh` (sequential showcase recording).
+- **`scripts/` one-liners**: `fix_gd_spacing.py` (2 blank lines before top-level funcs), `lint_style.py` (style linter).
 - **Pre-commit hooks** (`.pre-commit-config.yaml`, pre-commit + pre-push): pre-commit-hooks v5.0.0, cargo fmt/clippy (via the rust Makefile), gitleaks v8.24.0, mdformat 0.7.19 (`--wrap=80`), ruff v0.6.0 + ruff-format, gdformat + gdlint-style, and `check-docs`.
-- **Third-party addons** (`addons.jsonc`): `gut` v9.6.0 (bitwes/Gut), installed via GodotEnv, gitignored, cached under `.addons/`. Both editor plugins (GdPlanningAI and gut) are enabled.
+- **Third-party addons** (`addons.jsonc`): `gut` v9.6.0 (bitwes/Gut) + `GdTimeMachine` (symlink `../GdTimeMachine`), installed via GodotEnv, gitignored, cached under `.addons/`. Both editor plugins (GdPlanningAI and gut) are enabled; GdTimeMachine is installed as a symlink.
 - **`project.godot`**: Godot 4.7, Forward Plus renderer, **no main scene** (run scenes directly). Autoload: `GdPAIAutoload`. There is a vestigial `.NET`/Mono section that is unused.
 - **No CI**: there is no `.github/` and no GitHub Actions. Quality gates are the local Make targets and the pre-commit/pre-push hooks.
 
