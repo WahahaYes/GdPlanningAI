@@ -14,6 +14,11 @@
       "url": "https://github.com/bitwes/Gut",
       "checkout": "v9.6.0",
       "subfolder": "addons/gut"
+    },
+    "GdTimeMachine": {
+      "url": "../GdTimeMachine",
+      "source": "symlink",
+      "subfolder": "addons/GdTimeMachine"
     }
   }
 }

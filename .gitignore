@@ -24,21 +24,11 @@ mono_crash.*.json
 
 # Ignore third-party addons managed by godot-env
 addons/gut/
+addons/GdTimeMachine
 .addons/
 
 # Logs and generated output
 *.log
-media/captures/
-
-# Secrets - OBS password configuration
-.env
-.env.local
-
-# OBS capture RestoreToken (persists portal window selection)
-.obs_capture_token.json
 
 # Python
 __pycache__/
-
-# Git worktrees for showcase recording
-.worktrees/
