@@ -19,7 +19,7 @@ Stale doc references: `plan_types.rs:236,251` still mention `crate::action::Acti
 
 ## Overall flow (scheduler → engine → expander → simulation)
 
-1. GDScript calls `GdPAIPlanScheduler.submit_plan(agent, agent_bb, world_bb, actions, goals, max_recursion, iteration_budget)` (`scheduler.rs:238`).
+1. GDScript calls `GdPAIPlanScheduler.submit_plan(agent, agent_bb, world_bb, actions, goals, max_recursion, iteration_budget, time_slice_ms)` (`scheduler.rs:238`).
 1. Blackboards → `BlackboardSnapshot`; action/goal dicts → `ActionSpec`/`GoalSpec` (callables registered into a per-job registry; specs carry **ids** only).
 1. Satisfied-goal pre-filter: highest-reward goal already satisfied by the initial state is remembered (`satisfied_goal_index`); satisfied goals dropped; remainder sorted reward-desc (`scheduler.rs:276-299`).
 1. Provision index built: `(ProvisionKind, name) → action indices`; `non_wildcard_actions` collected (`scheduler.rs:325-349`).

@@ -233,6 +233,9 @@ impl GdPAIPlanScheduler {
     }
 
     /// Submit a planning job for `agent`.
+    ///
+    /// `time_slice_ms` is the wall-clock budget (ms) per search step;
+    /// clamped to >= 0 where 0 disables time-slicing.
     #[func]
     #[allow(clippy::too_many_arguments)]
     fn submit_plan(
@@ -244,6 +247,7 @@ impl GdPAIPlanScheduler {
         goals: Array<VarDictionary>,
         max_recursion: i64,
         iteration_budget: i64,
+        time_slice_ms: i64,
     ) {
         log_debug!(
             "submit_plan: agent={}, actions_count={}, goals_count={}",
@@ -311,6 +315,7 @@ impl GdPAIPlanScheduler {
         let cancel_flag = Arc::new(AtomicBool::new(false));
         let max_rec = max_recursion.max(1) as usize;
         let iter_budget = iteration_budget.max(100) as usize;
+        let slice_ms = time_slice_ms.max(0) as u64;
         if max_recursion < 1 {
             log_warn!("max_recursion was clamped from {} to 1", max_recursion);
         }
@@ -318,6 +323,12 @@ impl GdPAIPlanScheduler {
             log_warn!(
                 "iteration_budget was clamped from {} to 100",
                 iteration_budget
+            );
+        }
+        if time_slice_ms < 0 {
+            log_warn!(
+                "time_slice_ms was clamped from {} to 0 (disabled)",
+                time_slice_ms
             );
         }
 
@@ -368,7 +379,8 @@ impl GdPAIPlanScheduler {
         let mut engine = PlannerEngine::new(ctx, max_rec, cancel_flag.clone())
             .with_heuristic(Box::new(DijkstraHeuristic))
             .with_termination_strategy(TerminationStrategy::BestCost)
-            .with_iteration_budget(iter_budget);
+            .with_iteration_budget(iter_budget)
+            .with_time_slice_ms(slice_ms);
 
         // Use the channel we created
         engine.response_rx = engine_rx;

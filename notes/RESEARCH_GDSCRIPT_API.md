@@ -18,7 +18,7 @@ Rust-exposed classes (registered via `gdplanningai.gdextension`, no `.gd`): `GdP
 - Public: `blackboard`, `world_node`, `goals`, `self_actions`, `property_updaters`, `get_current_goal()`, `get_current_plan()`, `get_current_plan_step()`, `set_planning_strategy(strategy, interval=0.5)`, `manually_start_plan()`.
 - `_ready`: build agent blackboard from `config.blackboard_plan`, set `entity` + `GDPAI_OBJECTS` (children in GdPAIObjectData group under entity), apply behavior configs (`apply_to_agent`), find world node, create bridge.
 - `_process(delta)`: run property updaters; if CONTINUOUS + plan done + not waiting → `_start_plan_async()`; `_execute_plan(delta)`.
-- `_start_plan_async`: refresh GDPAI_OBJECTS, `all_actions = self_actions + _collect_worldly_actions()`, bump `_plan_generation`, then `scheduler.submit_plan(self, blackboard, world_node.get_world_state(), _bridge.serialize_actions(all_actions), _bridge.serialize_goals(goals, self), config.max_recursion, config.iteration_budget)`.
+- `_start_plan_async`: refresh GDPAI_OBJECTS, `all_actions = self_actions + _collect_worldly_actions()`, bump `_plan_generation`, then `scheduler.submit_plan(self, blackboard, world_node.get_world_state(), _bridge.serialize_actions(all_actions), _bridge.serialize_goals(goals, self), config.max_recursion, config.iteration_budget, config.time_slice_ms)`.
 - `_on_plan_ready(result)`: generation-guarded (discards stale); `deserialize_plan_result` → `{action_chain, bindings_by_position}`; sets `_current_goal = goals[result.goal_index]`.
 - Execution phases: **pre** (all `pre_perform_action`, any FAILURE aborts), **action** (`perform_action`; FAILURE aborts / RUNNING stays / SUCCESS advances), **post** (all `post_perform_action` — guaranteed cleanup).
 

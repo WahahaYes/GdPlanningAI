@@ -168,6 +168,7 @@ func _start_plan_async() -> void:
 			_bridge.serialize_goals(goals, self),
 			config.max_recursion,
 			config.iteration_budget,
+			config.time_slice_ms,
 		)
 	)
 

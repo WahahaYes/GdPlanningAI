@@ -199,7 +199,7 @@ ______________________________________________________________________
 
 ## 7. Multi-goal handling
 
-`submit_plan(agent, agent_bb, world_bb, actions, goals, max_recursion, iteration_budget)` receives every goal an agent owns. The scheduler reduces the set before searching:
+`submit_plan(agent, agent_bb, world_bb, actions, goals, max_recursion, iteration_budget, time_slice_ms)` receives every goal an agent owns. The scheduler reduces the set before searching:
 
 1. Any goal whose desired state already holds in the initial state is satisfied. The **highest-reward** satisfied goal is remembered as `satisfied_goal_index`; all satisfied goals are dropped.
 1. The remaining unsatisfied goals are sorted by reward descending, so the most urgent need is searched first.

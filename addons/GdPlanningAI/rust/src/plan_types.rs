@@ -279,7 +279,12 @@ pub struct PlannerCallback {
 pub enum PlannerRunResult {
     /// Planning reached a terminal state (success or total failure).
     Complete(Option<crate::plan_tree::PlanResult>),
-    /// Planning is paused waiting for a GDScript callback.
+    /// Planning yielded without a terminal result.
+    ///
+    /// `Pending(0)` is the budget/time-slice sentinel: the iteration
+    /// budget or wall-clock slice elapsed and the search is resumable
+    /// unconditionally on the next step. `Pending(id)` with `id > 0`
+    /// waits for the GDScript callback with that request id.
     Pending(usize),
 }
 
