@@ -20,6 +20,9 @@ enum PlanningStrategy {
 ## Maximum iterations per planning step before yielding to the main thread.
 ## Minimum enforced by the scheduler is 100.
 @export var iteration_budget: int = 20000
+## Wall-clock budget (ms) per planning step before yielding Pending(0).
+## 0 disables time-slicing.
+@export var time_slice_ms: int = 10
 ## Blackboard plan for the agent.
 @export var blackboard_plan: GdPAIBlackboardPlan = GdPAIBlackboardPlan.new()
 ## Behavior configurations that provide goals, actions, and property updaters.

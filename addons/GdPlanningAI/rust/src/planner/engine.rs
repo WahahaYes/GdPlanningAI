@@ -39,6 +39,7 @@ pub struct PlannerEngine {
     pub heuristic: Box<dyn SearchHeuristic + Send + Sync>,
     pub termination: TerminationStrategy,
     pub iteration_budget: usize,
+    pub time_slice_ms: u64,
 
     // Search State
     pub queue: BinaryHeap<PriorityNode>,
@@ -63,6 +64,7 @@ impl PlannerEngine {
             heuristic: Box::new(super::DijkstraHeuristic),
             termination: TerminationStrategy::BestCost,
             iteration_budget: 20000,
+            time_slice_ms: 10,
             queue: BinaryHeap::new(),
             parked_nodes: HashMap::new(),
             visited: HashMap::new(),
@@ -94,6 +96,13 @@ impl PlannerEngine {
     /// The search yields after this many iterations to avoid blocking the main thread.
     pub fn with_iteration_budget(mut self, budget: usize) -> Self {
         self.iteration_budget = budget;
+        self
+    }
+    /// Sets the wall-clock time slice (ms) for a single planning step.
+    /// The search yields Pending(0) once the slice elapses (checked every
+    /// 128 pops). 0 disables time-slicing; prototype default is 10ms.
+    pub fn with_time_slice_ms(mut self, ms: u64) -> Self {
+        self.time_slice_ms = ms;
         self
     }
 
@@ -223,6 +232,8 @@ impl PlannerEngine {
 
         // 2. Main Search Loop
         let mut iterations = 0;
+        let search_start = std::time::Instant::now();
+        let time_slice = std::time::Duration::from_millis(self.time_slice_ms);
         while let Some(priority_node) = self.queue.pop() {
             let node_priority = priority_node.priority;
             let mut node = priority_node.node;
@@ -271,6 +282,19 @@ impl PlannerEngine {
             // 3. State Machine Processing
             if node.branch.cost >= self.best_cost {
                 continue;
+            }
+
+            // Time-sliced yield: same re-enqueue semantics as the
+            // iteration-budget path. Checked every 128 pops to amortize
+            // the clock read. Best-effort: the slice may be exceeded
+            // between checks. Placed after prune checks so prunable
+            // nodes don't cost an extra resume.
+            if self.time_slice_ms > 0
+                && iterations % 128 == 0
+                && search_start.elapsed() >= time_slice
+            {
+                self.enqueue(node);
+                return PlannerRunResult::Pending(0);
             }
 
             match node.branch.state {
