@@ -6,9 +6,9 @@
 //!   counts for the one-line `RESULT` log.
 //! - At [`LogLevel::Debug`] the full tree is recorded again and
 //!   [`TreeDump::format`] produces the `PLANNER SEARCH TREE` dump.
-//! - [`LogLevel::Trace`] (opt-in level 4) re-enables per-iteration detail
-//!   (`find_candidates`, simulation payloads) that [`LogLevel::Debug`]
-//!   suppresses.
+//! - Per-iteration detail (`find_candidates`, simulation payloads, callback
+//!   handshakes) is gone: the tree carries that information with node
+//!   context, so a flat log stream of it serves nobody.
 
 use gdplanningai_rust::debug_tree::TreeDump;
 use gdplanningai_rust::logger::{LogLevel, get_log_level, init_log_channel, set_log_level};
@@ -23,7 +23,6 @@ use gdplanningai_rust::planner::{
 use gdplanningai_rust::precondition::{PreconditionOp, PreconditionTarget};
 use gdplanningai_rust::scheduler::StallNoticeThrottle;
 use gdplanningai_rust::snapshot::{BlackboardSnapshot, VariantSnapshot};
-use gdplanningai_rust::{log_debug, log_info, log_trace};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
@@ -219,23 +218,73 @@ fn debug_reenables_full_tree_detail() {
 }
 
 #[test]
-fn trace_level_reenables_per_iteration_detail() {
-    let _guard = LEVEL_LOCK.lock().unwrap();
-    assert_eq!(LogLevel::from_u8(4), LogLevel::Trace);
-    assert!(LogLevel::Trace.allows(LogLevel::Trace));
-    assert!(!LogLevel::Debug.allows(LogLevel::Trace));
-    assert!(!LogLevel::Info.allows(LogLevel::Trace));
+fn verification_requirement_failure_is_recorded_on_tree() {
+    use gdplanningai_rust::planner::engine::PlannerEngine;
+    use gdplanningai_rust::planner::simulation::StepResult;
+    use gdplanningai_rust::planner::types::{BranchState, PlanBranch};
+    use gdplanningai_rust::requirement::RequirementSpec;
 
-    // Macro smoke test: emitting at each level must not panic, whether or
-    // not the channel drains (process_logs is a no-op under cfg(test)).
+    let _guard = LEVEL_LOCK.lock().unwrap();
     init_log_channel();
     let previous = get_log_level();
-    set_log_level(LogLevel::Trace);
-    log_trace!("trace smoke");
-    log_debug!("debug smoke");
-    log_info!("info smoke");
-    set_log_level(LogLevel::Info);
-    log_trace!("suppressed trace smoke");
+    set_log_level(LogLevel::Debug);
+
+    let agent = make_agent(80);
+    let world = BlackboardSnapshot {
+        properties: HashMap::new(),
+        objects: HashMap::new(),
+    };
+    let action = ActionSpec {
+        name: "carry".to_string(),
+        cost_callable_id: None,
+        effect_callable_id: None,
+        preconditions: vec![],
+        validity_checks: vec![],
+        requirements: vec![RequirementSpec::BindingExists {
+            binding_name: "held_item".to_string(),
+        }],
+        provisions: vec![],
+        dependent_object_ids: vec![],
+    };
+    let (req_tx, _) = mpsc::channel::<CallbackRequest>();
+    let (engine_tx, _) = mpsc::channel::<PlannerCallback>();
+    let ctx = Arc::new(SearchContext {
+        actions: vec![action.clone()],
+        initial_agent: agent.clone(),
+        initial_world: world.clone(),
+        initial_provisions: vec![],
+        request_tx: req_tx,
+        engine_response_tx: engine_tx.clone(),
+        discovery_results: std::sync::Mutex::new(HashMap::new()),
+        discovery_costs: std::sync::Mutex::new(HashMap::new()),
+        discovery_pending: std::sync::Mutex::new(HashMap::new()),
+        discovery_request_map: std::sync::Mutex::new(HashMap::new()),
+        discovery_precond_results: std::sync::Mutex::new(HashMap::new()),
+        discovery_precond_pending: std::sync::Mutex::new(HashMap::new()),
+        provision_index: HashMap::new(),
+        non_wildcard_actions: vec![0],
+    });
+    let mut engine = PlannerEngine::new(ctx, 10, Arc::new(AtomicBool::new(false)));
+    engine.tree.begin_goal("carry_goal", 1.0, &[]);
+    let root = engine.tree.add_root(&[], &[]);
+
+    let mut branch = PlanBranch::new(&agent, &world);
+    branch.action_chain = vec![0];
+    branch.state = BranchState::Verifying;
+    branch.tree_node_id = root;
+    let result = engine.simulate_and_advance(&mut branch, 0, &[], None);
+
+    assert!(
+        matches!(result, StepResult::Invalid),
+        "unbound requirement must fail verification"
+    );
+    let dump = engine.tree.format();
+    assert!(
+        dump.contains("FWD [FAIL]") && dump.contains("held_item"),
+        "failed requirement must be attributed on the tree node, got:\n{}",
+        dump
+    );
+
     set_log_level(previous);
 }
 

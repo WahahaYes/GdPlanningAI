@@ -488,16 +488,6 @@ pub fn find_candidates(branch: &PlanBranch, ctx: &SearchContext) -> CandidatesRe
         }
     }
 
-    if !candidates.is_empty() {
-        let names: Vec<String> = candidates
-            .iter()
-            .map(|c| ctx.actions[c.action_idx].name.clone())
-            .collect();
-        log_trace!("find_candidates ready: {:?}", names);
-    } else if !some_pending {
-        log_trace!("find_candidates ready empty and not pending");
-    }
-
     CandidatesResult {
         ready: candidates,
         pending_id: if some_pending {
