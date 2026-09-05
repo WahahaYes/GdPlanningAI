@@ -122,9 +122,8 @@ impl PlannerEngine {
     }
 
     /// Logs the Info-level one-line plan summary: goal, outcome, and search cost.
-    /// Always emitted (even at the default level) so runs stay observable
-    /// without the Debug tree dump. The full tree is never printed; fetch it
-    /// on demand via `get_debug_tree()`.
+    /// Always emitted (even at the default level) so runs stay observable.
+    /// Per-node search detail lives on the tree; fetch it via `get_debug_tree()`.
     fn log_result_summary(&self, plan: &PlanResult, goals: &[GoalSpec]) {
         let goal_name = goals
             .iter()
@@ -319,21 +318,7 @@ impl PlannerEngine {
 
             match node.branch.state {
                 BranchState::Verifying => {
-                    let sim_idx = node.branch.simulation_index;
-                    let action_name = if sim_idx < node.branch.action_chain.len() {
-                        self.ctx.actions[node.branch.action_chain[sim_idx]]
-                            .name
-                            .clone()
-                    } else {
-                        "<terminal>".to_string()
-                    };
                     let proc_res = self.process_simulation(&mut node);
-                    log_trace!(
-                        "process_simulation result for sim_idx={} action={}: {:?}",
-                        sim_idx,
-                        action_name,
-                        std::mem::discriminant(&proc_res)
-                    );
                     match proc_res {
                         StepResult::Ready(_) => self.enqueue(node),
                         StepResult::Pending(id) => {
@@ -631,12 +616,10 @@ impl PlannerEngine {
         // 2. Simulate the current action or finalize the chain.
         if branch.simulation_index < branch.action_chain.len() {
             let action_idx = branch.action_chain[branch.simulation_index];
-            let action = &self.ctx.actions[action_idx];
 
             let result = self.simulate_and_advance(
                 branch,
                 action_idx,
-                action,
                 &current_bindings,
                 node.callback_response.as_ref(),
             );
@@ -750,46 +733,39 @@ impl PlannerEngine {
     /// Simulates the current action, validates its requirements, clears later
     /// requirements satisfied by its provisions, and advances the simulation index.
     pub fn simulate_and_advance(
-        &self,
+        &mut self,
         branch: &mut PlanBranch,
         action_idx: usize,
-        action: &ActionSpec,
         current_bindings: &[(String, Vec<VariantSnapshot>)],
         callback_response: Option<&CallbackResponse>,
     ) -> StepResult<()> {
-        log_trace!(
-            "process_simulation sim_idx={} action={} open_pre={:?} open_req={:?}",
-            branch.simulation_index,
-            action.name,
-            branch
-                .open_preconditions
-                .iter()
-                .map(|(p, s)| format!("{}:{}", p, s))
-                .collect::<Vec<_>>(),
-            branch
-                .open_requirements
-                .iter()
-                .map(|(p, r)| format!("{}:{}", p, r))
-                .collect::<Vec<_>>()
-        );
-
         if branch.state == BranchState::Verifying {
-            for req in &action.requirements {
-                if !requirement_holds_in_state(
-                    req,
-                    &branch.current_agent,
-                    &branch.current_world,
-                    current_bindings,
-                ) {
-                    log_trace!(
-                        "process_simulation requirement failed sim_idx={} action={} req={} bindings={:?}",
-                        branch.simulation_index,
-                        action.name,
-                        req,
-                        current_bindings
-                    );
-                    return StepResult::Invalid;
-                }
+            // The immutable borrow of the action spec ends inside this block
+            // so the tree annotation below can borrow `self` mutably.
+            let failed: Option<(String, String)> = {
+                let action = &self.ctx.actions[action_idx];
+                action
+                    .requirements
+                    .iter()
+                    .find(|req| {
+                        !requirement_holds_in_state(
+                            req,
+                            &branch.current_agent,
+                            &branch.current_world,
+                            current_bindings,
+                        )
+                    })
+                    .map(|req| (action.name.clone(), format!("failed: {}", req)))
+            };
+            if let Some((action_name, detail)) = failed {
+                self.tree.add_fwd_step(
+                    branch.tree_node_id,
+                    &action_name,
+                    "requirement",
+                    &detail,
+                    false,
+                );
+                return StepResult::Invalid;
             }
         }
 

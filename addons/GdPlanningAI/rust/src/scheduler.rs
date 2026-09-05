@@ -198,11 +198,6 @@ impl GdPAIPlanScheduler {
         let mut jobs_with_responses = HashSet::new();
         for job in self.active_jobs.iter_mut().filter(|j| !j.done) {
             while let Ok(req) = job.request_rx.try_recv() {
-                log_trace!(
-                    "Processing callback request {} for agent instance {}",
-                    req.request_id,
-                    job.agent_instance_id
-                );
                 let callable = &job.callable_registry[req.callable_id];
                 let response = dispatch_callback(callable, req.kind, &req.bindings);
 
@@ -507,7 +502,7 @@ impl GdPAIPlanScheduler {
     /// Sets the process-wide log verbosity.
     #[func]
     fn set_log_level(&self, level: i64) {
-        let log_level = crate::logger::LogLevel::from_u8(level.clamp(0, 4) as u8);
+        let log_level = crate::logger::LogLevel::from_u8(level.clamp(0, 3) as u8);
         crate::logger::set_log_level(log_level);
     }
 

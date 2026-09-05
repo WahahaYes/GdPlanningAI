@@ -368,7 +368,7 @@ ______________________________________________________________________
 ## 11. Logging
 
 ```
-log levels: 0 Error, 1 Warn, 2 Info (default), 3 Debug, 4 Trace
+log levels: 0 Error, 1 Warn, 2 Info (default), 3 Debug
 
 submit_plan(...) [Info]:
     log "submit_plan: agent goals=[...] actions=N"
@@ -381,8 +381,10 @@ plan completion [Info]:
     log "RESULT goal='...' success=... actions=... cost=... Branches: ... | Time: ...ms"
     full tree never auto-prints; fetch via get_debug_tree(agent) [Debug records it]
 
-per-iteration detail (find_candidates, process_simulation payloads,
-callback handshakes): Trace only
+per-iteration detail (candidate lists, simulation payloads,
+callback handshakes) is not logged: the tree carries the same
+information with node context, and verification requirement
+failures are recorded as FWD [FAIL] steps on their node
 ```
 
 ______________________________________________________________________
