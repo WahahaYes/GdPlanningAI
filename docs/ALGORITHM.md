@@ -256,3 +256,13 @@ ______________________________________________________________________
 - Under **BestCost + Dijkstra**, the planner returns a cost-optimal plan, where cost is the sum of the declared action costs. **FirstComplete** returns the first valid plan, which is not guaranteed to be cheapest.
 - An action's own effect never satisfies its own preconditions; preconditions are validated against the state before the action runs.
 - The search is sound but bounded: `max_depth`, the iteration budget, and the open-requirements cycle guard all trade completeness for frame-budget guarantees in a real-time game loop.
+
+______________________________________________________________________
+
+## 11. Logging
+
+Log verbosity is a single process-wide level (`plugin.cfg` `log_level`, default 2 = Info, applied by the autoload; `GdPAIPlanScheduler.set_log_level` overrides at runtime up to 4 = Trace).
+
+| Level | Visible output | |-------|----------------| | Info (default) | `submit_plan` summary (agent, goals, action count), `Plan complete`, one-line `RESULT goal='…' success=… Branches: … \| Time: …`, warnings/errors | | Debug (3) | Plus search transitions (`Pending` / `Resuming`), one `NOT resuming` notice per stall episode, and full tree *recording* (fetch it anytime via `get_debug_tree(agent)`; it is never auto-printed) | | Trace (4) | Plus the per-iteration firehose: `find_candidates` results, `process_simulation` payloads, callback handshakes |
+
+The tree builder only records nodes at Debug and above, but a lightweight branch counter always runs so the Info `RESULT` line still reports search cost. The time-slice yield itself never logs; slicing is steady-state architecture, not an event.

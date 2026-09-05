@@ -182,6 +182,9 @@ pub struct TreeDump {
     /// Per-goal metadata (root_id indexes into `nodes`).
     goal_attempts: Vec<GoalAttempt>,
     start_time: std::time::Instant,
+    /// Nodes ever allocated, including when disabled. Backs [`TreeDump::summary`]
+    /// so the Info-level one-liner can report branch counts without recording.
+    branch_count: usize,
 }
 
 impl TreeDump {
@@ -202,6 +205,7 @@ impl TreeDump {
             nodes: Vec::new(),
             goal_attempts: Vec::new(),
             start_time: std::time::Instant::now(),
+            branch_count: 0,
         }
     }
 }
@@ -216,6 +220,21 @@ impl TreeDump {
     /// Returns true if tree recording is active.
     pub fn is_enabled(&self) -> bool {
         self.enabled
+    }
+
+    /// Milliseconds since this dump was created.
+    pub fn elapsed_ms(&self) -> f64 {
+        self.start_time.elapsed().as_secs_f64() * 1000.0
+    }
+
+    /// One-line search summary for Info-level logging. Works even when the
+    /// full tree is disabled so the default log level still reports cost.
+    pub fn summary(&self) -> String {
+        format!(
+            "Branches: {} | Time: {:.1}ms",
+            self.branch_count,
+            self.elapsed_ms()
+        )
     }
 
     // ── Goal-level operations ──────────────────────────────────────
@@ -267,6 +286,7 @@ impl TreeDump {
     /// Create the root node for the current goal. Returns the node ID.
     /// Must be called after `begin_goal`.
     pub fn add_root(&mut self, open_pre: &[String], open_req: &[String]) -> usize {
+        self.branch_count += 1;
         if !self.enabled {
             return 0;
         }
@@ -292,6 +312,7 @@ impl TreeDump {
 
     /// Add a child node under `parent_id`. Returns the new node's ID.
     pub fn add_child(&mut self, parent_id: usize, config: ChildNodeConfig<'_>) -> usize {
+        self.branch_count += 1;
         if !self.enabled {
             return 0;
         }
@@ -367,8 +388,6 @@ impl TreeDump {
         if !self.enabled || self.goal_attempts.is_empty() {
             return String::new();
         }
-        let elapsed_ms = self.start_time.elapsed().as_secs_f64() * 1000.0;
-        let branches = self.nodes.len();
 
         let mut output = String::new();
         output.push_str("\n========== PLANNER SEARCH TREE ==========\n");
@@ -400,10 +419,8 @@ impl TreeDump {
                 output.push_str(&format!("  RESULT: {} — no plan found\n", status));
             }
         }
-        output.push_str(&format!(
-            "Branches: {} | Time: {:.1}ms\n",
-            branches, elapsed_ms
-        ));
+        output.push_str(&self.summary());
+        output.push('\n');
         output.push_str("==========================================\n");
         output
     }

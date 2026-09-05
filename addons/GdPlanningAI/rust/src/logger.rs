@@ -1,13 +1,20 @@
 //! Tiered logging for the GdPlanningAI Rust extension.
 //!
-//! Four log levels map to Godot's print functions:
+//! Five log levels map to Godot's print functions:
 //! - [`log_error!`] always routes through `godot_error!`.
 //! - [`log_warn!`] uses `godot_warn!` when level ≥ [`LogLevel::Warn`].
 //! - [`log_info!`] uses `godot_print!` when level ≥ [`LogLevel::Info`] (default).
-//! - [`log_debug!`] uses `godot_print!` only at [`LogLevel::Debug`].
+//! - [`log_debug!`] uses `godot_print!` only at [`LogLevel::Debug`] and above.
+//! - [`log_trace!`] uses `godot_print!` only at [`LogLevel::Trace`].
+//!
+//! [`LogLevel::Info`] is the default: plan lifecycle summaries (`submit_plan`,
+//! `Plan complete`, one-line `RESULT` lines) are visible while per-iteration
+//! search detail (`find_candidates`, simulation payloads, callback handshakes)
+//! stays behind [`LogLevel::Debug`] or [`LogLevel::Trace`]. Set level 4
+//! explicitly to re-enable the per-iteration firehose.
 //!
 //! The level is a single process-wide value. Change it at runtime via
-//! [`set_log_level`] (Rust) or `RustPlanningEngine.set_log_level` (GDScript).
+//! [`set_log_level`] (Rust) or `GdPAIPlanScheduler.set_log_level` (GDScript).
 //!
 //! Debug logs from planner threads are sent through a global channel and
 //! printed by the scheduler on the main thread.
@@ -90,6 +97,13 @@ pub fn process_logs() {
                                 log_msg.message
                             );
                         }
+                        LogLevel::Trace => {
+                            godot::prelude::godot_print!(
+                                "[GdPAI {:.3}s | trace] {}",
+                                timestamp,
+                                log_msg.message
+                            );
+                        }
                     }
                 }
                 Err(TryRecvError::Empty) => break,
@@ -130,19 +144,28 @@ pub enum LogLevel {
     Warn = 1,
     /// High-level planning lifecycle messages. Default.
     Info = 2,
-    /// Per-action trace inside the recursive search. Very verbose.
+    /// Search transitions and stall notices. No per-iteration detail.
     Debug = 3,
+    /// Per-iteration firehose: candidate discovery, simulation payloads,
+    /// callback handshakes. Opt in explicitly; very verbose.
+    Trace = 4,
 }
 
 impl LogLevel {
-    /// Converts a raw `u8` to a `LogLevel`. Values above 3 map to [`LogLevel::Debug`].
+    /// Converts a raw `u8` to a `LogLevel`. Values above 4 map to [`LogLevel::Trace`].
     pub fn from_u8(v: u8) -> Self {
         match v {
             0 => Self::Error,
             1 => Self::Warn,
             2 => Self::Info,
-            _ => Self::Debug,
+            3 => Self::Debug,
+            _ => Self::Trace,
         }
+    }
+
+    /// Returns true when a message at `message` severity is emitted at `self`.
+    pub fn allows(self, message: LogLevel) -> bool {
+        self >= message
     }
 }
 
@@ -231,7 +254,7 @@ macro_rules! log_info {
     };
 }
 
-/// Logs at debug severity via `godot_print!` only when the level is [`LogLevel::Debug`].
+/// Logs at debug severity via `godot_print!` when the level is [`LogLevel::Debug`] or above.
 #[macro_export]
 macro_rules! log_debug {
     ($($arg:tt)*) => {
@@ -254,6 +277,29 @@ macro_rules! log_debug {
     };
 }
 
+/// Logs at trace severity via `godot_print!` only when the level is [`LogLevel::Trace`].
+#[macro_export]
+macro_rules! log_trace {
+    ($($arg:tt)*) => {
+        if $crate::logger::get_log_level() >= $crate::logger::LogLevel::Trace {
+            let message = format!($($arg)*);
+            let timestamp = $crate::logger::get_timestamp_ms();
+            if let Some(sender) = $crate::logger::get_log_sender() {
+                if let Ok(sender) = sender.lock() {
+                    let _ = sender.send($crate::logger::LogMessage {
+                        level: $crate::logger::LogLevel::Trace,
+                        message,
+                        timestamp,
+                    });
+                }
+            } else {
+                // Channel not initialized - fall back to Rust stdio (e.g., in tests without Godot)
+                println!("[GdPAI TRACE] {}", message);
+            }
+        }
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -264,19 +310,34 @@ mod tests {
         assert_eq!(LogLevel::from_u8(1), LogLevel::Warn);
         assert_eq!(LogLevel::from_u8(2), LogLevel::Info);
         assert_eq!(LogLevel::from_u8(3), LogLevel::Debug);
+        assert_eq!(LogLevel::from_u8(4), LogLevel::Trace);
     }
 
     #[test]
-    fn from_u8_out_of_range_gives_debug() {
-        assert_eq!(LogLevel::from_u8(4), LogLevel::Debug);
-        assert_eq!(LogLevel::from_u8(255), LogLevel::Debug);
+    fn from_u8_out_of_range_gives_trace() {
+        assert_eq!(LogLevel::from_u8(5), LogLevel::Trace);
+        assert_eq!(LogLevel::from_u8(255), LogLevel::Trace);
     }
 
     #[test]
     fn level_ordering_matches_verbosity() {
+        assert!(LogLevel::Trace > LogLevel::Debug);
         assert!(LogLevel::Debug > LogLevel::Info);
         assert!(LogLevel::Info > LogLevel::Warn);
         assert!(LogLevel::Warn > LogLevel::Error);
+    }
+
+    #[test]
+    fn allows_matches_macro_gating() {
+        assert!(LogLevel::Info.allows(LogLevel::Error));
+        assert!(LogLevel::Info.allows(LogLevel::Warn));
+        assert!(LogLevel::Info.allows(LogLevel::Info));
+        assert!(!LogLevel::Info.allows(LogLevel::Debug));
+        assert!(!LogLevel::Info.allows(LogLevel::Trace));
+        assert!(LogLevel::Debug.allows(LogLevel::Debug));
+        assert!(!LogLevel::Debug.allows(LogLevel::Trace));
+        assert!(LogLevel::Trace.allows(LogLevel::Trace));
+        assert!(!LogLevel::Error.allows(LogLevel::Warn));
     }
 
     #[test]

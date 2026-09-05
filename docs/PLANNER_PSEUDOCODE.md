@@ -365,4 +365,26 @@ Default: **BestCost** + Dijkstra.
 
 ______________________________________________________________________
 
+## 11. Logging
+
+```
+log levels: 0 Error, 1 Warn, 2 Info (default), 3 Debug, 4 Trace
+
+submit_plan(...) [Info]:
+    log "submit_plan: agent goals=[...] actions=N"
+
+process_callbacks()  // each frame:
+    ... (steps 1-4 as above)
+    stalled (pending id with no response): log "NOT resuming" once per pending id [Debug]
+
+plan completion [Info]:
+    log "RESULT goal='...' success=... actions=... cost=... Branches: ... | Time: ...ms"
+    full tree never auto-prints; fetch via get_debug_tree(agent) [Debug records it]
+
+per-iteration detail (find_candidates, process_simulation payloads,
+callback handshakes): Trace only
+```
+
+______________________________________________________________________
+
 *End of Algorithmic Pseudocode*

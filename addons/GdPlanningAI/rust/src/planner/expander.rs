@@ -493,9 +493,9 @@ pub fn find_candidates(branch: &PlanBranch, ctx: &SearchContext) -> CandidatesRe
             .iter()
             .map(|c| ctx.actions[c.action_idx].name.clone())
             .collect();
-        log_debug!("find_candidates ready: {:?}", names);
+        log_trace!("find_candidates ready: {:?}", names);
     } else if !some_pending {
-        log_debug!("find_candidates ready empty and not pending");
+        log_trace!("find_candidates ready empty and not pending");
     }
 
     CandidatesResult {
