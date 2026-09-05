@@ -1,6 +1,6 @@
 # Logging Slim-Down Proposal
 
-**Date**: 2026-09-03 **Context**: Verbosity audit of Rust planner + GDScript autoload logging
+**Date**: 2026-09-03 **Context**: Verbosity audit of Rust planner + GDScript autoload logging **Status (2026-09-04)**: Implemented. Baseline 35 s campfire_2d headless at default Debug: 59,176 lines (find_candidates 3,446; Processing callback 1,512; process_simulation 1,594; NOT resuming 15 post-time-slice). After (default Info): 131 lines — 19× `submit_plan` / `Plan complete` / `RESULT` triples only, zero debug/trace spam, zero debugger errors. Debug opt-in (15 s): 316 lines, tree dumps gone (recording still on, fetched via `get_debug_tree()`); Trace opt-in restores the per-iteration firehose. See "Implementation" below.
 
 ______________________________________________________________________
 
@@ -47,3 +47,15 @@ ______________________________________________________________________
 - `addons/GdPlanningAI/rust/src/engine.rs` process_simulation + tree.format -> gate.
 - `addons/GdPlanningAI/rust/src/debug_tree.rs:404` keep one-line summary.
 - `addons/GdPlanningAI/gdpai_autoload.gd:16` guard send_message.
+
+______________________________________________________________________
+
+## Implementation (2026-09-04)
+
+- New `LogLevel::Trace = 4` + `log_trace!` (`logger.rs`); `set_log_level` clamp 0-4; `LogLevel::allows` helper.
+- `find_candidates` (expander), `process_simulation` payloads + requirement-failed detail (engine), `Processing callback` (scheduler) demoted Debug -> Trace.
+- `Pending` / `Resuming` stay at Debug (low volume, stall-relevant). `NOT resuming` stays at Debug but throttled to one line per stall episode via `StallNoticeThrottle` (deliberately not silenced: each genuine stall still logs once).
+- `submit_plan` promoted to Info with goal names; new Info one-liner `RESULT goal='…' success=… Branches: … | Time: …` at both completion sites (engine), backed by an always-on branch counter (`TreeDump::summary`). Full tree never auto-prints; recorded at Debug+ and fetched via `get_debug_tree()`.
+- Default `plugin.cfg` 3 -> 2; `EngineDebugger.send_message` guarded by `is_active()`.
+- Tests: `tests/logging_levels.rs` (Info completes with summary but no tree; Debug re-enables dump; Trace gating; throttle; disabled-tree counting), throttle unit tests in `scheduler.rs`, logger `allows`/mapping tests, GUT `test_log_level_config.gd` pins the default.
+- Docs: `ALGORITHM.md` §11, `PLANNER_PSEUDOCODE.md` §11, `AUTHORING_GUIDE.md` debugging paragraph, `CODEBASE_OVERVIEW.md` logger row.

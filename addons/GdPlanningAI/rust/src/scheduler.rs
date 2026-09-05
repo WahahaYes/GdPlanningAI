@@ -36,6 +36,34 @@ struct ActiveJobHandle {
     done: bool,
     pending_reap: bool, // New flag
     completed_request_ids: HashSet<usize>,
+    stall_notice: StallNoticeThrottle,
+}
+
+/// Rate limiter for the "NOT resuming" stall notice in [`process_callbacks`].
+///
+/// A stalled job keeps the same `pending_request_id` every frame, so logging
+/// unconditionally would spam once per frame for the whole stall. The throttle
+/// emits one line per stall episode (per distinct pending id) so stalls stay
+/// visible without hiding behind — or drowning in — repetition.
+#[derive(Default)]
+pub struct StallNoticeThrottle {
+    last_logged_id: Option<usize>,
+}
+
+impl StallNoticeThrottle {
+    /// Returns true the first time each distinct `pending_id` is seen.
+    pub fn should_log(&mut self, pending_id: usize) -> bool {
+        if self.last_logged_id == Some(pending_id) {
+            return false;
+        }
+        self.last_logged_id = Some(pending_id);
+        true
+    }
+
+    /// Clears the remembered id once the job resumes or finishes waiting.
+    pub fn reset(&mut self) {
+        self.last_logged_id = None;
+    }
 }
 
 /// Planning scheduler.
@@ -124,6 +152,10 @@ impl GdPAIPlanScheduler {
                                         action_bindings: vec![],
                                     }
                                 };
+                                log_info!(
+                                    "Plan complete: success={}, actions=0, cost=0.0 (no search ran)",
+                                    res.success
+                                );
                                 let dict = result_to_dict(&res);
                                 job.agent.call("_on_plan_ready", &[dict.to_variant()]);
                             }
@@ -166,7 +198,7 @@ impl GdPAIPlanScheduler {
         let mut jobs_with_responses = HashSet::new();
         for job in self.active_jobs.iter_mut().filter(|j| !j.done) {
             while let Ok(req) = job.request_rx.try_recv() {
-                log_debug!(
+                log_trace!(
                     "Processing callback request {} for agent instance {}",
                     req.request_id,
                     job.agent_instance_id
@@ -201,7 +233,10 @@ impl GdPAIPlanScheduler {
                 // engine passed its response_rx drain).
                 let has_this_frame = jobs_with_responses.contains(&job.agent_instance_id);
                 let has_previous = job.completed_request_ids.contains(&job.pending_request_id);
-                if !has_this_frame && !has_previous {
+                if !has_this_frame
+                    && !has_previous
+                    && job.stall_notice.should_log(job.pending_request_id)
+                {
                     log_debug!(
                         "NOT resuming agent instance {}: pending_request_id={} but no response received",
                         job.agent_instance_id,
@@ -216,6 +251,7 @@ impl GdPAIPlanScheduler {
                     "Resuming search for agent instance {}",
                     job.agent_instance_id
                 );
+                job.stall_notice.reset();
                 job.completed_request_ids.clear();
                 let goals = job.goals.clone();
                 let res_tx = job.result_tx.clone();
@@ -249,12 +285,6 @@ impl GdPAIPlanScheduler {
         iteration_budget: i64,
         time_slice_ms: i64,
     ) {
-        log_debug!(
-            "submit_plan: agent={}, actions_count={}, goals_count={}",
-            agent.instance_id().to_i64(),
-            actions.len(),
-            goals.len()
-        );
         let agent_instance_id = agent.instance_id().to_i64();
 
         for job in self
@@ -308,6 +338,14 @@ impl GdPAIPlanScheduler {
                 .partial_cmp(&a.reward)
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
+
+        let goal_names: Vec<&str> = goal_specs.iter().map(|g| g.name.as_str()).collect();
+        log_info!(
+            "submit_plan: agent={} goals=[{}] actions={}",
+            agent_instance_id,
+            goal_names.join(", "),
+            actions.len()
+        );
 
         let (req_tx, req_rx) = std::sync::mpsc::channel::<CallbackRequest>();
         let (res_tx, res_rx) = std::sync::mpsc::channel::<(PlannerRunResult, PlannerEngine)>();
@@ -401,6 +439,7 @@ impl GdPAIPlanScheduler {
             done: false,
             pending_reap: false,
             completed_request_ids: HashSet::new(),
+            stall_notice: StallNoticeThrottle::default(),
         };
 
         run_job_step(self.thread_pool.as_ref(), job.goals.clone(), res_tx, engine);
@@ -468,7 +507,7 @@ impl GdPAIPlanScheduler {
     /// Sets the process-wide log verbosity.
     #[func]
     fn set_log_level(&self, level: i64) {
-        let log_level = crate::logger::LogLevel::from_u8(level.clamp(0, 3) as u8);
+        let log_level = crate::logger::LogLevel::from_u8(level.clamp(0, 4) as u8);
         crate::logger::set_log_level(log_level);
     }
 
@@ -840,4 +879,40 @@ fn result_to_dict(result: &PlanResult) -> VarDictionary {
     dict.set("action_bindings", action_bindings.to_variant());
 
     dict
+}
+
+#[cfg(test)]
+mod tests {
+    use super::StallNoticeThrottle;
+
+    #[test]
+    fn first_sight_of_pending_id_logs() {
+        let mut throttle = StallNoticeThrottle::default();
+        assert!(throttle.should_log(7));
+    }
+
+    #[test]
+    fn repeated_pending_id_is_suppressed() {
+        let mut throttle = StallNoticeThrottle::default();
+        assert!(throttle.should_log(7));
+        assert!(!throttle.should_log(7));
+        assert!(!throttle.should_log(7));
+    }
+
+    #[test]
+    fn new_pending_id_logs_again() {
+        let mut throttle = StallNoticeThrottle::default();
+        assert!(throttle.should_log(7));
+        assert!(!throttle.should_log(7));
+        assert!(throttle.should_log(9));
+        assert!(!throttle.should_log(9));
+    }
+
+    #[test]
+    fn reset_reenables_logging() {
+        let mut throttle = StallNoticeThrottle::default();
+        assert!(throttle.should_log(7));
+        throttle.reset();
+        assert!(throttle.should_log(7));
+    }
 }

@@ -121,6 +121,26 @@ impl PlannerEngine {
         self.step_search(goals)
     }
 
+    /// Logs the Info-level one-line plan summary: goal, outcome, and search cost.
+    /// Always emitted (even at the default level) so runs stay observable
+    /// without the Debug tree dump. The full tree is never printed; fetch it
+    /// on demand via `get_debug_tree()`.
+    fn log_result_summary(&self, plan: &PlanResult, goals: &[GoalSpec]) {
+        let goal_name = goals
+            .iter()
+            .find(|g| g.original_index as i64 == plan.goal_index)
+            .map(|g| g.name.as_str())
+            .unwrap_or("none");
+        log_info!(
+            "RESULT goal='{}' success={} actions={} cost={:.1} {}",
+            goal_name,
+            plan.success,
+            plan.action_chain.len(),
+            plan.total_cost,
+            self.tree.summary()
+        );
+    }
+
     fn initialize_goal(&mut self, goals: &[GoalSpec], idx: usize) {
         let goal = &goals[idx];
 
@@ -308,7 +328,7 @@ impl PlannerEngine {
                         "<terminal>".to_string()
                     };
                     let proc_res = self.process_simulation(&mut node);
-                    log_debug!(
+                    log_trace!(
                         "process_simulation result for sim_idx={} action={}: {:?}",
                         sim_idx,
                         action_name,
@@ -340,6 +360,7 @@ impl PlannerEngine {
                                     // Don't return yet; let step_search move to the next goal.
                                 } else {
                                     let plan = self.best_plan.take().unwrap();
+                                    self.log_result_summary(&plan, goals);
                                     return PlannerRunResult::Complete(Some(plan));
                                 }
                             }
@@ -561,16 +582,12 @@ impl PlannerEngine {
                     .collect();
                 self.tree
                     .end_goal(true, &action_names, final_plan.total_cost);
-                if self.tree.is_enabled() {
-                    log_debug!("{}", self.tree.format());
-                }
             } else {
                 self.tree.end_goal(false, &[], 0.0);
-                if self.tree.is_enabled() {
-                    log_debug!("{}", self.tree.format());
-                }
+                log_debug!("no plan found; inspect the search via get_debug_tree()");
             }
 
+            self.log_result_summary(&final_plan, goals);
             PlannerRunResult::Complete(Some(final_plan))
         }
     }
@@ -740,7 +757,7 @@ impl PlannerEngine {
         current_bindings: &[(String, Vec<VariantSnapshot>)],
         callback_response: Option<&CallbackResponse>,
     ) -> StepResult<()> {
-        log_debug!(
+        log_trace!(
             "process_simulation sim_idx={} action={} open_pre={:?} open_req={:?}",
             branch.simulation_index,
             action.name,
@@ -764,7 +781,7 @@ impl PlannerEngine {
                     &branch.current_world,
                     current_bindings,
                 ) {
-                    log_debug!(
+                    log_trace!(
                         "process_simulation requirement failed sim_idx={} action={} req={} bindings={:?}",
                         branch.simulation_index,
                         action.name,

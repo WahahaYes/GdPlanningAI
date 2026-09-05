@@ -13,7 +13,8 @@ func _ready() -> void:
 	_scheduler.name = "GdPAIPlanScheduler"
 	add_child(_scheduler)
 	_apply_log_level()
-	EngineDebugger.send_message("gdplanningai:clear_state", [])
+	if EngineDebugger.is_active():
+		EngineDebugger.send_message("gdplanningai:clear_state", [])
 
 
 func _process(_delta: float) -> void:
