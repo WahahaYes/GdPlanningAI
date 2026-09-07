@@ -86,16 +86,16 @@ environment = ExtResource("9_sky")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 0)
 
 [node name="WoodPile1" parent="Terrain" unique_id=2142889551 instance=ExtResource("4_defgh")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0.25, -2.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7, 0.25, -3.5)
 
 [node name="WoodPile2" parent="Terrain" unique_id=530384723 instance=ExtResource("4_defgh")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0.25, -2.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7, 0.25, -3.5)
 
 [node name="WoodPile3" parent="Terrain" unique_id=89832337 instance=ExtResource("4_defgh")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0.25, 2.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7, 0.25, 3.5)
 
 [node name="WoodPile4" parent="Terrain" unique_id=1826155487 instance=ExtResource("4_defgh")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0.25, 2.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7, 0.25, 3.5)
 
 [node name="PotatoSpawner" type="Node" parent="Terrain" unique_id=1964126581]
 script = ExtResource("5_efghi")
