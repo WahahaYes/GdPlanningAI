@@ -18,10 +18,12 @@ const RAW_SCENE: PackedScene = preload("res://examples/source_3d/prefabs/held_po
 const COOKED_SCENE: PackedScene = preload(
 	"res://examples/source_3d/prefabs/held_potato_cooked_3d.tscn"
 )
+## Single-log visual for carried wood.
+const WOOD_SCENE: PackedScene = preload("res://examples/source_3d/prefabs/held_wood_3d.tscn")
 
 ## The agent whose held_item property drives the visual.
 @export var gdpai_agent: GdPAIAgent
-## Maps held_item ids to the visual scene shown for them. Left empty, it fills with the potato pair on ready.
+## Maps held_item ids to the visual scene shown for them. Left empty, it fills with the potato pair plus wood on ready.
 @export var held_visuals: Dictionary = {}
 ## Vertical bob amplitude in meters.
 @export var hover_amplitude: float = 0.08
@@ -46,6 +48,7 @@ func _ready() -> void:
 		held_visuals = {
 			"potato": RAW_SCENE,
 			"cooked_potato": COOKED_SCENE,
+			"wood": WOOD_SCENE,
 		}
 
 
