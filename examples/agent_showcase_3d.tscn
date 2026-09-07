@@ -1,0 +1,79 @@
+[gd_scene format=3 uid="uid://cy6y8tw855tyj"]
+
+[ext_resource type="PackedScene" uid="uid://iqvgqalpp67h" path="res://examples/source_3d/prefabs/agent_3d.tscn" id="1_agent"]
+[ext_resource type="Script" uid="uid://cosp034doslxh" path="res://examples/source_3d/assets/debug/showcase_driver_3d.gd" id="2_driver"]
+[ext_resource type="PackedScene" uid="uid://c175gqil1di7f" path="res://examples/source_3d/assets/vendored/KayKit_Adventurers/Characters/gltf/Knight.glb" id="3_knight"]
+[ext_resource type="PackedScene" uid="uid://6tnehy36brt4" path="res://examples/source_3d/assets/vendored/KayKit_Adventurers/Characters/gltf/Barbarian.glb" id="4_barb"]
+[ext_resource type="PackedScene" uid="uid://drw7amvckvepy" path="res://examples/source_3d/assets/vendored/KayKit_Adventurers/Characters/gltf/Mage.glb" id="5_mage"]
+[ext_resource type="Script" uid="uid://d2g1imengo7ok" path="res://examples/source_3d/assets/camera/camera_follow_3d.gd" id="6_cam"]
+
+[sub_resource type="NavigationMesh" id="NavigationMesh_1"]
+vertices = PackedVector3Array(-9, 0.75, -9, -9, 0.75, 9.25, 9.25, 0.75, 9.25, 9.25, 0.75, -9)
+polygons = [PackedInt32Array(3, 2, 0), PackedInt32Array(0, 2, 1)]
+agent_height = 1.0
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_1"]
+albedo_color = Color(0.2, 0.3, 0.2, 1)
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]
+sky_top_color = Color(0.38, 0.45, 0.55, 1)
+sky_horizon_color = Color(0.65, 0.67, 0.7, 1)
+ground_bottom_color = Color(0.2, 0.17, 0.13, 1)
+ground_horizon_color = Color(0.65, 0.67, 0.7, 1)
+
+[sub_resource type="Sky" id="Sky_1"]
+sky_material = SubResource("ProceduralSkyMaterial_1")
+
+[sub_resource type="Environment" id="Environment_1"]
+background_mode = 2
+sky = SubResource("Sky_1")
+ambient_light_source = 3
+
+[node name="Showcase3D" type="Node3D" unique_id=111468293]
+script = ExtResource("2_driver")
+skins = Array[PackedScene]([ExtResource("3_knight"), ExtResource("4_barb"), ExtResource("5_mage")])
+
+[node name="NavigationRegion3D" type="NavigationRegion3D" parent="." unique_id=2084563272]
+navigation_mesh = SubResource("NavigationMesh_1")
+
+[node name="Ground" type="CSGBox3D" parent="NavigationRegion3D" unique_id=2086732643]
+use_collision = true
+size = Vector3(20, 0.5, 20)
+material = SubResource("StandardMaterial3D_1")
+
+[node name="AgentPotato" parent="." unique_id=1994377412 instance=ExtResource("1_agent")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0.25, 0)
+
+[node name="AgentWood" parent="." unique_id=1210992454 instance=ExtResource("1_agent")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 0)
+
+[node name="AgentEmpty" parent="." unique_id=1003618064 instance=ExtResource("1_agent")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0.25, 0)
+
+[node name="Label3D" parent="AgentPotato"]
+visible = false
+
+[node name="Label3D" parent="AgentWood"]
+visible = false
+
+[node name="Label3D" parent="AgentEmpty"]
+visible = false
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=865207300]
+transform = Transform3D(0.707107, 0, -0.707107, 0, 1, 0, 0.707107, 0, 0.707107, 0, 10, 0)
+shadow_enabled = true
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=327428076]
+environment = SubResource("Environment_1")
+
+[node name="CameraRig" type="Node3D" parent="." node_paths=PackedStringArray("target")]
+position = Vector3(0, 1.45, 0)
+script = ExtResource("6_cam")
+target = NodePath("../AgentWood")
+
+[node name="SpringArm3D" type="SpringArm3D" parent="CameraRig"]
+rotation = Vector3(-0.9, -0.78, 0)
+spring_length = 8.0
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig/SpringArm3D"]
+current = true
