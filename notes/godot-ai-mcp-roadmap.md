@@ -133,6 +133,7 @@ Both campfire scenes hunger-mirrored and verified live. Remaining: navmesh bake 
 - Verified post-fix: 2D `same=true`, label 91%→67%, hunger rising; 3D `same=true`, 79%→55%; both runs live, no errors. Compact counts: 2D 52 nodes, 3D 65 nodes total.
 - Corrections to earlier claims: the 3D bake WAS on disk all along (4 verts/2 polys @y=0.75) — my `grep vertices=` missed `vertices =` spacing. Nothing baked was lost in surgery.
 - Standing rule: never MCP-reparent instance roots; move plain nodes only, or edit `.tscn` text + `force_reload`.
+- Labels: `billboard=1` on all four 3D prefabs (verified live). `fixed_size=true` tried and reverted same session — it renders glyphs at constant screen size and the labels filled the screen. Billboard alone preserves world scale. Note: this agent cannot view screenshot pixels, only capture metadata (size, camera path) — visual acceptance stays with the user.
 
 ## Follow-up — Orbit Camera: Drag, Limits, Reset Key (2026-09-07)
 
