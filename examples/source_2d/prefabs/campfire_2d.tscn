@@ -47,7 +47,7 @@ offset_left = -48.0
 offset_top = -32.0
 offset_right = 48.0
 offset_bottom = -16.0
-text = "Campfire (100%)"
+text = "Campfire (50%)"
 label_settings = SubResource("LabelSettings_1")
 horizontal_alignment = 1
 

@@ -10,7 +10,9 @@ extends GdPAIObjectData
 ## Minimum fuel required before food can be cooked.
 @export var min_fuel_to_cook: float = 20.0
 
-var current_fuel: float = 100.0
+## Starting fuel level in percent. Both campfire scenes begin half-full so
+## fire-maintenance scenarios trigger without a long burn-down wait.
+@export var current_fuel: float = 50.0
 var fuel_decay_rate: float = 3.0
 
 
