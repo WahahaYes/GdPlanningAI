@@ -154,6 +154,27 @@ Both campfire scenes hunger-mirrored and verified live. Remaining: navmesh bake 
 - Mirrored hunger's `Scenery` semantics (`hunger_basic_2d.tscn:21`, `scenery.tscn:185-264` — static world container, actors at root): new `Terrain` (Node3D, identity) parents `NavigationRegion3D`, which parents `Ground` + `WallN/S/E/W`. Gameplay objects, agent, camera rig stay at root (as in `campfire_2d.tscn`).
 - All moves via MCP (`node_create` + `reparent_node`; note `batch_execute` wants `reparent_node`, not `reparent`). Identity parents ⇒ locals == globals, baked mesh stays valid, no rebake. Verified: top-level 13 nodes, cinematic 640px, run live, no errors.
 
+## Follow-up — Showcase Idle Pauses + Walk-Loop Fix (2026-09-07)
+
+- Walk "not looping" root cause: every Rig_Medium clip imports as `LOOP_NONE`, so `Walking_A` played once (1.07s) then froze mid-stride — idle would have done the same. `agent_skin_3d.gd` now forces `LOOP_LINEAR` on its configured idle/walk pair; one-shots keep imported mode.
+- Driver idles: arrival/retarget rolls `idle_chance` (default 0.35, 1.5–4s); pausing parks `target_position` under the body — without that the controller chases the old target straight through the pause (caught by the new test, then fixed).
+- Stuck-idle bug: the idling branch decremented a local copy of the countdown without writing it back, so pauses never ended. Resume test (chance flipped 1.0→0.0 mid-run) pins walk→idle→walk.
+- Showcase hides agent `Label3D`s via one-line `visible = false` descendant overrides (property-only — no reparent, no materialization risk).
+- First decision always walks so agents leave spawn; showcase test forces chance 1.0 to pin the walk→idle cycle deterministically.
+
+## Follow-up — Showcase Scene + Collider Fix (2026-09-07)
+
+- Suspected misaligned colliders confirmed by geometry: the collision cylinder (h=1.0) sat centered on the body origin while character feet are at local y=0, so the visual sank half a meter relative to physics. Fix: `CollisionShape3D` y-offset 0.5 (bottom at feet) in `agent_3d.tscn`. Showcase asserts rest height 0.25 == ground top.
+- `campfire_3d.tscn` still places `Agent1` at y=0.5 — now floats 0.25 above ground. Flagged for the campfire-hookup pass, deliberately untouched here.
+- `examples/agent_showcase_3d.tscn`: 3 prefab agents (Knight/Barbarian/Mage × potato/wood/empty) driven by `assets/debug/showcase_driver_3d.gd` (skin + held-item assignment by index, ON_DEMAND parking, wander retargets). No per-agent override blocks — discovery via `find_children GdPAIAgent`. 6 integration tests pin carry states, skins, rest height, wander targets, rig tracking, and camera aim.
+- Fixed-camera lesson: hand-written `Transform3D(...)` bases transpose silently — my oblique matrix aimed at the sky. Rule: author static Node3D poses with `position` + `rotation` euler, never raw bases. The showcase now rides the campfire orbit rig (right-drag orbit, wheel zoom, R reset) following AgentWood instead.
+
+## Follow-up — Agent Skin: Knight + Retargeted Rig_Medium Clips (2026-09-07)
+
+- Skin interface: `assets/agent/agent_skin_3d.gd` on the skin-scene root (which instances one Adventurers `.glb`); shared static clip cache from both Rig_Medium packs copied into an `AnimationPlayer` child; velocity poll drives Idle/Walk. `skins/knight_3d.tscn` is 6 lines — new skins just instance another `.glb`.
+- Gotcha (text-edited `.tscn`): a NodePath export override on an instance node is silently dropped unless the node header declares `node_paths=PackedStringArray(...)`. `Skin` showed `entity=null` until the attribute was added — same attribute every hand-written GdPAI node already carries. Structural grep for the fix: every `= NodePath(` assignment must have its property listed in the node's `node_paths`.
+- `agent_3d.tscn`: blue CSG placeholder (+ dead mesh/material) replaced by `Skin`; label y→1.75, socket y→1.95 for the 0.6-scale Knight (~1.53 m). Physics/nav untouched.
+
 ## Live Observation (2026-09-07, editor closed after manual run)
 
 - User: agent doesn't move; food visibly attaches but never changes state/disappears.
