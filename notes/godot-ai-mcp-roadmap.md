@@ -124,3 +124,15 @@ Phase 3 benchmark done (7/9 via MCP). Follow-up controller + camera rig done (se
 - `camera_follow_3d.gd` created (`examples/source_3d/assets/camera/`): `target`, `height=1.2`, `follow_speed=5`, `_ready` auto-resolves `../Agent1` (MCP `node_set_property` rejects Node-to-Node assignment with VALUE_OUT_OF_RANGE, so explicit target link stays null in favor of auto-resolve).
 - Rig built via MCP: `CameraRig` (Node3D at -3,1.7,-3) → `SpringArm3D` (rot -0.9,-0.78, length 8) → reparented `Camera3D` (local 0,0,0, `current:true` preserved). `scene_save` ok.
 - Verify: `cinematic` resolves via `/Campfire3D/CameraRig/SpringArm3D/Camera3D` (640px), `project_run current` live, no errors, stop clean.
+
+## Follow-up — Terrain Cleanup + Bake Rule Correction (2026-09-07)
+
+- Docs claim (`NavigationMesh.geometry_source_geometry_mode` default ROOT_NODE_CHILDREN) read as whole-scene bake was wrong in practice: user moved `Ground` under the region and bake succeeded. Authoritative rule for this scene: **bake sources must live under `NavigationRegion3D`**.
+- Mirrored hunger's `Scenery` semantics (`hunger_basic_2d.tscn:21`, `scenery.tscn:185-264` — static world container, actors at root): new `Terrain` (Node3D, identity) parents `NavigationRegion3D`, which parents `Ground` + `WallN/S/E/W`. Gameplay objects, agent, camera rig stay at root (as in `campfire_2d.tscn`).
+- All moves via MCP (`node_create` + `reparent_node`; note `batch_execute` wants `reparent_node`, not `reparent`). Identity parents ⇒ locals == globals, baked mesh stays valid, no rebake. Verified: top-level 13 nodes, cinematic 640px, run live, no errors.
+
+## Live Observation (2026-09-07, editor closed after manual run)
+
+- User: agent doesn't move; food visibly attaches but never changes state/disappears.
+- Consistent with empty navmesh: `GoToAction.perform_action` (`goto_action.gd:192-208`) returns SUCCESS instantly when `is_navigation_finished()`, so Dig/Pickup execute remotely (`pickup_action.gd:95-96` sets `held_item` + `queue_free`, `dig_potato_action.gd:59-60` same) while the body never moves. Eat then needs 1.5s RUNNING plus a map hit (`eat_held_food_action.gd:105-125`, raw `potato` not edible — only `cooked_potato`/`banana` per `hunger_behavior_config.gd:14`), so a stuck/looping plan shows held food with no hunger drop.
+- Separately captured pre-fix: `Hunger` planner returning `success=false, Branches: 1` every ~1s while `Maintain Fire` plan `[Go To, Pick Up Wood, Go To, Add Fuel]` executes — follow up post-navmesh whether Hunger failure was starvation-by-no-path or a real planning gap.
