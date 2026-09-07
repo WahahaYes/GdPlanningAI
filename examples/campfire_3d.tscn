@@ -7,6 +7,7 @@
 [ext_resource type="Script" uid="uid://xe8dqi12ddyo" path="res://examples/shared/systems/potato_spawner/potato_spawner_3d.gd" id="5_efghi"]
 [ext_resource type="PackedScene" uid="uid://fnsnn6jmne4e" path="res://examples/source_3d/prefabs/potato_3d.tscn" id="6_fghij"]
 [ext_resource type="PackedScene" uid="uid://iqvgqalpp67h" path="res://examples/source_3d/prefabs/agent_3d.tscn" id="7_hijkl"]
+[ext_resource type="Script" path="res://examples/source_3d/assets/camera/camera_follow_3d.gd" id="8_wk5lb"]
 
 [sub_resource type="Resource" id="Resource_u0rx4"]
 script = ExtResource("2_bcdef")
@@ -15,6 +16,32 @@ script = ExtResource("2_bcdef")
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_1"]
 albedo_color = Color(0.2, 0.3, 0.2, 1)
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_ymcfs"]
+sky_top_color = Color(0.38, 0.45, 0.55, 1)
+sky_horizon_color = Color(0.65, 0.67, 0.7, 1)
+ground_bottom_color = Color(0.2, 0.17, 0.13, 1)
+ground_horizon_color = Color(0.65, 0.67, 0.7, 1)
+
+[sub_resource type="Sky" id="Sky_wk5lb"]
+sky_material = SubResource("ProceduralSkyMaterial_ymcfs")
+
+[sub_resource type="Environment" id="Environment_1112p"]
+background_mode = 2
+sky = SubResource("Sky_wk5lb")
+ambient_light_source = 3
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_ymcfs"]
+size = Vector3(20, 2, 0.5)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_wk5lb"]
+size = Vector3(20, 2, 0.5)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_1112p"]
+size = Vector3(0.5, 2, 20)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_wr75a"]
+size = Vector3(0.5, 2, 20)
 
 [node name="Campfire3D" type="Node3D" unique_id=189768251]
 
@@ -46,6 +73,7 @@ potato_scene = ExtResource("6_fghij")
 spawn_area_position = Vector3(-8, 0.5, -8)
 
 [node name="Ground" type="CSGBox3D" parent="." unique_id=408015396]
+use_collision = true
 size = Vector3(20, 0.5, 20)
 material = SubResource("StandardMaterial3D_1")
 
@@ -53,8 +81,43 @@ material = SubResource("StandardMaterial3D_1")
 transform = Transform3D(0.707107, 0, -0.707107, 0, 1, 0, 0.707107, 0, 0.707107, 0, 10, 0)
 shadow_enabled = true
 
-[node name="Camera3D" type="Camera3D" parent="." unique_id=1772953435]
-transform = Transform3D(0.7160584, 0.5216535, -0.46382985, -2.9802322e-08, 0.6644742, 0.74731123, 0.6980405, -0.5351184, 0.47580233, -5.6666384, 5.92255, 4.1651907)
-
 [node name="Agent1" parent="." unique_id=1104944090 instance=ExtResource("7_hijkl")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0.5, -3)
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=490112874]
+environment = SubResource("Environment_1112p")
+
+[node name="WallN" type="StaticBody3D" parent="." unique_id=485416133]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, -10)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WallN" unique_id=1914718037]
+shape = SubResource("BoxShape3D_ymcfs")
+
+[node name="WallS" type="StaticBody3D" parent="." unique_id=1467844087]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 10)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WallS" unique_id=2024340044]
+shape = SubResource("BoxShape3D_wk5lb")
+
+[node name="WallE" type="StaticBody3D" parent="." unique_id=1774653040]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 1, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WallE" unique_id=1403831990]
+shape = SubResource("BoxShape3D_1112p")
+
+[node name="WallW" type="StaticBody3D" parent="." unique_id=1309169772]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 1, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WallW" unique_id=724569089]
+shape = SubResource("BoxShape3D_wr75a")
+
+[node name="CameraRig" type="Node3D" parent="." unique_id=1182978512]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 1.7, -3)
+script = ExtResource("8_wk5lb")
+
+[node name="SpringArm3D" type="SpringArm3D" parent="CameraRig" unique_id=1645337842]
+transform = Transform3D(0.71091354, 0.55089766, -0.43716547, 0, 0.62161, 0.7833269, 0.7032794, -0.55687773, 0.44191095, 0, 0, 0)
+spring_length = 8.0
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig/SpringArm3D" unique_id=1772953435]
+current = true
