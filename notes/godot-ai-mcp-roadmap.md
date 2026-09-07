@@ -116,7 +116,23 @@ Pass criteria: 7/9 via MCP alone (camera, ground, controller, lighting, walls, s
 
 ## Next Action
 
-Phase 3 benchmark done (7/9 via MCP). Follow-up controller + camera rig done (see below). Remaining: navmesh bake (no MCP tool), UID pinning on 3D prefabs, animator, orbit input.
+Both campfire scenes hunger-mirrored and verified live. Remaining: navmesh bake (no MCP tool), UID pinning on 3D prefabs, animator, orbit input. Long-window 2D movement proof still open (needs fuel\<60 or high hunger; nav intact by construction).
+
+## Follow-up — Full Hierarchy Cleanup, Both Scenes (2026-09-07)
+
+- Rule applied (from hunger: `hunger_basic_2d.tscn:21`, `scenery.tscn:185`): root holds world-logic + actor(s) only; everything static nests under one container.
+- 3D root now `GdPAIWorldNode + Agent1 + Terrain`; Terrain holds `NavigationRegion3D` (Ground, 4 walls), `Campfire`, `WoodPile×4`, `PotatoSpawner`, `DirectionalLight3D`, `WorldEnvironment`, `CameraRig`. Safe: spawners parent to `get_parent()` (`potato_spawner_3d.gd:47`) with parent-local coords, Terrain identity ⇒ same globals; `camera_follow_3d.gd` `_ready` now resolves via `current_scene` so rig placement is free. Verified: cinematic via moved rig, run live, rig tracking (y≈agent+1.2).
+- 2D root now `GdPAIWorldNode + Agent1 + Terrain`; Terrain holds `Ground`, `NavigationRegion2D` (baked polygon intact, region was at origin), `Camera2D`, `Campfire`, `WoodPile×4`, `PotatoSpawner`. Verified: run live, no errors, hunger ticking (6.6 after ~5s).
+- MCP lesson: `game_eval` budget is 8s — a 15s timer-await aborts (EVAL_HUNG) and can park the game at a debugger break; recover with `project_manage(stop)`. The 2 break errors were eval artifacts, not project errors (buffer clean after stop).
+
+## Incident — MCP Reparent Materialized Instance Children (2026-09-07, fixed)
+
+- Symptom (2D): agent invisible, campfire label frozen at 100%.
+- Two stacked causes found via live evals: (a) draw order — `Agent1` sat before `Terrain`, so the 800×600 `Ground` rect painted over it (fixed: `Agent1` moved last, matching hunger's Scenery-then-Agent order); (b) `reparent_node` on instance roots materialized prefab children as override blocks (+200 lines 2D, +160 3D), and the runtime bound to orphan duplicates (`same=false`, ref label ticking 71% while tree label frozen, fuel decaying underneath at 3.0/s).
+- Fix: `/tmp/opencode/prune2.py` (backups in `/tmp/opencode/*.bak.tscn`) deleted descendant-of-instance blocks + newly-orphaned resources, guarded by asserts (scene root never an instance root; deleted unique_ids absent from HEAD; pruned resources all new). First version of the script had a root-poisoning bug caught by its own dry run — rewritten explicit.
+- Verified post-fix: 2D `same=true`, label 91%→67%, hunger rising; 3D `same=true`, 79%→55%; both runs live, no errors. Compact counts: 2D 52 nodes, 3D 65 nodes total.
+- Corrections to earlier claims: the 3D bake WAS on disk all along (4 verts/2 polys @y=0.75) — my `grep vertices=` missed `vertices =` spacing. Nothing baked was lost in surgery.
+- Standing rule: never MCP-reparent instance roots; move plain nodes only, or edit `.tscn` text + `force_reload`.
 
 ## Follow-up — Proper 3D Controller + Follow Camera (2026-09-07)
 

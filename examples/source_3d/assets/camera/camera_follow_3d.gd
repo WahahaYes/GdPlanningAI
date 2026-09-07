@@ -16,6 +16,10 @@ extends Node3D
 ## Resolves the default agent sibling when no target is assigned.
 func _ready() -> void:
 	if target == null:
+		var scene: Node = get_tree().current_scene
+		if scene != null:
+			target = scene.get_node_or_null("Agent1") as Node3D
+	if target == null:
 		target = get_node_or_null("../Agent1") as Node3D
 
 
