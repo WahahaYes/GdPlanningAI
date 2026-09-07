@@ -1,6 +1,6 @@
 # Godot AI MCP Integration — Research + Roadmap
 
-**Date**: 2026-09-07 **Context**: Hook `hi-godot/godot-ai` into GdPlanningAI via `godotenv` `addons.jsonc`, expose to OpenCode harness, dry-run benchmark = fix `campfire_3d.tscn` **Status**: Research complete, not yet installed
+**Date**: 2026-09-07 **Context**: Hook `hi-godot/godot-ai` into GdPlanningAI via `godotenv` `addons.jsonc`, expose to OpenCode harness, dry-run benchmark = fix `campfire_3d.tscn` **Status**: Research complete, installing v3.2.5 **Scope**: Personal experiment — no README/docs changes, OpenCode settings stay local + gitignored
 
 ## Goal
 
@@ -69,19 +69,20 @@ Not broken: shared `campfire_agent_config.tres`, `GdPAILocationData` 2D/3D dual,
 ### Phase 0 — Decide + record (this note, done)
 
 - [x] Research godot-ai transport/config, godotenv schema, opencode MCP shape, 3D gap audit.
+- [x] Pin decided: `v3.2.5`. Scope: personal experiment, no README changes, `opencode.json`/`opencode.jsonc`/`.opencode/` gitignored local artifact.
 
 ### Phase 1 — Reproducible addon install (dry, no editor yet)
 
-1. Add `godot_ai` entry to `addons.jsonc` (pin `v3.2.5` unless team explicitly wants `main` v4 candidate — record reason).
+1. Add `godot_ai` entry to `addons.jsonc` (pin `v3.2.5` — decided).
 1. `make addons-install` / `godotenv addons install`, verify `addons/godot_ai/plugin.cfg` exists, `plugin.gd` present.
-1. `.gitignore`: add `addons/godot_ai/` (mirror `addons/gut/` pattern). Confirm `.addons/` cache ignored.
-1. Do NOT hand-edit `project.godot` plugins yet — enable via editor UI once, then commit resulting diff.
+1. `.gitignore`: `addons/godot_ai/` + `opencode.json`, `opencode.jsonc`, `.opencode/` (local experiment, not committed). Confirm `.addons/` cache ignored.
+1. Do NOT hand-edit `project.godot` plugins yet — enable via editor UI once; keep diff local unless team adopts.
 
 ### Phase 2 — Editor + MCP handshake
 
 1. `make launch-editor`, enable Godot AI in Plugins, confirm dock status (server :8000/:9500).
 1. Dock **Configure** for OpenCode (or **Configure all**). Capture canonical `command` argv it generates — replace reconstruction above.
-1. Create project `opencode.json` with `mcp.godot-ai` entry (project-scoped, committable). Keep global `~/.config/opencode/opencode.json` untouched except via dock.
+1. Create local (gitignored) project `opencode.json` with `mcp.godot-ai` entry. Keep global `~/.config/opencode/opencode.json` untouched except via dock. Do not commit.
 1. `opencode mcp list` + `opencode mcp debug godot-ai` → expect connected. `GODOT_AI_DISABLE_TELEMETRY=true` if team opts out.
 1. Smoke prompts (editor open): "Show current scene hierarchy", "Search project for PackedScene in examples/source_3d", "Run scene test suite".
 
@@ -117,4 +118,4 @@ Pass criteria: MCP alone can perform 1–9 without hand-editing `.tscn`/`.gd` in
 
 ## Next Action
 
-Decide version pin (`v3.2.5` recommended), then execute Phase 1.
+Pin decided (`v3.2.5`). Phase 1 install running (`godotenv addons install` in background — timed out at 120s foreground, retrying); verify `addons/godot_ai/plugin.cfg` then Phase 2.
