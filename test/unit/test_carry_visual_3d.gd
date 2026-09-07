@@ -79,9 +79,18 @@ func test_unmapped_item_shows_nothing() -> void:
 	var setup: Dictionary = _make_agent()
 	var agent: GdPAIAgent = setup["agent"]
 	var socket: Node3D = setup["socket"]
-	agent.blackboard.set_property("held_item", "wood")
+	agent.blackboard.set_property("held_item", "stone")
 	await _pump_frames(3)
 	assert_eq(socket.get_child_count(), 0, "Unmapped held_item ids should show nothing")
+
+
+func test_wood_visual_appears() -> void:
+	var setup: Dictionary = _make_agent()
+	var agent: GdPAIAgent = setup["agent"]
+	var socket: Node3D = setup["socket"]
+	agent.blackboard.set_property("held_item", "wood")
+	await _pump_frames(3)
+	assert_eq(_socket_child_names(socket), ["HeldWood"] as Array[String])
 
 
 func test_clearing_held_item_removes_visual() -> void:
