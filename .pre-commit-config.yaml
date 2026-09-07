@@ -10,6 +10,8 @@ repos:
       - id: check-yaml
       - id: check-toml
       - id: check-added-large-files
+        # Vendored binary art (glTF/PNG) is intentionally committed.
+        exclude: ^examples/source_[23]d/assets/vendored/
       - id: check-merge-conflict
       - id: fix-byte-order-marker
 
