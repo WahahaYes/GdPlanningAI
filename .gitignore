@@ -28,6 +28,9 @@ addons/GdTimeMachine
 addons/godot_ai/
 .addons/
 
+# GdTimeMachine captures
+media/captures/
+
 # OpenCode MCP settings
 opencode.json
 opencode.jsonc

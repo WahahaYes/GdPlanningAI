@@ -154,6 +154,12 @@ Both campfire scenes hunger-mirrored and verified live. Remaining: navmesh bake 
 - Mirrored hunger's `Scenery` semantics (`hunger_basic_2d.tscn:21`, `scenery.tscn:185-264` — static world container, actors at root): new `Terrain` (Node3D, identity) parents `NavigationRegion3D`, which parents `Ground` + `WallN/S/E/W`. Gameplay objects, agent, camera rig stay at root (as in `campfire_2d.tscn`).
 - All moves via MCP (`node_create` + `reparent_node`; note `batch_execute` wants `reparent_node`, not `reparent`). Identity parents ⇒ locals == globals, baked mesh stays valid, no rebake. Verified: top-level 13 nodes, cinematic 640px, run live, no errors.
 
+## Follow-up — Large Variant + Label Transparency (2026-09-07)
+
+- All four 3D prefab `Label3D`s use `modulate` alpha 0.6 (36 labels verified in the large scene).
+- `examples/campfire_large_3d.tscn`: 8 campfires in a Z column (4m spacing), 4 corner piles, one spawner at max 8, `many_agents_spawner_3d.gd` scattering 16 agents, fixed euler overview camera. 4 integration tests (counts, label alpha, pairwise campfire clearance, rest heights) pass.
+- One hunger-smoke failure seen once across three runs (planner picked Wander over a random fruit-drop layout); green on rerun — stochastic test, unrelated.
+
 ## Follow-up — Green Suite: 2D Paths + Half-Fuel Start (2026-09-07)
 
 - 2D smoke `_setup` now reads `Terrain/Campfire` (post-cleanup path); full 5-action cook chain passes.
@@ -187,6 +193,7 @@ Both campfire scenes hunger-mirrored and verified live. Remaining: navmesh bake 
 
 - Skin interface: `assets/agent/agent_skin_3d.gd` on the skin-scene root (which instances one Adventurers `.glb`); shared static clip cache from both Rig_Medium packs copied into an `AnimationPlayer` child; velocity poll drives Idle/Walk. `skins/knight_3d.tscn` is 6 lines — new skins just instance another `.glb`.
 - Gotcha (text-edited `.tscn`): a NodePath export override on an instance node is silently dropped unless the node header declares `node_paths=PackedStringArray(...)`. `Skin` showed `entity=null` until the attribute was added — same attribute every hand-written GdPAI node already carries. Structural grep for the fix: every `= NodePath(` assignment must have its property listed in the node's `node_paths`.
+- Refinement: `node_paths` is only for Node-typed exports. A NodePath-typed export (spawner `camera_rig_path`) must NOT be listed — the loader then tries to resolve the path to a node, mismatches, and drops it to null.
 - `agent_3d.tscn`: blue CSG placeholder (+ dead mesh/material) replaced by `Skin`; label y→1.75, socket y→1.95 for the 0.6-scale Knight (~1.53 m). Physics/nav untouched.
 
 ## Live Observation (2026-09-07, editor closed after manual run)
