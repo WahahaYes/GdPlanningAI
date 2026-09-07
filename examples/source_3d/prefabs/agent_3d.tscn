@@ -29,6 +29,7 @@ material = SubResource("StandardMaterial3D_1")
 
 [node name="Label3D" type="Label3D" parent="." node_paths=PackedStringArray("gdpai_agent")]
 text = "Agent"
+billboard = 1
 pixel_size = 0.01
 position = Vector3(0, 1.0, 0)
 script = ExtResource("3_wxyz")
