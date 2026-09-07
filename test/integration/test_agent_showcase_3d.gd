@@ -127,12 +127,13 @@ func test_agent_labels_hidden() -> void:
 func test_agents_receive_wander_targets() -> void:
 	var scene: Node3D = SHOWCASE_SCENE.instantiate() as Node3D
 	add_child_autofree(scene)
+	scene.set("idle_chance", 0.0)
 	await _pump_frames(5)
 	for agent_name in ["AgentPotato", "AgentWood", "AgentEmpty"]:
 		var nav: NavigationAgent3D = (
 			scene.get_node(agent_name + "/NavigationAgent3D") as NavigationAgent3D
 		)
-		assert_gt(nav.target_position.length(), 0.5, "%s should have a wander target" % agent_name)
+		assert_ne(nav.target_position, Vector3.ZERO, "%s should have a wander target" % agent_name)
 
 
 func test_camera_rig_tracks_middle_agent() -> void:

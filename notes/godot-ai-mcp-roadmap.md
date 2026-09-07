@@ -160,6 +160,8 @@ Both campfire scenes hunger-mirrored and verified live. Remaining: navmesh bake 
 - Driver idles: arrival/retarget rolls `idle_chance` (default 0.35, 1.5–4s); pausing parks `target_position` under the body — without that the controller chases the old target straight through the pause (caught by the new test, then fixed).
 - Stuck-idle bug: the idling branch decremented a local copy of the countdown without writing it back, so pauses never ended. Resume test (chance flipped 1.0→0.0 mid-run) pins walk→idle→walk.
 - Showcase hides agent `Label3D`s via one-line `visible = false` descendant overrides (property-only — no reparent, no materialization risk).
+- Collider audit (headless shape measurement): campfire sunk 0.15 and potato sunk 0.3 — both CollisionShapes now rest at local 0 (campfire y=0.15, potato r=0.25 at y=0.2). Pile and agent were already correct. Pinned by `test/unit/test_prefab_colliders_3d.gd` (bottom ≈ 0 for all four).
+- Sky is now shared art: `examples/source_3d/assets/environment/day_sky_3d.tres` (brightened daytime gradient), referenced by both 3D scenes — not a config.
 - First decision always walks so agents leave spawn; showcase test forces chance 1.0 to pin the walk→idle cycle deterministically.
 
 ## Follow-up — Showcase Scene + Collider Fix (2026-09-07)

@@ -82,6 +82,7 @@ label_node = NodePath("./Label3D")
 fire_primitive = NodePath("./Fire")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1108298127]
+position = Vector3(0, 0.15, 0)
 shape = SubResource("CylinderShape3D_1")
 
 [node name="Log1" parent="." instance=ExtResource("5_woodlog")]
