@@ -39,7 +39,7 @@ script = ExtResource("1_abcde")
 blackboard_plan = SubResource("Resource_u0rx4")
 
 [node name="Agent1" parent="." unique_id=1104944090 instance=ExtResource("7_hijkl")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0.5, -3)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0.25, -3)
 
 [node name="Terrain" type="Node3D" parent="." unique_id=1938841483]
 
@@ -100,7 +100,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0.25, 2.5)
 [node name="PotatoSpawner" type="Node" parent="Terrain" unique_id=1964126581]
 script = ExtResource("5_efghi")
 potato_scene = ExtResource("6_fghij")
-spawn_area_position = Vector3(-8, 0.5, -8)
+spawn_area_position = Vector3(-8, 0.25, -8)
 
 [node name="CameraRig" type="Node3D" parent="Terrain" unique_id=1182978512]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 1.7, -3)
