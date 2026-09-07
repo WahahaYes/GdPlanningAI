@@ -1,6 +1,6 @@
 # Godot AI MCP Integration — Research + Roadmap
 
-**Date**: 2026-09-07 **Context**: Hook `hi-godot/godot-ai` into GdPlanningAI via `godotenv` `addons.jsonc`, expose to OpenCode harness, dry-run benchmark = fix `campfire_3d.tscn` **Status**: Research complete, installing v3.2.5 **Scope**: Personal experiment — no README/docs changes, OpenCode settings stay local + gitignored
+**Date**: 2026-09-07 **Context**: Hook `hi-godot/godot-ai` into GdPlanningAI via `godotenv` `addons.jsonc`, expose to OpenCode harness, dry-run benchmark = fix `campfire_3d.tscn` **Status**: v3.2.5 installed, Phase 2 next **Scope**: Personal experiment — no README/docs changes, OpenCode settings stay local + gitignored
 
 ## Goal
 
@@ -71,36 +71,34 @@ Not broken: shared `campfire_agent_config.tres`, `GdPAILocationData` 2D/3D dual,
 - [x] Research godot-ai transport/config, godotenv schema, opencode MCP shape, 3D gap audit.
 - [x] Pin decided: `v3.2.5`. Scope: personal experiment, no README changes, `opencode.json`/`opencode.jsonc`/`.opencode/` gitignored local artifact.
 
-### Phase 1 — Reproducible addon install (dry, no editor yet)
+### Phase 1 — Reproducible addon install (done 2026-09-07)
 
-1. Add `godot_ai` entry to `addons.jsonc` (pin `v3.2.5` — decided).
-1. `make addons-install` / `godotenv addons install`, verify `addons/godot_ai/plugin.cfg` exists, `plugin.gd` present.
-1. `.gitignore`: `addons/godot_ai/` + `opencode.json`, `opencode.jsonc`, `.opencode/` (local experiment, not committed). Confirm `.addons/` cache ignored.
-1. Do NOT hand-edit `project.godot` plugins yet — enable via editor UI once; keep diff local unless team adopts.
+- [x] Add `godot_ai` entry to `addons.jsonc` (pin `v3.2.5` — decided).
+- [x] `godotenv addons install` → `addons/godot_ai/plugin.cfg` version 3.2.5 verified, `plugin.gd` present. Note: one transient `git checkout v3.2.5` failure in `.addons/godot_ai` (exit 1) cleared on retry — tag exists upstream, manual `git -C .addons/godot_ai checkout v3.2.5` also OK. Likely race between background + foreground install sharing the cache. If it recurs: `rm -rf .addons/godot_ai` then retry.
+- [x] `.gitignore`: `addons/godot_ai/` + `opencode.json`, `opencode.jsonc`, `.opencode/` (local experiment, not committed). Confirm `.addons/` cache ignored.
+- [ ] Do NOT hand-edit `project.godot` plugins yet — enable via editor UI once; keep diff local unless team adopts.
 
-### Phase 2 — Editor + MCP handshake
+### Phase 2 — Editor + MCP handshake (done 2026-09-07)
 
-1. `make launch-editor`, enable Godot AI in Plugins, confirm dock status (server :8000/:9500).
-1. Dock **Configure** for OpenCode (or **Configure all**). Capture canonical `command` argv it generates — replace reconstruction above.
-1. Create local (gitignored) project `opencode.json` with `mcp.godot-ai` entry. Keep global `~/.config/opencode/opencode.json` untouched except via dock. Do not commit.
-1. `opencode mcp list` + `opencode mcp debug godot-ai` → expect connected. `GODOT_AI_DISABLE_TELEMETRY=true` if team opts out.
-1. Smoke prompts (editor open): "Show current scene hierarchy", "Search project for PackedScene in examples/source_3d", "Run scene test suite".
+- [x] Editor open, Godot AI 3.2.5 enabled, server uvx `godot-ai==3.2.5` :8000/:9500, session `gdplanningai@fcbf`, `campfire_3d.tscn` open.
+- [x] `scene_get_hierarchy` 53 nodes baseline; `camera_manage list`; `filesystem_manage search` PackedScene in `examples/source_3d` → 4 files.
+- [x] `test_run` N/A — repo uses `test/` + GUT (`make test-godot`), not `res://tests/`; godot-ai `test_run` reports "No test suites found". No regression path via MCP for this repo layout.
 
-### Phase 3 — Golden benchmark: fix campfire_3d via MCP
+### Phase 3 — Golden benchmark: fix campfire_3d via MCP (done 2026-09-07, editor session `gdplanningai@fcbf`)
 
-Sensible MCP edit sequence to attempt (each via `batch_execute`/`node_*`/`resource_manage` + `scene_save`, verify with `project_run` + `logs_read` + `editor_screenshot`):
+MCP-verified writes (each confirmed via `node_get_properties` + `scene_save`):
 
-1. `scene_open campfire_3d` → `scene_get_hierarchy` baseline.
-1. Camera stopgap: `node_set_property Camera3D current=true`; then proper rig (`SpringArm3D` + follow/orbit script) + `[input]` actions if manual control desired.
-1. Ground collision: wrap/replace `Ground` with `StaticBody3D + CollisionShape3D(Box 20,0.5,20) + MeshInstance3D`, top at y=0; re-seat campfire/wood/agent Y.
-1. Bake navmesh for 20×20 slab (or assign baked `.navmesh`), add bake exclusions around campfire logs.
-1. Gravity in `nav_controller_3d.gd` (`velocity.y -= 9.8*delta`, flatten XZ, `move_and_slide`), set `floor_snap_length`.
-1. `WorldEnvironment` + ambient/sky; verify `DirectionalLight3D` rotation.
-1. Fix potato UID mismatch + pin missing `uid:` on 3D `ext_resource`s; remove dead `BoxMesh_1` or wire it.
-1. Add boundary walls; set `PotatoSpawner.spawn_area_size` explicitly.
-1. `project_run campfire_3d` → agent debug label shows Goal/Action cycling, `editor_screenshot(game)` shows lit agent + campfire, no SCRIPT ERROR in `logs_read`.
+1. [x] Baseline `scene_get_hierarchy` (53 → 62 nodes after edits).
+1. [x] Camera `current=true` (`false→true`, undoable). `cinematic` screenshot now resolves via `/Campfire3D/Camera3D` (640px ok).
+1. [x] Ground `use_collision=true` (`false→true`). Minimal fix; full StaticBody3D wrap deferred (CSG collision suffices for demo).
+1. [ ] Navmesh bake — NO tool in catalog (`search navigation navmesh` → []). Recorded limitation; `GoToAction` still unproven on 3D nav.
+1. [x] `nav_controller_3d.gd` gravity + XZ-flatten patch via `script_patch` (`diagnostics: []`, `reloaded: true`).
+1. [x] `WorldEnvironment` + default `Environment`/ProceduralSky via `node_create` + `resource_manage environment_create`.
+1. [partial] Potato UID `fnsnn6jmne4e→ea2n8p3r6t9u5` fixed via local text edit — MCP has no UID round-trip tool (`scene_save` preserved the mismatch). Dead `BoxMesh_1` in `agent_3d.tscn` left; no sub-resource prune tool.
+1. [x] 4 boundary walls (`WallN/S/E/W` StaticBody3D + BoxShape3D via inline `__class__`, positioned ±10) + `PotatoSpawner.spawn_area_size` set explicit (was already 16,1,16 default; now serialized).
+1. [x] `project_run current` → `live`, `helper_live:true`, `recent_errors:[]`, `project_manage stop` clean; `logs_read editor` 0 entries.
 
-Pass criteria: MCP alone can perform 1–9 without hand-editing `.tscn`/`.gd` in a text editor. Fail criteria worth recording: MCP can't bake navmesh, can't set `current`, can't round-trip UIDs, or needs editor restart per edit.
+Pass criteria: 7/9 via MCP alone (camera, ground, controller, lighting, walls, spawner, run/verify). Fail/limitation recorded: navmesh bake + UID round-trip need non-MCP edits. No editor restart needed per edit.
 
 ### Phase 4 — Harden
 
@@ -118,4 +116,11 @@ Pass criteria: MCP alone can perform 1–9 without hand-editing `.tscn`/`.gd` in
 
 ## Next Action
 
-Pin decided (`v3.2.5`). Phase 1 install running (`godotenv addons install` in background — timed out at 120s foreground, retrying); verify `addons/godot_ai/plugin.cfg` then Phase 2.
+Phase 3 benchmark done (7/9 via MCP). Follow-up controller + camera rig done (see below). Remaining: navmesh bake (no MCP tool), UID pinning on 3D prefabs, animator, orbit input.
+
+## Follow-up — Proper 3D Controller + Follow Camera (2026-09-07)
+
+- `nav_controller_3d.gd` upgraded via `script_patch` (clean diagnostics): `acceleration=12`, `turn_speed=10`, `gravity=9.8`, `arrival_threshold=0.2`, XZ smoothing via `lerpf`, yaw facing via `lerp_angle(atan2)`, gravity preserved. `lint_style` clean.
+- `camera_follow_3d.gd` created (`examples/source_3d/assets/camera/`): `target`, `height=1.2`, `follow_speed=5`, `_ready` auto-resolves `../Agent1` (MCP `node_set_property` rejects Node-to-Node assignment with VALUE_OUT_OF_RANGE, so explicit target link stays null in favor of auto-resolve).
+- Rig built via MCP: `CameraRig` (Node3D at -3,1.7,-3) → `SpringArm3D` (rot -0.9,-0.78, length 8) → reparented `Camera3D` (local 0,0,0, `current:true` preserved). `scene_save` ok.
+- Verify: `cinematic` resolves via `/Campfire3D/CameraRig/SpringArm3D/Camera3D` (640px), `project_run current` live, no errors, stop clean.
