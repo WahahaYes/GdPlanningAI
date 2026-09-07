@@ -20,6 +20,7 @@ shape = SubResource("BoxShape3D_1")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.8, 0)
 billboard = 1
 pixel_size = 0.01
+modulate = Color(1, 1, 1, 0.6)
 text = "Wood Pile"
 
 [node name="GdPAIObjectData" type="Node" parent="." unique_id=1298890973 node_paths=PackedStringArray("entity", "interactable_attribs", "location_data")]

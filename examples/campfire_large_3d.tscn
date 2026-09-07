@@ -1,0 +1,147 @@
+[gd_scene format=3 uid="uid://catl6pwc65m4m"]
+
+[ext_resource type="Script" uid="uid://cu134mwsik6n5" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_world_node.gd" id="1_abcde"]
+[ext_resource type="Script" uid="uid://cvie3m6t7c0hd" path="res://addons/GdPlanningAI/scripts/gdpai_blackboard_plan.gd" id="2_bcdef"]
+[ext_resource type="PackedScene" uid="uid://hpufp8koo56g" path="res://examples/source_3d/prefabs/campfire_3d.tscn" id="3_cdefg"]
+[ext_resource type="PackedScene" uid="uid://gotoo7knn45f" path="res://examples/source_3d/prefabs/wood_pile_3d.tscn" id="4_defgh"]
+[ext_resource type="Script" uid="uid://xe8dqi12ddyo" path="res://examples/shared/systems/potato_spawner/potato_spawner_3d.gd" id="5_efghi"]
+[ext_resource type="PackedScene" uid="uid://fnsnn6jmne4e" path="res://examples/source_3d/prefabs/potato_3d.tscn" id="6_fghij"]
+[ext_resource type="PackedScene" uid="uid://iqvgqalpp67h" path="res://examples/source_3d/prefabs/agent_3d.tscn" id="7_hijkl"]
+[ext_resource type="Script" uid="uid://wovdhsbl3g7k" path="res://examples/shared/many_agents_spawner_3d.gd" id="8_spawn"]
+[ext_resource type="Environment" path="res://examples/source_3d/assets/environment/day_sky_3d.tres" id="9_sky"]
+[ext_resource type="Script" uid="uid://d2g1imengo7ok" path="res://examples/source_3d/assets/camera/camera_follow_3d.gd" id="10_cam"]
+[ext_resource type="PackedScene" uid="uid://c175gqil1di7f" path="res://examples/source_3d/assets/vendored/KayKit_Adventurers/Characters/gltf/Knight.glb" id="11_knight"]
+[ext_resource type="PackedScene" uid="uid://6tnehy36brt4" path="res://examples/source_3d/assets/vendored/KayKit_Adventurers/Characters/gltf/Barbarian.glb" id="12_barb"]
+[ext_resource type="PackedScene" uid="uid://drw7amvckvepy" path="res://examples/source_3d/assets/vendored/KayKit_Adventurers/Characters/gltf/Mage.glb" id="13_mage"]
+[ext_resource type="PackedScene" uid="uid://cbph10y7mwlo7" path="res://examples/source_3d/assets/vendored/KayKit_Adventurers/Characters/gltf/Ranger.glb" id="14_ranger"]
+[ext_resource type="PackedScene" uid="uid://d5xusa837vmo" path="res://examples/source_3d/assets/vendored/KayKit_Adventurers/Characters/gltf/Rogue.glb" id="15_rogue"]
+
+[sub_resource type="Resource" id="Resource_u0rx4"]
+script = ExtResource("2_bcdef")
+
+[sub_resource type="NavigationMesh" id="NavigationMesh_1"]
+vertices = PackedVector3Array(-18, 0.75, -18, -18, 0.75, 18.25, 18.25, 0.75, 18.25, 18.25, 0.75, -18)
+polygons = [PackedInt32Array(3, 2, 0), PackedInt32Array(0, 2, 1)]
+agent_height = 1.0
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_1"]
+albedo_color = Color(0.2, 0.3, 0.2, 1)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_north"]
+size = Vector3(40, 2, 0.5)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_south"]
+size = Vector3(40, 2, 0.5)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_east"]
+size = Vector3(0.5, 2, 40)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_west"]
+size = Vector3(0.5, 2, 40)
+
+[node name="CampfireLarge3D" type="Node3D" unique_id=2104850354]
+
+[node name="GdPAIWorldNode" type="Node" parent="." unique_id=104132721]
+script = ExtResource("1_abcde")
+blackboard_plan = SubResource("Resource_u0rx4")
+
+[node name="Terrain" type="Node3D" parent="." unique_id=1908752925]
+
+[node name="NavigationRegion3D" type="NavigationRegion3D" parent="Terrain" unique_id=328067189]
+navigation_mesh = SubResource("NavigationMesh_1")
+
+[node name="Ground" type="CSGBox3D" parent="Terrain/NavigationRegion3D" unique_id=544870077]
+use_collision = true
+size = Vector3(40, 0.5, 40)
+material = SubResource("StandardMaterial3D_1")
+
+[node name="WallN" type="StaticBody3D" parent="Terrain/NavigationRegion3D" unique_id=1802792720]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, -20)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Terrain/NavigationRegion3D/WallN" unique_id=1387654872]
+shape = SubResource("BoxShape3D_north")
+
+[node name="WallS" type="StaticBody3D" parent="Terrain/NavigationRegion3D" unique_id=1367389032]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 20)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Terrain/NavigationRegion3D/WallS" unique_id=587008011]
+shape = SubResource("BoxShape3D_south")
+
+[node name="WallE" type="StaticBody3D" parent="Terrain/NavigationRegion3D" unique_id=1529231385]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 1, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Terrain/NavigationRegion3D/WallE" unique_id=1861788788]
+shape = SubResource("BoxShape3D_east")
+
+[node name="WallW" type="StaticBody3D" parent="Terrain/NavigationRegion3D" unique_id=481072328]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 1, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Terrain/NavigationRegion3D/WallW" unique_id=1483325765]
+shape = SubResource("BoxShape3D_west")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="Terrain" unique_id=1661177281]
+transform = Transform3D(0.707107, 0, -0.707107, 0, 1, 0, 0.707107, 0, 0.707107, 0, 10, 0)
+shadow_enabled = true
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="Terrain" unique_id=186654815]
+environment = ExtResource("9_sky")
+
+[node name="Campfire1" parent="Terrain" unique_id=112602962 instance=ExtResource("3_cdefg")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, -14)
+
+[node name="Campfire2" parent="Terrain" unique_id=988743165 instance=ExtResource("3_cdefg")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, -10)
+
+[node name="Campfire3" parent="Terrain" unique_id=1658925600 instance=ExtResource("3_cdefg")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, -6)
+
+[node name="Campfire4" parent="Terrain" unique_id=1099262695 instance=ExtResource("3_cdefg")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, -2)
+
+[node name="Campfire5" parent="Terrain" unique_id=535736710 instance=ExtResource("3_cdefg")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 2)
+
+[node name="Campfire6" parent="Terrain" unique_id=476147058 instance=ExtResource("3_cdefg")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 6)
+
+[node name="Campfire7" parent="Terrain" unique_id=1106714715 instance=ExtResource("3_cdefg")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 10)
+
+[node name="Campfire8" parent="Terrain" unique_id=431802306 instance=ExtResource("3_cdefg")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 14)
+
+[node name="WoodPileNW" parent="Terrain" unique_id=1026334464 instance=ExtResource("4_defgh")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16, 0.25, -16)
+
+[node name="WoodPileNE" parent="Terrain" unique_id=1053241529 instance=ExtResource("4_defgh")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 0.25, -16)
+
+[node name="WoodPileSW" parent="Terrain" unique_id=503456995 instance=ExtResource("4_defgh")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16, 0.25, 16)
+
+[node name="WoodPileSE" parent="Terrain" unique_id=821944872 instance=ExtResource("4_defgh")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 0.25, 16)
+
+[node name="PotatoSpawner" type="Node" parent="Terrain" unique_id=93294109]
+script = ExtResource("5_efghi")
+potato_scene = ExtResource("6_fghij")
+spawn_area_position = Vector3(-18, 0.25, -18)
+spawn_area_size = Vector3(36, 1, 36)
+max_potatoes = 8
+
+[node name="AgentSpawner" type="Node" parent="." unique_id=1807746417]
+script = ExtResource("8_spawn")
+agent_scene = ExtResource("7_hijkl")
+skins = Array[PackedScene]([ExtResource("11_knight"), ExtResource("12_barb"), ExtResource("13_mage"), ExtResource("14_ranger"), ExtResource("15_rogue")])
+camera_rig_path = NodePath("../CameraRig")
+
+[node name="CameraRig" type="Node3D" parent="." unique_id=1588773727]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 0)
+script = ExtResource("10_cam")
+
+[node name="SpringArm3D" type="SpringArm3D" parent="CameraRig" unique_id=871104953]
+transform = Transform3D(0.71091354, 0.55089766, -0.43716547, 0, 0.62161, 0.7833269, 0.7032794, -0.55687773, 0.44191095, 0, 0, 0)
+spring_length = 8.0
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig/SpringArm3D" unique_id=1748972517]
+current = true
