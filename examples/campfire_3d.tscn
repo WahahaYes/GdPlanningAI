@@ -8,6 +8,7 @@
 [ext_resource type="PackedScene" uid="uid://fnsnn6jmne4e" path="res://examples/source_3d/prefabs/potato_3d.tscn" id="6_fghij"]
 [ext_resource type="PackedScene" uid="uid://iqvgqalpp67h" path="res://examples/source_3d/prefabs/agent_3d.tscn" id="7_hijkl"]
 [ext_resource type="Script" uid="uid://d2g1imengo7ok" path="res://examples/source_3d/assets/camera/camera_follow_3d.gd" id="8_wk5lb"]
+[ext_resource type="Resource" path="res://examples/source_3d/assets/environment/day_sky_3d.tres" id="9_sky"]
 [sub_resource type="Resource" id="Resource_u0rx4"]
 script = ExtResource("2_bcdef")
 
@@ -30,20 +31,6 @@ size = Vector3(0.5, 2, 20)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_wr75a"]
 size = Vector3(0.5, 2, 20)
-
-[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_ymcfs"]
-sky_top_color = Color(0.38, 0.45, 0.55, 1)
-sky_horizon_color = Color(0.65, 0.67, 0.7, 1)
-ground_bottom_color = Color(0.2, 0.17, 0.13, 1)
-ground_horizon_color = Color(0.65, 0.67, 0.7, 1)
-
-[sub_resource type="Sky" id="Sky_wk5lb"]
-sky_material = SubResource("ProceduralSkyMaterial_ymcfs")
-
-[sub_resource type="Environment" id="Environment_1112p"]
-background_mode = 2
-sky = SubResource("Sky_wk5lb")
-ambient_light_source = 3
 
 [node name="Campfire3D" type="Node3D" unique_id=189768251]
 
@@ -93,7 +80,7 @@ transform = Transform3D(0.707107, 0, -0.707107, 0, 1, 0, 0.707107, 0, 0.707107, 
 shadow_enabled = true
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="Terrain" unique_id=490112874]
-environment = SubResource("Environment_1112p")
+environment = ExtResource("9_sky")
 
 [node name="Campfire" parent="Terrain" unique_id=30708794 instance=ExtResource("3_cdefg")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 0)
