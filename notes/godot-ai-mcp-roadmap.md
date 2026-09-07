@@ -163,7 +163,8 @@ Both campfire scenes hunger-mirrored and verified live. Remaining: navmesh bake 
 ## Follow-up — Campfire 3D Hookup (2026-09-07)
 
 - All prefab work applied: skinned Knight agent, particle campfire, log-stack piles, reskinned potato, shared day sky. Scene-side changes are two heights only — `Agent1` y 0.5→0.25 (collider realignment), spawner y 0.5→0.25 (new potato origin at ground). Campfire/pile instances already sat at 0.25.
-- `test/integration/test_campfire_3d_scene.gd` (6 tests): agent rest height, skin + socket present, fire particles, 4× LogStack, half-full start, spawner keeps 5 potatoes seated at 0.25. All pass.
+- `test/integration/test_campfire_3d_scene.gd` (7 tests): agent rest height, skin + socket present, fire particles, 4× LogStack, half-full start, spawner keeps 5 seated potatoes, pile push-out, campfire avoidance. All pass.
+- Layout: piles out to (±7, ±3.5) (~7.8m from fire); `PotatoSpawner3D` rejects points inside 5m of any `CampfireObject` (positions gathered at ready, best-of-16 fallback). Pinned by push-out + avoidance tests.
 
 ## Follow-up — Showcase Idle Pauses + Walk-Loop Fix (2026-09-07)
 

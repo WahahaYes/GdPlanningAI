@@ -87,11 +87,29 @@ func test_campfire_starts_half_full() -> void:
 	assert_almost_eq(campfire.current_fuel, 50.0, 1.0)
 
 
-func test_spawner_populates_potatoes() -> void:
+func test_wood_piles_pushed_out() -> void:
+	var scene: Node3D = _make_scene()
+	await _pump_frames(5)
+	for pile_name in ["WoodPile1", "WoodPile2", "WoodPile3", "WoodPile4"]:
+		var pile: Node3D = scene.get_node("Terrain/" + pile_name) as Node3D
+		var flat: Vector2 = Vector2(pile.position.x, pile.position.z)
+		assert_true(
+			flat.length() >= 7.0 and flat.length() <= 9.5,
+			"%s should sit well out from the campfire but inside the grounds" % pile_name
+		)
+
+
+func test_potatoes_avoid_campfire() -> void:
 	var scene: Node3D = _make_scene()
 	await _pump_frames(10)
+	var campfire: Node3D = scene.get_node("Terrain/Campfire") as Node3D
 	var potatoes: Array[Node] = scene.find_children("*", "PotatoObject", true, false)
 	assert_eq(potatoes.size(), 5, "Spawner should keep five potatoes in the scene")
 	for potato_node in potatoes:
 		var potato_entity: Node3D = (potato_node as Node).get_parent() as Node3D
 		assert_almost_eq(potato_entity.position.y, 0.25, 0.05)
+		var flat: Vector2 = Vector2(
+			potato_entity.position.x - campfire.position.x,
+			potato_entity.position.z - campfire.position.z
+		)
+		assert_true(flat.length() >= 5.0, "Potatoes should spawn outside the campfire disc")
