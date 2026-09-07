@@ -102,11 +102,12 @@ func _setup_campfire_scene() -> Dictionary:
 
 	await _pump_frames(10)
 
-	var campfire_entity: Node = scene.get_node("Campfire")
+	var campfire_entity: Node = scene.get_node("Terrain/Campfire")
 	var agent_entity: Node = scene.get_node("Agent1")
 	var campfire: CampfireObject = GdPAIUTILS.get_child_of_type(campfire_entity, CampfireObject)
 	var agent: GdPAIAgent = GdPAIUTILS.get_child_of_type(agent_entity, GdPAIAgent)
 	agent.set_planning_strategy(GdPAIAgentConfig.PlanningStrategy.ON_DEMAND)
+	assert_almost_eq(campfire.current_fuel, 50.0, 1.0, "Campfire should start half-full")
 
 	return {"agent": agent, "campfire": campfire, "scene": scene}
 

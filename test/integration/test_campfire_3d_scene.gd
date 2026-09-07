@@ -78,6 +78,15 @@ func test_wood_piles_use_log_stacks() -> void:
 		)
 
 
+func test_campfire_starts_half_full() -> void:
+	var scene: Node3D = _make_scene()
+	await _pump_frames(5)
+	var campfire: CampfireObject = GdPAIUTILS.get_child_of_type(
+		scene.get_node("Terrain/Campfire"), CampfireObject
+	)
+	assert_almost_eq(campfire.current_fuel, 50.0, 1.0)
+
+
 func test_spawner_populates_potatoes() -> void:
 	var scene: Node3D = _make_scene()
 	await _pump_frames(10)
