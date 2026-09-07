@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c42c4gc6885ib"
-path="res://.godot/imported/Run.png-26c7d6d4252c70299ee0b634cd391a54.ctex"
+uid="uid://05slhr6k4wdg"
+path="res://.godot/imported/Bushe1.png-66aaeea8842dd667b1d181440cb67a16.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://examples/source_2d/assets/world/TinySwordsPack/Units/Red Units/Monk/Run.png"
-dest_files=["res://.godot/imported/Run.png-26c7d6d4252c70299ee0b634cd391a54.ctex"]
+source_file="res://examples/source_2d/assets/vendored/TinySwordsPack/Decorations/Bushes/Bushe1.png"
+dest_files=["res://.godot/imported/Bushe1.png-66aaeea8842dd667b1d181440cb67a16.ctex"]
 
 [params]
 

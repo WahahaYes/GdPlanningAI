@@ -1,8 +1,8 @@
 [gd_scene format=3 uid="uid://b1bmo16x83s1x"]
 
-[ext_resource type="Texture2D" uid="uid://cqi0wac4ge1bd" path="res://examples/source_2d/assets/world/TinySwordsPack/Units/Blue Units/Monk/Idle.png" id="1_15dhw"]
+[ext_resource type="Texture2D" uid="uid://cqi0wac4ge1bd" path="res://examples/source_2d/assets/vendored/TinySwordsPack/Units/Blue Units/Monk/Idle.png" id="1_15dhw"]
 [ext_resource type="Script" uid="uid://bgo110tgx4jqg" path="res://examples/source_2d/assets/agent/nav_controller.gd" id="2_4rrwl"]
-[ext_resource type="Texture2D" uid="uid://cs23a6arviecd" path="res://examples/source_2d/assets/world/TinySwordsPack/Units/Blue Units/Monk/Run.png" id="2_6mdly"]
+[ext_resource type="Texture2D" uid="uid://cs23a6arviecd" path="res://examples/source_2d/assets/vendored/TinySwordsPack/Units/Blue Units/Monk/Run.png" id="2_6mdly"]
 [ext_resource type="Script" uid="uid://bt7mjof754vo2" path="res://examples/shared/ui/agent_debug_label.gd" id="3_3tmg3"]
 [ext_resource type="Script" uid="uid://d3r021cr26vcd" path="res://examples/source_2d/assets/agent/agent_animator.gd" id="4_6mdly"]
 [ext_resource type="Script" uid="uid://dadt3s5cpl0e5" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_agent.gd" id="4_7hb32"]

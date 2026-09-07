@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cbeuhru62fq5x"
-path="res://.godot/imported/Sheep_Grass.png-2bf2c40a1ffff26666ccdf442c8a43cd.ctex"
+uid="uid://cs23a6arviecd"
+path="res://.godot/imported/Run.png-da6d7066131c52a057b9943cd319f0b3.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://examples/source_2d/assets/world/TinySwordsPack/Decorations/Sheep/Sheep_Grass.png"
-dest_files=["res://.godot/imported/Sheep_Grass.png-2bf2c40a1ffff26666ccdf442c8a43cd.ctex"]
+source_file="res://examples/source_2d/assets/vendored/TinySwordsPack/Units/Blue Units/Monk/Run.png"
+dest_files=["res://.godot/imported/Run.png-da6d7066131c52a057b9943cd319f0b3.ctex"]
 
 [params]
 

@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://q2fjs1sp167s"
-path="res://.godot/imported/Water Background color.png-06c9232c54bfff3724a53f39ea820b5d.ctex"
+uid="uid://bve03skwqh6g"
+path="res://.godot/imported/Tilemap_color1.png-5b894c157b4d849b6cc338626ce36709.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://examples/source_2d/assets/world/TinySwordsPack/Terrain/Water Background color.png"
-dest_files=["res://.godot/imported/Water Background color.png-06c9232c54bfff3724a53f39ea820b5d.ctex"]
+source_file="res://examples/source_2d/assets/vendored/TinySwordsPack/Terrain/Tilemap_color1.png"
+dest_files=["res://.godot/imported/Tilemap_color1.png-5b894c157b4d849b6cc338626ce36709.ctex"]
 
 [params]
 

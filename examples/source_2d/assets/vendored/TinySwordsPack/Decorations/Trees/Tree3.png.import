@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cs23a6arviecd"
-path="res://.godot/imported/Run.png-29ddce281dfe95409f4de00f01ce6062.ctex"
+uid="uid://d3ipxyc0fyapi"
+path="res://.godot/imported/Tree3.png-d379545338444add32146bb99c9fb78f.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://examples/source_2d/assets/world/TinySwordsPack/Units/Blue Units/Monk/Run.png"
-dest_files=["res://.godot/imported/Run.png-29ddce281dfe95409f4de00f01ce6062.ctex"]
+source_file="res://examples/source_2d/assets/vendored/TinySwordsPack/Decorations/Trees/Tree3.png"
+dest_files=["res://.godot/imported/Tree3.png-d379545338444add32146bb99c9fb78f.ctex"]
 
 [params]
 

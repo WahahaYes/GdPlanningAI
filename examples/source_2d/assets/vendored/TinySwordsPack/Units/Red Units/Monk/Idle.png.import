@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cqi0wac4ge1bd"
-path="res://.godot/imported/Idle.png-79afcaf02692bd9a7c07f072eebd7899.ctex"
+uid="uid://b22ckbemud140"
+path="res://.godot/imported/Idle.png-9d26e4672aac9af0e9707771a05dd7df.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://examples/source_2d/assets/world/TinySwordsPack/Units/Blue Units/Monk/Idle.png"
-dest_files=["res://.godot/imported/Idle.png-79afcaf02692bd9a7c07f072eebd7899.ctex"]
+source_file="res://examples/source_2d/assets/vendored/TinySwordsPack/Units/Red Units/Monk/Idle.png"
+dest_files=["res://.godot/imported/Idle.png-9d26e4672aac9af0e9707771a05dd7df.ctex"]
 
 [params]
 
