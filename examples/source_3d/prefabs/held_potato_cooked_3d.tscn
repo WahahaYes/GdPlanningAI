@@ -1,0 +1,24 @@
+[gd_scene format=3]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_cooked"]
+albedo_color = Color(0.74, 0.47, 0.22, 1)
+roughness = 0.7
+emission_enabled = true
+emission = Color(1, 0.45, 0.12, 1)
+emission_energy_multiplier = 0.5
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_flesh"]
+albedo_color = Color(0.93, 0.82, 0.58, 1)
+roughness = 0.9
+
+[node name="HeldPotatoCooked" type="Node3D"]
+
+[node name="Body" type="CSGSphere3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.8, 0, 0, 0, 1.15, 0, 0, 0)
+radius = 0.25
+material = SubResource("StandardMaterial3D_cooked")
+
+[node name="Split" type="CSGBox3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.17, 0)
+size = Vector3(0.16, 0.04, 0.3)
+material = SubResource("StandardMaterial3D_flesh")
