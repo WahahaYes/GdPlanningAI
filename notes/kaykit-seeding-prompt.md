@@ -32,4 +32,4 @@ You are working on GdPlanningAI's 3D example scene (`examples/campfire_3d.tscn`)
 
 - `Hunger` planner intermittently returns `success=false, Branches: 1` while Maintain-Fire plans execute — uninvestigated.
 - 3D campfire has no carved obstacles, no animator, no orbit acceptance from a human with a mouse.
-- KayKit assets are reserved, not yet wired into any demo.
+- KayKit assets are now wired into the 3D prefabs (Knight skin + anims on the agent, `Wood_Log_B`/`Wood_Log_Stack` in campfire/piles, reskinned potato); remaining art: 4 more skins, hand-hold socket, stone fire-ring.

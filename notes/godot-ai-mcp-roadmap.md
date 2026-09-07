@@ -154,6 +154,12 @@ Both campfire scenes hunger-mirrored and verified live. Remaining: navmesh bake 
 - Mirrored hunger's `Scenery` semantics (`hunger_basic_2d.tscn:21`, `scenery.tscn:185-264` — static world container, actors at root): new `Terrain` (Node3D, identity) parents `NavigationRegion3D`, which parents `Ground` + `WallN/S/E/W`. Gameplay objects, agent, camera rig stay at root (as in `campfire_2d.tscn`).
 - All moves via MCP (`node_create` + `reparent_node`; note `batch_execute` wants `reparent_node`, not `reparent`). Identity parents ⇒ locals == globals, baked mesh stays valid, no rebake. Verified: top-level 13 nodes, cinematic 640px, run live, no errors.
 
+## Follow-up — Campfire 3D Hookup (2026-09-07)
+
+- All prefab work applied: skinned Knight agent, particle campfire, log-stack piles, reskinned potato, shared day sky. Scene-side changes are two heights only — `Agent1` y 0.5→0.25 (collider realignment), spawner y 0.5→0.25 (new potato origin at ground). Campfire/pile instances already sat at 0.25.
+- `test/integration/test_campfire_3d_scene.gd` (5 tests): agent rest height, skin + socket present, fire particles, 4× LogStack, spawner keeps 5 potatoes seated at 0.25. All pass.
+- Pre-existing, unrelated: `test_campfire_example_smoke.gd` (2D) fails on HEAD too — the 2D Terrain cleanup moved `Campfire` under `Terrain` but the test still does `scene.get_node("Campfire")`. Left untouched; one-line test-path fix when 2D is next.
+
 ## Follow-up — Showcase Idle Pauses + Walk-Loop Fix (2026-09-07)
 
 - Walk "not looping" root cause: every Rig_Medium clip imports as `LOOP_NONE`, so `Walking_A` played once (1.07s) then froze mid-stride — idle would have done the same. `agent_skin_3d.gd` now forces `LOOP_LINEAR` on its configured idle/walk pair; one-shots keep imported mode.
