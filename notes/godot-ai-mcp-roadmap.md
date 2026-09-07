@@ -134,6 +134,12 @@ Both campfire scenes hunger-mirrored and verified live. Remaining: navmesh bake 
 - Corrections to earlier claims: the 3D bake WAS on disk all along (4 verts/2 polys @y=0.75) — my `grep vertices=` missed `vertices =` spacing. Nothing baked was lost in surgery.
 - Standing rule: never MCP-reparent instance roots; move plain nodes only, or edit `.tscn` text + `force_reload`.
 
+## Follow-up — Orbit Camera: Drag, Limits, Reset Key (2026-09-07)
+
+- `camera_follow_3d.gd` gained orbit: right/middle-drag rotates the SpringArm (`orbit_pixels`, yaw free, pitch clamped −75°..−15°), wheel zooms (length 4..14), `R` resets pose+zoom. No InputMap changes — raw `_unhandled_input`, so `project.godot` untouched. `lint_style` clean.
+- Verified live, all exact: 200px drag → Δyaw −1.0; pitch slams clamp at −1.309/−0.262; zoom slams at 14/4; `reset_view` restores (−0.9, −0.78, 8). Synthetic `R` keypress via `game_manage input_key` reset a perturbed (−1.28) arm to defaults — full input path proven.
+- Caveats: synthetic mouse-motion via the debugger bridge carries no button mask, so drag itself was proven at unit level (direct calls), not through injected motion — needs a human with a mouse for final acceptance. Helper-eval flakiness (250ms probe vs planner bursts) means orbit tests must run in small evals on a fresh launch; also learned to assert `scene_file_path` in-eval after the Campfire2D-vs-3D mixup parked a run at a break (eval errors, not game errors).
+
 ## Follow-up — Proper 3D Controller + Follow Camera (2026-09-07)
 
 - `nav_controller_3d.gd` upgraded via `script_patch` (clean diagnostics): `acceleration=12`, `turn_speed=10`, `gravity=9.8`, `arrival_threshold=0.2`, XZ smoothing via `lerpf`, yaw facing via `lerp_angle(atan2)`, gravity preserved. `lint_style` clean.
