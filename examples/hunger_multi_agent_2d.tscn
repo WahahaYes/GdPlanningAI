@@ -4,8 +4,8 @@
 [ext_resource type="Script" uid="uid://cvie3m6t7c0hd" path="res://addons/GdPlanningAI/scripts/gdpai_blackboard_plan.gd" id="2_ke3pc"]
 [ext_resource type="PackedScene" uid="uid://d2lr7clv3whwy" path="res://examples/source_2d/prefabs/scenery.tscn" id="3_44q8r"]
 [ext_resource type="PackedScene" uid="uid://b1bmo16x83s1x" path="res://examples/source_2d/prefabs/agent.tscn" id="4_7hegv"]
-[ext_resource type="Texture2D" uid="uid://b22ckbemud140" path="res://examples/source_2d/assets/world/TinySwordsPack/Units/Red Units/Monk/Idle.png" id="5_pks2p"]
-[ext_resource type="Texture2D" uid="uid://c42c4gc6885ib" path="res://examples/source_2d/assets/world/TinySwordsPack/Units/Red Units/Monk/Run.png" id="6_ap5rn"]
+[ext_resource type="Texture2D" uid="uid://b22ckbemud140" path="res://examples/source_2d/assets/vendored/TinySwordsPack/Units/Red Units/Monk/Idle.png" id="5_pks2p"]
+[ext_resource type="Texture2D" uid="uid://c42c4gc6885ib" path="res://examples/source_2d/assets/vendored/TinySwordsPack/Units/Red Units/Monk/Run.png" id="6_ap5rn"]
 [ext_resource type="Script" uid="uid://cqk6cr8e5xkto" path="res://examples/shared/ui/fps_counter.gd" id="7_qcwyv"]
 
 [sub_resource type="Resource" id="Resource_mer3k"]

@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bve03skwqh6g"
-path="res://.godot/imported/Tilemap_color1.png-130a6dde401ea3789feb2899c9ebd261.ctex"
+uid="uid://cbeuhru62fq5x"
+path="res://.godot/imported/Sheep_Grass.png-52f2175a9bab82bcc48735426dcae565.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://examples/source_2d/assets/world/TinySwordsPack/Terrain/Tilemap_color1.png"
-dest_files=["res://.godot/imported/Tilemap_color1.png-130a6dde401ea3789feb2899c9ebd261.ctex"]
+source_file="res://examples/source_2d/assets/vendored/TinySwordsPack/Decorations/Sheep/Sheep_Grass.png"
+dest_files=["res://.godot/imported/Sheep_Grass.png-52f2175a9bab82bcc48735426dcae565.ctex"]
 
 [params]
 

@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://05slhr6k4wdg"
-path="res://.godot/imported/Bushe1.png-1c3268d742a9dc7eadabaf8dc689ce06.ctex"
+uid="uid://cqi0wac4ge1bd"
+path="res://.godot/imported/Idle.png-8d3986450fc5f718f480a3fa6d9991cd.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://examples/source_2d/assets/world/TinySwordsPack/Decorations/Bushes/Bushe1.png"
-dest_files=["res://.godot/imported/Bushe1.png-1c3268d742a9dc7eadabaf8dc689ce06.ctex"]
+source_file="res://examples/source_2d/assets/vendored/TinySwordsPack/Units/Blue Units/Monk/Idle.png"
+dest_files=["res://.godot/imported/Idle.png-8d3986450fc5f718f480a3fa6d9991cd.ctex"]
 
 [params]
 

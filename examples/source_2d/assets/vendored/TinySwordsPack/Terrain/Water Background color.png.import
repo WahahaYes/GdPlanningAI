@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://b22ckbemud140"
-path="res://.godot/imported/Idle.png-35796e24bf624fae4329ac4d55680971.ctex"
+uid="uid://q2fjs1sp167s"
+path="res://.godot/imported/Water Background color.png-dc8c9c992ff6dd88addfbe2a6c383ea8.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://examples/source_2d/assets/world/TinySwordsPack/Units/Red Units/Monk/Idle.png"
-dest_files=["res://.godot/imported/Idle.png-35796e24bf624fae4329ac4d55680971.ctex"]
+source_file="res://examples/source_2d/assets/vendored/TinySwordsPack/Terrain/Water Background color.png"
+dest_files=["res://.godot/imported/Water Background color.png-dc8c9c992ff6dd88addfbe2a6c383ea8.ctex"]
 
 [params]
 
