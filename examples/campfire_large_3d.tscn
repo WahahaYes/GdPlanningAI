@@ -8,13 +8,14 @@
 [ext_resource type="PackedScene" uid="uid://fnsnn6jmne4e" path="res://examples/source_3d/prefabs/potato_3d.tscn" id="6_fghij"]
 [ext_resource type="PackedScene" uid="uid://iqvgqalpp67h" path="res://examples/source_3d/prefabs/agent_3d.tscn" id="7_hijkl"]
 [ext_resource type="Script" uid="uid://wovdhsbl3g7k" path="res://examples/shared/many_agents_spawner_3d.gd" id="8_spawn"]
-[ext_resource type="Environment" path="res://examples/source_3d/assets/environment/day_sky_3d.tres" id="9_sky"]
+[ext_resource type="Environment" uid="uid://da3g6trm8sfmb" path="res://examples/source_3d/assets/environment/day_sky_3d.tres" id="9_sky"]
 [ext_resource type="Script" uid="uid://d2g1imengo7ok" path="res://examples/source_3d/assets/camera/camera_follow_3d.gd" id="10_cam"]
 [ext_resource type="PackedScene" uid="uid://c175gqil1di7f" path="res://examples/source_3d/assets/vendored/KayKit_Adventurers/Characters/gltf/Knight.glb" id="11_knight"]
 [ext_resource type="PackedScene" uid="uid://6tnehy36brt4" path="res://examples/source_3d/assets/vendored/KayKit_Adventurers/Characters/gltf/Barbarian.glb" id="12_barb"]
 [ext_resource type="PackedScene" uid="uid://drw7amvckvepy" path="res://examples/source_3d/assets/vendored/KayKit_Adventurers/Characters/gltf/Mage.glb" id="13_mage"]
 [ext_resource type="PackedScene" uid="uid://cbph10y7mwlo7" path="res://examples/source_3d/assets/vendored/KayKit_Adventurers/Characters/gltf/Ranger.glb" id="14_ranger"]
 [ext_resource type="PackedScene" uid="uid://d5xusa837vmo" path="res://examples/source_3d/assets/vendored/KayKit_Adventurers/Characters/gltf/Rogue.glb" id="15_rogue"]
+[ext_resource type="PackedScene" uid="uid://cvifdve7mwtxs" path="res://examples/source_3d/assets/vendored/KayKit_Adventurers/Characters/gltf/Rogue_Hooded.glb" id="16_rogue_hooded"]
 
 [sub_resource type="Resource" id="Resource_u0rx4"]
 script = ExtResource("2_bcdef")
@@ -132,7 +133,7 @@ max_potatoes = 8
 [node name="AgentSpawner" type="Node" parent="." unique_id=1807746417]
 script = ExtResource("8_spawn")
 agent_scene = ExtResource("7_hijkl")
-skins = Array[PackedScene]([ExtResource("11_knight"), ExtResource("12_barb"), ExtResource("13_mage"), ExtResource("14_ranger"), ExtResource("15_rogue")])
+skins = Array[PackedScene]([ExtResource("11_knight"), ExtResource("12_barb"), ExtResource("13_mage"), ExtResource("14_ranger"), ExtResource("15_rogue"), ExtResource("16_rogue_hooded")])
 camera_rig_path = NodePath("../CameraRig")
 
 [node name="CameraRig" type="Node3D" parent="." unique_id=1588773727]

@@ -9,7 +9,7 @@ extends Node
 ## Agent packed scene to instantiate.
 @export var agent_scene: PackedScene
 ## Number of agents to spawn.
-@export var agent_count: int = 16
+@export var agent_count: int = 6
 ## Minimum corner of the spawn volume.
 @export var spawn_min: Vector3 = Vector3(-16, 0.25, -16)
 ## Maximum corner of the spawn volume.

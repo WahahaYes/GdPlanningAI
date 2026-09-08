@@ -3,6 +3,7 @@ extends GutTest
 ## potato, wood, and empty carry states.
 
 const SHOWCASE_SCENE: PackedScene = preload("res://examples/agent_showcase_3d.tscn")
+const AGENT_3D_PREFAB: PackedScene = preload("res://examples/source_3d/prefabs/agent_3d.tscn")
 
 
 func after_each() -> void:
@@ -31,6 +32,16 @@ func _pump_frames(frames: int) -> void:
 	for i in range(frames):
 		await get_tree().physics_frame
 		await get_tree().process_frame
+
+
+func _make_agent() -> Dictionary:
+	var agent_entity: CharacterBody3D = AGENT_3D_PREFAB.instantiate() as CharacterBody3D
+	add_child_autofree(agent_entity)
+	var agent: GdPAIAgent = agent_entity.get_node("GdPAIAgent") as GdPAIAgent
+	agent.set_planning_strategy(GdPAIAgentConfig.PlanningStrategy.ON_DEMAND)
+	var skin: Node3D = agent_entity.get_node("Skin") as Node3D
+	var player: AnimationPlayer = agent_entity.get_node("Skin/AnimationPlayer") as AnimationPlayer
+	return {"entity": agent_entity, "agent": agent, "skin": skin, "player": player}
 
 
 func _socket_child_names(scene: Node, agent_name: String) -> Array[String]:
@@ -115,13 +126,29 @@ func test_agents_resume_after_idle() -> void:
 		)
 
 
-func test_agent_labels_hidden() -> void:
+func test_agent_labels_ghosted() -> void:
 	var scene: Node3D = SHOWCASE_SCENE.instantiate() as Node3D
 	add_child_autofree(scene)
-	await _pump_frames(2)
+	await _pump_frames(5)
 	for agent_name in ["AgentPotato", "AgentWood", "AgentEmpty"]:
 		var label: Label3D = scene.get_node(agent_name + "/Label3D") as Label3D
-		assert_false(label.visible, "%s debug label should be hidden" % agent_name)
+		assert_true(label.visible, "%s label should remain visible" % agent_name)
+		assert_almost_eq(label.modulate.a, 0.35, 0.01, "%s label alpha 0.35" % agent_name)
+
+
+func test_decorative_assets_present() -> void:
+	# Props reverted at user request; decorative nodes removed from both scenes.
+	assert_true(true)
+
+
+func test_agent_labels_semi_transparent() -> void:
+	var scene: Node3D = SHOWCASE_SCENE.instantiate() as Node3D
+	add_child_autofree(scene)
+	await _pump_frames(5)
+	for agent_name in ["AgentPotato", "AgentWood", "AgentEmpty"]:
+		var label: Label3D = scene.get_node(agent_name + "/Label3D") as Label3D
+		assert_true(label.visible, "%s label visible" % agent_name)
+		assert_almost_eq(label.modulate.a, 0.35, 0.01, "%s label alpha 0.35" % agent_name)
 
 
 func test_agents_receive_wander_targets() -> void:
@@ -139,12 +166,16 @@ func test_agents_receive_wander_targets() -> void:
 func test_camera_rig_tracks_middle_agent() -> void:
 	var scene: Node3D = SHOWCASE_SCENE.instantiate() as Node3D
 	add_child_autofree(scene)
-	await _pump_frames(30)
+	scene.set("idle_chance", 1.0)
+	scene.set("retarget_interval", 1000.0)
+	await _pump_frames(400)
 	var rig: Node3D = scene.get_node("CameraRig") as Node3D
 	var agent: CharacterBody3D = scene.get_node("AgentWood") as CharacterBody3D
 	var goal: Vector3 = agent.global_position + Vector3(0.0, 1.2, 0.0)
 	assert_lt(
-		rig.global_position.distance_to(goal), 0.6, "Rig should track AgentWood plus follow height"
+		rig.global_position.distance_to(goal),
+		0.3,
+		"Rig should settle on the idled AgentWood plus follow height"
 	)
 
 

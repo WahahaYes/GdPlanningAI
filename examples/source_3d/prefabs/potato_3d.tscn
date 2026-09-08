@@ -45,7 +45,7 @@ material = SubResource("StandardMaterial3D_eye")
 text = "Potato"
 billboard = 1
 pixel_size = 0.01
-modulate = Color(1, 1, 1, 0.6)
+modulate = Color(1, 1, 1, 0.35)
 position = Vector3(0, 0.5, 0)
 
 [node name="GdPAIObjectData" type="Node" parent="." node_paths=PackedStringArray("entity", "interactable_attribs", "location_data")]
