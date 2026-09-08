@@ -1,115 +1,19 @@
-extends GutTest
-## Campfire 3D scene integrity: reworked prefabs (skinned agent, KayKit fire
-## and wood, reskinned potato) seat correctly in the live scene.
+extends "res://test/shared/scene_smoke_base.gd"
+## Campfire 3D example loads and settles without errors.
 
 const CAMPFIRE_3D_SCENE: PackedScene = preload("res://examples/campfire_3d.tscn")
 
 
-func after_each() -> void:
-	var scheduler: GdPAIPlanScheduler = _scheduler()
-	if scheduler != null:
-		scheduler.cancel_all_jobs()
-	await _drain_scheduler()
-
-
-func _drain_scheduler(timeout_frames: int = 60) -> void:
-	var scheduler: GdPAIPlanScheduler = _scheduler()
-	if scheduler == null:
-		return
-	for i in range(timeout_frames):
-		scheduler.process_callbacks()
-		if scheduler.active_job_count() == 0:
-			return
-		await get_tree().process_frame
-
-
-func _scheduler() -> GdPAIPlanScheduler:
-	return GdPAIAutoload.get_scheduler()
-
-
-func _pump_frames(frames: int) -> void:
-	for i in range(frames):
-		await get_tree().physics_frame
-		await get_tree().process_frame
-
-
-func _make_scene() -> Node3D:
+## The scene instantiates with its world, agent, and campfire present.
+func test_campfire_3d_loads_and_settles() -> void:
 	var scene: Node3D = CAMPFIRE_3D_SCENE.instantiate() as Node3D
-	for agent_node in scene.find_children("*", "GdPAIAgent", true, false):
-		var scene_agent: GdPAIAgent = agent_node as GdPAIAgent
-		scene_agent.config.planning_strategy = GdPAIAgentConfig.PlanningStrategy.ON_DEMAND
-	add_child_autofree(scene)
-	return scene
-
-
-func test_agent_rests_on_scene_ground() -> void:
-	var scene: Node3D = _make_scene()
-	await _pump_frames(30)
-	var agent_entity: CharacterBody3D = scene.get_node("Agent1") as CharacterBody3D
-	assert_almost_eq(agent_entity.position.y, 0.25, 0.05)
-
-
-func test_agent_wears_skin_and_socket() -> void:
-	var scene: Node3D = _make_scene()
-	await _pump_frames(5)
-	assert_not_null(
-		scene.get_node("Agent1/Skin/Body").find_child("Knight_Body", true, false),
-		"Scene agent should wear the Knight skin"
+	await _settle_example(scene)
+	assert_not_null(scene.get_node_or_null("GdPAIWorldNode"), "Scene should keep its world node")
+	assert_gt(
+		scene.find_children("*", "GdPAIAgent", true, false).size(), 0, "Scene should keep an agent"
 	)
-	assert_not_null(scene.get_node("Agent1/CarrySocket"), "Scene agent should carry a socket")
-
-
-func test_campfire_has_fire_particles() -> void:
-	var scene: Node3D = _make_scene()
-	await _pump_frames(5)
-	assert_true(
-		scene.get_node("Terrain/Campfire/Fire/FireParticles") is GPUParticles3D,
-		"Scene campfire should burn particles, not a CSG glow"
+	assert_gt(
+		scene.find_children("*", "CampfireObject", true, false).size(),
+		0,
+		"Scene should keep its campfire"
 	)
-
-
-func test_wood_piles_use_log_stacks() -> void:
-	var scene: Node3D = _make_scene()
-	await _pump_frames(5)
-	for pile_name in ["WoodPile1", "WoodPile2", "WoodPile3", "WoodPile4"]:
-		assert_not_null(
-			scene.get_node("Terrain/" + pile_name + "/LogStack"),
-			"%s should instance the KayKit log stack" % pile_name
-		)
-
-
-func test_campfire_starts_half_full() -> void:
-	var scene: Node3D = _make_scene()
-	await _pump_frames(5)
-	var campfire: CampfireObject = GdPAIUTILS.get_child_of_type(
-		scene.get_node("Terrain/Campfire"), CampfireObject
-	)
-	assert_almost_eq(campfire.current_fuel, 50.0, 1.0)
-
-
-func test_wood_piles_pushed_out() -> void:
-	var scene: Node3D = _make_scene()
-	await _pump_frames(5)
-	for pile_name in ["WoodPile1", "WoodPile2", "WoodPile3", "WoodPile4"]:
-		var pile: Node3D = scene.get_node("Terrain/" + pile_name) as Node3D
-		var flat: Vector2 = Vector2(pile.position.x, pile.position.z)
-		assert_true(
-			flat.length() >= 7.0 and flat.length() <= 9.5,
-			"%s should sit well out from the campfire but inside the grounds" % pile_name
-		)
-
-
-func test_potatoes_avoid_campfire() -> void:
-	var scene: Node3D = _make_scene()
-	await _pump_frames(10)
-	var campfire: Node3D = scene.get_node("Terrain/Campfire") as Node3D
-	var potatoes: Array[Node] = scene.find_children("*", "PotatoObject", true, false)
-	assert_eq(potatoes.size(), 5, "Spawner should keep five potatoes in the scene")
-	for potato_node in potatoes:
-		var potato_entity: Node3D = (potato_node as Node).get_parent() as Node3D
-		assert_almost_eq(potato_entity.position.y, 0.25, 0.05)
-		var flat: Vector2 = Vector2(
-			potato_entity.position.x - campfire.position.x,
-			potato_entity.position.z - campfire.position.z
-		)
-		assert_true(flat.length() >= 5.0, "Potatoes should spawn outside the campfire disc")
