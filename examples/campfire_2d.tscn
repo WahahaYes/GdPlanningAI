@@ -7,6 +7,7 @@
 [ext_resource type="PackedScene" uid="uid://d01m7o2q5s8t4" path="res://examples/source_2d/prefabs/agent_2d.tscn" id="5_defgh"]
 [ext_resource type="Script" uid="uid://b6narlglj2q5e" path="res://examples/shared/systems/potato_spawner/potato_spawner_2d.gd" id="6_efghi"]
 [ext_resource type="PackedScene" uid="uid://dyak5m0n3p6q2" path="res://examples/source_2d/prefabs/potato_2d.tscn" id="7_fghij"]
+
 [sub_resource type="Resource" id="Resource_u0rx4"]
 script = ExtResource("2_abcde")
 
