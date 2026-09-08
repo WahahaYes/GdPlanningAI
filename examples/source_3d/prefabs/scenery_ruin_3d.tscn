@@ -1,0 +1,14 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" uid="uid://cq3co0okj0ncs" path="res://examples/source_3d/assets/vendored/KayKit_ResourceBits/Assets/gltf/Stone_Bricks_Stack_Medium.gltf" id="1_visual"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_body"]
+size = Vector3(1.5, 0.65, 1.6)
+
+[node name="SceneryRuin" type="StaticBody3D"]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.325, 0)
+shape = SubResource("BoxShape3D_body")
+
+[node name="Visual" parent="." instance=ExtResource("1_visual")]
