@@ -9,13 +9,17 @@
 [ext_resource type="PackedScene" uid="uid://iqvgqalpp67h" path="res://examples/source_3d/prefabs/agent_3d.tscn" id="7_hijkl"]
 [ext_resource type="Script" uid="uid://d2g1imengo7ok" path="res://examples/source_3d/assets/camera/camera_follow_3d.gd" id="8_wk5lb"]
 [ext_resource type="Environment" uid="uid://da3g6trm8sfmb" path="res://examples/source_3d/assets/environment/day_sky_3d.tres" id="9_sky"]
+[ext_resource type="PackedScene" path="res://examples/source_3d/prefabs/scenery_rock_small_3d.tscn" id="11_rock"]
+[ext_resource type="PackedScene" path="res://examples/source_3d/prefabs/scenery_rock_large_3d.tscn" id="12_rockbig"]
+[ext_resource type="PackedScene" path="res://examples/source_3d/prefabs/scenery_ruin_3d.tscn" id="13_ruin"]
+[ext_resource type="PackedScene" path="res://examples/source_3d/prefabs/scenery_barrel_3d.tscn" id="14_barrel"]
 
 [sub_resource type="Resource" id="Resource_u0rx4"]
 script = ExtResource("2_bcdef")
 
 [sub_resource type="NavigationMesh" id="NavigationMesh_1"]
-vertices = PackedVector3Array(-9, 0.75, -9, -9, 0.75, 9.25, 9.25, 0.75, 9.25, 9.25, 0.75, -9)
-polygons = [PackedInt32Array(3, 2, 0), PackedInt32Array(0, 2, 1)]
+vertices = PackedVector3Array(-9, 0.75, -6.5, -8.5, 0.75, -6.5, -8.25, 0.75, -7.5, -9, 0.75, -9, -7, 0.75, -7.5, -7, 0.75, -9, -7.5, 0.75, -1, -7, 0.75, -0.25, -6.75, 0.75, -0.25, -6.25, 0.75, -1.75, -8.25, 0.75, -5.5, -6.75, 0.75, -5.5, -5.25, 0.75, -1.75, -6.5, 0.75, -7.25, -2.75, 0.75, -7, -2.25, 0.75, -8.5, -0.25, 0.75, -7.5, 1.75, 0.75, -7.5, 1.75, 0.75, -8.25, -0.75, 0.75, -8.75, 3, 0.75, -9, -9, 0.75, -1, -4.25, 0.75, -0.75, -2, 0.75, -6.25, 8.75, 0.75, -8, 9, 0.75, -7.25, 9.25, 0.75, -7.25, 9.25, 0.75, -9, 7.25, 0.75, -8, 5.25, 0.75, -7.75, 5, 0.75, -6.5, 7, 0.75, -6.5, 4.5, 0.75, -9, 3, 1.25, -7.75, 3.25, 1.25, -7, 4, 1.25, -7.25, 3.75, 1.25, -8, -0.75, 0.75, -6.5, 2.5, 0.75, -6, 4.25, 0.75, 0, 4.75, 0.75, -0.5, 3.5, 0.75, -5.75, -4.25, 0.75, -0.25, 6, 0.75, -0.75, 6.75, 0.75, 0.25, 7, 0.75, 0, 7, 0.75, -1, 9.25, 0.75, -1.75, 8.75, 0.75, -6, 7.75, 0.75, -2, 7.25, 0.75, -6, 0.5, 0.75, 9.25, 0.5, 0.75, 9, -0.5, 0.75, 8.75, -3, 0.75, 8.75, -4.25, 0.75, 9, -4.25, 0.75, 9.25, 4, 0.75, 6, 4.5, 0.75, 1.25, -5.75, 0.75, 0.75, -7, 0.75, 1.75, -3, 0.75, 6.25, -0.5, 0.75, 7.25, 1.25, 0.75, 7, -4.75, 0.75, 0.75, -8, 0.75, 5, -5.5, 0.75, 6, -7, 0.75, 6, 1.5, 0.75, 7.5, 4, 0.75, 7.5, 5.25, 0.75, 5.75, 5.25, 0.75, 1.75, -9, 0.75, 2, -9, 0.75, 5, 1.5, 0.75, 8.75, 9.25, 0.75, 9.25, 6, 0.75, 8, 4.25, 0.75, 8.25, 8, 0.75, 1, 6.5, 0.75, 1.5, 6, 0.75, 6, 9.25, 0.75, 1, -9, 1.25, 0.25, -9, 1.25, 0.75, -8, 1.25, 0.75, -8, 1.25, 0.25, -8.75, 1.75, 6.75, -8.25, 1.75, 7, -8.25, 1.75, 6.25, -8.75, 1.75, 6, -6, 0.75, 6.5, -7, 0.75, 7, -6, 0.75, 8.5, -7.75, 0.75, 8, -5.5, 0.75, 9, -9, 0.75, 9.25, -9, 0.75, 8, -4.75, 1.25, 7, -4.75, 1.25, 8, -4.25, 1.25, 8, -4.25, 1.25, 7)
+polygons = [PackedInt32Array(1, 0, 2), PackedInt32Array(2, 0, 3), PackedInt32Array(4, 2, 5), PackedInt32Array(5, 2, 3), PackedInt32Array(7, 6, 8), PackedInt32Array(8, 6, 9), PackedInt32Array(0, 1, 10), PackedInt32Array(12, 9, 11), PackedInt32Array(11, 9, 10), PackedInt32Array(4, 5, 13), PackedInt32Array(13, 5, 14), PackedInt32Array(14, 5, 15), PackedInt32Array(18, 17, 16), PackedInt32Array(16, 19, 18), PackedInt32Array(18, 19, 20), PackedInt32Array(6, 21, 9), PackedInt32Array(9, 21, 10), PackedInt32Array(10, 21, 0), PackedInt32Array(14, 23, 13), PackedInt32Array(13, 23, 11), PackedInt32Array(11, 23, 12), PackedInt32Array(12, 23, 22), PackedInt32Array(5, 19, 15), PackedInt32Array(5, 20, 19), PackedInt32Array(25, 24, 26), PackedInt32Array(26, 24, 27), PackedInt32Array(27, 24, 28), PackedInt32Array(30, 29, 31), PackedInt32Array(31, 29, 28), PackedInt32Array(29, 32, 28), PackedInt32Array(28, 32, 27), PackedInt32Array(36, 35, 33), PackedInt32Array(33, 35, 34), PackedInt32Array(16, 17, 37), PackedInt32Array(37, 17, 38), PackedInt32Array(40, 39, 41), PackedInt32Array(41, 39, 23), PackedInt32Array(23, 39, 22), PackedInt32Array(22, 39, 42), PackedInt32Array(38, 41, 37), PackedInt32Array(37, 41, 23), PackedInt32Array(45, 44, 46), PackedInt32Array(46, 44, 43), PackedInt32Array(49, 48, 47), PackedInt32Array(47, 48, 26), PackedInt32Array(48, 25, 26), PackedInt32Array(49, 46, 43), PackedInt32Array(31, 50, 30), PackedInt32Array(30, 50, 41), PackedInt32Array(43, 40, 49), PackedInt32Array(49, 40, 48), PackedInt32Array(48, 40, 50), PackedInt32Array(50, 40, 41), PackedInt32Array(52, 51, 53), PackedInt32Array(53, 51, 54), PackedInt32Array(54, 51, 55), PackedInt32Array(55, 51, 56), PackedInt32Array(39, 58, 57), PackedInt32Array(8, 59, 7), PackedInt32Array(7, 59, 60), PackedInt32Array(63, 62, 61), PackedInt32Array(59, 64, 60), PackedInt32Array(60, 64, 65), PackedInt32Array(65, 64, 66), PackedInt32Array(66, 64, 61), PackedInt32Array(66, 67, 65), PackedInt32Array(68, 63, 69), PackedInt32Array(69, 63, 57), PackedInt32Array(71, 70, 58), PackedInt32Array(58, 70, 57), PackedInt32Array(73, 72, 65), PackedInt32Array(65, 72, 60), PackedInt32Array(64, 42, 61), PackedInt32Array(61, 42, 63), PackedInt32Array(63, 42, 57), PackedInt32Array(57, 42, 39), PackedInt32Array(53, 54, 62), PackedInt32Array(62, 54, 61), PackedInt32Array(52, 74, 51), PackedInt32Array(51, 74, 77), PackedInt32Array(51, 77, 76), PackedInt32Array(51, 76, 75), PackedInt32Array(44, 45, 79), PackedInt32Array(79, 45, 78), PackedInt32Array(80, 70, 71), PackedInt32Array(69, 77, 68), PackedInt32Array(68, 77, 74), PackedInt32Array(75, 76, 80), PackedInt32Array(79, 78, 81), PackedInt32Array(79, 81, 71), PackedInt32Array(71, 81, 80), PackedInt32Array(80, 81, 75), PackedInt32Array(85, 84, 82), PackedInt32Array(82, 84, 83), PackedInt32Array(89, 88, 86), PackedInt32Array(86, 88, 87), PackedInt32Array(91, 67, 90), PackedInt32Array(90, 67, 66), PackedInt32Array(91, 90, 93), PackedInt32Array(93, 90, 92), PackedInt32Array(55, 56, 94), PackedInt32Array(94, 56, 95), PackedInt32Array(96, 93, 95), PackedInt32Array(95, 93, 92), PackedInt32Array(95, 92, 94), PackedInt32Array(100, 99, 97), PackedInt32Array(97, 99, 98)]
 agent_height = 1.0
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_1"]
@@ -75,6 +79,43 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 1, 0)
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Terrain/NavigationRegion3D/WallW" unique_id=724569089]
 shape = SubResource("BoxShape3D_wr75a")
+
+[node name="RockBig1" parent="Terrain/NavigationRegion3D" instance=ExtResource("12_rockbig")]
+transform = Transform3D(0.866025, 0, -0.5, 0, 1, 0, 0.5, 0, 0.866025, -8.5, 0.25, 6.5)
+
+[node name="Ruin1" parent="Terrain/NavigationRegion3D" instance=ExtResource("13_ruin")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.5, 0.25, 7.5)
+
+[node name="Barrel1" parent="Terrain/NavigationRegion3D" instance=ExtResource("14_barrel")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 0.25, 8)
+
+[node name="RockSmall1" parent="Terrain/NavigationRegion3D" instance=ExtResource("11_rock")]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 5, 0.25, 7)
+
+[node name="RockBig2" parent="Terrain/NavigationRegion3D" instance=ExtResource("12_rockbig")]
+transform = Transform3D(-0.5, 0, -0.866025, 0, 1, 0, 0.866025, 0, -0.5, 8.5, 0.25, -0.5)
+
+[node name="Barrel2" parent="Terrain/NavigationRegion3D" instance=ExtResource("14_barrel")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 0.25, -7)
+
+[node name="Ruin2" parent="Terrain/NavigationRegion3D" instance=ExtResource("13_ruin")]
+transform = Transform3D(0.5, 0, -0.866025, 0, 1, 0, 0.866025, 0, 0.5, 3.5, 0.25, -7.5)
+
+[node name="RockSmall2" parent="Terrain/NavigationRegion3D" instance=ExtResource("11_rock")]
+transform = Transform3D(-0.866025, 0, -0.5, 0, 1, 0, 0.5, 0, -0.866025, -1.5, 0.25, -7.5)
+
+[node name="Barrel3" parent="Terrain/NavigationRegion3D" instance=ExtResource("14_barrel")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.5, 0.25, -6.5)
+
+[node name="Ruin3" parent="Terrain/NavigationRegion3D" instance=ExtResource("13_ruin")]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -8.5, 0.25, 0.5)
+
+[node name="RockSmall3" parent="Terrain/NavigationRegion3D" instance=ExtResource("11_rock")]
+transform = Transform3D(0.5, 0, -0.866025, 0, 1, 0, 0.866025, 0, 0.5, 5.5, 0.25, 0.5)
+
+[node name="RockSmall4" parent="Terrain/NavigationRegion3D" instance=ExtResource("11_rock")]
+transform = Transform3D(0.866025, 0, -0.5, 0, 1, 0, 0.5, 0, 0.866025, -5.5, 0.25, -0.5)
+
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="Terrain" unique_id=498954907]
 transform = Transform3D(0.707107, 0, -0.707107, 0, 1, 0, 0.707107, 0, 0.707107, 0, 10, 0)
