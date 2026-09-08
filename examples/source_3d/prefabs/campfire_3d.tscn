@@ -124,7 +124,7 @@ shadow_enabled = true
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
 billboard = 1
 pixel_size = 0.01
-modulate = Color(1, 1, 1, 0.6)
+modulate = Color(1, 1, 1, 0.35)
 text = "Campfire (50%)"
 
 [node name="GdPAIObjectData" type="Node" parent="." unique_id=947345135 node_paths=PackedStringArray("entity", "interactable_attribs", "location_data")]

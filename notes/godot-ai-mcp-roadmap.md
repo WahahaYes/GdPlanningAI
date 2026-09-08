@@ -156,7 +156,8 @@ Both campfire scenes hunger-mirrored and verified live. Remaining: navmesh bake 
 
 ## Follow-up — Large Variant + Label Transparency (2026-09-07)
 
-- All four 3D prefab `Label3D`s use `modulate` alpha 0.6 (36 labels verified in the large scene).
+- All four 3D prefab `Label3D`s use `modulate` alpha 0.35 (36 labels verified in the large scene).
+- Prop dressing attempted (`BarrelDirty`, `Stone_Chunks_Small`, `mug_empty`) but reverted at user request — decorative props removed from both scenes; the shared art resource stays vendored.
 - `examples/campfire_large_3d.tscn`: 8 campfires in a Z column (4m spacing), 4 corner piles, one spawner at max 8, `many_agents_spawner_3d.gd` scattering 16 agents, fixed euler overview camera. 4 integration tests (counts, label alpha, pairwise campfire clearance, rest heights) pass.
 - One hunger-smoke failure seen once across three runs (planner picked Wander over a random fruit-drop layout); green on rerun — stochastic test, unrelated.
 

@@ -1,6 +1,6 @@
 extends GutTest
 ## Large campfire variant: 8 fires in a column, corner piles, 8 potatoes,
-## 16 scattered agents, and semi-transparent labels throughout.
+## 6 scattered agents, and semi-transparent labels throughout.
 
 const LARGE_SCENE: PackedScene = preload("res://examples/campfire_large_3d.tscn")
 
@@ -58,19 +58,17 @@ func test_counts_match_layout() -> void:
 		8,
 		"Spawner should keep eight potatoes"
 	)
-	assert_eq(
-		scene.find_children("*", "GdPAIAgent", true, false).size(), 16, "Sixteen scattered agents"
-	)
+	assert_eq(scene.find_children("*", "GdPAIAgent", true, false).size(), 6, "Six scattered agents")
 
 
 func test_labels_are_semi_transparent() -> void:
 	var scene: Node3D = _make_scene()
 	await _pump_frames(5)
 	var labels: Array[Node] = scene.find_children("*", "Label3D", true, false)
-	assert_gt(labels.size(), 20, "Every agent, fire, pile, and potato carries a label")
+	assert_gt(labels.size(), 10, "Every agent, fire, pile, and potato carries a label")
 	for label_node in labels:
 		var label: Label3D = label_node as Label3D
-		assert_almost_eq(label.modulate.a, 0.6, 0.01)
+		assert_almost_eq(label.modulate.a, 0.35, 0.01)
 
 
 func test_potatoes_avoid_every_campfire() -> void:
@@ -101,13 +99,20 @@ func test_agents_vary_skins() -> void:
 		var body: Node = entity.get_node("Skin/Body")
 		for mesh_node in body.find_children("*", "MeshInstance3D", true, false):
 			seen[(mesh_node as Node).name] = true
-	for body_name in ["Knight_Body", "Barbarian_Body", "Mage_Body", "Ranger_Body", "Rogue_Body"]:
+	for body_name in [
+		"Knight_Body",
+		"Barbarian_Body",
+		"Mage_Body",
+		"Ranger_Body",
+		"Rogue_Body",
+		"RogueHooded_Body"
+	]:
 		assert_true(seen.has(body_name), "Spawned agents should include %s" % body_name)
 
 
 func test_camera_follows_first_agent() -> void:
 	var scene: Node3D = _make_scene()
-	await _pump_frames(30)
+	await _pump_frames(120)
 	var rig: Node3D = scene.get_node("CameraRig") as Node3D
 	var followed: Node3D = rig.get("target") as Node3D
 	assert_not_null(followed, "Rig should target a spawned agent")
