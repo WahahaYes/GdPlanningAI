@@ -1,12 +1,7 @@
 title = "Gitleaks config for GdPlanningAI"
 
-[allowlist]
-description = "Allow false positives"
-paths = [
-    "(?i)test",
-    "(?i)example",
-    "README.md",
-    "LICENSE.txt",
-]
-
-# Standard rules are fine - we just want to avoid noise from test files
+# Keep gitleaks' built-in ruleset; without this a custom config replaces it
+# and the hook detects nothing. Add narrow allowlists below for real false
+# positives; do not exclude whole paths such as tests or examples.
+[extend]
+useDefault = true
