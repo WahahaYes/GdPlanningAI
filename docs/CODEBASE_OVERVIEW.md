@@ -127,7 +127,7 @@ Prefer `make` targets over ad hoc commands. Two Makefiles exist.
 
 ### `addons/GdPlanningAI/rust/Makefile`
 
-| Target | Purpose | |--------|---------| | `build-release` | `cargo build --release`, then copies the shared library to `addons/GdPlanningAI/bin/{linux,macos,windows}/`. | | `build-debug`, `build-all`, `clean-binaries` | Other build variants and cleanup. | | `build-linux`, `build-windows` | Cross-compilation (uses `cross`, needs Docker/Podman). | | `test` | `cargo test`. | | `format`, `lint`, `lint-fix` | rustfmt, clippy (errors block), clippy autofix. | | `clean`, `doc` | Cargo clean and `cargo doc`. | | `setup-cross` | Install `cross` for cross-compiling. |
+| Target | Purpose | |--------|---------| | `build-release` | `cargo build --release`, then copies the shared library to `addons/GdPlanningAI/bin/{linux,macos,windows}/`. | | `build-debug`, `build-all`, `clean-binaries` | Other build variants and cleanup. | | `build-linux`, `build-windows` | Cross-compilation with plain `cargo build --target`; Windows links with mingw-w64 (`x86_64-w64-mingw32-gcc`). | | `test` | `cargo test`. | | `format`, `lint`, `lint-fix` | rustfmt, clippy (errors block), clippy autofix. | | `clean`, `doc` | Cargo clean and `cargo doc`. | | `setup-windows` | Add the `x86_64-pc-windows-gnu` rustup target. |
 
 ### Build artifact flow
 
