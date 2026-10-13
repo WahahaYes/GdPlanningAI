@@ -5,10 +5,15 @@ extends Node3D
 ## riding the [SpringArm3D] child tracks the agent without jitter.
 ## Pitch/yaw live on the SpringArm; zoom via its spring length.
 ## Drag with right/middle mouse to orbit (pitch clamps), wheel to zoom,
-## R resets the view. No InputMap actions required.
+## R resets the view, Tab / Shift+Tab switch between the scene's agents.
+## A small controls guide is pinned top-left. No InputMap actions required.
+
+## Controls guide text, below the "Following" line.
+const CONTROLS_TEXT: String = "Right/middle drag: orbit\nWheel: zoom\nR: reset view\nTab / Shift+Tab: switch agent"
 
 ## The node to follow (the Agent1 CharacterBody3D).
-@export var target: Node3D
+@export var target: Node3D:
+	set = _set_target
 ## Height above the target origin.
 @export var height: float = 1.2
 ## Position catch-up speed.
@@ -29,16 +34,24 @@ extends Node3D
 @export var min_length: float = 4.0
 ## Maximum spring arm length when zooming out.
 @export var max_length: float = 14.0
+## Shows the controls guide in the top-left corner.
+@export var show_controls: bool = true
+
+## Controls guide label, when shown.
+var _controls_label: Label
 
 
-## Resolves the default agent when no target is assigned.
+## Resolves the default agent when no target is assigned and builds the guide.
 func _ready() -> void:
+	if show_controls:
+		_build_controls()
 	if target == null:
 		var scene: Node = get_tree().current_scene
 		if scene != null:
 			target = scene.get_node_or_null("Agent1") as Node3D
 	if target == null:
 		target = get_node_or_null("../Agent1") as Node3D
+	_update_controls()
 
 
 ## Tracks the target with frame-rate independent smoothing.
@@ -50,7 +63,7 @@ func _process(delta: float) -> void:
 	global_position = global_position.lerp(goal, rate)
 
 
-## Handles orbit drag, wheel zoom, and the reset key.
+## Handles orbit drag, wheel zoom, the reset key, and agent switching.
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
 		var motion: InputEventMouseMotion = event as InputEventMouseMotion
@@ -61,8 +74,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		_handle_wheel(event as InputEventMouseButton)
 	elif event is InputEventKey:
 		var key: InputEventKey = event as InputEventKey
-		if key.pressed and not key.echo and key.keycode == KEY_R:
+		if not key.pressed or key.echo:
+			return
+		if key.keycode == KEY_R:
 			reset_view()
+			get_viewport().set_input_as_handled()
+		elif key.keycode == KEY_TAB:
+			cycle_target(-1 if key.shift_pressed else 1)
 			get_viewport().set_input_as_handled()
 
 
@@ -107,6 +125,60 @@ func reset_view() -> void:
 		return
 	arm.rotation = Vector3(default_pitch, default_yaw, 0.0)
 	arm.spring_length = default_length
+
+
+## Follows the next (or previous, for negative [param step]) agent in scene order.
+func cycle_target(step: int) -> void:
+	var bodies: Array[Node3D] = follow_candidates()
+	if bodies.is_empty():
+		return
+	var index: int = bodies.find(target)
+	if index < 0:
+		target = bodies[0]
+		return
+	target = bodies[posmod(index + step, bodies.size())]
+
+
+## Returns the bodies of every planning agent in the scene, in tree order.
+func follow_candidates() -> Array[Node3D]:
+	var bodies: Array[Node3D] = []
+	var scene: Node = get_tree().current_scene if get_tree().current_scene != null else get_parent()
+	if scene == null:
+		return bodies
+	for agent in scene.find_children("*", "GdPAIAgent", true, false):
+		var body: Node3D = agent.get_parent() as Node3D
+		if body != null and not bodies.has(body):
+			bodies.append(body)
+	return bodies
+
+
+## Keeps the guide's "Following" line current however the target changes.
+func _set_target(value: Node3D) -> void:
+	target = value
+	_update_controls()
+
+
+## Pins the controls guide to the top-left corner on its own canvas layer.
+func _build_controls() -> void:
+	var layer: CanvasLayer = CanvasLayer.new()
+	layer.name = "ControlsGuide"
+	add_child(layer)
+	_controls_label = Label.new()
+	_controls_label.position = Vector2(12.0, 10.0)
+	_controls_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.9))
+	_controls_label.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.8))
+	_controls_label.add_theme_constant_override("outline_size", 4)
+	_controls_label.add_theme_font_size_override("font_size", 14)
+	_controls_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(_controls_label)
+
+
+## Refreshes the guide with the agent currently followed.
+func _update_controls() -> void:
+	if _controls_label == null:
+		return
+	var following: String = String(target.name) if target != null else "none"
+	_controls_label.text = "Following: %s\n%s" % [following, CONTROLS_TEXT]
 
 
 ## Returns the SpringArm3D child driving the camera.
