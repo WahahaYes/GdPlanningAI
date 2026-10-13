@@ -9,7 +9,9 @@ extends Node3D
 ## A small controls guide is pinned top-left. No InputMap actions required.
 
 ## Controls guide text, below the "Following" line.
-const CONTROLS_TEXT: String = "Right/middle drag: orbit\nWheel: zoom\nR: reset view\nTab / Shift+Tab: switch agent"
+const CONTROLS_TEXT: String = "Right/middle drag: orbit\nWheel: zoom\nR: reset view"
+## Guide line for agent switching, shown only when there is more than one agent.
+const SWITCH_TEXT: String = "Tab / Shift+Tab: switch agent"
 
 ## The node to follow (the Agent1 CharacterBody3D).
 @export var target: Node3D:
@@ -173,12 +175,16 @@ func _build_controls() -> void:
 	layer.add_child(_controls_label)
 
 
-## Refreshes the guide with the agent currently followed.
+## Refreshes the guide with the agent currently followed. The switch line only
+## appears when the scene has more than one agent to follow.
 func _update_controls() -> void:
-	if _controls_label == null:
+	if _controls_label == null or not is_inside_tree():
 		return
 	var following: String = String(target.name) if target != null else "none"
-	_controls_label.text = "Following: %s\n%s" % [following, CONTROLS_TEXT]
+	var text: String = "Following: %s\n%s" % [following, CONTROLS_TEXT]
+	if follow_candidates().size() > 1:
+		text += "\n" + SWITCH_TEXT
+	_controls_label.text = text
 
 
 ## Returns the SpringArm3D child driving the camera.

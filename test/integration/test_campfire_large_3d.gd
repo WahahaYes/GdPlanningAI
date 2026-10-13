@@ -23,7 +23,7 @@ func test_large_campfire_loads_and_settles() -> void:
 func test_camera_rig_cycles_agents_and_shows_controls() -> void:
 	var scene: Node3D = LARGE_SCENE.instantiate() as Node3D
 	await _settle_example(scene)
-	var rig: Node3D = scene.get_node("CameraRig") as Node3D
+	var rig: Node3D = scene.find_child("CameraRig", true, false) as Node3D
 	var bodies: Array[Node3D] = rig.follow_candidates()
 	assert_gt(bodies.size(), 1, "Large scene should offer several agents to follow")
 	var start: Node3D = rig.target

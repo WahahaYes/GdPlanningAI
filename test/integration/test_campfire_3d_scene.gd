@@ -17,3 +17,13 @@ func test_campfire_3d_loads_and_settles() -> void:
 		0,
 		"Scene should keep its campfire"
 	)
+
+
+## With a single agent the guide leaves out the agent-switching line.
+func test_single_agent_guide_omits_switching() -> void:
+	var scene: Node3D = CAMPFIRE_3D_SCENE.instantiate() as Node3D
+	await _settle_example(scene)
+	var rig: Node3D = scene.find_child("CameraRig", true, false) as Node3D
+	var guide: Label = rig.get_node("ControlsGuide").get_child(0) as Label
+	assert_string_contains(guide.text, "R: reset view")
+	assert_false(guide.text.contains("Tab"), "One agent: no switching controls")
