@@ -84,48 +84,47 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 1, 0)
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Terrain/NavigationRegion3D/WallW" unique_id=1483325765]
 shape = SubResource("BoxShape3D_west")
 
-[node name="RockSmallW1" parent="Terrain/NavigationRegion3D" instance=ExtResource("17_rock")]
+[node name="RockSmallW1" parent="Terrain/NavigationRegion3D" unique_id=208578219 instance=ExtResource("17_rock")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9, 0.25, -16)
 
-[node name="RuinW1" parent="Terrain/NavigationRegion3D" instance=ExtResource("19_ruin")]
+[node name="RuinW1" parent="Terrain/NavigationRegion3D" unique_id=2142966663 instance=ExtResource("19_ruin")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -9, 0.25, -8)
 
-[node name="RockBigW" parent="Terrain/NavigationRegion3D" instance=ExtResource("18_rockbig")]
+[node name="RockBigW" parent="Terrain/NavigationRegion3D" unique_id=1346130184 instance=ExtResource("18_rockbig")]
 transform = Transform3D(0.866025, 0, -0.5, 0, 1, 0, 0.5, 0, 0.866025, -9, 0.25, 0)
 
-[node name="RuinW2" parent="Terrain/NavigationRegion3D" instance=ExtResource("19_ruin")]
+[node name="RuinW2" parent="Terrain/NavigationRegion3D" unique_id=593186434 instance=ExtResource("19_ruin")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -9, 0.25, 8)
 
-[node name="RockSmallW2" parent="Terrain/NavigationRegion3D" instance=ExtResource("17_rock")]
+[node name="RockSmallW2" parent="Terrain/NavigationRegion3D" unique_id=761636414 instance=ExtResource("17_rock")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9, 0.25, 16)
 
-[node name="RockSmallE1" parent="Terrain/NavigationRegion3D" instance=ExtResource("17_rock")]
+[node name="RockSmallE1" parent="Terrain/NavigationRegion3D" unique_id=1463878629 instance=ExtResource("17_rock")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9, 0.25, -16)
 
-[node name="RuinE1" parent="Terrain/NavigationRegion3D" instance=ExtResource("19_ruin")]
+[node name="RuinE1" parent="Terrain/NavigationRegion3D" unique_id=1907441944 instance=ExtResource("19_ruin")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 9, 0.25, -8)
 
-[node name="RockBigE" parent="Terrain/NavigationRegion3D" instance=ExtResource("18_rockbig")]
+[node name="RockBigE" parent="Terrain/NavigationRegion3D" unique_id=1831441397 instance=ExtResource("18_rockbig")]
 transform = Transform3D(-0.5, 0, -0.866025, 0, 1, 0, 0.866025, 0, -0.5, 9, 0.25, 0)
 
-[node name="RuinE2" parent="Terrain/NavigationRegion3D" instance=ExtResource("19_ruin")]
+[node name="RuinE2" parent="Terrain/NavigationRegion3D" unique_id=276866554 instance=ExtResource("19_ruin")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 9, 0.25, 8)
 
-[node name="RockSmallE2" parent="Terrain/NavigationRegion3D" instance=ExtResource("17_rock")]
+[node name="RockSmallE2" parent="Terrain/NavigationRegion3D" unique_id=841700011 instance=ExtResource("17_rock")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9, 0.25, 16)
 
-[node name="BarrelNW" parent="Terrain/NavigationRegion3D" instance=ExtResource("20_barrel")]
+[node name="BarrelNW" parent="Terrain/NavigationRegion3D" unique_id=1750357601 instance=ExtResource("20_barrel")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12, 0.25, -12)
 
-[node name="BarrelNE" parent="Terrain/NavigationRegion3D" instance=ExtResource("20_barrel")]
+[node name="BarrelNE" parent="Terrain/NavigationRegion3D" unique_id=347600284 instance=ExtResource("20_barrel")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0.25, -12)
 
-[node name="BarrelSW" parent="Terrain/NavigationRegion3D" instance=ExtResource("20_barrel")]
+[node name="BarrelSW" parent="Terrain/NavigationRegion3D" unique_id=78526231 instance=ExtResource("20_barrel")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12, 0.25, 12)
 
-[node name="BarrelSE" parent="Terrain/NavigationRegion3D" instance=ExtResource("20_barrel")]
+[node name="BarrelSE" parent="Terrain/NavigationRegion3D" unique_id=1561029443 instance=ExtResource("20_barrel")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0.25, 12)
-
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="Terrain" unique_id=1661177281]
 transform = Transform3D(0.707107, 0, -0.707107, 0, 1, 0, 0.707107, 0, 0.707107, 0, 10, 0)
@@ -135,28 +134,13 @@ shadow_enabled = true
 environment = ExtResource("9_sky")
 
 [node name="Campfire1" parent="Terrain" unique_id=112602962 instance=ExtResource("3_cdefg")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, -14)
-
-[node name="Campfire2" parent="Terrain" unique_id=988743165 instance=ExtResource("3_cdefg")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, -10)
 
+[node name="Campfire2" parent="Terrain" unique_id=988743165 instance=ExtResource("3_cdefg")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 0)
+
 [node name="Campfire3" parent="Terrain" unique_id=1658925600 instance=ExtResource("3_cdefg")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, -6)
-
-[node name="Campfire4" parent="Terrain" unique_id=1099262695 instance=ExtResource("3_cdefg")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, -2)
-
-[node name="Campfire5" parent="Terrain" unique_id=535736710 instance=ExtResource("3_cdefg")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 2)
-
-[node name="Campfire6" parent="Terrain" unique_id=476147058 instance=ExtResource("3_cdefg")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 6)
-
-[node name="Campfire7" parent="Terrain" unique_id=1106714715 instance=ExtResource("3_cdefg")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 10)
-
-[node name="Campfire8" parent="Terrain" unique_id=431802306 instance=ExtResource("3_cdefg")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 14)
 
 [node name="WoodPileNW" parent="Terrain" unique_id=1026334464 instance=ExtResource("4_defgh")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16, 0.25, -16)
@@ -181,6 +165,7 @@ max_potatoes = 8
 script = ExtResource("8_spawn")
 agent_scene = ExtResource("7_hijkl")
 skins = Array[PackedScene]([ExtResource("11_knight"), ExtResource("12_barb"), ExtResource("13_mage"), ExtResource("14_ranger"), ExtResource("15_rogue"), ExtResource("16_rogue_hooded")])
+agents_per_campfire = 2
 camera_rig_path = NodePath("../CameraRig")
 
 [node name="CameraRig" type="Node3D" parent="." unique_id=1588773727]
