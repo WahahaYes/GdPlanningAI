@@ -42,3 +42,25 @@ func test_camera_rig_cycles_agents_and_shows_controls() -> void:
 	var guide: Label = rig.get_node("ControlsGuide").get_child(0) as Label
 	assert_string_contains(guide.text, "Following: %s" % rig.target.name)
 	assert_string_contains(guide.text, "Tab")
+
+
+## Each campfire is home to exactly two agents, and every agent tends its own home fire.
+func test_agents_pair_up_on_home_campfires() -> void:
+	var scene: Node3D = LARGE_SCENE.instantiate() as Node3D
+	await _settle_example(scene)
+	var campfires: Array[Node] = scene.find_children("*", "CampfireObject", true, false)
+	assert_eq(campfires.size(), 3, "Large scene keeps three campfires")
+	var tenders: Dictionary = {}
+	for agent_node in scene.find_children("*", "GdPAIAgent", true, false):
+		for goal in (agent_node as GdPAIAgent).goals:
+			if goal is MaintainFireGoal:
+				var group: String = (goal as MaintainFireGoal).campfire_group
+				tenders[group] = tenders.get(group, 0) + 1
+	assert_eq(tenders.size(), 3, "Three home groups, no agent left on any-fire")
+	for group in tenders:
+		assert_eq(tenders[group], 2, "%s should have two agents" % group)
+		var homes: int = 0
+		for campfire in campfires:
+			if campfire.is_in_group(group):
+				homes += 1
+		assert_eq(homes, 1, "%s should hold exactly one campfire" % group)
