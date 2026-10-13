@@ -12,6 +12,8 @@ const MIN_FLAME_SCALE: float = 0.01
 @export var label_node: Node
 ## Visual node scaled to represent the current flame intensity.
 @export var fire_primitive: Node
+## Optional light cast by the fire; switched off while the fire is out.
+@export var fire_light: Node
 
 
 func _process(delta: float) -> void:
@@ -60,3 +62,6 @@ func _update_fire_visuals() -> void:
 		var prim_2d: Node2D = fire_primitive as Node2D
 		prim_2d.visible = lit
 		prim_2d.scale = Vector2(flame_scale, flame_scale)
+
+	if is_instance_valid(fire_light):
+		fire_light.visible = lit
