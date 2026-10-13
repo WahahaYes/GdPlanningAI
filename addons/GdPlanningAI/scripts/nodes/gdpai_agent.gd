@@ -105,6 +105,8 @@ func set_planning_strategy(
 	_planning_strategy = strategy
 
 	if _planning_timer:
+		# Stop first: a queue_freed timer lives until the end of the frame and could still fire.
+		_planning_timer.stop()
 		_planning_timer.queue_free()
 		_planning_timer = null
 
@@ -205,6 +207,9 @@ func _on_plan_ready(result: Dictionary) -> void:
 
 ## Timer callback for interval planning.
 func _on_planning_timer_timeout() -> void:
+	# A timer replaced by set_planning_strategy can still deliver a timeout; ignore it.
+	if _planning_timer == null:
+		return
 	if goals.size() == 0:
 		return
 	if _planning_strategy == GdPAIAgentConfig.PlanningStrategy.ON_INTERVAL_FORCED:
