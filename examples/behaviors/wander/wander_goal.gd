@@ -3,8 +3,15 @@ extends Goal
 ## Goal that drives an agent to move around the environment.
 ##[br]
 ##[br]
-## Fixed reward of 10, making it lower priority than a full-scale hunger crisis but
-## high enough to keep the agent moving when nothing else needs doing.
+## Fixed reward of 5, lower than any hunger above 5 but above zero so the agent keeps
+## moving when nothing else needs doing.
+##[br]
+##[br]
+## The goal is satisfied when the agent's simulated position ends up far enough from
+## where wandering started, which only [WanderAction] can cause in simulation. The check
+## is a custom [Callable] precondition because "far from the origin" is not a property
+## the planner could target by name. Unlike [HungerGoal] it needs no builtin
+## precondition: the single [WanderAction] is always a candidate.
 
 
 # Override
@@ -23,6 +30,8 @@ func get_desired_state(agent: GdPAIAgent) -> Array[Precondition]:
 	)
 	var agent_position = agent_location_data.position
 
+	# Distance threshold is 16 in 2D (pixels) and 1 in 3D (meters), well under the
+	# action's step, so one wander step always satisfies the goal.
 	var far_enough: Callable = func(
 		blackboard: GdPAIBlackboard,
 		_world_state: GdPAIBlackboard,

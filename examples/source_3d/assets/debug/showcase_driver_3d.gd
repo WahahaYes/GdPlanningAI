@@ -4,7 +4,13 @@ extends Node3D
 ##[br]
 ##[br]
 ## Agents are discovered via their [GdPAIAgent] nodes, so the scene stays a
-## plain list of prefab instances with no per-agent override blocks.
+## plain list of prefab instances with no per-agent override blocks.[br]
+##[br]
+## This is a visual showcase, not an example of planning: it switches every agent to
+## on-demand planning (so nothing is ever planned), writes [code]held_item[/code]
+## directly so each agent shows a different carried prop, and walks them around by
+## setting the nav agent targets itself. It exists to inspect skins, animations and
+## carry visuals side by side. For planning behavior, read the campfire scenes.
 
 ## Character looks cycled over the agents.
 @export var skins: Array[PackedScene] = []

@@ -7,6 +7,11 @@ extends Node3D
 ## Drag with right/middle mouse to orbit (pitch clamps), wheel to zoom,
 ## R resets the view, Tab / Shift+Tab switch between the scene's agents.
 ## A small controls guide is pinned top-left. No InputMap actions required.
+##
+## Presentation only: it observes agents and never affects planning. Input is read
+## directly so the example runs without editing the project's InputMap; a real game would
+## bind actions instead. The large scene's spawner assigns [member target] to a spawned
+## agent at startup, which is why the exported target may be empty in the scene.
 
 ## Controls guide text, below the "Following" line.
 const CONTROLS_TEXT: String = "Right/middle drag: orbit\nWheel: zoom\nR: reset view"

@@ -4,7 +4,12 @@ extends GdPAIObjectData
 ##[br]
 ##[br]
 ## Demonstrates a reusable object-side contract for anything that should feed the
-## shared [code]held_item[/code] blackboard flow.
+## shared [code]held_item[/code] blackboard flow.[br]
+##[br]
+## Each holdable offers a [PickupAction] and an [member item_id]. The id is what lands
+## in the agent's [code]held_item[/code] and what later actions match on
+## ([code]binding_equals[/code], or a table lookup in [EatHeldFoodAction]). Subclasses
+## ([FoodObject]) extend the group labels and simulated properties, not the action.
 
 ## Item id stored in the agent's [code]held_item[/code] blackboard property when picked up.
 @export var item_id: String = ""

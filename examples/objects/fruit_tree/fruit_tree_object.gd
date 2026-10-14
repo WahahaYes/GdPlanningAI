@@ -5,11 +5,20 @@ extends GdPAIObjectData
 ##[br]
 ## Demonstrates a [GdPAIObjectData] with external cooldown state: validity checks
 ## on the provided [ShakeTreeAction] inspect [member is_on_cooldown] to prevent
-## agents from targeting a tree that was recently shaken.
+## agents from targeting a tree that was recently shaken.[br]
+##[br]
+## The cooldown is plain scene state ticked in [method _process], not a simulated
+## property. The planner never sees it as data; it only sees whether the action is
+## offered, because the validity check re-reads [member is_on_cooldown] each time actions
+## are collected. That is the pattern to copy for state that is awkward to model in the
+## simulation: keep it live and gate the action on it. The tree also uses a
+## [FoodObject] fruit prefab; fruit are spawned into the scene root when shaken, where
+## [FoodObject]'s own [PickupAction] makes them targets like any other banana.
 
 ## Prefab of the fruit to spawn when the tree is shaken.
 @export var fruit_prefab: PackedScene
-## Radius around the tree in which fruit can land (units match 2D/3D context).
+## Radius around the tree in which fruit can land (units match 2D/3D context: pixels in 2D,
+## meters in 3D).
 @export var drop_distance: float = 128.0
 ## Minimum number of fruit dropped per shake.
 @export var drop_min_amount: int = 1
@@ -30,6 +39,7 @@ var _cooldown_timer: float = 0.0
 
 
 func _process(delta: float) -> void:
+	# The countdown also feeds the optional on-screen display below.
 	if is_on_cooldown:
 		_cooldown_timer += delta
 		if _cooldown_timer >= cooldown_window:

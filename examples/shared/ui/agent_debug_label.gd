@@ -10,7 +10,13 @@ extends Label
 ##[br]
 ##[br]
 ## Float values are automatically truncated to 1 decimal place
-## for cleaner display.
+## for cleaner display.[br]
+##[br]
+## Presentation only. It reads the agent's current goal, current plan step and
+## blackboard each frame to make planning visible while you watch; nothing here affects
+## decisions. [code]debug_properties[/code] picks what to show ([code]hunger[/code] in
+## the hunger scenes, plus [code]held_item[/code] in the campfire scenes, where the
+## held item explains the plan).
 
 ## The agent to display debug info for.
 @export var gdpai_agent: GdPAIAgent
@@ -26,6 +32,7 @@ func _format_value(value: Variant) -> String:
 	return str(value)
 
 
+## Rebuilds the label text from the agent's live planning state every frame.
 func _process(_delta: float) -> void:
 	if not is_instance_valid(gdpai_agent):
 		return
