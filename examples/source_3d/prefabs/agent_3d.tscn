@@ -19,6 +19,10 @@ position = Vector3(0, 0.5, 0)
 shape = SubResource("CylinderShape3D_1")
 
 [node name="NavigationAgent3D" type="NavigationAgent3D" parent="."]
+avoidance_enabled = true
+height = 1.0
+radius = 0.55
+neighbor_distance = 5.0
 
 [node name="Skin" type="Node3D" parent="." node_paths=PackedStringArray("entity")]
 script = ExtResource("7_skin")
