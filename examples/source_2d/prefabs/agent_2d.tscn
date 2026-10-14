@@ -21,6 +21,9 @@ gravity_scale = 0.0
 shape = SubResource("CircleShape2D_1")
 
 [node name="NavigationAgent2D" type="NavigationAgent2D" parent="." unique_id=187020547]
+radius = 18.0
+neighbor_distance = 256.0
+avoidance_enabled = true
 
 [node name="ColorRect" type="ColorRect" parent="." unique_id=271314339]
 offset_left = -12.0

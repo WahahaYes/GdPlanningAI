@@ -1,6 +1,8 @@
 extends Node
 ## Moves a [CharacterBody3D] entity toward the next path position reported by a
-## [NavigationAgent3D] each physics frame.
+## [NavigationAgent3D] each physics frame. With avoidance enabled on the agent,
+## the steering velocity goes through the navigation server and the safe velocity
+## it returns is applied instead.
 
 ## The entity to move.
 @export var entity: CharacterBody3D
@@ -18,9 +20,15 @@ extends Node
 @export var arrival_threshold: float = 0.2
 
 
-## Advances the entity toward the navigation path target with smoothing,
-## facing, and gravity. Horizontal steering follows [NavigationAgent3D]
-## while Y stays physics-driven so the body rests on the ground.
+func _ready() -> void:
+	if nav_agent != null and nav_agent.avoidance_enabled:
+		nav_agent.max_speed = speed
+		nav_agent.velocity_computed.connect(_move)
+
+
+## Steers the entity toward the navigation path target with smoothing.
+## Horizontal steering follows [NavigationAgent3D] while Y stays
+## physics-driven so the body rests on the ground.
 func _physics_process(delta: float) -> void:
 	if entity == null or nav_agent == null:
 		return
@@ -30,10 +38,23 @@ func _physics_process(delta: float) -> void:
 	var desired: Vector3 = Vector3.ZERO
 	if to.length() > arrival_threshold:
 		desired = to.normalized() * speed
-	var current: Vector3 = entity.velocity
 	var rate: float = clampf(acceleration * delta, 0.0, 1.0)
-	current.x = lerpf(current.x, desired.x, rate)
-	current.z = lerpf(current.z, desired.z, rate)
+	var steer: Vector3 = Vector3(
+		lerpf(entity.velocity.x, desired.x, rate), 0.0, lerpf(entity.velocity.z, desired.z, rate)
+	)
+	if nav_agent.avoidance_enabled:
+		# The navigation server answers with velocity_computed, which calls _move.
+		nav_agent.velocity = steer
+	else:
+		_move(steer)
+
+
+## Moves the entity with [param horizontal] velocity, applying gravity and facing.
+func _move(horizontal: Vector3) -> void:
+	var delta: float = get_physics_process_delta_time()
+	var current: Vector3 = entity.velocity
+	current.x = horizontal.x
+	current.z = horizontal.z
 	if not entity.is_on_floor():
 		current.y -= gravity * delta
 	elif current.y < 0.0:

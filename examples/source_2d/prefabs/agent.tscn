@@ -113,6 +113,9 @@ animation = &"Run"
 frame_progress = 0.959604
 
 [node name="NavigationAgent2D" type="NavigationAgent2D" parent="." unique_id=849577233]
+radius = 36.0
+neighbor_distance = 256.0
+avoidance_enabled = true
 
 [node name="DebugLabel" type="Label" parent="." unique_id=1136648016 node_paths=PackedStringArray("gdpai_agent")]
 offset_left = -40.0
