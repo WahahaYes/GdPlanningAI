@@ -1,45 +1,31 @@
 class_name Precondition
 extends RefCounted
-## Preconditions for planning chains of actions.  This class allows for custom preconditions
-## to be defined and evaluated at planning-time.
-##[br]
-##[br]
-## There are static methods, like Precondition.agent_property_greater_than(<prop>, <value>),
-## which will instantiate common preconditions in a single line of code.  Alterantively, custom
-## preconditions can be defined like so:
-##[br]
-##[br]
-## var precondition = Precondition.custom(
-##         func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):[br]
-##     if blackboard.get_property(<prop>) and world_state.get_property(<prop>):[br]
-##         return true[br]
-##     return false[br]
-## )[br]
-##[br]
-##[br]
-## (The above example would check that a property exists / is true for both the agent and world
-## states.)
+## A condition on agent, world or object state, checked against simulated state during
+## planning. Create one with the static constructors.[br]
+## Prefer built-in constructors: the engine evaluates them natively and can search for actions
+## that change the tested property. [method custom] callables are opaque to the search, run on the
+## main thread, and must not use the scene tree or [code]await[/code].
 
 
-## Returns the dictionary representation of this precondition for the Rust bridge.
-## Implemented by [PreconditionBuiltin] and [PreconditionCustom].
+## Returns the engine's view of this precondition. Implemented by subclasses; internal.
 func to_bridge_dict() -> Dictionary:
 	push_error("Precondition.to_bridge_dict must be overridden")
 	return {}
 
 
-## Create a custom precondition that invokes a callable with the agent and world blackboards.
+## Creates a precondition from [param fn]:
+## [code]func(agent_bb: GdPAIBlackboard, world: GdPAIBlackboard) -> bool[/code].
 static func custom(fn: Callable) -> Precondition:
 	return PreconditionCustom.new(fn)
 
 
-## Create a custom precondition with explicit object dependencies.
-## The planner will validate these objects exist before invoking the precondition.
+## Like [method custom], but [code]false[/code] without calling [param fn] once any of
+## [param deps] is freed.
 static func custom_with_deps(fn: Callable, deps: Array[Object]) -> Precondition:
 	return PreconditionCustomWithDeps.new(fn, deps)
 
 
-## Generic function to create property comparison preconditions, eliminating code duplication.
+## Shared factory behind the built-in constructors.
 static func _create_property_precondition(
 	target: PreconditionBuiltin.Target,
 	prop: String,
@@ -123,7 +109,7 @@ static func agent_property_equal_to(
 	)
 
 
-## Instantiate a precondition that checks whether a property in the agent blackboard exists.
+## Instantiate a precondition that checks whether a property in the world blackboard exists.
 static func world_state_has_property(prop: String) -> Precondition:
 	return _create_property_precondition(
 		PreconditionBuiltin.Target.WORLD_STATE, prop, PreconditionBuiltin.Op.HAS_PROPERTY
@@ -286,22 +272,22 @@ static func world_object_has_property(group: String, property: String) -> Precon
 	)
 
 
-## Check if any of the agent's object data matches a requested group.
+## True if the agent owns at least one object data node (such as a [GdPAILocationData]) in
+## [param group], i.e. a simulated proxy for it exists on the agent blackboard.
 static func agent_has_object_data_of_group(group: String) -> Precondition:
 	var check: Callable = func(bb: GdPAIBlackboard, _w: GdPAIBlackboard):
 		return bb.get_proxies_in_group(group).size() > 0
 	return PreconditionCustom.new(check)
 
 
-## Check if any of the world state's object data matches a requested group.
+## True if the world state contains at least one object data node in [param group].
 static func world_state_has_object_data_of_group(group: String) -> Precondition:
 	var check: Callable = func(_b: GdPAIBlackboard, ws: GdPAIBlackboard):
 		return ws.get_proxies_in_group(group).size() > 0
 	return PreconditionCustom.new(check)
 
 
-## Check if a given object is valid.
-## Uses dependency tracking to validate the object exists before planning.
+## True while [param object] has not been freed. Typical in [method Action.get_validity_checks].
 static func check_is_object_valid(object: Variant) -> Precondition:
 	var deps: Array[Object] = []
 	if object is Object:

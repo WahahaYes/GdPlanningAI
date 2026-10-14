@@ -1,12 +1,11 @@
 class_name HungerBehaviorConfig
 extends GdPAIBehaviorConfig
-## Behavior configuration that gives an agent hunger and a goal to eat food.
-##[br]
-##[br]
-## Apply to an agent to add [HungerGoal] and [HungerPropertyUpdater].
-## Configurable via [member hunger_decay] and [member initial_hunger].
+## Hunger behavior: a [HungerGoal], an [EatHeldFoodAction], a [GoToAction] and a
+## [HungerPropertyUpdater], packaged so a scene adds or removes the whole concern at once.[br]
+## An agent config can list several behavior configs; the agent merges their goals, actions
+## and updaters, and the planner picks among all goals.
 
-## How much hunger drops per second.
+## Hunger gained per second (0 is full, 100 is starving).
 @export var hunger_decay: float = 1.25
 ## Starting hunger value on agent initialization.
 @export var initial_hunger: float = 0.0
@@ -15,9 +14,9 @@ extends GdPAIBehaviorConfig
 	"banana": 20.0,
 	"cooked_potato": 50.0,
 }
-## How long the self-eating action should take in seconds.
+## Seconds to eat.
 @export var eat_duration: float = 1.5
-## Planning-only hunger restore assumed before a held item provider is bound.
+## Hunger the simulation restores before a held item is bound.
 @export var optimistic_unbound_restore: float = 20.0
 
 
@@ -28,6 +27,7 @@ func _populate(
 	updaters: Array[PropertyUpdater],
 ) -> void:
 	goals.append(HungerGoal.new())
+	# Provides at_target, which every interaction action requires.
 	actions.append(GoToAction.new())
 	(
 		actions

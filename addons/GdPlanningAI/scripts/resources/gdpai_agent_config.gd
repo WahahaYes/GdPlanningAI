@@ -1,29 +1,27 @@
 class_name GdPAIAgentConfig
 extends Resource
-## Serializable configuration resource for GdPAI agents.
+## Per-agent settings: when it plans, how much search effort it may spend, its starting
+## blackboard and its behaviors. Assign to [member GdPAIAgent.config].
 
-## Planning strategy determines when and how often the agent replans.
 enum PlanningStrategy {
-	CONTINUOUS,  ## Plan every frame (current behavior).
-	ON_INTERVAL,  ## Plan at fixed time intervals.
-	ON_DEMAND,  ## Plan only when explicitly requested.
-	ON_INTERVAL_FORCED,  ## Force planning at intervals, even if plan is active.
+	CONTINUOUS,  ## Plan whenever there is no plan.
+	ON_INTERVAL,  ## Every [member planning_interval] seconds, if there is no plan.
+	ON_DEMAND,  ## Only on [method GdPAIAgent.manually_start_plan].
+	ON_INTERVAL_FORCED,  ## Every [member planning_interval] seconds, replacing any plan.
 }
 
-## How the agent should approach planning.
+## When the agent plans.
 @export var planning_strategy: PlanningStrategy = PlanningStrategy.CONTINUOUS
-## Planning interval in seconds (only used for ON_INTERVAL strategy).
+## Seconds between planning checks for the interval strategies. Each agent starts at a random
+## offset.
 @export var planning_interval: float = 0.5
-## Maximum planning search depth. Branches deeper than this are pruned.
-## Minimum enforced by the scheduler is 1.
+## Maximum search depth; deeper branches are pruned.
 @export var max_recursion: int = 100
-## Maximum iterations per planning step before yielding to the main thread.
-## Minimum enforced by the scheduler is 100.
+## Search iterations per step before yielding to a later frame.
 @export var iteration_budget: int = 20000
-## Wall-clock budget (ms) per planning step before yielding Pending(0).
-## 0 disables time-slicing.
+## Milliseconds per planning step before yielding; [code]0[/code] disables time-slicing.
 @export var time_slice_ms: int = 10
-## Blackboard plan for the agent.
+## Starting contents of the agent's blackboard.
 @export var blackboard_plan: GdPAIBlackboardPlan = GdPAIBlackboardPlan.new()
-## Behavior configurations that provide goals, actions, and property updaters.
+## Behaviors supplying the agent's goals, actions and updaters.
 @export var behavior_configs: Array[GdPAIBehaviorConfig] = []

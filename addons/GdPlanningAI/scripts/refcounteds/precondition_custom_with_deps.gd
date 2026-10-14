@@ -1,10 +1,11 @@
 class_name PreconditionCustomWithDeps
 extends Precondition
-## A custom callable precondition with explicit object dependency tracking.
-## This allows the planner to validate that dependent objects still exist before
-## invoking the precondition, preventing errors from freed objects.
+## Custom precondition that is [code]false[/code] once any object its callable captures is freed.
+## Create it with [method Precondition.custom_with_deps].
 
+## Takes (agent blackboard, world blackboard) and returns a [bool].
 var eval_func: Callable
+## Objects the callable captures.
 var dependent_objects: Array[Object] = []
 
 
@@ -13,10 +14,7 @@ func _init(fn: Callable, deps: Array[Object] = []) -> void:
 	dependent_objects = deps
 
 
-## Evaluates the custom callable against the given blackboard states.
-## This method is bound as the [code]eval_callable[/code] when serializing
-## to the Rust bridge via [method to_bridge_dict].
-## Validates dependent objects before invoking to prevent lambda capture errors.
+## Returns [code]false[/code] if a dependency is freed, else [member eval_func]'s result.
 func _do_evaluate(agent: GdPAIBlackboard, world: GdPAIBlackboard) -> bool:
 	# Validate all dependent objects still exist before invoking
 	for obj in dependent_objects:
@@ -26,8 +24,6 @@ func _do_evaluate(agent: GdPAIBlackboard, world: GdPAIBlackboard) -> bool:
 	return eval_func.call(agent, world)
 
 
-## Serializes this precondition into the dictionary format expected by the Rust bridge.
-## Includes [code]dependent_object_ids[/code] for dependency validity checking.
 func to_bridge_dict() -> Dictionary:
 	var dep_ids: Array[int] = []
 	for obj in dependent_objects:

@@ -1,7 +1,8 @@
-//! Candidate action discovery for the planning engine.
+//! Finds actions that satisfy a branch's open needs.
 //!
-//! This module provides functions to identify which actions can satisfy the current
-//! open needs (preconditions and requirements) of a plan branch.
+//! Requirements are matched symbolically against provisions. Preconditions are matched by
+//! simulating each action once against the initial state (cached in [`SearchContext`]). Discovery
+//! is resumable: while a callback is outstanding, [`find_candidates`] reports its request id.
 
 use crate::planner::simulation::{SimArgs, StepResult, eval_precondition, simulate_action};
 use crate::planner::types::{
@@ -13,12 +14,20 @@ use std::collections::{BTreeSet, HashMap};
 
 /// A candidate action that can potentially satisfy one or more open needs.
 pub struct Candidate {
+    /// Index into [`SearchContext::actions`].
     pub action_idx: usize,
+    /// Open requirements this action satisfies, as `(index into branch.open_requirements,
+    /// the requirement, the provision that matched it)`.
     pub satisfied_requirements: Vec<(usize, RequirementSpec, ProvisionSpec)>,
-    pub satisfied_preconditions: Vec<usize>, // Indices into branch.open_preconditions
+    /// Indices into `branch.open_preconditions` that hold in the action's simulated post-state.
+    pub satisfied_preconditions: Vec<usize>,
+    /// Concrete bindings this candidate was discovered with: empty for ordinary actions, the
+    /// matched requirement's arguments for wildcard actions.
     pub bindings: BindingMap,
 }
 
+/// Bindings a provision/requirement match contributes: the single wildcard or binding entry,
+/// or nothing. See [`binding_values_from_match`].
 fn get_bindings_for_match(prov: &ProvisionSpec, req: &RequirementSpec) -> BindingMap {
     let (name, values) = binding_values_from_match(prov, req);
     if name.is_empty() {
@@ -28,12 +37,8 @@ fn get_bindings_for_match(prov: &ProvisionSpec, req: &RequirementSpec) -> Bindin
     }
 }
 
-/// Checks whether `key` is present in `pending_map`.
-///
-/// If the associated request ID still exists in `request_map`, the entry is
-/// genuinely pending and the ID is returned. Otherwise the entry is stale
-/// (its response was already processed but the pending map was not cleared)
-/// and it is removed, returning `None`.
+/// Returns the request id if `key` is still pending, removing stale entries whose answer was
+/// already processed. Never holds two locks at once.
 fn check_pending_or_clean_stale<K>(
     pending_map: &std::sync::Mutex<HashMap<K, usize>>,
     request_map: &std::sync::Mutex<HashMap<usize, DiscoveryRequest>>,
@@ -57,7 +62,10 @@ where
     None
 }
 
-fn get_discovery_result(
+/// Returns the cached outcome of simulating `action_idx` once against the initial state with
+/// `bindings`, starting the simulation if needed. `Pending(id)` while a callback is in flight;
+/// `Invalid` when the action cannot run.
+fn lookup_or_start_discovery(
     action_idx: usize,
     bindings: &BindingMap,
     ctx: &SearchContext,
@@ -133,17 +141,18 @@ fn get_discovery_result(
 
 /// Ready candidates and any pending callback ID from candidate discovery.
 pub struct CandidatesResult {
+    /// Candidates whose discovery needed no further callbacks; safe to expand now.
     pub ready: Vec<Candidate>,
+    /// An outstanding callback that blocked candidates (the last one seen). The engine parks the
+    /// node under it.
     pub pending_id: Option<usize>,
 }
 
-/// Finds all candidate actions that satisfy at least one open need of the given branch.
+/// Finds the actions that satisfy at least one open need of `branch`.
 ///
-/// This function performs a hybrid discovery process:
-/// 1. Symbolic Layer: Matches action Provisions against open Requirements.
-/// 2. Simulation Layer: Matches action effects (via Discovery simulation) against open Preconditions.
-///
-/// Uses the provision index to avoid scanning actions that cannot possibly satisfy any open need.
+/// Actions failing their validity checks are skipped. Requirements are matched against
+/// provisions; preconditions against each action's simulated post-state. A wildcard action
+/// (GoTo) yields one candidate per matching requirement, bound to that requirement's arguments.
 pub fn find_candidates(branch: &PlanBranch, ctx: &SearchContext) -> CandidatesResult {
     let mut candidates = Vec::new();
     let mut some_pending = false;
@@ -277,7 +286,7 @@ pub fn find_candidates(branch: &PlanBranch, ctx: &SearchContext) -> CandidatesRe
                 for prov in &action.provisions {
                     if provision_satisfies_requirement(prov, req, Some(&ctx.initial_world)) {
                         let bindings = get_bindings_for_match(prov, req);
-                        match get_discovery_result(idx, &bindings, ctx) {
+                        match lookup_or_start_discovery(idx, &bindings, ctx) {
                             StepResult::Ready(res) => {
                                 let mut satisfied_preconditions = Vec::new();
                                 let mut precond_pending_for_this_candidate = false;
@@ -396,7 +405,7 @@ pub fn find_candidates(branch: &PlanBranch, ctx: &SearchContext) -> CandidatesRe
             }
 
             let empty_bindings = Vec::new();
-            match get_discovery_result(idx, &empty_bindings, ctx) {
+            match lookup_or_start_discovery(idx, &empty_bindings, ctx) {
                 StepResult::Ready(res) => {
                     let mut satisfied_preconditions = Vec::new();
                     for (pre_idx, (_pos, pre)) in branch.open_preconditions.iter().enumerate() {

@@ -1,21 +1,10 @@
-//! Focused tests for the `process_simulation` helper refactor.
+//! Focused tests for the helpers that `PlannerEngine` uses to verify a chain step by step.
 //!
-//! These tests exercise the smaller helpers described in
-//! `notes/REFACTOR_PROCESS_SIMULATION.md`. They are written against the
-//! semantics described in the note, using the signatures that are exposed in the
-//! current source code where possible.
-//!
-//! Note: the spec describes `collect_bindings_for_position` as a pure function
-//! taking `action_bindings`, but the current implementation already exposes it
-//! as a public method on [`PlanBranch`] in `planner/types.rs`. The test below
-//! uses that method. The other helpers (`clear_initial_state_requirements`,
+//! Covers `collect_bindings_for_position`, `clear_initial_state_requirements`,
 //! `validate_action_against_current_state`, `evaluate_open_preconditions_for_position`,
-//! `clear_requirements_from_provisions`, `finalize_verified_branch`) are
-//! assumed to be methods on [`PlannerEngine`] as described in the note.
-//!
-//! Until the refactor is merged, those `PlannerEngine` helper methods may not
-//! exist or may not be public, so `cargo check --tests` is expected to fail with
-//! unresolved-name errors. The tests are written against the planned API.
+//! `clear_requirements_from_provisions` and `finalize_verified_branch`. Each test builds a
+//! minimal engine with a callback thread that answers nothing, so only the logic that needs
+//! no GDScript round trip is exercised.
 
 mod common;
 use common::{create_sim_object, create_test_agent, create_test_world};
@@ -34,8 +23,6 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::mpsc;
 use std::thread;
-
-// ── Test helpers ───────────────────────────────────────────────────
 
 /// Build a minimal [`PlannerEngine`] with a do-nothing callback thread.
 ///
@@ -79,8 +66,6 @@ fn create_test_engine(
     engine.response_tx = engine_tx;
     engine
 }
-
-// ── collect_bindings_for_position ──────────────────────────────────
 
 #[test]
 fn collect_bindings_for_position_filters_by_position() {
@@ -127,8 +112,6 @@ fn collect_bindings_for_position_filters_by_position() {
     let pos3 = branch.collect_bindings_for_position(3);
     assert!(pos3.is_empty(), "expected no bindings at position 3");
 }
-
-// ── clear_initial_state_requirements ───────────────────────────────
 
 #[test]
 fn clear_initial_state_requirements_removes_satisfied_pos_zero() {
@@ -199,8 +182,6 @@ fn clear_initial_state_requirements_removes_satisfied_pos_zero() {
         "expected unsatisfied pos-0 missing requirement to remain"
     );
 }
-
-// ── validate_action_against_current_state ──────────────────────────
 
 #[test]
 fn validate_action_returns_invalid_for_false_builtin_in_verifying() {
@@ -315,8 +296,6 @@ fn validate_action_skips_open_preconditions_and_custom() {
     );
 }
 
-// ── evaluate_open_preconditions_for_position ─────────────────────────
-
 #[test]
 fn evaluate_open_preconditions_removes_satisfied_and_returns_ready() {
     let agent = create_test_agent(vec![("health", VariantSnapshot::Int(100))]);
@@ -412,8 +391,6 @@ fn evaluate_open_preconditions_uses_callback_response_for_custom() {
     );
 }
 
-// ── clear_requirements_from_provisions ─────────────────────────────
-
 #[test]
 fn clear_requirements_from_provisions_concretizes_wildcard_and_clears_matches() {
     let agent = create_test_agent(vec![]);
@@ -477,8 +454,6 @@ fn clear_requirements_from_provisions_concretizes_wildcard_and_clears_matches() 
         "expected non-matching at_target(ObjectRef(200)) requirement to remain"
     );
 }
-
-// ── finalize_verified_branch ────────────────────────────────────────
 
 #[test]
 fn finalize_verified_branch_records_best_plan_when_complete() {

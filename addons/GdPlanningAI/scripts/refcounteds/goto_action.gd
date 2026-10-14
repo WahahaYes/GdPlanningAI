@@ -1,23 +1,25 @@
 class_name GoToAction
 extends Action
-## A generic navigation action provided by the agent.
-## This action provides a wildcard `at_target` provision that can satisfy
-## any interaction action requiring the agent to be at a specific location.
+## Walks the agent's entity to a [GdPAILocationData] with its [NavigationAgent2D] or
+## [NavigationAgent3D].[br]
+## Provides the wildcard fact [code]at_target[/code]: any action requiring
+## [code]RequirementSpec.fact("at_target", [location])[/code] gets a GoTo step planned before it.[br]
+## Succeeds when navigation finishes, or when the agent is stuck (moved less than the arrival
+## threshold over [constant STUCK_WINDOW]) within [constant STUCK_ARRIVAL_FACTOR] x
+## [code]target_desired_distance[/code] of its path end. Stuck further away, it fails and the agent
+## replans.
 
-## Minimum progress over [constant STUCK_WINDOW] for 2D navigation (pixels).
+## Minimum movement (pixels) per [constant STUCK_WINDOW] before a 2D agent counts as stuck.
 const ARRIVAL_THRESHOLD_2D: float = 8.0
-## Minimum progress over [constant STUCK_WINDOW] for 3D navigation (meters).
+## Minimum movement (meters) per [constant STUCK_WINDOW] before a 3D agent counts as stuck.
 const ARRIVAL_THRESHOLD_3D: float = 0.1
-## Seconds the agent may make less than the minimum progress before it counts as stuck.
+## Seconds of movement history used to detect being stuck.
 const STUCK_WINDOW: float = 1.0
-## A stuck agent within this many [code]target_desired_distance[/code]s of its path's end
-## has arrived as close as it can get; further away, the action fails so the agent replans.
+## How many [code]target_desired_distance[/code]s from the path end still count as arrived.
 const STUCK_ARRIVAL_FACTOR: float = 2.0
 
 
-## Returns the [NavigationAgent2D] or [NavigationAgent3D] child of [param entity],
-## or [code]null[/code] if neither is present.
-## Asserts if both are present simultaneously.
+## Returns the navigation agent below [param entity], or [code]null[/code].
 static func find_nav_agent(entity: Node) -> Node:
 	var nav_2d: Node = GdPAIUTILS.get_child_of_type(entity, NavigationAgent2D)
 	var nav_3d: Node = GdPAIUTILS.get_child_of_type(entity, NavigationAgent3D)
@@ -30,27 +32,21 @@ static func find_nav_agent(entity: Node) -> Node:
 	return nav_3d
 
 
-## The target location to navigate to. This will be bound during planning
-## when the action is selected to satisfy an interaction's requirement.
+## Where to go. Set by [method inject_binding], or fixed through [code]_init[/code].
 var target_location: GdPAILocationData
 
 
-# Override
+## Creates the action, optionally with a fixed target.
 func _init(p_target_location: GdPAILocationData = null) -> void:
 	target_location = p_target_location
 
 
-## Returns a fresh [GoToAction] instance with [member target_location] cleared.
-## The planner will re-inject bindings at execution time.
+## Returns a fresh instance so each plan step gets its own target.
 func clone_for_plan() -> Action:
 	return GoToAction.new()
 
 
-## Injects a planner-provided binding into this action instance.
-##[br]
-##[br]
-## Called by the bridge after planning to set concrete values for wildcard provisions.
-## For [code]at_target[/code], sets the [member target_location] to the provided location data.
+## Takes the planner's [code]at_target[/code] binding as [member target_location].
 func inject_binding(fact_name: String, value: Array) -> void:
 	if fact_name == "at_target" and value.size() > 0:
 		var obj = value[0]
@@ -59,6 +55,7 @@ func inject_binding(fact_name: String, value: Array) -> void:
 
 
 # Override
+## Returns the straight-line distance to the target / 100, or [code]1.0[/code] while unbound.
 func get_action_cost(
 	agent_blackboard: GdPAIBlackboard,
 	world_state: GdPAIBlackboard,
@@ -95,6 +92,7 @@ func get_action_cost(
 
 
 # Override
+## Requires the agent's entity and location, and a valid fixed target if one is set.
 func get_validity_checks() -> Array[Precondition]:
 	var checks: Array[Precondition] = []
 	checks.append(Precondition.agent_has_property("entity"))
@@ -106,6 +104,7 @@ func get_validity_checks() -> Array[Precondition]:
 
 
 # Override
+## Provides the wildcard fact [code]at_target[/code].
 func get_provisions() -> Array[ProvisionSpec]:
 	# Provide wildcard at_target fact that can satisfy any at_target requirement
 	return [ProvisionSpec.fact_wildcard("at_target")]
@@ -117,6 +116,7 @@ func get_requirements() -> Array[RequirementSpec]:
 
 
 # Override
+## Moves the agent's simulated location to the target.
 func simulate_effect(
 	agent_blackboard: GdPAIBlackboard,
 	world_state: GdPAIBlackboard,
@@ -140,6 +140,7 @@ func simulate_effect(
 
 
 # Override
+## Fails without a valid target or navigation agent; caches both and resets arrival tracking.
 func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	if target_location == null or not is_instance_valid(target_location):
 		return Action.Status.FAILURE
@@ -172,6 +173,7 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 
 
 # Override
+## Navigates and applies the arrival rules from the class doc.
 func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 	if target_location == null or not is_instance_valid(target_location):
 		return Action.Status.FAILURE
@@ -219,7 +221,7 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 	return Action.Status.RUNNING
 
 
-## Stops navigation and records whether the target was reached. Returns [param status].
+## Stops navigation and returns [param status].
 func _finish(
 	agent: GdPAIAgent,
 	nav_agent: Node,
@@ -233,6 +235,7 @@ func _finish(
 
 
 # Override
+## Resets the navigation target and erases this action's state.
 func post_perform_action(agent: GdPAIAgent) -> Action.Status:
 	if target_location == null or not is_instance_valid(target_location):
 		return Action.Status.FAILURE

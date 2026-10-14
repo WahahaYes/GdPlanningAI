@@ -1,18 +1,18 @@
 class_name ShakeTreeAction
 extends Action
-## An action that shakes a fruit tree to drop fruit.
-## This action requires the agent to be at the target location (via at_target fact)
-## and does NOT handle navigation itself - that's handled by GoToAction.
+## Shakes a fruit tree to drop fruit. Navigation is GoTo's job, via [code]at_target[/code].[br]
+## The simulated effect lowers hunger by the fruit it expects, so the planner sees shaking as a
+## way to eat; in reality it only drops fruit, and the next plan eats them. Its high cost
+## makes the planner prefer food already on the ground.
 
 ## Duration of the shaking animation in seconds.
 const SHAKE_DURATION: float = 0.5
 
 ## Reference to the fruit tree this action targets.
 var fruit_tree: FruitTreeObject
-## Pre-computed hunger gain for planning purposes (minimum fruit × hunger_value).
+## Hunger the simulation assumes a shake restores (minimum drop x [member FoodObject.hunger_value]).
 var _sim_hunger_gain: float
-## Planning cost for shaking the tree. Intentionally high to discourage the planner
-## from choosing this over real food items that are already available in the world.
+## Planning cost; high so real food is preferred.
 var shake_cost: float = 10.0
 
 
@@ -47,8 +47,7 @@ func get_validity_checks() -> Array[Precondition]:
 	checks.append(Precondition.check_is_object_valid(fruit_tree))
 	checks.append(Precondition.agent_property_greater_than("hunger", 0.0))
 
-	# Replace custom with deps with a simpler approach or fix the existing one.
-	# For now, let's see if we can use a simpler custom precondition.
+	# The cooldown is live scene state, so a custom check reads the node.
 	var tree_not_on_cooldown = func(_bb: GdPAIBlackboard, _ws: GdPAIBlackboard) -> bool:
 		if is_instance_valid(fruit_tree):
 			return not fruit_tree.is_on_cooldown
@@ -65,7 +64,6 @@ func get_preconditions() -> Array[Precondition]:
 
 # Override
 func get_requirements() -> Array[RequirementSpec]:
-	# Require that the agent is at this fruit tree's location
 	if fruit_tree.location_data != null:
 		return [RequirementSpec.fact("at_target", [fruit_tree.location_data])]
 	return []
@@ -76,8 +74,7 @@ func simulate_effect(
 	agent_blackboard: GdPAIBlackboard,
 	_world_state: GdPAIBlackboard,
 ) -> void:
-	# Optimistically report hunger reduction during discovery so the planner
-	# picks this action as a candidate for the Hunger goal.
+	# Optimistic: lets the planner use shaking for the hunger goal.
 	var hunger = agent_blackboard.get_property("hunger")
 	if hunger != null:
 		agent_blackboard.set_property("hunger", max(0.0, float(hunger) - _sim_hunger_gain))
@@ -85,7 +82,6 @@ func simulate_effect(
 
 # Override
 func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
-	# Check if the fruit tree is still valid
 	if not is_instance_valid(fruit_tree):
 		return Action.Status.FAILURE
 
@@ -95,10 +91,10 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 
 # Override
 func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
-	# Check if the fruit tree is still valid
 	if not is_instance_valid(fruit_tree):
 		return Action.Status.FAILURE
 
+	# Another agent may have shaken the tree since this plan was made.
 	if fruit_tree.is_on_cooldown:
 		return Action.Status.FAILURE
 

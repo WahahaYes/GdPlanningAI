@@ -1,8 +1,9 @@
 extends Node
-## Moves a [RigidBody2D] entity toward the next path position reported by a
-## [NavigationAgent2D] each physics frame. With avoidance enabled on the agent,
-## the steering velocity goes through the navigation server and the safe velocity
-## it returns is applied instead.
+## Moves a [RigidBody2D] along its [NavigationAgent2D] path. [GoToAction] only sets the target;
+## this turns the path into motion.[br]
+## The 2D bodies do not collide, so with avoidance enabled the wanted velocity goes through the
+## navigation server and the safe velocity it returns is applied. Each scene's avoidance radius
+## is the collision shape plus about 10%.
 
 ## The top-level entity node to move.
 @export var entity: RigidBody2D
@@ -14,6 +15,7 @@ extends Node
 @export var arrival_threshold: float = 8.0
 
 
+## Connects the avoidance result when avoidance is on.
 func _ready() -> void:
 	if nav_agent != null and nav_agent.avoidance_enabled:
 		nav_agent.max_speed = speed
@@ -22,6 +24,7 @@ func _ready() -> void:
 
 func _physics_process(_delta: float) -> void:
 	var direction: Vector2 = nav_agent.get_next_path_position() - entity.global_position
+	# Zero inside the arrival threshold so the agent settles instead of jittering on the point.
 	var steer: Vector2 = Vector2.ZERO
 	if direction.length() > arrival_threshold:
 		steer = direction.normalized() * speed

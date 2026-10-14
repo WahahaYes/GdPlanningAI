@@ -1,4 +1,8 @@
-//! Core data structures and types for the planning engine.
+//! Search data structures.
+//!
+//! [`PlanBranch`] is one backward-search hypothesis: a partial chain plus its open needs, each
+//! tagged with its consumer's chain position so [`PlanBranch::insert_action_at`] can shift them.
+//! [`SearchContext`] holds what all branches share: specs, initial snapshots, channels and caches.
 
 use crate::plan_types::*;
 use crate::requirement::{ProvisionSpec, RequirementSpec};
@@ -13,61 +17,72 @@ use std::cmp::Ordering;
 /// The search state of a plan branch.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum BranchState {
+    /// Backward phase: the branch still has open needs and is expanded by inserting actions.
     Searching,
+    /// Forward phase: replaying the chain from the initial state to confirm it works.
     Verifying,
 }
 
-/// A single branch in the planning search tree.
+/// One hypothesis in the backward search: a partial chain plus its open needs.
 ///
-/// It tracks the sequence of actions, open needs, and the simulated state of the
-/// agent and world after applying those actions.
+/// The chain is stored in execution order. A position next to a need or binding is the state just
+/// before the action at that index; `chain.len()` is the final state, where goal preconditions
+/// sit. `current_agent`/`current_world` only advance during [`BranchState::Verifying`].
 #[derive(Clone, Debug)]
 pub struct PlanBranch {
     /// Indices into the `SearchContext.actions` list.
     pub action_chain: Vec<usize>,
-    /// Costs of each action in the chain.
+    /// Cost of each action, parallel to `action_chain`; seeded at discovery and reused in
+    /// verification.
     pub action_costs: Vec<f64>,
-    /// Variable bindings associated with actions at specific chain positions.
+    /// Values each wildcard provision was matched with, by chain position.
     pub action_bindings: Vec<(usize, String, Vec<VariantSnapshot>)>,
-    /// Preconditions that are not yet satisfied by preceding actions or the initial state.
+    /// Unsatisfied preconditions, tagged with their consumer's chain position.
     pub open_preconditions: Vec<(usize, PreconditionSpec)>,
-    /// Symbolic requirements not yet satisfied by preceding actions.
+    /// Symbolic requirements not yet satisfied by preceding actions. Positions are the chain
+    /// index of the consuming action.
     pub open_requirements: Vec<(usize, RequirementSpec)>,
     /// Current search phase for this branch.
     pub state: BranchState,
     /// The index of the goal this branch is trying to satisfy.
     pub goal_index: usize,
-    /// Current position in the chain being simulated/verified.
+    /// Index of the next chain action to simulate while verifying; also the position whose
+    /// open preconditions are being evaluated. Always 0 while searching.
     pub simulation_index: usize,
     /// Simulated agent state after `simulation_index` actions.
     pub current_agent: BlackboardSnapshot,
     /// Simulated world state after `simulation_index` actions.
     pub current_world: BlackboardSnapshot,
-    /// Total grounded cost of the actions in this branch.
+    /// Total grounded cost of the actions in this branch: always the sum of `action_costs`
+    /// (see [`PlanBranch::recalculate_cost`]).
     pub cost: f64,
     /// ID of the node in the debug search tree.
     pub tree_node_id: usize,
 }
 
-/// A node in the search queue.
+/// A queued branch, plus what is needed to park it on a callback and resume it.
 #[derive(Clone, Debug)]
 pub struct SearchNode {
+    /// The hypothesis this node represents.
     pub branch: PlanBranch,
+    /// Set when re-queued with a callback answer; skips the visited check.
     pub resumed: bool,
+    /// The main thread's answer to the request this node was parked on, consumed by the next
+    /// simulation step. Cleared once that step makes progress.
     pub callback_response: Option<CallbackResponse>,
-    /// Candidates already expanded from this node. Prevents duplicate child
-    /// creation when a node is resumed after pending callbacks complete.
+    /// Candidates already expanded from this node, so a repeat from discovery is ignored. Cleared
+    /// on resume.
     pub expanded_candidates: Vec<(usize, BindingMap)>,
 }
 
-/// Wrapper that pairs a [`SearchNode`] with its pre-computed priority so the
-/// [`BinaryHeap`] ordering does not depend on the heuristic object.
-///
-/// The [`Ord`] implementation inverts the comparison so the heap behaves as a
-/// min-heap (lowest priority expanded first).
+/// A [`SearchNode`] with its precomputed priority. `Ord` is inverted so `BinaryHeap` pops the
+/// lowest first.
 #[derive(Clone, Debug)]
 pub struct PriorityNode {
+    /// Value from [`SearchHeuristic::compute_priority`](crate::planner::SearchHeuristic::compute_priority);
+    /// lower is expanded first.
     pub priority: f64,
+    /// The queued node.
     pub node: SearchNode,
 }
 
@@ -95,6 +110,8 @@ impl Ord for PriorityNode {
     }
 }
 
+/// `(binding_name, values)` pairs for one action occurrence, e.g. GoTo's
+/// `("at_target", <the consumer's fact args>)`.
 pub type BindingMap = Vec<(String, Vec<VariantSnapshot>)>;
 
 /// A unique identity for a plan branch used for cycle detection and search space pruning.
@@ -103,40 +120,64 @@ pub type SearchFingerprint = u64;
 /// Classification of a provision's kind for indexing actions by what they provide.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum ProvisionKind {
+    /// A [`ProvisionSpec::Binding`], looked up by binding name.
     Binding,
+    /// A [`ProvisionSpec::Fact`], looked up by fact name.
     Fact,
+    /// A [`ProvisionSpec::FactWildcard`], looked up by fact name; matches any `Fact`
+    /// requirement of that name.
     FactWildcard,
 }
 
-/// A request for background discovery simulation or precondition check.
+/// A pending discovery simulation or precondition check, so its answer fills the right cache.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum DiscoveryRequest {
-    Simulation(usize, BindingMap), // action_idx, bindings
-    Precondition(usize, PreconditionSpec, BindingMap), // action_idx, spec, bindings
+    /// Cost or effect simulation of an action: `(action_idx, bindings)`.
+    Simulation(usize, BindingMap),
+    /// Custom precondition or validity check: `(action_idx, spec, bindings)`.
+    Precondition(usize, PreconditionSpec, BindingMap),
 }
 
-/// Shared context and cached data for a single planning run.
+/// Read-mostly state shared by all branches of a run: specs, initial snapshots, channels, and
+/// the discovery caches (so each `(action, bindings)` costs at most one GDScript round trip).
 pub struct SearchContext {
+    /// All candidate actions; indices into this vector are what `PlanBranch::action_chain`
+    /// and `PlanResult::action_chain` contain.
     pub actions: Vec<ActionSpec>,
+    /// Agent state at submission time; every branch simulates forward from here.
     pub initial_agent: BlackboardSnapshot,
+    /// World state at submission time.
     pub initial_world: BlackboardSnapshot,
+    /// Bindings and facts that already hold before any action runs; requirements they match
+    /// never become open needs.
     pub initial_provisions: Vec<ProvisionSpec>,
+    /// Channel on which the engine asks the main thread to run a GDScript callable.
     pub request_tx: Sender<CallbackRequest>,
+    /// Sender handed to the main thread so it can answer on the engine's own receiver.
     pub engine_response_tx: Sender<PlannerCallback>,
 
-    // Discovery Cache (Thread-safe)
+    /// Result (post-state and cost) of simulating `(action_idx, bindings)` against the
+    /// initial state.
     pub discovery_results: std::sync::Mutex<HashMap<(usize, BindingMap), DiscoveryResult>>,
+    /// Costs already fetched for `(action_idx, bindings)`. Kept separately because the cost
+    /// arrives one callback before the effect does.
     pub discovery_costs: std::sync::Mutex<HashMap<(usize, BindingMap), f64>>,
-    pub discovery_pending: std::sync::Mutex<HashMap<(usize, BindingMap), usize>>, // action_idx, bindings -> request_id
-    pub discovery_request_map: std::sync::Mutex<HashMap<usize, DiscoveryRequest>>, // request_id -> DiscoveryRequest
+    /// In-flight discovery simulations: `(action_idx, bindings)` -> request id.
+    pub discovery_pending: std::sync::Mutex<HashMap<(usize, BindingMap), usize>>,
+    /// Request id -> what that request was for. An id missing from here means its answer has
+    /// already been processed, which is how stale `*_pending` entries are detected.
+    pub discovery_request_map: std::sync::Mutex<HashMap<usize, DiscoveryRequest>>,
 
-    // Precondition Caching for Discovery (Initial State)
+    /// Cached outcomes of custom preconditions and validity checks evaluated during
+    /// discovery, keyed by `(action_idx, spec, bindings)`.
     pub discovery_precond_results:
         std::sync::Mutex<HashMap<(usize, PreconditionSpec, BindingMap), bool>>,
+    /// In-flight custom precondition evaluations: key -> request id.
     pub discovery_precond_pending:
         std::sync::Mutex<HashMap<(usize, PreconditionSpec, BindingMap), usize>>,
 
-    // Provision Index: maps (ProvisionKind, name) -> action indices that provide it.
+    /// Provision index: maps `(ProvisionKind, name)` to the actions that provide it, so
+    /// candidate discovery only visits actions that can match an open requirement.
     pub provision_index: HashMap<(ProvisionKind, String), Vec<usize>>,
     /// Action indices that have no wildcard provisions (can be discovered with empty bindings).
     pub non_wildcard_actions: Vec<usize>,
@@ -145,8 +186,11 @@ pub struct SearchContext {
 /// The result of a background action discovery simulation.
 #[derive(Clone)]
 pub struct DiscoveryResult {
+    /// Agent state after simulating the action once against the initial state.
     pub agent: BlackboardSnapshot,
+    /// World state after simulating the action once against the initial state.
     pub world: BlackboardSnapshot,
+    /// The action's cost in that same simulation.
     pub cost: f64,
 }
 
@@ -164,9 +208,8 @@ fn remove_indices<T>(vec: &mut Vec<T>, indices: &HashSet<usize>) {
     }
 }
 
-/// Extracts the binding name and value from a provision/requirement pair.
-///
-/// Returns an empty name when the provision does not produce a binding.
+/// Returns the binding a provision creates when matched with `req`: a `Binding`'s value, a
+/// `Fact`'s args, or for a `FactWildcard` the requirement's args. Empty name if none.
 pub(crate) fn binding_values_from_match(
     prov: &ProvisionSpec,
     req: &RequirementSpec,
@@ -206,13 +249,8 @@ impl PlanBranch {
         }
     }
 
-    /// Returns a unique identity for this branch based on its goal, open needs, state,
-    /// and concrete binding values.
-    ///
-    /// Used for cycle detection and search space pruning. The hash includes
-    /// `action_bindings` to prevent false collisions where two branches have
-    /// identical open needs but different concrete binding values that affect
-    /// future candidate discovery.
+    /// Hashes the goal, open needs, state and binding values for pruning. The chain is not hashed,
+    /// so two chains leaving the same needs open are interchangeable and only the cheaper is kept.
     pub fn fingerprint(&self) -> SearchFingerprint {
         let mut hasher = DefaultHasher::new();
         self.goal_index.hash(&mut hasher);
@@ -231,7 +269,8 @@ impl PlanBranch {
         hasher.finish()
     }
 
-    /// Updates the total cost of the branch based on the individual action costs.
+    /// Recomputes the total cost as the sum of `action_costs`. Recomputing (rather than
+    /// accumulating) keeps the value correct when actions are inserted mid-chain.
     pub fn recalculate_cost(&mut self) {
         self.cost = self.action_costs.iter().sum();
     }
@@ -249,8 +288,7 @@ impl PlanBranch {
             .collect()
     }
 
-    /// Increments the chain position of all open needs and bindings at or after
-    /// `from` by `delta`.
+    /// Adds `delta` to every need and binding position at or after `from`.
     pub fn shift_positions(&mut self, from: usize, delta: usize) {
         for (pos, _) in self.open_preconditions.iter_mut() {
             if *pos >= from {
@@ -269,25 +307,9 @@ impl PlanBranch {
         }
     }
 
-    /// Insert a predecessor action into the chain immediately before its consumers.
-    ///
-    /// * `insert_pos` is the position of the first consumer this action satisfies. The new action
-    ///   is inserted at `insert_pos`, and all existing entries at or after `insert_pos` are shifted
-    ///   forward by one.
-    /// * `action_idx` is the index of the action in [`SearchContext::actions`].
-    /// * `cost` is the discovered cost of the action.
-    /// * `satisfied_requirements` lists the requirements this action satisfies, with their
-    ///   positions in `open_requirements` **before** the shift and the provision that matched them.
-    ///   The helper clears all open requirements whose spec is identical to each entry, regardless
-    ///   of the provided index.
-    /// * `satisfied_precondition_indices` lists the indices into `open_preconditions` **before** the
-    ///   shift that this action satisfies.
-    /// * `new_preconditions` and `new_requirements` are the action's own unsatisfied needs that
-    ///   should be added at the new action's position, after the shift.
-    ///
-    /// Returns the new bindings that were created so the caller can log them or attach them to a
-    /// debug tree. The branch is left in `Searching` state; the caller decides whether to start
-    /// verification.
+    /// Inserts `action_idx` at `insert_pos` (its first consumer), shifting later positions.
+    /// Clears the satisfied needs (indices refer to the lists before the shift) and adds the
+    /// action's own needs at its position. Returns the new bindings.
     #[allow(clippy::too_many_arguments)]
     pub fn insert_action_at(
         &mut self,
@@ -356,10 +378,8 @@ impl PlanBranch {
     }
 }
 
-/// Computes the chain position where a predecessor action should be inserted.
-///
-/// Returns the smallest position among the consumers it satisfies, falling back to `0` when the
-/// chain is empty.
+/// Returns the earliest position among the consumers a new action satisfies, or `0` when none
+/// sits before the end of the chain. Indices refer to the open lists before insertion.
 pub(crate) fn compute_insert_pos(
     branch: &PlanBranch,
     satisfied_precondition_indices: &[usize],

@@ -1,9 +1,9 @@
 class_name HungerPropertyUpdater
 extends PropertyUpdater
-## Decays the agent's [code]hunger[/code] blackboard property over time and
-## initializes it to a starting value when the agent is set up.
+## Creates the agent's [code]hunger[/code] property and raises it every frame, capped at 100.
+## Eating is the only thing that lowers it.
 
-## How much hunger drops per second.
+## How much hunger rises per second.
 var hunger_decay: float = 5.0
 ## The starting hunger value.
 var initial_hunger: float = 0.0

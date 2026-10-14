@@ -1,10 +1,7 @@
 class_name PreconditionBuiltin
 extends Precondition
-## Built-in precondition that evaluates property comparisons on blackboard states.
-##
-## This precondition type performs common operations like property existence checks,
-## equality comparisons, and numeric comparisons. These operations are optimized
-## and can be evaluated directly on the background thread without callbacks.
+## Property comparison the engine evaluates natively. Create it with the static constructors on
+## [Precondition]. Group targets are true if [i]any[/i] object in the group matches.
 
 ## Specifies which blackboard to evaluate the precondition against.
 enum Target {
@@ -36,13 +33,8 @@ var group: String
 var value: Variant
 
 
-## Creates a new builtin precondition with the specified parameters.
-##
-## @param t The target blackboard (AGENT, WORLD_STATE, or WORLD_OBJECT_PROXY)
-## @param op The comparison operation to perform
-## @param prop The property name to check
-## @param val The value to compare against (optional, not used for HAS_PROPERTY)
-## @param grp The group name (required for WORLD_OBJECT_PROXY target)
+## [param val] is ignored for [constant Op.HAS_PROPERTY]; [param grp] is only used with
+## [constant Target.WORLD_OBJECT_PROXY].
 func _init(t: Target, op: Op, prop: String, val: Variant = null, grp: String = "") -> void:
 	target = t
 	operation = op
@@ -51,7 +43,6 @@ func _init(t: Target, op: Op, prop: String, val: Variant = null, grp: String = "
 	value = val
 
 
-## Serializes this precondition into the dictionary format expected by the Rust bridge.
 func to_bridge_dict() -> Dictionary:
 	var dict = {
 		"target": _target_to_string(target),

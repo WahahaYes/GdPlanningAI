@@ -6,8 +6,6 @@
 
 use gdplanningai_rust::debug_tree::{ChildNodeConfig, NodeOutcome, TreeDump};
 
-// ── Tests ──────────────────────────────────────────────────────────
-
 #[test]
 fn single_goal_already_satisfied() {
     let mut dump = TreeDump::new_forced();

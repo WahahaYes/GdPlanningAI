@@ -1,9 +1,13 @@
 class_name GdPAIUTILS
 extends Object
-## Static utility classes for the GdPlanningAI addon.
+## Static scene-tree helpers used throughout the addon. Safe to use from your own scripts, but
+## only from the main thread and never from planning-time hooks.
 
 
-## Searches a node's tree to find the first instance of _class.
+## Returns the first node that is [param node] itself or a descendant of it and is an instance of
+## [param _class] (depth-first, checking each node's children before recursing), or
+## [code]null[/code] if there is none. [param _class] is a class or script, as accepted by
+## [code]is_instance_of[/code].
 static func get_child_of_type(
 	node: Node,
 	_class: Variant,
@@ -19,7 +23,8 @@ static func get_child_of_type(
 	return null
 
 
-## Returns all nodes belonging to [param group] that are [param node] itself or a descendant of it.
+## Returns all nodes in the scene tree belonging to [param group] that are [param node] itself or
+## a descendant of it. [param node] must be inside the tree.
 static func get_children_in_group(node: Node, group: String) -> Array:
 	var result: Array = []
 	for child in node.get_tree().get_nodes_in_group(group):

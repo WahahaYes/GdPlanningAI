@@ -1,33 +1,29 @@
-//! Structured debug tree for planner search visualization.
+//! Search tree recorded for debugging when the log level is [`LogLevel::Debug`]; exposed as
+//! `get_debug_tree` on the scheduler. The search never reads it back.
 //!
-//! When log level is [`LogLevel::Debug`], the planner builds a full search tree
-//! during backward search. The tree can be formatted as human-readable text or
-//! serialized for Godot-side debug tooling.
-//!
-//! ## Design
-//!
-//! Uses a flat, ID-based API designed for the iterative search loop:
-//! - Nodes are allocated in a flat `Vec` and referenced by opaque `usize` IDs.
-//! - `add_child(parent_id, ...)` creates a child node and returns its ID.
-//! - `set_outcome(id, outcome)` updates any node's outcome after processing.
-//! - `exclude_action(id, ...)` records excluded actions on a specific node.
-//!
-//! This avoids the cursor/stack model that only works with recursive traversal.
+//! Nodes live in a flat `Vec` and are addressed by `usize` id, which suits the iterative search
+//! loop.
 
 use crate::logger::LogLevel;
-
-// ── Tree data structures ───────────────────────────────────────────
 
 /// One goal the planner tried to satisfy.
 #[derive(Clone, Debug)]
 pub struct GoalAttempt {
+    /// Goal display name.
     pub goal_name: String,
+    /// Reward of the goal.
     pub goal_reward: f64,
+    /// The goal's desired state, rendered as text.
     pub goal_preconditions: Vec<String>,
+    /// True if no search was needed because the goal already held.
     pub already_satisfied: bool,
+    /// ID of the root node of this goal's search tree.
     pub root_id: usize,
+    /// Whether a plan was found.
     pub success: bool,
+    /// Names of the plan's actions in execution order; empty on failure.
     pub plan_actions: Vec<String>,
+    /// Cost of the plan.
     pub plan_cost: f64,
 }
 
@@ -36,20 +32,29 @@ pub struct GoalAttempt {
 pub struct TreeNode {
     /// `None` for the root node of a goal attempt.
     pub action_name: Option<String>,
+    /// Cost this node's action added to the branch (its discovery cost).
     pub estimated_cost: f64,
+    /// Total cost of the branch at this node.
     pub accumulated_cost: f64,
+    /// Preconditions still unsatisfied after this node, rendered as text.
     pub open_preconditions: Vec<String>,
+    /// Requirements still unsatisfied after this node, rendered as text.
     pub open_requirements: Vec<String>,
+    /// Open preconditions this node's action satisfied.
     pub satisfied_preconditions: Vec<String>,
+    /// Open requirements this node's action satisfied.
     pub satisfied_requirements: Vec<String>,
+    /// Actions that were considered at this node and rejected.
     pub excluded_actions: Vec<ExcludedAction>,
+    /// What eventually happened to the node.
     pub outcome: NodeOutcome,
+    /// Steps of forward verification that concern this node's branch.
     pub forward_validation: Vec<FwdStep>,
     /// IDs of child nodes (indexes into TreeDump.nodes).
     pub children: Vec<usize>,
 }
 
-/// Builder for TreeNode child creation to reduce argument count.
+/// Builder for child-node arguments. Unused by the engine, which passes a [`ChildNodeConfig`].
 #[derive(Debug, Default)]
 pub struct ChildNodeBuilder {
     action_name: Option<String>,
@@ -127,26 +132,35 @@ impl ChildNodeBuilder {
     }
 }
 
-/// An action that was considered but excluded from candidates.
+/// An action considered but excluded from candidates. The engine does not record these yet.
 #[derive(Clone, Debug)]
 pub struct ExcludedAction {
+    /// Name of the rejected action.
     pub action_name: String,
+    /// Why it was rejected.
     pub reason: String,
 }
 
 /// What happened at this search node.
 #[derive(Clone, Debug)]
 pub enum NodeOutcome {
-    /// Node was expanded — children contain the results.
+    /// Node was expanded — children contain the results. The default for new nodes.
     Expanded,
-    /// Pruned before expansion (cost, depth, cancellation).
-    Pruned { reason: String },
-    /// No candidates could satisfy the open needs.
+    /// Pruned (too many open requirements, or forward verification failed or left needs open).
+    Pruned {
+        /// Short explanation shown in the tree.
+        reason: String,
+    },
+    /// No candidates could satisfy the open needs. Available to callers, not set by the
+    /// engine.
     DeadEnd,
     /// Branch completed — forward validation ran.
     Complete {
+        /// Number of actions in the verified chain.
         chain_len: usize,
+        /// Total cost of the chain.
         total_cost: f64,
+        /// Whether forward validation succeeded.
         fwd_ok: bool,
     },
 }
@@ -154,27 +168,37 @@ pub enum NodeOutcome {
 /// One step in forward validation of a completed chain.
 #[derive(Clone, Debug)]
 pub struct FwdStep {
+    /// The action being validated.
     pub action_name: String,
+    /// Kind of check, e.g. `requirement`.
     pub step: String,
+    /// Human-readable detail, e.g. the requirement that failed.
     pub detail: String,
+    /// Whether the check passed.
     pub ok: bool,
 }
-
-// ── ID-based tree builder ──────────────────────────────────────────
 
 /// Configuration for creating a child node.
 #[derive(Debug, Default)]
 pub struct ChildNodeConfig<'a> {
+    /// Name of the action the child inserts.
     pub action_name: &'a str,
+    /// Cost the action adds.
     pub estimated_cost: f64,
+    /// Total branch cost including that action.
     pub accumulated_cost: f64,
+    /// Open preconditions after the insertion, rendered as text.
     pub open_pre: &'a [String],
+    /// Open requirements after the insertion, rendered as text.
     pub open_req: &'a [String],
+    /// Open preconditions the action satisfied.
     pub satisfied_pre: &'a [String],
+    /// Open requirements the action satisfied.
     pub satisfied_req: &'a [String],
 }
 
-/// Structured debug tree builder for planning search visualization.
+/// Debug tree builder. When disabled, every method returns immediately (ids are 0), so the
+/// engine calls them unconditionally. One dump covers all goals of a run.
 pub struct TreeDump {
     enabled: bool,
     /// All tree nodes, indexed by their opaque ID.
@@ -189,6 +213,7 @@ pub struct TreeDump {
 
 impl TreeDump {
     /// Create a TreeDump that is enabled only when the log level is Debug or higher.
+    /// The level is sampled once, here; changing it later does not affect this dump.
     pub fn new() -> Self {
         let enabled = crate::logger::get_log_level() >= LogLevel::Debug;
         Self::with_enabled(enabled)
@@ -237,8 +262,6 @@ impl TreeDump {
         )
     }
 
-    // ── Goal-level operations ──────────────────────────────────────
-
     /// Start a new goal attempt. Returns the goal index.
     pub fn begin_goal(&mut self, name: &str, reward: f64, preconditions: &[String]) -> usize {
         if !self.enabled {
@@ -258,7 +281,8 @@ impl TreeDump {
         idx
     }
 
-    /// Mark the current goal as already satisfied (no search needed).
+    /// Mark the current goal as already satisfied (no search needed). The engine does not call
+    /// this today: the scheduler removes already-satisfied goals before the engine sees them.
     pub fn goal_already_satisfied(&mut self) {
         if !self.enabled {
             return;
@@ -269,7 +293,8 @@ impl TreeDump {
         }
     }
 
-    /// Finalize the current goal attempt with its result.
+    /// Finalize the current goal attempt with its result: the plan's action names and cost on
+    /// success, empty and 0 on failure.
     pub fn end_goal(&mut self, success: bool, plan_actions: &[String], plan_cost: f64) {
         if !self.enabled {
             return;
@@ -281,10 +306,7 @@ impl TreeDump {
         }
     }
 
-    // ── Node-level operations ──────────────────────────────────────
-
-    /// Create the root node for the current goal. Returns the node ID.
-    /// Must be called after `begin_goal`.
+    /// Creates the root node for the current goal (after `begin_goal`) and returns its id.
     pub fn add_root(&mut self, open_pre: &[String], open_req: &[String]) -> usize {
         self.branch_count += 1;
         if !self.enabled {
@@ -310,7 +332,8 @@ impl TreeDump {
         id
     }
 
-    /// Add a child node under `parent_id`. Returns the new node's ID.
+    /// Add a child node under `parent_id`. Returns the new node's ID. Counts towards the
+    /// branch summary even when recording is disabled.
     pub fn add_child(&mut self, parent_id: usize, config: ChildNodeConfig<'_>) -> usize {
         self.branch_count += 1;
         if !self.enabled {
@@ -381,9 +404,7 @@ impl TreeDump {
         }
     }
 
-    // ── Output ─────────────────────────────────────────────────────
-
-    /// Format the tree as a human-readable string.
+    /// Formats the tree, one section per goal. Empty when recording is off.
     pub fn format(&self) -> String {
         if !self.enabled || self.goal_attempts.is_empty() {
             return String::new();
@@ -426,8 +447,8 @@ impl TreeDump {
     }
 }
 
-// ── Formatting helpers ─────────────────────────────────────────────
-
+/// Appends `node_id` and its subtree to `output`. `has_more[d]` says whether the ancestor at
+/// depth `d` has later siblings (draw `│` or a blank).
 fn format_node(
     output: &mut String,
     tree: &TreeDump,

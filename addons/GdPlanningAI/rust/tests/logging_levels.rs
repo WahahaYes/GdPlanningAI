@@ -1,14 +1,6 @@
-//! Integration tests for planner log-level behavior.
-//!
-//! These tests prove the logging slim-down contract:
-//! - At [`LogLevel::Info`] (the default) a plan still completes, no full
-//!   search tree is recorded, but [`TreeDump::summary`] reports real branch
-//!   counts for the one-line `RESULT` log.
-//! - At [`LogLevel::Debug`] the full tree is recorded again and
-//!   [`TreeDump::format`] produces the `PLANNER SEARCH TREE` dump.
-//! - Per-iteration detail (`find_candidates`, simulation payloads, callback
-//!   handshakes) is gone: the tree carries that information with node
-//!   context, so a flat log stream of it serves nobody.
+//! Log-level behavior: at [`LogLevel::Info`] plans complete and [`TreeDump::summary`] reports
+//! branch counts without recording a tree; at [`LogLevel::Debug`] [`TreeDump::format`] produces
+//! the full `PLANNER SEARCH TREE` dump.
 
 use gdplanningai_rust::debug_tree::TreeDump;
 use gdplanningai_rust::logger::{LogLevel, get_log_level, init_log_channel, set_log_level};
@@ -33,8 +25,6 @@ use std::time::{Duration, Instant};
 /// Serializes tests that mutate the process-global log level, since cargo
 /// runs tests in one binary on multiple threads sharing that state.
 static LEVEL_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
-// ── Helpers ──────────────────────────────────────────────────────────
 
 fn make_agent(hunger: i64) -> BlackboardSnapshot {
     let mut props = HashMap::new();
@@ -172,8 +162,6 @@ fn run_eat_plan() -> PlanOutcome {
         tree_dump: engine.tree.format(),
     }
 }
-
-// ── Tests ────────────────────────────────────────────────────────────
 
 #[test]
 fn info_completes_plan_with_summary_but_no_tree() {

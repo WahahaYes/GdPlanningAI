@@ -1,14 +1,9 @@
 class_name HungerGoal
 extends Goal
-## Goal that drives an agent to seek food when hungry.
-##[br]
-##[br]
-## Reward scales from 0 (full) to 100 (empty), so the planner prioritizes eating
-## over wandering whenever hunger is meaningfully low.
-##[br]
-##[br]
-## Below [member sated_hunger] the goal is already satisfied, so the planner skips
-## it instead of searching for a hunger level no meal can reach.
+## Seek food when hungry. Reward is the hunger value (0 to 100), so it eventually outranks
+## fixed-reward goals.[br]
+## Each plan asks for one meal's improvement, not hunger 0, which a single meal often cannot
+## reach. Below [member sated_hunger] the goal is already satisfied.
 
 ## Hunger below this counts as sated.
 var sated_hunger: float = 15.0
@@ -29,8 +24,7 @@ func get_desired_state(agent: GdPAIAgent) -> Array[Precondition]:
 	var current_hunger: float = agent.blackboard.get_property("hunger")
 	var required_hunger: float = max(sated_hunger, current_hunger - hunger_drop)
 
-	# Using a builtin precondition instead of a custom callable allows the planner
-	# to correctly identify which actions satisfy this goal during the discovery phase.
+	# Builtin, so the planner can find actions that lower hunger.
 	return [Precondition.agent_property_less_than("hunger", required_hunger)]
 
 
