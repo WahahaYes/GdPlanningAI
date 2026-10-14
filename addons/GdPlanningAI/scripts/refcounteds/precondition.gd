@@ -1,45 +1,55 @@
 class_name Precondition
 extends RefCounted
-## Preconditions for planning chains of actions.  This class allows for custom preconditions
-## to be defined and evaluated at planning-time.
+## A condition on the agent blackboard, the world blackboard or world objects, evaluated against
+## simulated state during planning. Used by [method Action.get_preconditions],
+## [method Action.get_validity_checks] and [method Goal.get_desired_state].[br]
 ##[br]
-##[br]
-## There are static methods, like Precondition.agent_property_greater_than(<prop>, <value>),
-## which will instantiate common preconditions in a single line of code.  Alterantively, custom
-## preconditions can be defined like so:
-##[br]
-##[br]
-## var precondition = Precondition.custom(
-##         func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):[br]
-##     if blackboard.get_property(<prop>) and world_state.get_property(<prop>):[br]
-##         return true[br]
-##     return false[br]
-## )[br]
-##[br]
-##[br]
-## (The above example would check that a property exists / is true for both the agent and world
-## states.)
+## Create preconditions with the static constructors, never by instancing this class. Built-in
+## constructors such as [method agent_property_greater_than] or
+## [method world_object_property_geq_than] are evaluated natively by the planning engine and are
+## the preferred choice: the planner can see which property they test and search for actions whose
+## [method Action.simulate_effect] changes it. [method custom] and [method custom_with_deps] wrap
+## your own [Callable]; the planner cannot look inside it, so it is run (on the main thread, once
+## per candidate state it needs to check) as a black box, which is slower and gives the search no
+## guidance. A custom precondition is called with the simulated agent and world blackboards and
+## must return a [bool]; any other return value counts as [code]false[/code]. It must not use
+## [code]await[/code] or the scene tree.
+## [codeblock]
+## var enough_wood: Precondition = Precondition.agent_property_geq_than("wood", 3)
+## var near_home: Precondition = Precondition.custom(
+##     func(agent_bb: GdPAIBlackboard, _world: GdPAIBlackboard) -> bool:
+##         var me: SimObjectProxy = agent_bb.get_proxy_in_group("GdPAILocationData")
+##         return me != null and me.get_property("position").length() < 10.0
+## )
+## [/codeblock]
+## See also [PreconditionBuiltin], [PreconditionCustom] and [PreconditionCustomWithDeps].
 
 
-## Returns the dictionary representation of this precondition for the Rust bridge.
-## Implemented by [PreconditionBuiltin] and [PreconditionCustom].
+## Returns the dictionary the Rust planning engine reads this precondition from. Called by the
+## bridge on the main thread when a plan request is built. Implemented by
+## [PreconditionBuiltin], [PreconditionCustom] and [PreconditionCustomWithDeps]; user code does not
+## call or override it.
 func to_bridge_dict() -> Dictionary:
 	push_error("Precondition.to_bridge_dict must be overridden")
 	return {}
 
 
-## Create a custom precondition that invokes a callable with the agent and world blackboards.
+## Creates a precondition that calls [param fn] with the simulated agent blackboard and world
+## blackboard ([code]func(agent_bb: GdPAIBlackboard, world: GdPAIBlackboard) -> bool[/code]).
+## The callable runs on the main thread during planning and must return a [bool]. Prefer a
+## built-in constructor when one can express the condition.
 static func custom(fn: Callable) -> Precondition:
 	return PreconditionCustom.new(fn)
 
 
-## Create a custom precondition with explicit object dependencies.
-## The planner will validate these objects exist before invoking the precondition.
+## Like [method custom], but also lists the live objects [param fn] captures in [param deps].
+## If any of them has been freed, the precondition is [code]false[/code] and [param fn] is not
+## called, which avoids errors from freed lambda captures.
 static func custom_with_deps(fn: Callable, deps: Array[Object]) -> Precondition:
 	return PreconditionCustomWithDeps.new(fn, deps)
 
 
-## Generic function to create property comparison preconditions, eliminating code duplication.
+## Shared factory behind the built-in constructors.
 static func _create_property_precondition(
 	target: PreconditionBuiltin.Target,
 	prop: String,
@@ -123,7 +133,7 @@ static func agent_property_equal_to(
 	)
 
 
-## Instantiate a precondition that checks whether a property in the agent blackboard exists.
+## Instantiate a precondition that checks whether a property in the world blackboard exists.
 static func world_state_has_property(prop: String) -> Precondition:
 	return _create_property_precondition(
 		PreconditionBuiltin.Target.WORLD_STATE, prop, PreconditionBuiltin.Op.HAS_PROPERTY
@@ -286,22 +296,24 @@ static func world_object_has_property(group: String, property: String) -> Precon
 	)
 
 
-## Check if any of the agent's object data matches a requested group.
+## True if the agent owns at least one object data node (such as a [GdPAILocationData]) in
+## [param group], i.e. a simulated proxy for it exists on the agent blackboard.
 static func agent_has_object_data_of_group(group: String) -> Precondition:
 	var check: Callable = func(bb: GdPAIBlackboard, _w: GdPAIBlackboard):
 		return bb.get_proxies_in_group(group).size() > 0
 	return PreconditionCustom.new(check)
 
 
-## Check if any of the world state's object data matches a requested group.
+## True if the world state contains at least one object data node in [param group].
 static func world_state_has_object_data_of_group(group: String) -> Precondition:
 	var check: Callable = func(_b: GdPAIBlackboard, ws: GdPAIBlackboard):
 		return ws.get_proxies_in_group(group).size() > 0
 	return PreconditionCustom.new(check)
 
 
-## Check if a given object is valid.
-## Uses dependency tracking to validate the object exists before planning.
+## True while [param object] has not been freed. Typically used in
+## [method Action.get_validity_checks] to drop actions whose target is gone. The object is tracked
+## as a dependency, so a freed object never reaches the check callable.
 static func check_is_object_valid(object: Variant) -> Precondition:
 	var deps: Array[Object] = []
 	if object is Object:

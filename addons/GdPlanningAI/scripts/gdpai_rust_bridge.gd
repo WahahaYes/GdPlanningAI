@@ -1,22 +1,28 @@
 class_name GdPAIRustBridge
 extends RefCounted
 
-## Internal bridge between GDScript and the Rust planning engine.
-##
-## Serialises [Action] and [Goal] objects into the plain-dictionary format
-## consumed by [GdPAIPlanScheduler.submit_plan]. The Rust layer calls back
-## into GDScript via [Callable] references embedded in those dictionaries to
-## evaluate costs, effects, and preconditions without copying game state
-## across the language boundary.
-##
-## Not intended for direct use — [GdPAIAgent] owns and calls this internally.
+## Internal bridge between GDScript and the Rust planning engine.[br]
+##[br]
+## Serialises [Action] and [Goal] objects into the plain-dictionary format consumed by
+## [code]GdPAIPlanScheduler.submit_plan[/code]. This is where the declarative hooks
+## ([method Action.get_preconditions], [method Action.get_validity_checks],
+## [method Action.get_requirements], [method Action.get_provisions], [method Goal.compute_reward],
+## [method Goal.get_desired_state]) are read, on the main thread, once per plan request. The dictionaries embed
+## [Callable] references to [method Action.get_action_cost] and [method Action.simulate_effect];
+## the engine calls them back on the main thread during planning, so game state is never copied
+## across the language boundary.[br]
+##[br]
+## Not intended for direct use: [GdPAIAgent] owns and calls this internally.
 
 
-## Resolves the [code]action_chain[/code] indices in [param result] back to
-## the original [Action] objects from [param actions].
-##
-## Returns an ordered [Array[Action]] ready for execution with bindings injected.
-## Action-specific bindings from the planner are injected into action instances.
+## Turns a finished planner [param result] into an executable chain.[br]
+##[br]
+## Each index in [code]result.action_chain[/code] is resolved against [param actions] (the actions
+## submitted with the request) and replaced by the result of [method Action.clone_for_plan].
+## Returns a dictionary with [code]action_chain[/code] (the ordered [code]Array[Action][/code]) and
+## [code]bindings_by_position[/code] (planner bindings as arrays of
+## [code][chain_position, fact_name, values][/code], grouped by chain position). The agent injects
+## the bindings itself just before executing each step; this method does not.
 func deserialize_plan_result(result: Dictionary, actions: Array[Action]) -> Dictionary:
 	var action_chain: Array[Action] = []
 
@@ -40,12 +46,14 @@ func deserialize_plan_result(result: Dictionary, actions: Array[Action]) -> Dict
 	}
 
 
-## Public accessor for action serialisation.
+## Serialises [param actions] for the planner. See [method Action.get_title] and the
+## [code]get_*[/code] hooks of [Action] for what is read. Main thread only.
 func serialize_actions(actions: Array[Action]) -> Array[Dictionary]:
 	return _extract_actions(actions)
 
 
-## Public accessor for goal serialisation.
+## Serialises [param goals] for the planner, evaluating each goal's reward and desired state
+## against [param agent] now. Main thread only.
 func serialize_goals(goals: Array[Goal], agent: GdPAIAgent) -> Array[Dictionary]:
 	return _extract_goals(goals, agent)
 

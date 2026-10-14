@@ -1,10 +1,14 @@
 class_name PreconditionBuiltin
 extends Precondition
-## Built-in precondition that evaluates property comparisons on blackboard states.
-##
-## This precondition type performs common operations like property existence checks,
-## equality comparisons, and numeric comparisons. These operations are optimized
-## and can be evaluated directly on the background thread without callbacks.
+## Property comparison evaluated natively by the planning engine. Usually created through the
+## static constructors on [Precondition] (for example [method Precondition.agent_property_equal_to])
+## rather than directly.[br]
+##[br]
+## It compares one property (existence, equality or ordering) on the agent blackboard, on the world
+## blackboard, or on world objects of a group, where the group form is true if [i]any[/i] object
+## in the group satisfies it. Because the engine understands which property is tested, it can
+## evaluate the check on its own thread without callbacks and can search for actions whose
+## simulated effects change that property.
 
 ## Specifies which blackboard to evaluate the precondition against.
 enum Target {
@@ -36,13 +40,11 @@ var group: String
 var value: Variant
 
 
-## Creates a new builtin precondition with the specified parameters.
-##
-## @param t The target blackboard (AGENT, WORLD_STATE, or WORLD_OBJECT_PROXY)
-## @param op The comparison operation to perform
-## @param prop The property name to check
-## @param val The value to compare against (optional, not used for HAS_PROPERTY)
-## @param grp The group name (required for WORLD_OBJECT_PROXY target)
+## Creates a built-in precondition.[br]
+##[br]
+## [param t] is the target blackboard, [param op] the comparison, [param prop] the property name,
+## [param val] the value to compare against (ignored for [constant Op.HAS_PROPERTY]) and
+## [param grp] the object group (only used with [constant Target.WORLD_OBJECT_PROXY]).
 func _init(t: Target, op: Op, prop: String, val: Variant = null, grp: String = "") -> void:
 	target = t
 	operation = op
@@ -51,7 +53,7 @@ func _init(t: Target, op: Op, prop: String, val: Variant = null, grp: String = "
 	value = val
 
 
-## Serializes this precondition into the dictionary format expected by the Rust bridge.
+## Serialises this precondition into the dictionary format expected by the Rust bridge.
 func to_bridge_dict() -> Dictionary:
 	var dict = {
 		"target": _target_to_string(target),

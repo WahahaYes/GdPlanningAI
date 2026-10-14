@@ -1,29 +1,35 @@
 class_name GdPAIAgentConfig
 extends Resource
-## Serializable configuration resource for GdPAI agents.
+## Per-agent configuration resource: when and how an agent plans, how much search effort it may
+## spend, its starting blackboard, and its behaviors (which supply goals, actions and property
+## updaters). Assign it to [member GdPAIAgent.config]; it can be saved and shared between agents.
 
-## Planning strategy determines when and how often the agent replans.
+## Determines when the agent starts a new planning request.
 enum PlanningStrategy {
-	CONTINUOUS,  ## Plan every frame (current behavior).
-	ON_INTERVAL,  ## Plan at fixed time intervals.
-	ON_DEMAND,  ## Plan only when explicitly requested.
-	ON_INTERVAL_FORCED,  ## Force planning at intervals, even if plan is active.
+	CONTINUOUS,  ## Plan whenever there is no active plan and no request in flight (checked every frame).
+	ON_INTERVAL,  ## Check every [member planning_interval] seconds and plan if there is no active plan.
+	ON_DEMAND,  ## Plan only when [method GdPAIAgent.manually_start_plan] is called.
+	ON_INTERVAL_FORCED,  ## Plan every [member planning_interval] seconds, replacing a running plan.
 }
 
-## How the agent should approach planning.
+## When the agent plans. See [enum PlanningStrategy].
 @export var planning_strategy: PlanningStrategy = PlanningStrategy.CONTINUOUS
-## Planning interval in seconds (only used for ON_INTERVAL strategy).
+## Seconds between planning checks. Used by [constant PlanningStrategy.ON_INTERVAL] and
+## [constant PlanningStrategy.ON_INTERVAL_FORCED] only. Each agent starts its timer with a random
+## offset below this value so agents do not all plan on the same frame.
 @export var planning_interval: float = 0.5
-## Maximum planning search depth. Branches deeper than this are pruned.
-## Minimum enforced by the scheduler is 1.
+## Maximum search depth (open requirements in a branch). Deeper branches are pruned, which also
+## stops runaway requirement chains. Values below 1 are raised to 1 by the scheduler.
 @export var max_recursion: int = 100
-## Maximum iterations per planning step before yielding to the main thread.
-## Minimum enforced by the scheduler is 100.
+## Search iterations the planner may run in one step before it yields and resumes on a later
+## frame. Lower values spread long searches over more frames. Values below 100 are raised to 100.
 @export var iteration_budget: int = 20000
-## Wall-clock budget (ms) per planning step before yielding Pending(0).
-## 0 disables time-slicing.
+## Wall-clock budget in milliseconds for one planning step before it yields and resumes on a
+## later frame. [code]0[/code] disables time-slicing.
 @export var time_slice_ms: int = 10
-## Blackboard plan for the agent.
+## Starting contents of the agent's own blackboard. The agent also gets an [code]entity[/code]
+## property and a [code]GDPAI_OBJECTS[/code] list of its own object data.
 @export var blackboard_plan: GdPAIBlackboardPlan = GdPAIBlackboardPlan.new()
-## Behavior configurations that provide goals, actions, and property updaters.
+## Behaviors applied to the agent when it becomes ready. Their goals, actions and updaters are
+## all added to the agent.
 @export var behavior_configs: Array[GdPAIBehaviorConfig] = []

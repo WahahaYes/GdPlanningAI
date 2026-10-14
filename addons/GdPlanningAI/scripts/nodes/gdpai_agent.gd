@@ -1,22 +1,51 @@
 class_name GdPAIAgent
 extends Node
-## GdPlanningAI Agent.  The agent has their own record of the world state and a
-## personal blackboard of attributes.  Agents form plans given their available goals and actions.
+## The AI brain of one entity: it plans with the available goals and actions, then executes the
+## resulting plan. Add one per AI-controlled entity and assign [member entity] and [member config].[br]
+##[br]
+## Each frame the agent first runs its [PropertyUpdater]s, then (according to the planning
+## strategy in [member GdPAIAgentConfig.planning_strategy]) may submit a planning request, then
+## runs the current plan. The loop is:[br]
+## 1. The agent gathers its actions ([member self_actions] plus those from world objects'
+## [method GdPAIObjectData.get_provided_actions]) and goals, and submits them with snapshots of
+## its [member blackboard] and the world state to the background planner. Declarative hooks
+## ([method Action.get_preconditions] and friends, [method Goal.compute_reward],
+## [method Goal.get_desired_state]) are read at this moment, on the main thread.[br]
+## 2. The search runs on a background thread. Its callbacks ([method Action.get_action_cost],
+## [method Action.simulate_effect], custom preconditions) are executed on the main thread by the
+## plan scheduler during later frames.[br]
+## 3. When a plan is found it replaces the current plan. A result submitted before a newer request
+## is discarded. A failed search clears the current plan.[br]
+## 4. The plan is executed on the main thread: [method Action.pre_perform_action] for every
+## action once, then [method Action.perform_action] every frame for the current step until it
+## returns [constant Action.Status.SUCCESS] (next step) or [constant Action.Status.FAILURE]
+## (abort), and finally [method Action.post_perform_action] for every action once when the plan
+## ends, whether it completed or was aborted.[br]
+##[br]
+## The agent needs a [GdPAIWorldNode] in the scene and at least one goal to do anything. Users
+## normally configure it entirely through the inspector and [GdPAIBehaviorConfig]s.
 
-## The top-level node of the agent.
+## The top-level node of the entity this agent controls. Object data nodes below it
+## ([GdPAIObjectData], [GdPAILocationData], ...) become part of the agent's own simulated state, and
+## [GoToAction] searches it for a navigation agent. Required for planning.
 @export var entity: Node
-## Configuration resource for agent setup.
+## Planning settings, starting blackboard and behaviors. Read once when the agent becomes ready.
 @export var config: GdPAIAgentConfig = GdPAIAgentConfig.new()
 
-## Reference to this agent's own blackboard.
+## The agent's own blackboard, created in [code]_ready[/code] from
+## [member GdPAIAgentConfig.blackboard_plan]. Holds the agent's properties (hunger, held items, ...),
+## the [code]entity[/code] reference and per-action [method Action.set_state] data.
 var blackboard: GdPAIBlackboard
-## Reference to the world node.
+## The [GdPAIWorldNode] found in the scene when the agent became ready, or [code]null[/code]. The
+## agent cannot plan without it.
 var world_node: GdPAIWorldNode = null
-## List of this agent's goals.
+## The goals this agent pursues, filled by its behavior configs. The agent is idle while empty.
 var goals: Array[Goal]
-## List of this agent's available actions.
+## Actions this agent owns, filled by its behavior configs. Actions offered by world objects are
+## gathered separately at each plan request.
 var self_actions: Array[Action]
-## Property updaters registered by behavior configs. Updated every frame.
+## Property updaters registered by behavior configs. Each is updated every frame, before
+## planning and plan execution.
 var property_updaters: Array[PropertyUpdater]
 ## The currently selected goal.
 var _current_goal: Goal = null
@@ -44,6 +73,8 @@ var _plan_generation: int = 0
 var _inflight_generation: int = 0
 
 
+## Applies the planning strategy, creates the blackboard, registers the entity's object data,
+## applies every behavior config and looks up the [GdPAIWorldNode].
 func _ready() -> void:
 	# Set planning strategy.
 	set_planning_strategy(config.planning_strategy, config.planning_interval)
@@ -63,6 +94,8 @@ func _ready() -> void:
 	_bridge = GdPAIRustBridge.new()
 
 
+## Per-frame loop: runs property updaters, starts a plan when the strategy asks for one, then
+## executes the current plan.
 func _process(delta: float) -> void:
 	for updater in property_updaters:
 		updater.update_properties(self, delta)
@@ -82,22 +115,28 @@ func _process(delta: float) -> void:
 	_execute_plan(delta)
 
 
-## Returns the currently selected goal.
+## Returns the goal the current plan serves, or [code]null[/code] if there is no plan.
 func get_current_goal() -> Goal:
 	return _current_goal
 
 
-## Returns the current action chain being executed.
+## Returns the action chain of the current plan in execution order, or an empty array. The
+## actions are the per-plan instances from [method Action.clone_for_plan].
 func get_current_plan() -> Array[Action]:
 	return _current_action_chain
 
 
-## Returns the current step within the plan.
+## Returns the index of the step being executed. [code]-1[/code] means a new plan is waiting for
+## its [method Action.pre_perform_action] phase; a value of at least the chain size means the plan
+## has ended.
 func get_current_plan_step() -> int:
 	return _current_plan_step
 
 
-## Set the planning strategy for this agent.
+## Changes the planning strategy at runtime. [param interval] is the seconds between checks for
+## [constant GdPAIAgentConfig.PlanningStrategy.ON_INTERVAL] and
+## [constant GdPAIAgentConfig.PlanningStrategy.ON_INTERVAL_FORCED]; it is ignored otherwise. The
+## first interval is randomised to spread agents out. Any previous timer is replaced.
 func set_planning_strategy(
 	strategy: GdPAIAgentConfig.PlanningStrategy,
 	interval: float = 0.5,
@@ -127,7 +166,9 @@ func set_planning_strategy(
 		_planning_timer.wait_time = interval
 
 
-## Trigger planning on demand.
+## Submits a planning request now, regardless of strategy and of any plan currently running.
+## Does nothing while the agent has no goals. When the resulting plan is ready it replaces the
+## current one; the old plan's [method Action.post_perform_action] is not called in that case.
 func manually_start_plan() -> void:
 	if goals.size() == 0:
 		return
@@ -175,7 +216,8 @@ func _start_plan_async() -> void:
 	)
 
 
-## Called by the scheduler when a background plan completes.
+## Called by the scheduler on the main thread when a background plan completes. Installs the
+## new plan (resetting the step to -1) or clears the current plan when the search failed.
 func _on_plan_ready(result: Dictionary) -> void:
 	_waiting_for_plan = false
 	# Discard stale results if goals changed since submission.
