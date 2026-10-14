@@ -34,8 +34,6 @@ use std::time::{Duration, Instant};
 /// runs tests in one binary on multiple threads sharing that state.
 static LEVEL_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-// ── Helpers ──────────────────────────────────────────────────────────
-
 fn make_agent(hunger: i64) -> BlackboardSnapshot {
     let mut props = HashMap::new();
     props.insert("hunger".to_string(), VariantSnapshot::Int(hunger));
@@ -172,8 +170,6 @@ fn run_eat_plan() -> PlanOutcome {
         tree_dump: engine.tree.format(),
     }
 }
-
-// ── Tests ────────────────────────────────────────────────────────────
 
 #[test]
 fn info_completes_plan_with_summary_but_no_tree() {

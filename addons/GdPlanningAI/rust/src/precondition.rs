@@ -2,13 +2,27 @@
 //!
 //! Built-in operations (has_property, equal, greater_than, etc.) are handled
 //! in Rust for performance. Custom preconditions use Callables for GDScript evaluation.
+//!
+//! Two evaluators exist for builtin operations, and they are used at different times:
+//! - During planning, on worker threads, [`PreconditionSpec::evaluate_builtin`] evaluates
+//!   against [`BlackboardSnapshot`](crate::snapshot::BlackboardSnapshot)s.
+//! - [`PreconditionHandler`] evaluates against live [`GdPAIBlackboard`]s on the main thread.
+//!   The scheduler uses it once per `submit_plan` to drop goals that are already satisfied.
+//!
+//! The handler is built from the serialized GDScript dictionary (`from_dict`) or rebuilt from
+//! a spec plus the job's callable registry (`from_spec`). The two evaluators are meant to agree
+//! but are separate implementations, with slightly different tolerances (see
+//! [`PreconditionHandler::evaluate`]).
 
 use super::gdpai_blackboard::GdPAIBlackboard;
 use crate::plan_types::PreconditionSpec;
 use crate::snapshot::VariantSnapshot;
 use godot::prelude::*;
 
-/// Handler for precondition evaluation with built-in or custom operations.
+/// Main-thread evaluator for a precondition with a built-in or custom operation.
+///
+/// Holds live Godot values (`Variant`, `Callable`), so it is not `Send` and must stay on the
+/// main thread; the planner thread uses [`PreconditionSpec`] instead.
 #[derive(Clone, Debug)]
 pub struct PreconditionHandler {
     /// Where to evaluate the precondition
@@ -26,13 +40,19 @@ pub struct PreconditionHandler {
 /// Where to evaluate a precondition.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum PreconditionTarget {
+    /// The agent's own blackboard.
     Agent,
+    /// The shared world blackboard.
     WorldState,
     /// Evaluate against properties of world objects in a specific group.
     /// The planner iterates all SimObjectProxy snapshots in the world state
     /// that belong to the given group and checks the property on each.
+    ///
+    /// The precondition holds if any object in the group satisfies it.
     WorldObjectProxy {
+        /// Group the objects must belong to.
         group: String,
+        /// Property read from each object.
         property: String,
     },
 }
@@ -40,21 +60,31 @@ pub enum PreconditionTarget {
 /// Types of precondition operations.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum PreconditionOp {
+    /// The property exists.
     HasProperty,
+    /// The property equals the value.
     Equal,
+    /// The property does not equal the value.
     NotEqual,
+    /// The property is numerically greater than the value.
     GreaterThan,
+    /// The property is numerically greater than or equal to the value.
     GreaterThanOrEqual,
+    /// The property is numerically less than the value.
     LessThan,
+    /// The property is numerically less than or equal to the value.
     LessThanOrEqual,
+    /// Not a comparison: a GDScript callable decides.
     CustomCallback,
 }
 
 impl PreconditionHandler {
     /// Creates a handler from a Godot dictionary.
     ///
-    /// Expected keys: `target`, `operation`, `property_name`, `value`,
-    /// `is_satisfied`, `eval_callable`.
+    /// Recognised keys: `target` (`agent` by default, `world_state` or `world_object_proxy`,
+    /// the latter also reading `group` and `property`), `operation`, `property_name`, `value`
+    /// and `eval_callable`. Missing or malformed keys fall back to defaults (agent target,
+    /// `has_property`, empty name), so this currently always returns `Some`.
     pub fn from_dict(dict: &VarDictionary) -> Option<Self> {
         let target = dict
             .get("target")
@@ -154,6 +184,13 @@ impl PreconditionHandler {
     }
 
     /// Evaluates this precondition against the given states.
+    ///
+    /// Builtin operations compare numerically as `f64` (ints and floats alike) with an
+    /// exact-equality tolerance of `f64::EPSILON`; a missing (nil) property fails every
+    /// operation, and agent/world-state operations without a `value` fail (including
+    /// `has_property`, which the snapshot evaluator answers without one). A custom callback is
+    /// called with `(agent_state, world_state)` and must return a bool; anything else counts
+    /// as false. Must be called on the main thread.
     pub fn evaluate(
         &self,
         agent_state: &Gd<GdPAIBlackboard>,
@@ -215,7 +252,7 @@ impl PreconditionHandler {
         }
     }
 
-    /// Evaluate a builtin operation on a GdPAIBlackboard source.
+    /// Evaluate a builtin operation on the property of a single [`GdPAIBlackboard`] source.
     fn evaluate_on_blackboard(
         source: &Gd<GdPAIBlackboard>,
         op: &PreconditionOp,
@@ -274,7 +311,7 @@ impl PreconditionHandler {
         }
     }
 
-    /// Compare two Variants for equality (numeric with epsilon).
+    /// Compare two Variants for equality (numeric with `f64::EPSILON` tolerance).
     fn compare_variants_equal(prop: &Variant, val: &Variant) -> bool {
         if *prop == *val {
             return true;
@@ -285,7 +322,8 @@ impl PreconditionHandler {
         false
     }
 
-    /// Compare two Variants using the given operation.
+    /// Compare two Variants using the given operation; ordering operations need numeric
+    /// operands and are false otherwise.
     fn compare_variants(prop: &Variant, val: &Variant, op: &PreconditionOp) -> bool {
         match op {
             PreconditionOp::HasProperty => !prop.is_nil(),

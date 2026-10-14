@@ -1,8 +1,7 @@
 //! Regression test for search-budget exhaustion yielding Pending instead of Complete.
 //!
-//! Test Gap #7: Verifies that when the iteration budget is exhausted before a
-//! complete plan can be found, the planner returns `PlannerRunResult::Pending`
-//! rather than `Complete`.
+//! Verifies that when the iteration budget is exhausted before a complete plan can be
+//! found, the planner returns `PlannerRunResult::Pending` rather than `Complete`.
 
 use gdplanningai_rust::plan_types::{
     ActionSpec, CallbackKind, CallbackRequest, CallbackResponse, GoalSpec, PlannerCallback,

@@ -22,8 +22,6 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-// ── Helpers ────────────────────────────────────────────────────────
-
 fn build_provision_index(actions: &[ActionSpec]) -> HashMap<(ProvisionKind, String), Vec<usize>> {
     let mut index: HashMap<(ProvisionKind, String), Vec<usize>> = HashMap::new();
     for (idx, action) in actions.iter().enumerate() {
@@ -254,8 +252,6 @@ fn hunger_less_than(threshold: i64) -> PreconditionSpec {
         value: Some(VariantSnapshot::Int(threshold)),
     }
 }
-
-// ── Tests ──────────────────────────────────────────────────────────
 
 #[test]
 fn requirement_provision_chains_pickup_then_eat() {

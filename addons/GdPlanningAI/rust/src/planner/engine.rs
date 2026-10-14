@@ -6,6 +6,35 @@
 //!
 //! The planning process is non-blocking and uses a backward-chaining Dijkstra
 //! search to find the optimal sequence of actions to satisfy a goal.
+//!
+//! # How a search runs
+//!
+//! The search state is a priority queue of [`SearchNode`]s, each holding a [`PlanBranch`].
+//! A branch is in one of two phases:
+//! - [`BranchState::Searching`] (backward): the branch has open needs. Popping it asks
+//!   [`find_candidates`] for actions that satisfy some of them; every candidate becomes a child
+//!   branch with the action spliced into the chain and the needs updated. The root branch holds
+//!   the goal's unmet preconditions and an empty chain.
+//! - [`BranchState::Verifying`] (forward): a branch with no open needs is replayed from the
+//!   initial state one action at a time, re-checking preconditions and requirements against the
+//!   simulated state and calling GDScript for costs and effects. A chain that survives to the
+//!   end is recorded as the best plan if it is cheaper than the previous best.
+//!
+//! The symbolic backward phase proposes chains cheaply; the forward phase is what decides
+//! whether a chain really works.
+//!
+//! # Yielding and resuming
+//!
+//! [`PlannerEngine::plan`] never blocks. It returns [`PlannerRunResult::Pending`] when it must
+//! wait for the main thread (`Pending(id)`: a callback with that request id is outstanding;
+//! affected nodes are parked in `parked_nodes` under their id) or when it exhausted its
+//! iteration budget or time slice (`Pending(0)`: simply call again). Parked nodes come back
+//! through `response_rx` at the start of the next call, carrying the answer.
+//! [`PlannerRunResult::Complete`] ends the run.
+//!
+//! The engine is moved into the worker closure for each step and moved back through a channel
+//! afterwards, so it is only ever touched by one thread at a time and needs no locking of its
+//! own; only the discovery caches in [`SearchContext`] are behind mutexes.
 
 use crate::debug_tree::{NodeOutcome, TreeDump};
 use crate::plan_tree::PlanResult;
@@ -28,31 +57,58 @@ use std::sync::mpsc::{Receiver, Sender};
 ///
 /// This engine manages the backward-chaining search queue, handles Godot callbacks, and
 /// orchestrates the simulation of action chains.
+///
+/// Goals are searched one at a time in the order given (the scheduler sorts them by reward,
+/// highest first); the first goal that yields a plan wins, and the engine only moves on to
+/// the next goal when the current one has no plan.
 pub struct PlannerEngine {
+    /// Shared per-run context: actions, initial state, channels and discovery caches.
     pub ctx: Arc<SearchContext>,
+    /// Maximum chain length. Also bounds the number of open requirements as a cycle guard.
     pub max_depth: usize,
+    /// Set from the main thread to abort the search; checked at several points per step.
     pub cancel_flag: Arc<AtomicBool>,
+    /// Receiving end for the main thread's callback answers. The scheduler replaces this (and
+    /// `response_tx`) with the channel whose sender it gave to [`SearchContext`].
     pub response_rx: Receiver<PlannerCallback>,
+    /// Sending end matching `response_rx`.
     pub response_tx: Sender<PlannerCallback>,
 
-    // Config
+    /// Orders the queue and decides when the search can stop early.
     pub heuristic: Box<dyn SearchHeuristic + Send + Sync>,
+    /// When the search stops: first verified plan or best cost.
     pub termination: TerminationStrategy,
+    /// Maximum node pops per [`PlannerEngine::plan`] call before yielding `Pending(0)`.
     pub iteration_budget: usize,
+    /// Wall-clock budget per [`PlannerEngine::plan`] call before yielding `Pending(0)`;
+    /// 0 disables the check.
     pub time_slice_ms: u64,
 
-    // Search State
+    /// Open nodes ordered by heuristic priority (lowest first).
     pub queue: BinaryHeap<PriorityNode>,
+    /// Nodes waiting for a callback, keyed by the request id they wait on. Several nodes can
+    /// wait on the same id (they share a discovery request).
     pub parked_nodes: HashMap<usize, Vec<SearchNode>>,
+    /// Cheapest cost at which each searching-branch fingerprint has been expanded; see
+    /// [`PlanBranch::fingerprint`].
     pub visited: HashMap<SearchFingerprint, f64>,
+    /// Cheapest verified plan for the current goal so far.
     pub best_plan: Option<PlanResult>,
+    /// Cost of `best_plan`; infinity until a plan is found. Branches at or above it are pruned.
     pub best_cost: f64,
+    /// Position in the `goals` slice of the goal currently being searched.
     pub current_goal_index: usize,
+    /// Debug record of the search; only populated when the log level was Debug at creation.
     pub tree: TreeDump,
 }
 
 impl PlannerEngine {
     /// Creates a new PlannerEngine with the given search context and constraints.
+    ///
+    /// Defaults to Dijkstra with [`TerminationStrategy::BestCost`], an iteration budget of 20000
+    /// and a 10 ms time slice. It owns a fresh response channel; callers that handed
+    /// `ctx.engine_response_tx` to the main thread must overwrite `response_rx` with the
+    /// matching receiver.
     pub fn new(ctx: Arc<SearchContext>, max_depth: usize, cancel_flag: Arc<AtomicBool>) -> Self {
         let (tx, rx) = std::sync::mpsc::channel();
         Self {
@@ -81,8 +137,9 @@ impl PlannerEngine {
         self
     }
 
-    /// Helper to push a [`SearchNode`] onto the queue with its priority
-    /// computed by the active heuristic.
+    /// Pushes a [`SearchNode`] onto the queue with its priority computed once by the active
+    /// heuristic. Priorities are fixed at enqueue time, so a node's branch must not change
+    /// cost afterwards.
     fn enqueue(&mut self, node: SearchNode) {
         let priority = self.heuristic.compute_priority(&node);
         self.queue.push(PriorityNode { priority, node });
@@ -93,14 +150,16 @@ impl PlannerEngine {
         self
     }
     /// Sets the iteration budget for a single planning step.
-    /// The search yields after this many iterations to avoid blocking the main thread.
+    /// The search yields `Pending(0)` after this many node pops so that one huge search is
+    /// split into resumable pieces instead of occupying a worker indefinitely.
     pub fn with_iteration_budget(mut self, budget: usize) -> Self {
         self.iteration_budget = budget;
         self
     }
     /// Sets the wall-clock time slice (ms) for a single planning step.
     /// The search yields Pending(0) once the slice elapses (checked every
-    /// 128 pops). 0 disables time-slicing; prototype default is 10ms.
+    /// 128 pops). 0 disables time-slicing; the engine default is 10 ms.
+    /// Yielding lets the scheduler interleave callback servicing and other agents' jobs.
     pub fn with_time_slice_ms(mut self, ms: u64) -> Self {
         self.time_slice_ms = ms;
         self
@@ -110,6 +169,12 @@ impl PlannerEngine {
     ///
     /// This function performs a non-blocking step of the search and returns
     /// a PlannerRunResult indicating if the plan is complete, pending, or failed.
+    /// Call it repeatedly with the same `goals` until it returns
+    /// [`PlannerRunResult::Complete`]. The first call seeds the queue with the root branch of
+    /// the first goal; later calls continue where the previous one stopped.
+    ///
+    /// `Complete(None)` means cancelled. A search that found nothing completes with
+    /// `Some` of a failed [`PlanResult`] (`success == false`, `goal_index == -1`).
     pub fn plan(&mut self, goals: &[GoalSpec]) -> PlannerRunResult {
         if self.queue.is_empty() && self.parked_nodes.is_empty() && self.best_plan.is_none() {
             // Initializing with the first goal
@@ -140,6 +205,9 @@ impl PlannerEngine {
         );
     }
 
+    /// Seeds the queue with the root branch for `goals[idx]`: an empty chain whose open
+    /// preconditions are the goal's desired state that the initial state does not already
+    /// satisfy (builtin preconditions only; custom ones are always treated as open).
     fn initialize_goal(&mut self, goals: &[GoalSpec], idx: usize) {
         let goal = &goals[idx];
 
@@ -181,6 +249,13 @@ impl PlannerEngine {
         });
     }
 
+    /// One resumable slice of the search; see the module docs for the overall design.
+    ///
+    /// Order of work: (1) drain callback answers, filling the discovery caches and moving
+    /// parked nodes back to the queue with their answer attached; (2) pop nodes until the
+    /// queue is empty, a budget or time slice runs out, the search is provably finished, or
+    /// the run is cancelled; (3) when nothing is left to pop, either wait for outstanding
+    /// callbacks, advance to the next goal, or produce the final result.
     fn step_search(&mut self, goals: &[GoalSpec]) -> PlannerRunResult {
         if self.cancel_flag.load(std::sync::atomic::Ordering::Relaxed) {
             return PlannerRunResult::Complete(None);
@@ -193,7 +268,9 @@ impl PlannerEngine {
                 return PlannerRunResult::Complete(None);
             }
 
-            // Handle Discovery responses
+            // Answers to discovery requests (candidate discovery, as opposed to verification
+            // steps of one branch) are written to the shared caches, so every node that needed
+            // them can proceed, not just the one that triggered the request.
             let discovery_req = {
                 let req_map = self.ctx.discovery_request_map.lock().unwrap();
                 req_map.get(&callback.request_id).cloned()
@@ -239,7 +316,8 @@ impl PlannerEngine {
                 req_map.remove(&callback.request_id);
             }
 
-            // Handle Parked nodes
+            // Nodes parked on this id resume with the answer attached. Discovery-parked nodes
+            // ignore it and re-run discovery, which now hits the cache.
             if let Some(nodes) = self.parked_nodes.remove(&callback.request_id) {
                 for mut node in nodes {
                     node.resumed = true;
@@ -258,8 +336,9 @@ impl PlannerEngine {
             let mut node = priority_node.node;
             iterations += 1;
 
-            // Optimality check: If the best node's priority (g + h) is already worse than our best plan,
-            // and we want the best cost, we can stop.
+            // Optimality check: the queue pops the lowest priority first, so if even this
+            // node's priority (g + h) cannot beat the best plan, nothing left in the queue can,
+            // and under BestCost the search is finished.
             if self.termination == TerminationStrategy::BestCost
                 && self
                     .heuristic
@@ -269,7 +348,7 @@ impl PlannerEngine {
                 break;
             }
 
-            // Increase budget for local tests
+            // Budget exhausted: put the node back and let the scheduler resume us later.
             if iterations > self.iteration_budget {
                 log_warn!(
                     "Search budget exceeded ({} iterations). Search is taking too long.",
@@ -283,7 +362,9 @@ impl PlannerEngine {
                 return PlannerRunResult::Complete(None);
             }
 
-            // Visited check
+            // Visited check (expansion-time dedup): a branch with the same fingerprint that was
+            // already expanded at equal or lower cost makes this one redundant. Resumed nodes
+            // were already recorded when first popped.
             if !node.resumed && node.branch.state == BranchState::Searching {
                 let fp = node.branch.fingerprint();
                 if let Some(&prev_cost) = self.visited.get(&fp)
@@ -293,12 +374,15 @@ impl PlannerEngine {
                 }
                 self.visited.insert(fp, node.branch.cost);
             }
+            // A resumed node re-runs discovery from scratch; forgetting its expanded candidates
+            // is safe because the children created before parking are already queued, and
+            // the visited check then discards the duplicates.
             if node.resumed {
                 node.expanded_candidates.clear();
             }
             node.resumed = false;
 
-            // 3. State Machine Processing
+            // Prune anything that already costs at least as much as the best plan found.
             if node.branch.cost >= self.best_cost {
                 continue;
             }
@@ -354,7 +438,8 @@ impl PlannerEngine {
                     }
                 }
                 BranchState::Searching => {
-                    // Check if Goal Satisfied
+                    // No open needs left: the chain is symbolically complete. Restart from the
+                    // initial state to verify it forward.
                     if node.branch.open_preconditions.is_empty()
                         && node.branch.open_requirements.is_empty()
                     {
@@ -366,7 +451,7 @@ impl PlannerEngine {
                         continue;
                     }
 
-                    // Expand
+                    // Expand: depth-limited, so a branch at max_depth is a dead end.
                     if node.branch.action_chain.len() >= self.max_depth {
                         continue;
                     }
@@ -515,6 +600,9 @@ impl PlannerEngine {
                         });
                     }
 
+                    // Discovery was blocked on a callback for at least one action. Park the
+                    // parent (its ready candidates were already expanded above) to retry once
+                    // the answer lands.
                     if let Some(id) = candidates_res.pending_id {
                         node.callback_response = None;
                         self.parked_nodes.entry(id).or_default().push(node);
@@ -523,6 +611,9 @@ impl PlannerEngine {
             }
         }
 
+        // The queue is empty. Outstanding callbacks mean we are waiting, not done. (Any parked
+        // id works; the scheduler resumes us as soon as an answer for it has been delivered, and
+        // an answer for another parked id is picked up on that resume too.)
         if !self.parked_nodes.is_empty() {
             PlannerRunResult::Pending(*self.parked_nodes.keys().next().unwrap())
         } else {
@@ -549,7 +640,8 @@ impl PlannerEngine {
                 return PlannerRunResult::Pending(0);
             }
 
-            // Search exhausted or optimal plan found
+            // Search exhausted or optimal plan found. With no plan, report failure so the caller
+            // can distinguish it from cancellation (`Complete(None)`).
             let final_plan = self.best_plan.take().unwrap_or_else(|| PlanResult {
                 success: false,
                 action_chain: vec![],
@@ -577,6 +669,14 @@ impl PlannerEngine {
         }
     }
 
+    /// Advances forward verification of a branch by one unit of work.
+    ///
+    /// Each call does at most one of: clear initial-state requirements (first step), re-check
+    /// the current action's own preconditions, satisfy one open precondition at the current
+    /// position, simulate the current action, or finalize the chain. `Ready` means progress was
+    /// made and the node should be re-queued for the next unit; one unit per pop lets other
+    /// nodes and callbacks interleave and keeps every callback resumable. `Pending(id)` parks
+    /// the node, `Invalid` discards the branch, and `Complete` means the chain was verified.
     fn process_simulation(&mut self, node: &mut SearchNode) -> StepResult<()> {
         let branch = &mut node.branch;
 
@@ -638,6 +738,10 @@ impl PlannerEngine {
 
     /// Removes position-0 open requirements that are already satisfied by the
     /// initial state provisions.
+    ///
+    /// Run once at the start of verification. Requirements at later positions are cleared
+    /// as the simulation passes the provisions that satisfy them (see
+    /// [`PlannerEngine::clear_requirements_from_provisions`]).
     pub fn clear_initial_state_requirements(&self, branch: &mut PlanBranch) {
         branch.open_requirements.retain(|(pos, req)| {
             !(*pos == 0
@@ -649,6 +753,11 @@ impl PlannerEngine {
 
     /// Re-evaluates an action's built-in preconditions against the current
     /// simulated state. Returns `None` if no short-circuit is required.
+    ///
+    /// This enforces that preconditions hold *before* the action runs: a chain whose earlier
+    /// steps do not actually establish what a later action needs is rejected even though the
+    /// symbolic search accepted it. Preconditions still listed as open at this position and
+    /// custom ones are skipped here because the open-precondition step handles them.
     pub fn validate_action_against_current_state(
         &self,
         branch: &PlanBranch,
@@ -692,6 +801,11 @@ impl PlannerEngine {
 
     /// Evaluates open preconditions at the current chain position, removing the
     /// first satisfied one and returning `Ready` to keep async processing safe.
+    ///
+    /// Only one is handled per call: a custom precondition may need a callback, and the
+    /// `Ready` return makes the engine re-queue and call again for the next one. Returns
+    /// `None` once no open precondition remains at this position. During verification a
+    /// precondition that evaluates to false invalidates the branch.
     pub fn evaluate_open_preconditions_for_position(
         &self,
         branch: &mut PlanBranch,
@@ -732,6 +846,10 @@ impl PlannerEngine {
 
     /// Simulates the current action, validates its requirements, clears later
     /// requirements satisfied by its provisions, and advances the simulation index.
+    ///
+    /// Requirements are checked first (while verifying) against the state and bindings as
+    /// they stand before the action. Failures are recorded as forward-validation steps on the
+    /// debug tree node. Cost and effect come from [`simulate_action`].
     pub fn simulate_and_advance(
         &mut self,
         branch: &mut PlanBranch,
@@ -799,6 +917,12 @@ impl PlannerEngine {
 
     /// Clears later open requirements that are satisfied by the current action's
     /// provisions, concretizing wildcard facts with the chain-position binding.
+    ///
+    /// Only requirements at or after the current position are cleared, since provisions
+    /// cannot reach back to earlier actions. A wildcard provision matches any requirement of
+    /// its fact name, so it is first turned into a concrete fact using this position's binding
+    /// (for GoTo, the target it was matched with); this keeps one GoTo from satisfying
+    /// `at_target` requirements for other targets.
     pub fn clear_requirements_from_provisions(
         &self,
         branch: &mut PlanBranch,
@@ -822,6 +946,10 @@ impl PlannerEngine {
 
     /// Handles the end of the action chain, pruning remaining open needs or
     /// recording the branch as the best plan found so far.
+    ///
+    /// Returns `Complete` for a verified chain (even when it was not cheaper than the best
+    /// plan, in which case it is simply discarded) and `Invalid` when open needs remain.
+    /// Outside verification this is a no-op that returns `Ready`.
     pub fn finalize_verified_branch(&mut self, branch: &mut PlanBranch) -> StepResult<()> {
         match branch.state {
             BranchState::Verifying => {
@@ -878,8 +1006,9 @@ impl PlannerEngine {
 
 /// Concretizes a [`ProvisionSpec::FactWildcard`] using the current chain-position binding.
 ///
-/// If the provision is not a wildcard, or no binding exists for the wildcard fact name,
-/// the original provision is returned unchanged.
+/// The binding is looked up by the wildcard's fact name and its values become the arguments
+/// of a concrete [`ProvisionSpec::Fact`]. If the provision is not a wildcard, or no binding
+/// exists for the wildcard fact name, the original provision is returned unchanged.
 fn concretize_wildcard_provision(
     prov: &ProvisionSpec,
     current_bindings: &[(String, Vec<VariantSnapshot>)],

@@ -1,12 +1,12 @@
 # Backward-Chaining GOAP Planner — Algorithmic Pseudocode
 
-> **Source:** `addons/GdPlanningAI/rust/src/planner/` + `scheduler.rs` (audited July 2026) **Purpose:** Algorithmic reference — not a type spec. See source for exact types.
+> **Source:** `addons/GdPlanningAI/rust/src/planner/` + `scheduler.rs` (audited October 2026) **Purpose:** Algorithmic reference — not a type spec. See source for exact types.
 
 ______________________________________________________________________
 
 ## 1. Architecture
 
-| Layer | Role | |-------|------| | **Symbolic** | Requirements ↔ Provisions (causal links, backward chaining) | | **Simulation** | GDScript callbacks for costs, effects, custom preconditions | | **Search** | Dijkstra (uniform-cost) via `SearchHeuristic`; A\* placeholder | | **Async** | Every callback yields `Pending(id)`; node parked, resumed on response | | **Threading** | Planner on Rayon pool; callbacks on Godot main thread | | **Multi-Goal** | Goals sorted by reward desc. Pre-filter: satisfied goals dropped. If ALL satisfied → empty plan for highest-reward. If ANY unsatisfied → search only unsatisfied. |
+| Layer | Role | |-------|------| | **Symbolic** | Requirements ↔ Provisions (causal links, backward chaining) | | **Simulation** | GDScript callbacks for costs, effects, custom preconditions | | **Search** | Dijkstra (uniform-cost) via `SearchHeuristic`; A\* placeholder | | **Async** | Every callback yields `Pending(id)`; node parked, resumed on response. Budget or time-slice exhaustion yields `Pending(0)`, resumed unconditionally | | **Threading** | Planner on Rayon pool; callbacks on Godot main thread. Godot values are converted to Send-safe snapshots on the main thread; the engine is moved (never shared) between worker and main thread | | **Multi-Goal** | Goals sorted by reward desc. Pre-filter: satisfied goals dropped. If ALL satisfied → empty plan for highest-reward. If ANY unsatisfied → search only unsatisfied. |
 
 ______________________________________________________________________
 
@@ -20,9 +20,12 @@ Requirement    { BindingExists(name) | BindingEquals(name,val) | BindingInSet(na
 Provision      { Binding(name,val) | Fact(name,args[]) | FactWildcard(name) }  // wildcard matches any Fact(name,_)
 
 BranchState    = Searching | Verifying
-PlanBranch     { action_chain[], action_costs[], action_bindings[], open_preconditions[(pos,spec)], open_requirements[(pos,spec)], state, sim_index, current_agent, current_world, cost, tree_node_id, goal_index }
+PlanBranch     { action_chain[], action_costs[], action_bindings[(pos,name,values)], open_preconditions[(pos,spec)], open_requirements[(pos,spec)], state, simulation_index, current_agent, current_world, cost, tree_node_id, goal_index }
+               // pos = chain index of the consuming action; a need must hold in the state just before that action.
+               // pos == action_chain.len means the final state, where goal preconditions end up.
+               // action_costs is seeded from the discovery cost on insertion; cost = sum(action_costs)
 SearchNode     { branch, resumed, callback_response, expanded_candidates[(action_idx,bindings)] }
-SearchContext  { actions[], initial_agent, initial_world, initial_provisions[], request_tx, response_tx, caches..., provision_index[(kind,name)→action_idxs], non_wildcard_actions[] }
+SearchContext  { actions[], initial_agent, initial_world, initial_provisions[], request_tx, engine_response_tx, caches..., provision_index[(kind,name)→action_idxs], non_wildcard_actions[] }
 ```
 
 **Caches (per planning run, thread-safe):**
@@ -30,7 +33,7 @@ SearchContext  { actions[], initial_agent, initial_world, initial_provisions[], 
 - `discovery_results[(action_idx,bindings)] → {agent,world,cost}`
 - `discovery_costs[(action_idx,bindings)] → f64`
 - `discovery_precond_results[(action_idx,spec,bindings)] → bool`
-- Pending maps with stale-entry cleanup via `request_map`
+- Pending maps (`discovery_pending`, `discovery_precond_pending`) with stale-entry cleanup via `discovery_request_map` (request id → what it was for)
 
 ______________________________________________________________________
 
@@ -38,8 +41,11 @@ ______________________________________________________________________
 
 ```
 function step_search(goals):
+    if cancel_flag: return Complete(None)
+
     // Phase 1: Resume callbacks
     while response = response_rx.try_recv():
+        if cancel_flag: parked_nodes.clear(); return Complete(None)
         if DiscoveryResponse: write into caches, remove from pending maps
         for parked_node waiting on request_id:
             parked_node.resumed = true; parked_node.callback_response = response
@@ -48,9 +54,10 @@ function step_search(goals):
     // Phase 2: Main loop
     iterations = 0
     while node = queue.pop():
+        iterations += 1
         if BestCost and heuristic.prune(node.priority, best_cost): re-enqueue; break
-        if cancel_flag: return Complete(None)
         if iterations > budget: enqueue(node); return Pending(0)
+        if cancel_flag: return Complete(None)
 
         if not resumed and state == Searching:
             fp = fingerprint(branch)
@@ -61,11 +68,15 @@ function step_search(goals):
         resumed = false
         if branch.cost >= best_cost: continue
 
+        // Time slice (0 disables); the clock is only read every 128 pops
+        if time_slice_ms > 0 and iterations % 128 == 0 and elapsed >= time_slice:
+            enqueue(node); return Pending(0)
+
         match branch.state:
 
             Searching:
                 if open_preconditions.empty and open_requirements.empty:
-                    state = Verifying; sim_index = 0; reset to initial state; enqueue; continue
+                    state = Verifying; simulation_index = 0; reset to initial state; enqueue; continue
                 if action_chain.len >= max_depth: continue
 
                 candidates = find_candidates(branch, ctx)
@@ -76,6 +87,7 @@ function step_search(goals):
 
                     new_branch = branch.clone()
                     insert_pos = min_position(cand.satisfied_preconditions, cand.satisfied_requirements)
+                    // (falls back to 0 when no consumer sits before the end of the chain)
 
                     // Insert action + cost
                     new_branch.action_chain.insert(insert_pos, cand.action_idx)
@@ -100,12 +112,12 @@ function step_search(goals):
 
                     new_branch.recalculate_cost()
 
-                    // Cycle guard
-                    if new_branch.open_requirements.len > max_depth: mark Pruned; continue
-
                     // Fully satisfied → verify immediately
                     if new_branch.open_preconditions.empty and new_branch.open_requirements.empty:
-                        new_branch.state = Verifying; sim_index = 0; reset to initial
+                        new_branch.state = Verifying; simulation_index = 0; reset to initial
+
+                    // Cycle guard
+                    if new_branch.open_requirements.len > max_depth: mark Pruned; continue
 
                     enqueue(new_branch)
 
@@ -121,9 +133,10 @@ function step_search(goals):
                     else: discard, keep searching (BestCost)
 
     // Exhaustion / goal sequencing
-    if parked_nodes not empty: return Pending(first_pending_id)
-    if best_plan exists and empty and more goals: advance to next goal; return Pending(0)
-    return Complete(best_plan or failure)
+    if parked_nodes not empty: return Pending(any_parked_id)
+    if best_plan exists and empty and more goals: reset best_plan/best_cost; advance to next goal; return Pending(0)
+    if no best_plan and more goals: advance to next goal; return Pending(0)
+    return Complete(best_plan or failed PlanResult)   // Complete(None) is reserved for cancellation
 ```
 
 ______________________________________________________________________
@@ -162,9 +175,9 @@ function find_candidates(branch, ctx) → {ready[], pending_id?}:
             // Per requirement × per matching provision
             for (req_idx, (_, req)) in open_requirements.enumerate():
                 for prov in action.provisions:
-                    if provision_satisfies(prov, req, initial_world):
+                    if provision_satisfies_requirement(prov, req, initial_world):
                         bindings = binding_values(prov, req)
-                        res = get_discovery(idx, bindings, ctx)  // 3-tier cost cache
+                        res = lookup_or_start_discovery(idx, bindings, ctx)  // result cache → pending map → simulate (cost, then effect)
                         if res is Pending: some_pending=true; last_pending=res.id; continue
 
                         // Evaluate open_preconditions against res
@@ -175,7 +188,7 @@ function find_candidates(branch, ctx) → {ready[], pending_id?}:
                                 if cached = discovery_precond_results[idx, pre, bindings]: if cached: push
                                 else if pending = check_pending_or_clean_stale(...): some_pending=true; break
                                 else: eval_precondition(pre, res.agent, res.world, ctx, None, bindings); some_pending=true; break
-                        if not some_pending:
+                        if no precondition check for this candidate is pending:
                             candidates.push({idx, [(req_idx,req,prov)], satisfied_pre, bindings})
 
         else:
@@ -183,14 +196,16 @@ function find_candidates(branch, ctx) → {ready[], pending_id?}:
             satisfied_reqs = []; matched = BTreeSet()
             for (req_idx, (_, req)) in open_requirements.enumerate():
                 for prov in action.provisions:
-                    if provision_satisfies(prov, req, initial_world):
+                    if provision_satisfies_requirement(prov, req, initial_world):
                         if matched.insert(req_idx): satisfied_reqs.push((req_idx,req,prov))
                         break
 
-            res = get_discovery(idx, [], ctx)
+            res = lookup_or_start_discovery(idx, [], ctx)
             if res is Pending: some_pending=true; last_pending=res.id; continue
 
             satisfied_pre = evaluate open_preconditions same as above
+                // a custom check that is still pending marks the node for parking, but the
+                // candidate is still emitted, just without credit for that precondition
             if satisfied_reqs not empty OR satisfied_pre not empty:
                 candidates.push({idx, satisfied_reqs, satisfied_pre, []})
 
@@ -199,6 +214,8 @@ function find_candidates(branch, ctx) → {ready[], pending_id?}:
 
 **Stale cleanup:** `check_pending_or_clean_stale(pending_map, request_map, key)` — if `request_map` lacks the ID, remove stale entry.
 
+**Wildcard binding:** for a `FactWildcard` provision matched against `Fact(n, args)`, `binding_values_from_match` yields `[(n, args)]`; that is the `bindings` the action is discovered, simulated and cached with, and what `insert_action_at` records at the provider's position and at each consumer position.
+
 ______________________________________________________________________
 
 ## 5. Forward Verification (`process_simulation`)
@@ -206,14 +223,14 @@ ______________________________________________________________________
 ```
 function process_simulation(node) → StepResult:
     branch = node.branch
-    if sim_index == 0: clear_initial_state_requirements(branch)  // pos-0 reqs satisfied by initial provisions
+    if simulation_index == 0: clear_initial_state_requirements(branch)  // pos-0 reqs satisfied by initial provisions
 
-    bindings = branch.bindings_at(sim_index)
+    bindings = branch.bindings_at(simulation_index)
 
     // 1. Action's own builtin preconditions (not in open_preconditions)
-    if sim_index < action_chain.len:
+    if simulation_index < action_chain.len:
         for pre in action.preconditions:
-            if pre in open_preconditions at sim_index: continue
+            if pre in open_preconditions at simulation_index: continue
             if pre is Custom: continue  // handled via open_preconditions
             match eval_precondition(pre, current_agent, current_world, ctx, callback_response, bindings):
                 Ready(true) → continue
@@ -227,17 +244,17 @@ function process_simulation(node) → StepResult:
         return result
 
     // 3. Simulate action or finalize
-    if sim_index < action_chain.len:
+    if simulation_index < action_chain.len:
         // Verify requirements against current state
         if Verifying:
             for req in action.requirements:
-                if not requirement_holds(req, current_agent, current_world, bindings): return Invalid
+                if not requirement_holds_in_state(req, current_agent, current_world, bindings): return Invalid
 
-        match simulate_action(action_idx, {agent, world, ctx, response, branch_action_costs[sim_index], bindings}):
+        match simulate_action(action_idx, {agent, world, ctx, response, branch_action_costs[simulation_index], bindings}):
             Ready(res):
                 current_agent = res.agent; current_world = res.world
                 clear_requirements_from_provisions(branch, action_idx, bindings)  // concretize wildcards
-                sim_index++; recalculate_cost(); callback_response = None
+                simulation_index++; recalculate_cost(); callback_response = None
                 return Ready(())
             Pending(id) → Pending(id)
             Invalid → Invalid
@@ -255,10 +272,13 @@ ______________________________________________________________________
 **Cost (3-tier cache):**
 
 ```
+(branch_action_costs is seeded with the discovery cost on insertion, so verification normally
+ hits the first line; discovery itself simulates against the *initial* state)
 branch_action_costs[sim_idx] ≥ 0  → cached
 response has Float                  → use & cache
 global discovery_costs has key      → use & cache locally
 else                                → fire GetCost callback → Pending
+(no cost_callable → 1.0; an infinite cost → Invalid, before any effect is requested)
 ```
 
 **Effect:**
@@ -277,9 +297,9 @@ Builtin → Ready(evaluate_builtin(agent, world))
 Custom  → response has Bool ? Ready(bool) : fire EvalCustomPrecond → Pending
 ```
 
-**`requirement_holds(req, agent, world, bindings)`** | Requirement | Check | |-------------|-------| | `BindingExists(n)` | bindings[n] non-empty OR agent.properties[n] non-null | | `BindingEquals(n,v)` | bindings[n] == v OR agent.properties[n] == v | | `BindingInSet(n,set)` | bindings[n] is ObjectRef in world.objects[set] OR agent.property same | | `Fact(at_target, [target])` | agent.location.position == target.position (from world); fallback to bindings |
+**`requirement_holds_in_state(req, agent, world, bindings)`** | Requirement | Check | |-------------|-------| | `BindingExists(n)` | bindings[n] non-empty OR agent.properties[n] non-null | | `BindingEquals(n,v)` | bindings[n] == v OR agent.properties[n] == v | | `BindingInSet(n,set)` | first value of a bindings[n] entry is an ObjectRef to a world object in group `set` OR agent.property same | | `Fact(at_target, [target])` | agent.location.position == target.position (from world); fallback to bindings | | other `Fact` | assumed true (covered by preconditions) |
 
-**`provision_satisfies(prov, req, world_opt)`** | Provision → Requirement | Match | |------------------------|-------| | Binding(n,v) → BindingExists(n) | n == n | | Binding(n,v) → BindingEquals(n,v) | n==n ∧ v==v | | Binding(n,obj) → BindingInSet(n,set) | n match ∧ world_opt has obj in set | | Fact(n,args) → Fact(n,args) | n match ∧ (args empty ∨ args==args) | | FactWildcard(n) → Fact(n,\_) | n match |
+**`provision_satisfies_requirement(prov, req, world_opt)`** | Provision → Requirement | Match | |------------------------|-------| | Binding(n,v) → BindingExists(n) | n == n | | Binding(n,v) → BindingEquals(n,v) | n==n ∧ v==v | | Binding(n,obj) → BindingInSet(n,set) | n match ∧ world_opt has obj in set | | Fact(n,args) → Fact(n,args) | n match ∧ (args empty ∨ args==args) | | FactWildcard(n) → Fact(n,\_) | n match |
 
 ______________________________________________________________________
 
@@ -308,7 +328,7 @@ submit_plan(agent, agent_bb, world_bb, actions, goals, max_depth, budget, time_s
     action_specs = build(actions)  // registers callables → IDs
     goal_specs = build(goals)
 
-    // Pre-filter satisfied goals
+    // Pre-filter satisfied goals (main thread, PreconditionHandler on the live blackboards)
     satisfied = highest_reward goal where desired_state all true in initial state
     goal_specs = goal_specs.filter(not satisfied)
     satisfied_goal_index = goal_specs.empty ? satisfied : -1
@@ -317,8 +337,8 @@ submit_plan(agent, agent_bb, world_bb, actions, goals, max_depth, budget, time_s
     build provision_index + non_wildcard_actions
     ctx = SearchContext{...}
     engine = PlannerEngine(ctx, max_depth, cancel_flag)
-        .heuristic(Dijkstra).termination(BestCost).budget(budget)
-    spawn on Rayon pool
+        .heuristic(Dijkstra).termination(BestCost).budget(budget).time_slice(time_slice_ms)
+    spawn first step on Rayon pool (the worker owns the engine until it sends it back)
 
 process_callbacks()  // each frame:
     1. Recover engines from workers:
@@ -333,7 +353,8 @@ process_callbacks()  // each frame:
        ready if (pending_id==0) OR (response this frame) OR (response already processed)
        run_job_step(goals, engine)
 
-    4. Cleanup finished jobs (one frame grace)
+    4. Cleanup finished jobs (one frame grace); reaped engines are freed on a
+       background thread, not the main thread
 ```
 
 ______________________________________________________________________
@@ -347,13 +368,15 @@ ______________________________________________________________________
 1. Cost = sum(action_costs) always (recalculated, not accumulated).
 1. Discovery caches per planning run (shared across branches).
 1. Insertion position = earliest consumer (predecessor before first consumer).
-1. Goal handling: see Scheduler step 5.
+1. Goal handling: satisfied goals are dropped and the rest searched by reward (section 1, `submit_plan`).
 1. Bindings injected into agent only.
 1. Greedy requirement clearing: one action clears ALL identical open requirements.
 1. Stale pending cleanup via `request_map`.
 1. Validity checks during discovery: builtin sync, custom async.
 1. Custom preconditions evaluated during discovery (against initial-state sim) + tracked for verification.
 1. Non-wildcard actions discovered once with empty bindings.
+1. Snapshot conversion (Variant ↔ `VariantSnapshot`, blackboard ↔ `BlackboardSnapshot`) happens on the main thread only; the engine is owned by one thread at a time.
+1. Costs are evaluated against the initial state during discovery and reused in verification.
 
 ______________________________________________________________________
 

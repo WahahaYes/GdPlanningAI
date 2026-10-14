@@ -1,10 +1,10 @@
 //! Tiered logging for the GdPlanningAI Rust extension.
 //!
 //! Four log levels map to Godot's print functions:
-//! - [`log_error!`] always routes through `godot_error!`.
-//! - [`log_warn!`] uses `godot_warn!` when level ≥ [`LogLevel::Warn`].
-//! - [`log_info!`] uses `godot_print!` when level ≥ [`LogLevel::Info`] (default).
-//! - [`log_debug!`] uses `godot_print!` when the level is [`LogLevel::Debug`].
+//! - [`log_error!`](crate::log_error) always routes through `godot_error!`.
+//! - [`log_warn!`](crate::log_warn) uses `godot_warn!` when level ≥ [`LogLevel::Warn`].
+//! - [`log_info!`](crate::log_info) uses `godot_print!` when level ≥ [`LogLevel::Info`] (default).
+//! - [`log_debug!`](crate::log_debug) uses `godot_print!` when the level is [`LogLevel::Debug`].
 //!
 //! [`LogLevel::Info`] is the default: plan lifecycle summaries (`submit_plan`,
 //! `Plan complete`, one-line `RESULT` lines) are visible while search
@@ -14,8 +14,17 @@
 //! The level is a single process-wide value. Change it at runtime via
 //! [`set_log_level`] (Rust) or `GdPAIPlanScheduler.set_log_level` (GDScript).
 //!
-//! Debug logs from planner threads are sent through a global channel and
-//! printed by the scheduler on the main thread.
+//! # Threading
+//!
+//! Godot's print functions may only be called from the main thread, but planner threads log
+//! too. So the macros never print directly: they format the message, stamp it, and push a
+//! [`LogMessage`] onto a global channel; the scheduler drains it on the main thread with
+//! [`process_logs`] at the start and end of every `process_callbacks`. Messages are therefore
+//! printed in batches, slightly after they were produced (the timestamp shown is when they were
+//! logged, in seconds since the Unix epoch).
+//!
+//! Until [`init_log_channel`] has run (the extension calls it at startup), and in unit tests
+//! without Godot, the macros fall back to plain `println!`/`eprintln!`.
 
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
@@ -27,8 +36,11 @@ static GLOBAL_LOG_LEVEL: AtomicU8 = AtomicU8::new(LogLevel::Info as u8);
 /// Log message with level for planner thread logging.
 #[derive(Clone, Debug)]
 pub struct LogMessage {
+    /// Severity the message was logged at; selects the Godot print function.
     pub level: LogLevel,
+    /// The formatted text.
     pub message: String,
+    /// When the message was logged: milliseconds since the Unix epoch.
     pub timestamp: u64,
 }
 
@@ -38,6 +50,7 @@ type LogChannel = (Mutex<Sender<LogMessage>>, Mutex<Receiver<LogMessage>>);
 static LOG_CHANNEL: OnceLock<LogChannel> = OnceLock::new();
 
 /// Initialize the log channel. Call this once during initialization.
+/// Calling it again is harmless: the channel is created only once.
 pub fn init_log_channel() {
     LOG_CHANNEL.get_or_init(|| {
         let (tx, rx) = mpsc::channel();
@@ -45,13 +58,16 @@ pub fn init_log_channel() {
     });
 }
 
-/// Get a reference to the log sender. Returns None if not initialized.
+/// Get a reference to the log sender. Returns None if not initialized, in which case the
+/// `log_*!` macros print to stdout/stderr instead.
 pub fn get_log_sender() -> Option<&'static Mutex<Sender<LogMessage>>> {
     LOG_CHANNEL.get().map(|(tx, _)| tx)
 }
 
 /// Process pending log messages on the main thread.
 /// Call this from the main thread (e.g., in the scheduler's process_callbacks).
+/// Prints every queued message through the matching Godot function and returns once the
+/// channel is empty.
 #[cfg(not(test))]
 pub fn process_logs() {
     if let Some((_, rx)) = LOG_CHANNEL.get() {
@@ -104,7 +120,8 @@ pub fn process_logs() {
     }
 }
 
-/// No-op version for tests that don't have Godot engine available.
+/// Test version for builds without a Godot engine: drains the channel without printing, because
+/// the Godot print functions cannot be called outside the engine.
 #[cfg(test)]
 pub fn process_logs() {
     // Drain logs without calling Godot FFI
@@ -161,7 +178,7 @@ pub fn get_log_level() -> LogLevel {
     LogLevel::from_u8(GLOBAL_LOG_LEVEL.load(Ordering::Relaxed))
 }
 
-/// Returns the current timestamp in milliseconds since Unix epoch.
+/// Returns the current timestamp in milliseconds since Unix epoch (0 if the clock is before it).
 pub fn get_timestamp_ms() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::SystemTime::UNIX_EPOCH)
