@@ -2,6 +2,18 @@
 //!
 //! These are deserialized from built-in Godot wrapper classes such as
 //! `RequirementSpec.binding_exists(...)` and `ProvisionSpec.fact(...)`.
+//!
+//! Requirements and provisions are the causal links of the backward search. An action's
+//! requirements say what must already be true before it runs; its provisions say what it
+//! makes true for later actions. The planner matches them with
+//! [`provision_satisfies_requirement`] while building a chain, and re-checks requirements
+//! against the simulated state with [`requirement_holds_in_state`] while verifying it.
+//!
+//! Wildcard provisions are what make generic actions possible. A `FactWildcard("at_target")`
+//! (provided by GoTo) matches any `Fact("at_target", args)` requirement; the requirement's
+//! `args` are then bound to the provider at its chain position (see `binding_values_from_match`
+//! in the planner's `types` module), so the single GoTo action ends up pinned to the concrete
+//! target the consumer asked for.
 
 use crate::snapshot::VariantSnapshot;
 use godot::prelude::*;
@@ -9,19 +21,31 @@ use godot::prelude::*;
 /// A planner-readable dependency that must be satisfied by a prior action's provisions.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum RequirementSpec {
+    /// A binding with this name must have been provided (or the agent already has a non-empty
+    /// property of that name).
     BindingExists {
+        /// Name of the binding.
         binding_name: String,
     },
+    /// A binding with this name must have exactly this value.
     BindingEquals {
+        /// Name of the binding.
         binding_name: String,
+        /// Required value.
         value: VariantSnapshot,
     },
+    /// A binding with this name must refer to a world object that belongs to a group.
     BindingInSet {
+        /// Name of the binding; its value is an object handle.
         binding_name: String,
+        /// Name of the group the object must be in.
         set_name: String,
     },
+    /// A named fact must hold, optionally for specific arguments.
     Fact {
+        /// Name of the fact.
         fact_name: String,
+        /// Arguments the fact must have; empty accepts any.
         args: Vec<VariantSnapshot>,
     },
 }
@@ -29,21 +53,35 @@ pub enum RequirementSpec {
 /// A value or fact that an action contributes for later actions to consume.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ProvisionSpec {
+    /// Binds `binding_name` to a concrete value.
     Binding {
+        /// Name of the binding.
         binding_name: String,
+        /// The bound value.
         value: VariantSnapshot,
     },
+    /// Provides a fact with concrete arguments.
     Fact {
+        /// Name of the fact.
         fact_name: String,
+        /// The fact's arguments.
         args: Vec<VariantSnapshot>,
     },
+    /// Provides the named fact for *any* arguments. The arguments are only decided when it is
+    /// matched with a requirement (see the module docs).
     FactWildcard {
+        /// Name of the fact.
         fact_name: String,
     },
 }
 
 impl RequirementSpec {
     /// Deserialises a [`RequirementSpec`] from a GDScript dictionary.
+    ///
+    /// The `kind` key selects the variant (`binding_exists`, `binding_equals`,
+    /// `binding_in_set`, `fact`); the other keys follow the variant's field names. Returns
+    /// `None` (with a warning for unknown kinds) when a required key is missing. Must be called
+    /// on the main thread because values are snapshotted.
     pub fn from_dict(dict: &VarDictionary) -> Option<Self> {
         let kind = dict
             .get("kind")
@@ -145,6 +183,11 @@ impl std::hash::Hash for ProvisionSpec {
 
 impl ProvisionSpec {
     /// Deserialises a [`ProvisionSpec`] from a GDScript dictionary.
+    ///
+    /// The `kind` key selects the variant (`binding`, `fact`, `fact_wildcard`); the other keys
+    /// follow the variant's field names. Returns `None` (with a warning for unknown kinds) when
+    /// a required key is missing. Must be called on the main thread because values are
+    /// snapshotted.
     pub fn from_dict(dict: &VarDictionary) -> Option<Self> {
         let kind = dict
             .get("kind")
@@ -186,6 +229,10 @@ impl ProvisionSpec {
 }
 
 /// Returns `true` if every requirement in `requirements` is satisfied by at least one provision.
+///
+/// This and the set helpers below match without world context, so `BindingInSet` is
+/// accepted on name alone. The search itself calls [`provision_satisfies_requirement`]
+/// directly with the world.
 pub fn requirements_satisfied(
     requirements: &[RequirementSpec],
     provisions: &[ProvisionSpec],
@@ -263,7 +310,8 @@ pub fn get_unsatisfied_requirements(
 /// Extract initial provisions from the current agent state.
 ///
 /// This allows existing bindings in the agent state to satisfy requirements
-/// without needing explicit action provisions.
+/// without needing explicit action provisions. Every agent property that is neither nil
+/// nor an empty string becomes a `Binding` provision named after the property.
 pub fn extract_initial_provisions(
     agent: &crate::snapshot::BlackboardSnapshot,
 ) -> Vec<ProvisionSpec> {
@@ -285,6 +333,12 @@ pub fn extract_initial_provisions(
 
 /// Returns `true` if `requirement` is currently satisfied by the given `agent` and `world` state,
 /// optionally considering the `current_bindings` for the action being validated.
+///
+/// This is the forward-verification counterpart of [`provision_satisfies_requirement`]: instead
+/// of asking whether some action *could* provide a requirement, it asks whether it holds in
+/// the simulated state right now. Only binding requirements and the `at_target` fact are
+/// actually checked; any other fact is assumed to hold, because such facts are expected to be
+/// backed by preconditions too.
 ///
 /// `current_bindings` are the per-chain-position bindings for the current action. For `Binding`
 /// requirements and the `at_target` fact, they represent the concrete value a predecessor action
@@ -378,6 +432,13 @@ pub fn requirement_holds_in_state(
 }
 
 /// Returns `true` if a provision satisfies a requirement.
+///
+/// Matching is structural: binding requirements need a `Binding` provision of the same name
+/// (and, for `BindingEquals`, the same value); `Fact` requirements need a `Fact` provision
+/// with the same name and arguments (an empty requirement argument list matches any), or a
+/// `FactWildcard` of the same name, which matches any arguments. `BindingInSet` additionally
+/// needs the provided object handle to belong to the group in `world`; with `world == None`
+/// the name match alone suffices.
 pub fn provision_satisfies_requirement(
     provision: &ProvisionSpec,
     requirement: &RequirementSpec,
@@ -448,6 +509,8 @@ pub fn provision_satisfies_requirement(
     }
 }
 
+/// Reads `dict[key]` as an array and snapshots each element; a missing key gives an empty
+/// list. Accepts typed and untyped arrays.
 fn extract_variant_snapshots(dict: &VarDictionary, key: &str) -> Vec<VariantSnapshot> {
     dict.get(key)
         .and_then(|v| {
