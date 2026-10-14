@@ -3,7 +3,14 @@ extends Node
 ##[br]
 ##[br]
 ## Add this node to a scene, assign [member agent_scene], and set [member agent_count].
-## Agents are scattered randomly inside [member spawn_rect] on [method _ready].
+## Agents are scattered randomly inside [member spawn_rect] on [method _ready].[br]
+##[br]
+## Used by the stress-test scene to load the planner without hand-placing agents.
+## Every spawned agent is an independent planner on the same prefab, so this is purely
+## scene setup: no planning logic here. It locks rotation (the body is a physics
+## [RigidBody2D] steered by [code]nav_controller.gd[/code], and the sprite should stay
+## upright whatever the physics does) and hides each agent's debug label by default, since hundreds of
+## per-frame labels would measure UI cost instead of planning cost.
 
 ## Agent packed scene to instantiate.
 @export var agent_scene: PackedScene
@@ -15,6 +22,7 @@ extends Node
 @export var hide_debug_labels: bool = true
 
 
+## Scatters the agents on ready.
 func _ready() -> void:
 	if agent_scene == null:
 		push_error("ManyAgentsSpawner: agent_scene is not set.")

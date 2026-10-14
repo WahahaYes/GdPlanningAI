@@ -2,7 +2,19 @@ class_name PickupAction
 extends Action
 ## An action that picks up a holdable item.
 ## This action requires the agent to be at the target location (via at_target fact)
-## and does NOT handle navigation itself - that's handled by GoToAction.
+## and does NOT handle navigation itself - that's handled by GoToAction.[br]
+##[br]
+## This is the clearest example of requirements and provisions working with a
+## precondition. The planner reads it as "to pick up this item I need [code]at_target[/code]
+## for its location (requirement), I give you [code]held_item = <id>[/code] and, for
+## food, [code]is_food[/code] (provisions)". Go To satisfies the first; [EatHeldFoodAction]
+## consumes the second. The precondition [code]held_item == ""[/code] is separate and
+## simpler: it is only a check of the simulated agent, so a full hand blocks the pick-up
+## until something empties it.[br]
+##[br]
+## The item is freed on success, so a second agent racing for the same item fails
+## its [method perform_action] and replans. There is no reservation by design; the
+## examples keep contention simple rather than modelling who claimed what.
 
 ## Reference to the holdable item that provided this action.
 var holdable_item: HoldableObject
@@ -28,12 +40,14 @@ func get_action_cost(
 	_agent_blackboard: GdPAIBlackboard,
 	_world_state: GdPAIBlackboard,
 ) -> float:
-	# Interaction cost is minimal - navigation is handled by GoToAction
+	# Interaction cost is minimal - navigation is handled by GoToAction. Because Go To's
+	# cost scales with distance, a nearer item wins over a farther one.
 	return 1.0
 
 
 # Override
 func get_validity_checks() -> Array[Precondition]:
+	# The item may be freed (picked up by someone else) between plans; this withdraws it.
 	var checks: Array[Precondition] = []
 	checks.append(Precondition.check_is_object_valid(holdable_item))
 	checks.append(Precondition.check_is_object_valid(object_location))
@@ -57,7 +71,8 @@ func get_requirements() -> Array[RequirementSpec]:
 # Override
 func get_provisions() -> Array[ProvisionSpec]:
 	# Provide the held_item binding that EatHeldFoodAction requires.
-	# Also provide an 'is_food' fact if this object belongs to the Food group.
+	# Also provide an 'is_food' fact if this object belongs to the Food group. That
+	# group label is how the example separates edible items from carried materials.
 	var provs: Array[ProvisionSpec] = [ProvisionSpec.binding("held_item", holdable_item.item_id)]
 	if is_instance_valid(holdable_item) and holdable_item.is_in_group("Food"):
 		provs.append(ProvisionSpec.fact("is_food", []))

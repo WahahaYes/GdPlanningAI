@@ -4,7 +4,10 @@ extends Goal
 ##[br]
 ##[br]
 ## Demonstrates a goal that inspects shared world-object state instead of only the
-## agent blackboard. Uses builtin WorldObjectProxy precondition for planner visibility.
+## agent blackboard. The fuel lives on the campfire, not on the agent, so both the
+## reward and the desired state read it from the world state. The desired state uses a
+## builtin world-object precondition rather than a [Callable] so the planner can see
+## which property it targets and discover [AddFuelAction] as the action that raises it.
 ##[br]
 ##[br]
 ## With [member campfire_group] empty the agent tends any campfire; set it to a
@@ -14,7 +17,18 @@ extends Goal
 ## Each plan asks only for the fire to rise (one wood delivery), like [HungerGoal]
 ## asks for one meal: a full refuel from a low fire needs more actions than an
 ## agent plans at once. The flat reward keeps the agent delivering until
-## [member desired_fuel_level].
+## [member desired_fuel_level].[br]
+##[br]
+## Aiming at the full threshold from a nearly dead fire would need several
+## pick-up and add-fuel rounds, more than the planner's search depth, so no plan would
+## be found and a low fire would stay low. Asking for a small rise always has a
+## four-step answer (Go To, Pick Up Wood, Go To, Add Fuel) and repeating it climbs
+## back to the threshold, which is why a low fire stays recoverable.[br]
+##[br]
+## The reward is a flat number, not a function of how low the fire is, so it beats
+## [HungerGoal] only while hunger is below the reward and never ranks above a truly
+## starving agent. It is 0 once every tended fire is at or above the threshold,
+## so the goal drops out of consideration instead of hoarding wood.
 
 ## Rise in fuel one plan asks for; any single delivery covers it.
 const FUEL_STEP: float = 1.0
@@ -38,6 +52,8 @@ func _init(
 
 
 ## Returns the group this goal checks: [member campfire_group], or every campfire.
+## Scenes with one shared fire leave the group empty; the large 3D scene gives each
+## pair of agents a home fire by setting it at spawn time.
 func tended_group() -> String:
 	return campfire_group if not campfire_group.is_empty() else "CampfireObject"
 

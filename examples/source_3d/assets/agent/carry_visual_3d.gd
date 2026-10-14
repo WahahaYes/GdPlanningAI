@@ -10,7 +10,13 @@ extends Node3D
 ##[br]
 ##[br]
 ## A physical hand-hold later only needs a second socket node; the swap
-## logic here stays unchanged.
+## logic here stays unchanged.[br]
+##[br]
+## Presentation only, and a good example of keeping art out of planning: the planner
+## writes [code]held_item[/code] (potato, cooked potato, wood), and this node merely
+## mirrors it so you can see why an agent walks toward a campfire. It never writes back.
+## The id-to-scene map is exported so a scene can show different props, and defaults to
+## the three items the campfire scenes use.
 
 ## Raw dug-up potato visual.
 const RAW_SCENE: PackedScene = preload("res://examples/source_3d/prefabs/held_potato_raw_3d.tscn")

@@ -2,7 +2,15 @@ extends Node
 ## Runtime script for campfire prefab scene.
 ## Handles fuel decay and visual updates (label, primitive scaling/tinting).
 ## This script is attached to the prefab scene root, not to CampfireObject.
-
+##[br]
+##[br]
+## Burning down is world behavior, not planning logic, so it lives here and not on
+## [CampfireObject]. It is the pressure that makes the fire goal matter: fuel falls
+## every frame, [MaintainFireGoal] notices it falling below the threshold, and agents
+## respond by hauling wood. The flame size, label and light are presentation only;
+## nothing the planner reads depends on them. The 2D and 3D campfire prefabs share
+## this script and assign whichever visual nodes they have, which is why the exported
+## nodes are untyped and checked with [code]is[/code] at runtime.
 ## Smallest flame scale; below it the fire counts as out and is hidden.
 const MIN_FLAME_SCALE: float = 0.01
 

@@ -13,7 +13,13 @@ extends Node3D
 ##[br]
 ## Polls [member entity] horizontal speed each frame: above
 ## [member walk_threshold] plays [member walk_animation], otherwise
-## [member idle_animation].
+## [member idle_animation].[br]
+##[br]
+## Presentation only. The animation follows the body's velocity, the same signal the
+## nav controller produces, so the skin never needs to know what the planner is doing
+## and any character can be swapped in. Agents spawned by the large scene get a different
+## skin each through [method set_skin]. The animation clips are built once into a static
+## cache and shared, because every agent would otherwise duplicate the same tracks.
 
 ## Default Knight character visual.
 const KNIGHT_SKIN: PackedScene = preload(

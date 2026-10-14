@@ -1,5 +1,18 @@
 class_name PotatoSpawner2D
 extends Node
+## Keeps a renewable supply of potatoes inside a rectangle.
+##[br]
+##[br]
+## Scene setup, not planning logic. The campfire scene needs raw potatoes for the
+## cook-and-eat chain, and [DigPotatoAction] frees a potato when it is dug, so something
+## must replace them or the agent would eventually have nothing to cook. Each missing
+## potato is replaced after [member respawn_time], up to [member max_potatoes].
+## Because an agent's plan targets a specific potato, a potato appearing or vanishing
+## between plans simply changes what the next plan chooses.[br]
+##[br]
+## Initial potatoes are added with a deferred call because the spawner runs in
+## [method _ready] while its parent is still setting up its children, where adding
+## siblings directly is an error.
 
 ## Potato scene instantiated by this spawner.
 @export var potato_scene: PackedScene
@@ -14,11 +27,13 @@ var _active_potatoes: Array[Node] = []
 var _respawn_timer: float = 0.0
 
 
+## Spawns the starting set of potatoes.
 func _ready() -> void:
 	for i in range(max_potatoes):
 		_spawn_potato_deferred()
 
 
+## Prunes freed potatoes and replaces one when the respawn timer allows.
 func _process(delta: float) -> void:
 	_active_potatoes = _active_potatoes.filter(func(p): return is_instance_valid(p))
 
@@ -28,6 +43,7 @@ func _process(delta: float) -> void:
 		_respawn_timer = 0.0
 
 
+## Adds one potato at a random point in the area.
 func _spawn_potato() -> void:
 	if not potato_scene:
 		return
@@ -45,6 +61,7 @@ func _spawn_potato() -> void:
 	_active_potatoes.append(potato)
 
 
+## Like [method _spawn_potato] but safe to call while the parent is still in setup.
 func _spawn_potato_deferred() -> void:
 	if not potato_scene:
 		return

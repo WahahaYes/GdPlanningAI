@@ -10,7 +10,11 @@ extends Label3D
 ##[br]
 ##[br]
 ## Float values are automatically truncated to 1 decimal place
-## for cleaner display.
+## for cleaner display.[br]
+##[br]
+## 3D counterpart of [code]agent_debug_label.gd[/code]; see it for what the label shows.
+## Presentation only: the planner never reads this node. It is a billboarded [Label3D]
+## so the text stays readable above the agent from any camera angle.
 
 ## The agent to display debug info for.
 @export var gdpai_agent: GdPAIAgent
@@ -26,6 +30,7 @@ func _format_value(value: Variant) -> String:
 	return str(value)
 
 
+## Rebuilds the label text from the agent's live planning state every frame.
 func _process(_delta: float) -> void:
 	if not is_instance_valid(gdpai_agent):
 		return

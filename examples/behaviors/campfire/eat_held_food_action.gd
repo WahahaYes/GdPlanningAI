@@ -4,7 +4,23 @@ extends Action
 ##[br]
 ##[br]
 ## Demonstrates an agent-provided self action whose validity is determined entirely
-## from blackboard state rather than a spatial world target.
+## from blackboard state rather than a spatial world target. It needs no
+## [code]at_target[/code] and no Go To step: the food is already in hand.[br]
+##[br]
+## It is the end of every food chain. Picking up a banana, digging a potato and
+## cooking a potato all leave an item in [code]held_item[/code]; this action turns
+## that item into reduced hunger. It declares two kinds of conditions on purpose:[br]
+## - [b]Preconditions[/b] are checked against the simulated state at this point in the
+## plan: hunger is above zero and the held item is one this action knows how to eat.[br]
+## - [b]Requirements[/b] tell the planner what an earlier action must have provided:
+## some [code]held_item[/code] binding and the [code]is_food[/code] fact. This is what
+## makes the planner go and find a food provider (Pick Up Item, Dig Potato, Cook Potato)
+## rather than only checking whether the agent happens to hold something.[br]
+##[br]
+## The [code]is_food[/code] fact keeps wood out: Pick Up Wood provides a
+## [code]held_item[/code] binding but not [code]is_food[/code], so the planner can never
+## chain wood into this action. Read next: [PickupAction], [DigPotatoAction] and
+## [CookPotatoAction], the providers it depends on.
 
 ## Maps held item ids to the hunger amount they restore when eaten.
 var hunger_restored_by_item: Dictionary = {}
@@ -26,6 +42,8 @@ func _init(
 
 # Override
 func get_validity_checks() -> Array[Precondition]:
+	# A validity check is static: it decides whether the action is offered at all.
+	# Agents without a hunger property (for example a pure wanderer) never get it.
 	var checks: Array[Precondition] = []
 	checks.append(Precondition.agent_has_property("hunger"))
 	return checks
@@ -36,7 +54,8 @@ func get_preconditions() -> Array[Precondition]:
 	var preconds: Array[Precondition] = [Precondition.agent_property_greater_than("hunger", 0.0)]
 
 	# If we are already holding something, it must be a food item we know how to eat.
-	# We use a custom check for this since it depends on our internal map.
+	# We use a custom check for this since it depends on our internal map; a builtin
+	# precondition cannot test membership in a dictionary the action owns.
 	preconds.append(Precondition.custom(Callable(self, "_is_holding_food")))
 
 	return preconds
@@ -64,6 +83,7 @@ func get_action_cost(
 	_agent_blackboard: GdPAIBlackboard,
 	_world_state: GdPAIBlackboard,
 ) -> float:
+	# Cost is the real duration, so planning cost and execution time agree.
 	return eat_duration
 
 
@@ -80,7 +100,7 @@ func simulate_effect(
 	var hunger_restored: float
 	var held_item_id: String = String(held_item) if held_item != null else ""
 
-	# Durante backward planning, this action may be considered before its
+	# During backward planning, this action may be considered before its
 	# held_item requirement has been satisfied. Use a conservative optimistic
 	# restore so the planner can recognize the action as relevant, then rely on
 	# get_requirements() and forward validation to require a real provided item.
@@ -97,12 +117,16 @@ func simulate_effect(
 
 # Override
 func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
+	# Per-run timers go through set_state, not member variables: set_state keys the value
+	# by action instance and plan step, so a repeated action keeps separate timers.
 	set_state(agent, "eat_elapsed", 0.0)
 	return Action.Status.SUCCESS
 
 
 # Override
 func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
+	# Re-check the blackboard each frame: the plan was made earlier and the held item
+	# may have changed. Returning FAILURE makes the agent replan.
 	var held_item = agent.blackboard.get_property("held_item")
 	var hunger = agent.blackboard.get_property("hunger")
 	if held_item == null or hunger == null:
