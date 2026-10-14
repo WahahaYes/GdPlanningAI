@@ -1,11 +1,13 @@
 class_name GdPAILocationData
 extends GdPAIObjectData
-## Node to track a relevant object's position in the world and in the agent's simulation.
+## Position of an object, live and simulated. Set one of [member location_node_2d] or
+## [member location_node_3d]. The agent's entity needs one to navigate, and each
+## [code]at_target[/code] destination needs one.
 
 @export_group("Location: only set one!")
-## Location for 2D objects.
+## Node whose global transform gives the position of a 2D object.
 @export var location_node_2d: Node2D
-## Location for 3D objects.
+## Node whose global transform gives the position of a 3D object.
 @export var location_node_3d: Node3D
 
 ## The entity's current position as [Vector2] (2D) or [Vector3] (3D).
@@ -41,5 +43,6 @@ func get_group_labels() -> Array[String]:
 
 
 # Override
+## Snapshots [code]position[/code] and [code]rotation[/code].
 func get_sim_properties() -> Dictionary:
 	return {"position": position, "rotation": rotation}

@@ -1,14 +1,17 @@
-//! Precondition handling for the planning engine.
+//! Preconditions: built-in comparisons evaluated in Rust, custom ones via GDScript `Callable`s.
 //!
-//! Built-in operations (has_property, equal, greater_than, etc.) are handled
-//! in Rust for performance. Custom preconditions use Callables for GDScript evaluation.
+//! There are two builtin evaluators: [`PreconditionSpec::evaluate_builtin`] on snapshots during
+//! planning, and [`PreconditionHandler`] on live blackboards, used once per `submit_plan` to skip
+//! goals that are already satisfied. They are separate implementations with slightly different
+//! tolerances.
 
 use super::gdpai_blackboard::GdPAIBlackboard;
 use crate::plan_types::PreconditionSpec;
 use crate::snapshot::VariantSnapshot;
 use godot::prelude::*;
 
-/// Handler for precondition evaluation with built-in or custom operations.
+/// Main-thread precondition evaluator holding live Godot values; the planner uses
+/// [`PreconditionSpec`] instead.
 #[derive(Clone, Debug)]
 pub struct PreconditionHandler {
     /// Where to evaluate the precondition
@@ -26,13 +29,15 @@ pub struct PreconditionHandler {
 /// Where to evaluate a precondition.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum PreconditionTarget {
+    /// The agent's own blackboard.
     Agent,
+    /// The shared world blackboard.
     WorldState,
-    /// Evaluate against properties of world objects in a specific group.
-    /// The planner iterates all SimObjectProxy snapshots in the world state
-    /// that belong to the given group and checks the property on each.
+    /// Properties of world objects in `group`; holds if any object matches.
     WorldObjectProxy {
+        /// Group the objects must belong to.
         group: String,
+        /// Property read from each object.
         property: String,
     },
 }
@@ -40,21 +45,27 @@ pub enum PreconditionTarget {
 /// Types of precondition operations.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum PreconditionOp {
+    /// The property exists.
     HasProperty,
+    /// The property equals the value.
     Equal,
+    /// The property does not equal the value.
     NotEqual,
+    /// The property is numerically greater than the value.
     GreaterThan,
+    /// The property is numerically greater than or equal to the value.
     GreaterThanOrEqual,
+    /// The property is numerically less than the value.
     LessThan,
+    /// The property is numerically less than or equal to the value.
     LessThanOrEqual,
+    /// Not a comparison: a GDScript callable decides.
     CustomCallback,
 }
 
 impl PreconditionHandler {
-    /// Creates a handler from a Godot dictionary.
-    ///
-    /// Expected keys: `target`, `operation`, `property_name`, `value`,
-    /// `is_satisfied`, `eval_callable`.
+    /// Creates a handler from the bridge dictionary. Missing keys fall back to defaults, so this
+    /// currently always returns `Some`.
     pub fn from_dict(dict: &VarDictionary) -> Option<Self> {
         let target = dict
             .get("target")
@@ -153,7 +164,9 @@ impl PreconditionHandler {
         }
     }
 
-    /// Evaluates this precondition against the given states.
+    /// Evaluates this precondition against live blackboards. Main thread only.
+    /// Numbers compare as `f64` with `f64::EPSILON` tolerance; nil fails every operation. A custom
+    /// callback must return a bool; anything else counts as false.
     pub fn evaluate(
         &self,
         agent_state: &Gd<GdPAIBlackboard>,
@@ -215,7 +228,7 @@ impl PreconditionHandler {
         }
     }
 
-    /// Evaluate a builtin operation on a GdPAIBlackboard source.
+    /// Evaluate a builtin operation on the property of a single [`GdPAIBlackboard`] source.
     fn evaluate_on_blackboard(
         source: &Gd<GdPAIBlackboard>,
         op: &PreconditionOp,
@@ -274,7 +287,7 @@ impl PreconditionHandler {
         }
     }
 
-    /// Compare two Variants for equality (numeric with epsilon).
+    /// Compare two Variants for equality (numeric with `f64::EPSILON` tolerance).
     fn compare_variants_equal(prop: &Variant, val: &Variant) -> bool {
         if *prop == *val {
             return true;
@@ -285,7 +298,8 @@ impl PreconditionHandler {
         false
     }
 
-    /// Compare two Variants using the given operation.
+    /// Compare two Variants using the given operation; ordering operations need numeric
+    /// operands and are false otherwise.
     fn compare_variants(prop: &Variant, val: &Variant, op: &PreconditionOp) -> bool {
         match op {
             PreconditionOp::HasProperty => !prop.is_nil(),

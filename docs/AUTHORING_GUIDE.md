@@ -18,7 +18,7 @@ If you genuinely need logic that no built-in expresses, e.g. a distance check ag
 
 An action exposes five declarative surfaces plus runtime execution:
 
-**Validity checks** are hard gates evaluated once against the initial state during candidate discovery. They answer "is this action even meaningful right now?"; target exists, agent has the required property, navmesh reachable. They do not participate in backward chaining. Use `Precondition.check_is_object_valid(ref)` for object liveness; avoid custom callables here.
+**Validity checks** are hard gates evaluated once against the initial state during candidate discovery. They answer "is this action even meaningful right now?"; target exists, agent has the required property. They do not participate in backward chaining. Use `Precondition.check_is_object_valid(ref)` for object liveness; avoid custom callables here.
 
 **Preconditions** are dynamic needs the planner *chains backward* to satisfy. If an action needs stamina > 20, declare `agent_property_greater_than("stamina", 20)` and the planner will search for a predecessor that restores stamina. Keep these to built-ins matching property names your simulation writes.
 
@@ -26,15 +26,31 @@ An action exposes five declarative surfaces plus runtime execution:
 
 **Provisions** are what this action contributes for later actions. `binding("held_item", "wood")` publishes the item ID. `fact("is_food", [])` asserts a tag. `fact_wildcard("at_target")` (used by `GoToAction`) means "I satisfy any `at_target` fact requirement, capturing the concrete location at planning time."
 
-**Simulation** runs on isolated snapshots (`agent_bb`, `world_bb`) during search. It must be synchronous, deterministic, and mutate only the snapshots. Property names here *must* match the precondition names in goals and other actions; that's how the planner connects them. A common pattern: when an action consumes a binding (like `held_item`), clear it in simulation (`agent_bb.set_property("held_item", "")`) so the planner knows a predecessor must provide it. For actions whose requirement isn't bound yet during backward search (e.g., `EatHeldFood` before pickup), simulate an optimistic effect using a conservative estimate so the planner recognizes relevance, then let forward validation enforce the real requirement.
+**Simulation** (`simulate_effect`) runs on isolated snapshots (`agent_bb`, `world_bb`) during search. It must be synchronous (no `await`), deterministic, touch no scene-tree nodes, and mutate only the snapshots. Property names here *must* match the precondition names in goals and other actions; that's how the planner connects them. A common pattern: when an action consumes a binding (like `held_item`), clear it in simulation (`agent_bb.set_property("held_item", "")`) so the planner knows a predecessor must provide it. For actions whose requirement isn't bound yet during backward search (e.g., `EatHeldFood` before pickup), simulate an optimistic effect using a conservative estimate so the planner recognizes relevance, then let forward validation enforce the real requirement.
 
-**Cost** estimates planning-time expense. It can be a constant, a distance heuristic, or an async callback if you need expensive computation. Return `INF` (or `float('inf')` in GDScript) to disable the action in the current context; e.g., `AddFuelAction` returns infinite cost when the campfire is already full.
+**Cost** estimates planning-time expense. It can be a constant or a distance heuristic computed from the snapshots; like simulation it is synchronous and must not touch the scene tree. Return `INF` (or `float('inf')` in GDScript) to disable the action in the current context; e.g., `AddFuelAction` returns infinite cost when the campfire is already full.
 
 ## Chaining: Requirements Meet Provisions
 
 The planner matches requirements to provisions symbolically during search. A `Binding` provision satisfies `BindingExists` (any value), `BindingEquals` (exact value), or `BindingInSet` (value's object in the named group). A `Fact` provision satisfies an identical `Fact` requirement (name and args). A `FactWildcard` provision satisfies any `Fact` with the same name, capturing the requirement's args as the binding; this is how `GoToAction` universally satisfies navigation requirements.
 
 Design principle: requirements express *what* you need, provisions express *what you give*. The planner handles *who gives what to whom*. You rarely need to think about insertion order; the placer inserts each predecessor immediately before the earliest consumer it satisfies.
+
+## Threading and Timing Rules
+
+All hooks run on the main thread.
+
+| Hook | When | Scene tree? |
+|--|--|--|
+| `get_*` on actions, goal hooks, `get_provided_actions`, `get_sim_properties` | Once per plan request | Yes, keep cheap |
+| `get_action_cost`, `simulate_effect`, custom preconditions | Many times per search | No: snapshots only, no `await` |
+| `pre_perform_action` | Once per action when a plan starts, before any `perform_action` | Yes |
+| `perform_action` | Every frame while the action is current | Yes |
+| `post_perform_action` | Once per action when the whole plan ends | Yes |
+
+- `post_perform_action` does not run when a single action finishes, nor when a new plan replaces a running one. Stop per-action work (like navigation) in `perform_action`.
+- Keep per-run data in `set_state`, keyed by instance and chain position. If the action has mutable members, return a copy from `clone_for_plan()`.
+- An action may define `inject_binding(fact_name, values)` to receive the objects the planner bound to its wildcard provisions.
 
 ## World Objects: Exposing Actions and State
 
@@ -44,7 +60,7 @@ Actions provided by the object typically require `at_target` (via the object's l
 
 ## Behavior Composition
 
-A `GdPAIBehaviorConfig` bundles goals, actions, and property updaters into a reusable module. `_populate(goals, actions, updaters)` appends to the passed arrays. An agent's `GdPAIAgentConfig` resource holds an array of behavior configs. At runtime, the agent merges all behaviors: goals, actions, and updaters from each. Multiple behaviors can share `GoToAction`; the planner deduplicates by instance. Property names must not conflict across behaviors (two behaviors writing `hunger` would fight). The config resource is assigned in the inspector; no code wiring needed.
+A `GdPAIBehaviorConfig` bundles goals, actions, and property updaters into a reusable module. `_populate(goals, actions, updaters)` appends to the passed arrays. An agent's `GdPAIAgentConfig` resource holds an array of behavior configs. At runtime, the agent merges all behaviors: goals, actions, and updaters from each. The agent does not deduplicate actions, so two behaviors adding a `GoToAction` give the agent two. Property names must not conflict across behaviors (two behaviors writing `hunger` would fight). The config resource is assigned in the inspector; no code wiring needed.
 
 ## Built-in Base Classes
 
@@ -52,11 +68,11 @@ The addon (`addons/GdPlanningAI/`) provides base classes you extend to create be
 
 **GdPAIBehaviorConfig** is the base class for all behaviors. Override `_populate(goals, actions, updaters)` to append your goals, actions, and property updaters.
 
-**GdPAIAgentConfig** is a resource that holds an array of behavior configs plus planning strategy (`ON_INTERVAL`, `CONTINUOUS`, `ON_DEMAND`, `ON_INTERVAL_FORCED`) and blackboard plan.
+**GdPAIAgentConfig** is a resource that holds an array of behavior configs plus the planning strategy, search budgets and blackboard plan. `CONTINUOUS` plans whenever there is no active plan; `ON_INTERVAL` checks every `planning_interval` seconds and plans if idle; `ON_INTERVAL_FORCED` plans every interval even while a plan is running (the new plan replaces it); `ON_DEMAND` plans only on `GdPAIAgent.manually_start_plan()`.
 
-**PropertyUpdater** is the base for things that modify agent properties over time (hunger decay, stamina regen). Override `initialize(agent)` and `update_properties(agent, delta)`.
+**PropertyUpdater** is the base for things that modify agent properties over time (hunger decay, stamina regen). Override `initialize(agent)` (called once when the behavior is applied) and `update_properties(agent, delta)` (called every frame on the main thread, never during planning).
 
-**GoToAction** is the default navigation action. It provides `fact_wildcard("at_target")` so any interaction action can require `fact("at_target", [location])` and the planner chains navigation automatically. For a custom movement system (grid, flying, swimming), subclass `GoToAction` or write your own action that provides `fact_wildcard("at_target")` and computes cost appropriately.
+**GoToAction** is the default navigation action; the entity needs a `NavigationAgent2D`/`3D` and a `GdPAILocationData`. A stuck agent counts as arrived near its path end and fails otherwise, so it replans. It provides `fact_wildcard("at_target")` so any interaction action can require `fact("at_target", [location])` and the planner chains navigation automatically. For a custom movement system (grid, flying, swimming), subclass `GoToAction` or write your own action that provides `fact_wildcard("at_target")` and computes cost appropriately.
 
 **Action** and **Goal** are the base classes you extend for all custom actions and goals.
 
@@ -84,20 +100,35 @@ The interactive debugger tab was removed during the Rust refactor and has not be
 
 **Wrong action chosen**: Cost function doesn't reflect true expense, or a missing precondition lets an invalid action look cheaper.
 
-**Plan too deep / cycles**: A requirement chain has no provider. The cycle guard (`open_requirements > max_depth`) will prune it. Add the missing provision or fix the requirement.
+**Plan too deep / cycles**: A requirement chain has no provider. The search depth limit (`GdPAIAgentConfig.max_recursion`) prunes it. Add the missing provision or fix the requirement.
 
 ## Quick Reference: Built-in Preconditions
 
-| Target | Operations | |--|| | Agent | `has_property`, `equal`, `not_equal`, `greater_than`, `geq_than`, `less_than`, `leq_than` | | WorldState | Same operations, on world blackboard properties | | WorldObjectProxy (group) | Same operations, evaluated on each object in the group; succeeds if ANY matches |
+| Target | Operations |
+|--|--|
+| Agent | `has_property`, `equal`, `not_equal`, `greater_than`, `geq_than`, `less_than`, `leq_than` |
+| WorldState | `has_property`, `equal`, `greater_than`, `geq_than`, `less_than`, `leq_than` (no `not_equal` constructor) |
+| WorldObjectProxy (group) | All of the above, evaluated on each object in the group; succeeds if ANY matches |
 
 Construct via `Precondition.agent_property_less_than("hunger", 15)`, `Precondition.world_object_property_geq_than("CampfireObject", "current_fuel", 60)`, etc.
 
 ## Quick Reference: Requirement / Provision Constructors
 
-| Need | Requirement | Provided By | ||-|-| | Any binding | `binding_exists("name")` | `binding("name", value)` | | Specific value | `binding_equals("name", value)` | `binding("name", value)` | | Object in group | `binding_in_set("name", "Group")` | `binding("name", obj_ref)` where obj in Group | | Location fact | `fact("at_target", [location])` | `fact_wildcard("at_target")` (GoTo) or `fact("at_target", [location])` | | Custom fact | `fact("name", [args])` | `fact("name", [args])` |
+| Need | Requirement | Provided By |
+|--|--|--|
+| Any binding | `binding_exists("name")` | `binding("name", value)` |
+| Specific value | `binding_equals("name", value)` | `binding("name", value)` |
+| Object in group | `binding_in_set("name", "Group")` | `binding("name", obj_ref)` where obj in Group |
+| Location fact | `fact("at_target", [location])` | `fact_wildcard("at_target")` (GoTo) or `fact("at_target", [location])` |
+| Custom fact | `fact("name", [args])` | `fact("name", [args])` |
 
 ## Quick Reference: Property Names in Examples
 
-| Domain | Agent Property | World Object Property | |--|-|-| | Hunger | `hunger` (0–100) | `hunger_value` on `FoodObject` | | Campfire | (none) | `current_fuel` on `CampfireObject` | | Inventory | `held_item` (String) | `item_id` on `HoldableObject` | | Location | `GdPAILocationData` on agent | `GdPAILocationData` on object |
+| Domain | Agent Property | World Object Property |
+|--|--|--|
+| Hunger | `hunger` (0–100) | `hunger_value` on `FoodObject` |
+| Campfire | (none) | `current_fuel` on `CampfireObject` |
+| Inventory | `held_item` (String) | `item_id` on `HoldableObject` |
+| Location | `GdPAILocationData` on agent | `GdPAILocationData` on object |
 
 *This guide reflects the current framework. As built-ins expand (distance checks, virtual properties), patterns will simplify further.*

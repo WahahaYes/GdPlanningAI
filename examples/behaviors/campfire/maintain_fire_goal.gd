@@ -1,29 +1,18 @@
 class_name MaintainFireGoal
 extends Goal
-## Goal that drives an agent to keep campfires above a target fuel threshold.
-##[br]
-##[br]
-## Demonstrates a goal that inspects shared world-object state instead of only the
-## agent blackboard. Uses builtin WorldObjectProxy precondition for planner visibility.
-##[br]
-##[br]
-## With [member campfire_group] empty the agent tends any campfire; set it to a
-## group holding one campfire to give the agent a home fire.
-##[br]
-##[br]
-## Each plan asks only for the fire to rise (one wood delivery), like [HungerGoal]
-## asks for one meal: a full refuel from a low fire needs more actions than an
-## agent plans at once. The flat reward keeps the agent delivering until
-## [member desired_fuel_level].
+## Keeps campfires above [member desired_fuel_level], reading fuel from world-object state.[br]
+## Each plan asks for a small rise ([constant FUEL_STEP]), which one wood delivery always
+## satisfies; repeating climbs back to the threshold. Asking for the full level at once could
+## exceed the search depth. The reward is flat, and 0 once every tended fire is full.
 
-## Rise in fuel one plan asks for; any single delivery covers it.
+## Rise in fuel one plan asks for.
 const FUEL_STEP: float = 1.0
 
-## Fixed reward used when comparing fire maintenance against other goals.
+## Reward while any tended fire is below the threshold.
 var reward_value: float = 40.0
-## Minimum fuel level any campfire must reach for this goal to count as satisfied.
+## Fuel every tended fire should reach.
 var desired_fuel_level: float = 60.0
-## Group of the campfires this agent tends. Empty means any campfire.
+## Group of the tended campfires. Empty means any campfire.
 var campfire_group: String = ""
 
 
@@ -37,7 +26,7 @@ func _init(
 	campfire_group = p_campfire_group
 
 
-## Returns the group this goal checks: [member campfire_group], or every campfire.
+## Returns [member campfire_group], or every campfire when it is empty.
 func tended_group() -> String:
 	return campfire_group if not campfire_group.is_empty() else "CampfireObject"
 
@@ -61,8 +50,7 @@ func compute_reward(agent: GdPAIAgent) -> float:
 
 # Override
 func get_desired_state(agent: GdPAIAgent) -> Array[Precondition]:
-	# Use builtin WorldObjectProxy precondition so the planner can discover
-	# actions that modify campfire fuel (e.g., AddFuelAction).
+	# Builtin, so the planner can find actions that raise current_fuel.
 	return [
 		Precondition.world_object_property_geq_than(
 			tended_group(), "current_fuel", target_fuel(_highest_fuel(agent))
@@ -70,8 +58,8 @@ func get_desired_state(agent: GdPAIAgent) -> Array[Precondition]:
 	]
 
 
-## Fuel level one plan should reach, given the tended fires' current best level
-## (negative when unknown): a step up from it, capped at [member desired_fuel_level].
+## Returns the fuel one plan should reach: a step above [param highest_fuel] (negative when
+## unknown), capped at [member desired_fuel_level].
 func target_fuel(highest_fuel: float) -> float:
 	if highest_fuel < 0.0:
 		return desired_fuel_level

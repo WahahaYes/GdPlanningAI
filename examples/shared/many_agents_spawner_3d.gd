@@ -1,10 +1,9 @@
 extends Node
-## Spawns a configurable number of agents scattered in a ground box.
-## 3D counterpart of many_agents_spawner.
-##[br]
-##[br]
-## Add this node to a scene, assign [member agent_scene], and set
-## [member agent_count]. Agents rest on [member spawn_height].
+## 3D agent spawner: scatters agents between [member spawn_min] and [member spawn_max], cycles
+## [member skins], and hands a camera rig an agent to follow.[br]
+## With [member agents_per_campfire] set it gives each block of agents a home fire, so wood
+## hauling spreads over several fires. This is done in code because the agents only exist at
+## runtime.
 
 ## Agent packed scene to instantiate.
 @export var agent_scene: PackedScene
@@ -18,9 +17,8 @@ extends Node
 @export var hide_debug_labels: bool = false
 ## Character looks cycled over spawned agents by spawn index. Empty keeps prefab defaults.
 @export var skins: Array[PackedScene] = []
-## Agents sharing each home campfire, assigned in spawn order to the scene's
-## campfires in tree order. 0 leaves every agent free to tend any campfire, as do
-## agents beyond the last campfire.
+## Agents per home campfire, assigned in spawn order to the scene's campfires. 0 lets every
+## agent tend any fire.
 @export var agents_per_campfire: int = 0
 ## Index of the spawned agent a camera rig should follow (-1 assigns none).
 @export var camera_agent_index: int = 0

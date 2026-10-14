@@ -1,5 +1,9 @@
 class_name PotatoSpawner3D
 extends Node
+## 3D [PotatoSpawner2D] that avoids campfires: their carved navmesh would make a potato inside
+## one unreachable. Each spawn takes the first candidate at least
+## [member campfire_exclusion_radius] from every fire, or the best of
+## [member exclusion_attempts]. Wood piles are not excluded.
 
 ## Potato scene instantiated by this spawner.
 @export var potato_scene: PackedScene
@@ -22,12 +26,14 @@ var _respawn_timer: float = 0.0
 var _campfire_positions: Array[Vector3] = []
 
 
+## Collects campfire positions and spawns the starting set of potatoes.
 func _ready() -> void:
 	_gather_campfire_positions()
 	for i in range(max_potatoes):
 		_spawn_potato_deferred()
 
 
+## Prunes freed potatoes and replaces one when the respawn timer allows.
 func _process(delta: float) -> void:
 	_active_potatoes = _active_potatoes.filter(func(p): return is_instance_valid(p))
 
@@ -37,6 +43,7 @@ func _process(delta: float) -> void:
 		_respawn_timer = 0.0
 
 
+## Adds one potato at a clear point in the area.
 func _spawn_potato() -> void:
 	if not potato_scene:
 		return
@@ -51,6 +58,7 @@ func _spawn_potato() -> void:
 	_active_potatoes.append(potato)
 
 
+## Like [method _spawn_potato] but safe to call while the parent is still in setup.
 func _spawn_potato_deferred() -> void:
 	if not potato_scene:
 		return

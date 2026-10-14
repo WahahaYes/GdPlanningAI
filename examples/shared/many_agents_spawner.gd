@@ -1,9 +1,7 @@
 extends Node
-## Spawns a configurable number of agents at random positions within [member spawn_rect].
-##[br]
-##[br]
-## Add this node to a scene, assign [member agent_scene], and set [member agent_count].
-## Agents are scattered randomly inside [member spawn_rect] on [method _ready].
+## Spawns [member agent_count] copies of [member agent_scene] at random points in
+## [member spawn_rect]. Used by the stress-test scene; locks rotation so sprites stay upright,
+## and can hide debug labels so UI cost does not skew planner timing.
 
 ## Agent packed scene to instantiate.
 @export var agent_scene: PackedScene
@@ -15,6 +13,7 @@ extends Node
 @export var hide_debug_labels: bool = true
 
 
+## Scatters the agents on ready.
 func _ready() -> void:
 	if agent_scene == null:
 		push_error("ManyAgentsSpawner: agent_scene is not set.")

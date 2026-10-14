@@ -1,11 +1,9 @@
 class_name WanderBehaviorConfig
 extends GdPAIBehaviorConfig
-## Behavior configuration that gives an agent a goal to wander around the environment.
-##[br]
-##[br]
-## Apply to an agent to add [WanderGoal] and [WanderAction].
+## Idle behavior: a [WanderGoal] with a small reward, so any real need takes priority. Adds no
+## plain [GoToAction]; pair it with a config that does.
 
-## How far from its current position the agent will wander each action.
+## Distance of each wander step.
 @export var wander_distance: float = 256.0
 
 

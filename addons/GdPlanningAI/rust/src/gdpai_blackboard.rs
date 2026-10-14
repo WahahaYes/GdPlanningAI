@@ -1,8 +1,12 @@
 //! Blackboard that holds agent and world state during planning.
 //!
 //! A [`GdPAIBlackboard`] stores named scalar properties and a map of
-//! [`SimObjectProxy`] objects. The engine clones it into isolated
-//! simulation branches via [`GdPAIBlackboard::clone_for_simulation`].
+//! [`SimObjectProxy`] objects. [`GdPAIBlackboard::clone_for_simulation`] makes an independent
+//! copy that holds proxies only.
+//!
+//! This is the main-thread, GDScript-facing form of state. The planner thread never sees it:
+//! [`crate::snapshot::BlackboardSnapshot::from_blackboard`] copies it into Send-safe data
+//! before planning, and `into_blackboard` rebuilds one when a GDScript callable needs it.
 
 use crate::sim_object_proxy::SimObjectProxy;
 use godot::prelude::*;
@@ -10,19 +14,20 @@ use std::collections::HashMap;
 
 /// Key/value store for agent or world state, accessible from GDScript.
 ///
-/// A blackboard holds two kinds of data:
-/// [br]- Named scalar [b]properties[/b] (booleans, numbers, strings, etc.) accessed via [method get_property] and [method set_property].
-/// [br]- Named world [b]objects[/b] stored under the reserved key [code]GDPAI_OBJECTS[/code] and queried by group.
-///   During planning, use [method get_proxy_in_group] / [method get_proxies_in_group] to access [SimObjectProxy] snapshots.
-///   During action execution, use [method get_node_in_group] / [method get_nodes_in_group] to access the live source nodes.
-///
-/// At planning time the engine calls [method clone_for_simulation] to create an isolated copy for each search branch.
-/// Simulation clones carry proxy data only; [method get_node_in_group] returns [code]null[/code] on them.
+/// Holds [b]properties[/b] ([method get_property], [method set_property]) and world [b]objects[/b]
+/// under [code]GDPAI_OBJECTS[/code], queried by group: [method get_proxy_in_group] returns
+/// [SimObjectProxy] snapshots during planning, [method get_node_in_group] live nodes during
+/// execution. Blackboards rebuilt for planning callbacks hold proxies only.
 #[derive(GodotClass)]
 #[class(base=RefCounted)]
 pub struct GdPAIBlackboard {
+    /// All named properties, including the raw `GDPAI_OBJECTS` array if one was set.
     pub properties: HashMap<String, Variant>,
+    /// Planning snapshots of the world objects, keyed by uid (instance id as a string).
+    /// Rebuilt whenever `GDPAI_OBJECTS` is set; copied on `clone_for_simulation`.
     pub objects: HashMap<String, Gd<SimObjectProxy>>,
+    /// Live nodes behind `objects`. Empty on simulation blackboards, so planning code cannot
+    /// reach live nodes.
     pub source_objects: HashMap<String, Gd<Node>>,
     base: Base<RefCounted>,
 }
@@ -207,10 +212,8 @@ impl GdPAIBlackboard {
         }
     }
 
-    /// Creates a deep clone of this blackboard for use in a planning simulation branch.
-    ///
-    /// All properties and [`SimObjectProxy`] objects are copied. Mutations to the
-    /// clone during simulation do not affect the original.
+    /// Returns a copy whose properties and proxies can be changed without affecting this one.
+    /// Property values are copied shallowly; live nodes are not carried over.
     #[func]
     pub fn clone_for_simulation(&self) -> Gd<GdPAIBlackboard> {
         let mut new_bb = GdPAIBlackboard::new_gd();

@@ -1,10 +1,8 @@
 class_name WanderGoal
 extends Goal
-## Goal that drives an agent to move around the environment.
-##[br]
-##[br]
-## Fixed reward of 10, making it lower priority than a full-scale hunger crisis but
-## high enough to keep the agent moving when nothing else needs doing.
+## Keep moving when nothing else needs doing (fixed reward 5).[br]
+## Satisfied once the simulated agent is far enough from where it started. "Far from the origin"
+## is not a named property, so this uses a custom precondition.
 
 
 # Override
@@ -23,6 +21,7 @@ func get_desired_state(agent: GdPAIAgent) -> Array[Precondition]:
 	)
 	var agent_position = agent_location_data.position
 
+	# Well under one wander step, so a single step satisfies the goal.
 	var far_enough: Callable = func(
 		blackboard: GdPAIBlackboard,
 		_world_state: GdPAIBlackboard,

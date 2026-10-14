@@ -1,12 +1,9 @@
 class_name DropItemAction
 extends Action
-## Drops the currently held inventory item without interacting with a world object.
-##[br]
-##[br]
-## Demonstrates an agent-provided self action that exists to unblock replanning when
-## a single held-item slot prevents the next desired interaction.
+## Discards the held item, emptying the single held-item slot so pick-up and dig can run.
+## Registered by [CampfireBehaviorConfig] so a carrying agent is never stuck.
 
-## How long the drop action should take in seconds.
+## Seconds to drop; also the planning cost.
 var drop_duration: float = 0.2
 
 

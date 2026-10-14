@@ -1,14 +1,13 @@
 class_name CampfireBehaviorConfig
 extends GdPAIBehaviorConfig
-## Behavior configuration that gives an agent campfire-maintenance behavior.
-##[br]
-##[br]
-## Apply alongside [HungerBehaviorConfig] so the same agent can balance personal
-## food needs with shared fire maintenance.
+## Campfire-maintenance behavior; combine with [HungerBehaviorConfig] on the same agent.[br]
+## The planner pursues whichever goal rewards more. A reward of 40 means the fire wins until
+## hunger passes 40. The fire actions themselves come from the campfire and wood pile objects,
+## so they are not registered here.
 
-## Fixed reward value assigned to the fire-maintenance goal.
+## Reward of the fire goal, compared against hunger.
 @export var fire_goal_reward: float = 40.0
-## Fire fuel threshold considered "maintained" for planning purposes.
+## Fuel level that counts as maintained.
 @export var desired_fuel_level: float = 60.0
 ## Group of the campfire(s) this agent tends. Empty tends any campfire.
 @export var campfire_group: String = ""
@@ -23,5 +22,7 @@ func _populate(
 	_updaters: Array[PropertyUpdater],
 ) -> void:
 	goals.append(MaintainFireGoal.new(fire_goal_reward, desired_fuel_level, campfire_group))
+	# Also in HungerBehaviorConfig, so this config works on its own.
 	actions.append(GoToAction.new())
+	# Frees the single held-item slot when the agent carries the wrong thing.
 	actions.append(DropItemAction.new(drop_duration))

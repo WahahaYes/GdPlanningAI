@@ -1,9 +1,10 @@
-//! Plan scheduler exposed to GDScript.
+//! Plan scheduler exposed to GDScript: owns a Rayon pool and one [`PlannerEngine`] per job.
 //!
-//! [`GdPAIPlanScheduler`] owns a Rayon thread pool and a callable registry.
-//! GDScript agents submit planning jobs via [`submit_plan`]; each frame the
-//! autoload calls [`process_callbacks`] to drain pending callback requests
-//! from planner threads and deliver completed results.
+//! `submit_plan` (main thread) converts GDScript data into Send-safe specs. The engine is moved
+//! into a worker for each step and sent back afterwards, so it is never shared: `engine` is `None`
+//! while a step runs. Each frame `process_callbacks` collects finished steps, runs requested
+//! GDScript callables, resumes engines that can progress, and reaps finished jobs (dropping
+//! engines off the main thread). Cancellation sets a flag the engine checks between iterations.
 
 use crate::gdpai_blackboard::GdPAIBlackboard;
 use crate::plan_tree::PlanResult;
@@ -19,32 +20,48 @@ use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, atomic::AtomicBool};
 
+/// Main-thread bookkeeping for one planning job. Lives in
+/// [`GdPAIPlanScheduler::active_jobs`] from `submit_plan` until the job is reaped.
 struct ActiveJobHandle {
+    /// The agent object that receives `_on_plan_ready`. Held as a `Gd` and checked with
+    /// `is_instance_valid` before use, since the agent may be freed mid-plan.
     agent: Gd<Object>,
+    /// Instance id of `agent`, used to find and cancel an agent's earlier jobs.
     agent_instance_id: i64,
+    /// Every `Callable` of this job; the planner refers to them by index. Only touched on the
+    /// main thread because `Callable` is not `Send`.
     callable_registry: Vec<Callable>,
+    /// Requests from the planner thread for GDScript callables to be run.
     request_rx: Receiver<CallbackRequest>,
+    /// Engines coming back from worker threads, with the result of the step they just ran.
     result_rx: Receiver<(PlannerRunResult, PlannerEngine)>,
+    /// Cloned into each worker step so it can hand the engine back.
     result_tx: Sender<(PlannerRunResult, PlannerEngine)>,
+    /// The engine while it is parked between steps; `None` while a worker owns it.
     engine: Option<PlannerEngine>,
+    /// Goals still to be searched (satisfied ones removed, sorted by reward, highest first).
     goals: Vec<GoalSpec>,
     /// If all goals were already satisfied by the initial state, this is the
     /// original index of the highest-reward satisfied goal; otherwise -1.
     satisfied_goal_index: i64,
+    /// Shared with the engine; set to abort the job.
     cancel_flag: Arc<AtomicBool>,
+    /// What the last finished step is waiting for: a request id, or 0 when it only yielded its
+    /// budget and can be resumed immediately.
     pending_request_id: usize,
+    /// The job will not run again (result delivered, failed, or cancelled).
     done: bool,
-    pending_reap: bool, // New flag
+    /// The job was already `done` a frame ago and may now be dropped. The extra frame gives
+    /// GDScript a chance to read the engine's debug tree right after the result arrives.
+    pending_reap: bool,
+    /// Requests answered since the last resume, so an answer arriving after the engine drained
+    /// its channel still triggers a resume.
     completed_request_ids: HashSet<usize>,
+    /// Limits the "not resuming" debug notice to once per stalled request.
     stall_notice: StallNoticeThrottle,
 }
 
-/// Rate limiter for the "NOT resuming" stall notice in [`process_callbacks`].
-///
-/// A stalled job keeps the same `pending_request_id` every frame, so logging
-/// unconditionally would spam once per frame for the whole stall. The throttle
-/// emits one line per stall episode (per distinct pending id) so stalls stay
-/// visible without hiding behind — or drowning in — repetition.
+/// Logs the "NOT resuming" stall notice once per pending id instead of every frame.
 #[derive(Default)]
 pub struct StallNoticeThrottle {
     last_logged_id: Option<usize>,
@@ -66,14 +83,19 @@ impl StallNoticeThrottle {
     }
 }
 
-/// Planning scheduler.
+/// Runs planning jobs on background threads and services their GDScript callbacks. Meant as an
+/// autoload: call `submit_plan` to start a job and `process_callbacks` every frame, or no job
+/// progresses. The thread pool is created in `_ready`.
 #[derive(GodotClass)]
 #[class(base=Node)]
 pub struct GdPAIPlanScheduler {
-    /// Maximum Rayon worker threads. 0 = number of logical CPUs.
+    /// Maximum Rayon worker threads. 0 = number of logical CPUs. Read once when the node
+    /// becomes ready; later changes have no effect.
     #[export]
     max_threads: i64,
+    /// Jobs in flight or waiting to be reaped.
     active_jobs: Vec<ActiveJobHandle>,
+    /// Worker pool; `None` until `ready`.
     thread_pool: Option<rayon::ThreadPool>,
     base: Base<Node>,
 }
@@ -105,13 +127,17 @@ impl INode for GdPAIPlanScheduler {
 
 #[godot_api]
 impl GdPAIPlanScheduler {
-    /// Drain pending callback requests and deliver completed results.
-    /// Call this once per frame from GDScript `_process`.
+    /// Call once per frame: prints queued logs, runs requested callables, resumes engines, and
+    /// delivers results to the agent's `_on_plan_ready` as a dictionary (`success`, `total_cost`,
+    /// `goal_index`, `action_chain`, `action_bindings`). Cancelled jobs deliver nothing.
     #[func]
     fn process_callbacks(&mut self) {
         crate::logger::process_logs();
 
-        // 1. Recover engines from worker threads first.
+        // 1. Recover engines from worker threads first. The engine is only ever readable here
+        // because the worker moves it back through the channel when its step ends.
+        // (`done` jobs are skipped: an engine that is still on a worker, or arrives later, is
+        // dropped together with the job's channel when the job is reaped.)
         for job in self.active_jobs.iter_mut().filter(|j| !j.done) {
             while let Ok((run_result, engine)) = job.result_rx.try_recv() {
                 // Always put the engine back into the handle so we can extract its debug tree
@@ -194,7 +220,9 @@ impl GdPAIPlanScheduler {
             }
         }
 
-        // 2. Process pending requests from Godot
+        // 2. Run requested GDScript callables. This is the only place callables execute, which
+        // is what keeps them on the main thread. The answer goes directly to the engine's own
+        // receiver; the engine reads it on its next step.
         let mut jobs_with_responses = HashSet::new();
         for job in self.active_jobs.iter_mut().filter(|j| !j.done) {
             while let Ok(req) = job.request_rx.try_recv() {
@@ -210,7 +238,8 @@ impl GdPAIPlanScheduler {
             }
         }
 
-        // 3. Resume engines that are ready
+        // 3. Resume engines that are ready. An engine is parked in `job.engine` between steps;
+        // taking it hands ownership to the next worker step.
         for job in self.active_jobs.iter_mut().filter(|j| !j.done) {
             // If job was cancelled while yielded, mark as done and don't resume
             if job.cancel_flag.load(std::sync::atomic::Ordering::Relaxed) {
@@ -250,11 +279,11 @@ impl GdPAIPlanScheduler {
                 job.completed_request_ids.clear();
                 let goals = job.goals.clone();
                 let res_tx = job.result_tx.clone();
-                run_job_step(self.thread_pool.as_ref(), goals, res_tx, engine);
+                spawn_engine_step(self.thread_pool.as_ref(), goals, res_tx, engine);
             }
         }
 
-        // Clean up finished jobs that have had one frame to be inspected. Their
+        // 4. Clean up finished jobs that have had one frame to be inspected. Their
         // engines are freed off the main thread (see `drop_in_background`).
         let mut finished: Vec<PlannerEngine> = Vec::new();
         self.active_jobs.retain_mut(|job| {
@@ -273,10 +302,10 @@ impl GdPAIPlanScheduler {
         crate::logger::process_logs();
     }
 
-    /// Submit a planning job for `agent`.
-    ///
-    /// `time_slice_ms` is the wall-clock budget (ms) per search step;
-    /// clamped to >= 0 where 0 disables time-slicing.
+    /// Submits a planning job for `agent`, cancelling its unfinished one. Blackboards are
+    /// snapshotted now. Already-satisfied goals are dropped; the rest are tried by descending
+    /// reward and the first with a plan wins. Budgets are clamped: `max_recursion` >= 1,
+    /// `iteration_budget` >= 100, `time_slice_ms` = 0 disables time-slicing.
     #[func]
     #[allow(clippy::too_many_arguments)]
     fn submit_plan(
@@ -292,6 +321,7 @@ impl GdPAIPlanScheduler {
     ) {
         let agent_instance_id = agent.instance_id().to_i64();
 
+        // A newer submission supersedes the agent's earlier plans.
         for job in self
             .active_jobs
             .iter_mut()
@@ -300,23 +330,28 @@ impl GdPAIPlanScheduler {
             job.cancel_flag
                 .store(true, std::sync::atomic::Ordering::Relaxed);
         }
+        // Everything below up to the engine construction runs on the main thread: it reads live
+        // Godot objects (blackboards, callables, goal conditions) and converts them to
+        // Send-safe data.
         let snap_agent = BlackboardSnapshot::from_blackboard(&agent_bb.bind());
         let snap_world = BlackboardSnapshot::from_blackboard(&world_bb.bind());
         let mut initial_provisions = crate::requirement::extract_initial_provisions(&snap_agent);
         initial_provisions.extend(extract_provisions_from_snapshot(&snap_world));
 
-        let mut job_registry = Vec::new();
-        let action_specs = build_action_specs(&actions, &mut job_registry);
-        let mut goal_specs = build_goal_specs(&goals, &mut job_registry);
+        let mut callable_registry = Vec::new();
+        let action_specs = build_action_specs(&actions, &mut callable_registry);
+        let mut goal_specs = build_goal_specs(&goals, &mut callable_registry);
 
         // Detect the highest-reward goal already satisfied by the initial state.
         // If all goals are satisfied, the scheduler can return an empty success
         // plan instead of asking the planner to search.
         let mut satisfied_goal_index = -1i64;
         let mut best_satisfied_reward = f64::NEG_INFINITY;
+        // Evaluated with the main-thread `PreconditionHandler` against the live blackboards,
+        // so custom goal conditions are called synchronously here.
         let goal_satisfied = |goal: &GoalSpec| -> bool {
             goal.desired_state.iter().all(|pre| {
-                PreconditionHandler::from_spec(pre, &job_registry)
+                PreconditionHandler::from_spec(pre, &callable_registry)
                     .is_some_and(|h| h.evaluate(&agent_bb, &world_bb))
             })
         };
@@ -375,7 +410,10 @@ impl GdPAIPlanScheduler {
             );
         }
 
-        // Build provision index for fast candidate discovery.
+        // Build provision index for fast candidate discovery: which actions provide a given
+        // binding / fact / wildcard fact name. Wildcard actions are excluded from
+        // `non_wildcard_actions` because they can only be discovered against a concrete
+        // requirement, which supplies their bindings.
         let mut provision_index: HashMap<(ProvisionKind, String), Vec<usize>> = HashMap::new();
         let mut non_wildcard_actions = Vec::new();
         for (idx, action) in action_specs.iter().enumerate() {
@@ -425,14 +463,15 @@ impl GdPAIPlanScheduler {
             .with_iteration_budget(iter_budget)
             .with_time_slice_ms(slice_ms);
 
-        // Use the channel we created
+        // The engine's answer channel must be the one whose sender is in the context, because
+        // that is the sender callback requests carry.
         engine.response_rx = engine_rx;
         engine.response_tx = engine_tx.clone();
 
         let job = ActiveJobHandle {
             agent,
             agent_instance_id,
-            callable_registry: job_registry,
+            callable_registry,
             request_rx: req_rx,
             result_rx: res_rx,
             result_tx: res_tx.clone(),
@@ -447,17 +486,18 @@ impl GdPAIPlanScheduler {
             stall_notice: StallNoticeThrottle::default(),
         };
 
-        run_job_step(self.thread_pool.as_ref(), job.goals.clone(), res_tx, engine);
+        spawn_engine_step(self.thread_pool.as_ref(), job.goals.clone(), res_tx, engine);
         self.active_jobs.push(job);
     }
 
-    /// Number of jobs currently in flight.
+    /// Number of jobs the scheduler is still tracking, including finished ones that have not
+    /// been reaped yet.
     #[func]
     fn active_job_count(&self) -> i64 {
         self.active_jobs.len() as i64
     }
 
-    /// Cancel all in-flight planning jobs for a specific agent.
+    /// Cancel all in-flight planning jobs for `agent`. No result is delivered.
     #[func]
     fn cancel_agent_jobs(&mut self, agent: Gd<Object>) {
         let agent_instance_id = agent.instance_id().to_i64();
@@ -473,7 +513,7 @@ impl GdPAIPlanScheduler {
         }
     }
 
-    /// Clear all active jobs from the scheduler.
+    /// Cancels and removes all jobs; engines are freed off the main thread.
     #[func]
     fn clear_active_jobs(&mut self) {
         for job in &mut self.active_jobs {
@@ -500,7 +540,7 @@ impl GdPAIPlanScheduler {
         log_debug!("Signalled all active jobs to cancel");
     }
 
-    /// Returns a string describing the current state of the thread pool.
+    /// Returns a string describing the current state of the thread pool, for diagnostics.
     #[func]
     fn get_pool_status(&self) -> String {
         if let Some(pool) = &self.thread_pool {
@@ -514,15 +554,15 @@ impl GdPAIPlanScheduler {
         }
     }
 
-    /// Sets the process-wide log verbosity.
+    /// Sets log verbosity: 0 errors, 1 warnings, 2 info (default), 3 debug. Debug also records
+    /// search trees for jobs started afterwards.
     #[func]
     fn set_log_level(&self, level: i64) {
         let log_level = crate::logger::LogLevel::from_u8(level.clamp(0, 3) as u8);
         crate::logger::set_log_level(log_level);
     }
 
-    /// Returns a human-readable search tree for the given agent's current planning job.
-    /// Returns an empty string if no active job is found or if the job is currently running in a thread.
+    /// Returns the search tree for `agent`'s job, or an empty string if none was recorded.
     #[func]
     fn get_debug_tree(&self, agent: Gd<Object>) -> String {
         let agent_instance_id = agent.instance_id().to_i64();
@@ -565,7 +605,9 @@ pub fn drop_in_background<T: Send + 'static>(items: Vec<T>) -> Option<std::threa
     Some(std::thread::spawn(move || drop(items)))
 }
 
-fn run_job_step(
+/// Runs one step of `engine` on the pool and sends it back on `res_tx`. Drops the engine if the
+/// pool does not exist yet.
+fn spawn_engine_step(
     thread_pool: Option<&rayon::ThreadPool>,
     goals: Vec<GoalSpec>,
     res_tx: Sender<(PlannerRunResult, PlannerEngine)>,
@@ -580,12 +622,16 @@ fn run_job_step(
     }
 }
 
+/// Appends `callable` to the job's registry and returns its index, which stands in for it in
+/// the Send-safe specs.
 fn register_callable(registry: &mut Vec<Callable>, callable: Callable) -> usize {
     let id = registry.len();
     registry.push(callable);
     id
 }
 
+/// Converts the bridge's action dictionaries into [`ActionSpec`]s. An action without a name is
+/// skipped, which would misalign indices with the GDScript array; the bridge always names them.
 fn build_action_specs(
     actions: &Array<VarDictionary>,
     registry: &mut Vec<Callable>,
@@ -665,6 +711,8 @@ fn build_action_specs(
         .collect()
 }
 
+/// Converts the serialized goal dictionaries into [`GoalSpec`]s. Goals without a `name` or
+/// `reward` are skipped; `original_index` keeps the position in the input array.
 fn build_goal_specs(goals: &Array<VarDictionary>, registry: &mut Vec<Callable>) -> Vec<GoalSpec> {
     goals
         .iter_shared()
@@ -701,6 +749,8 @@ fn build_goal_specs(goals: &Array<VarDictionary>, registry: &mut Vec<Callable>) 
         .collect()
 }
 
+/// Reads `dict[key]` as an array of dictionaries (typed or untyped) and parses each entry with
+/// `parse_fn`, dropping entries it rejects. A missing key gives an empty vector.
 fn extract_typed_specs<T, F>(dict: &VarDictionary, key: &str, mut parse_fn: F) -> Vec<T>
 where
     F: FnMut(&VarDictionary) -> Option<T>,
@@ -723,6 +773,7 @@ where
         .unwrap_or_default()
 }
 
+/// [`extract_typed_specs`] for precondition dictionaries, registering custom callables.
 fn extract_precond_specs(
     dict: &VarDictionary,
     key: &str,
@@ -731,14 +782,17 @@ fn extract_precond_specs(
     extract_typed_specs(dict, key, |d| precond_spec_from_dict(d, registry))
 }
 
+/// [`extract_typed_specs`] for requirement dictionaries.
 fn extract_requirement_specs(dict: &VarDictionary, key: &str) -> Vec<RequirementSpec> {
     extract_typed_specs(dict, key, RequirementSpec::from_dict)
 }
 
+/// [`extract_typed_specs`] for provision dictionaries.
 fn extract_provision_specs(dict: &VarDictionary, key: &str) -> Vec<ProvisionSpec> {
     extract_typed_specs(dict, key, ProvisionSpec::from_dict)
 }
 
+/// Builds a [`PreconditionSpec`], registering a custom precondition's callable.
 fn precond_spec_from_dict(
     dict: &VarDictionary,
     registry: &mut Vec<Callable>,
@@ -773,6 +827,8 @@ fn precond_spec_from_dict(
     })
 }
 
+/// Runs one requested callable on fresh blackboards rebuilt from the snapshots. A non-number
+/// cost means infinity; a non-bool precondition means false; effects are snapshotted back.
 fn dispatch_callback(
     callable: &Callable,
     kind: CallbackKind,
@@ -840,7 +896,8 @@ fn dispatch_callback(
     }
 }
 
-/// Injects bindings into the agent blackboard only. World-state bindings are not currently supported.
+/// Sets each binding as an agent property (its first value), so callables can read e.g.
+/// `at_target`.
 fn inject_bindings_into_agent(
     agent_bb: &mut Gd<GdPAIBlackboard>,
     bindings: &[(String, Vec<VariantSnapshot>)],
@@ -853,6 +910,7 @@ fn inject_bindings_into_agent(
     }
 }
 
+/// Turns each world object's `provides` property into `Fact(provides, [object id])`.
 fn extract_provisions_from_snapshot(snap: &BlackboardSnapshot) -> Vec<ProvisionSpec> {
     let mut provisions = Vec::new();
     for (uid, obj) in &snap.objects {
@@ -874,6 +932,7 @@ fn extract_provisions_from_snapshot(snap: &BlackboardSnapshot) -> Vec<ProvisionS
     provisions
 }
 
+/// Converts a [`PlanResult`] into the dictionary delivered to `_on_plan_ready`.
 fn result_to_dict(result: &PlanResult) -> VarDictionary {
     let mut dict = VarDictionary::new();
     dict.set("success", result.success);

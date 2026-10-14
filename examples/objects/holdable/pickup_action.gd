@@ -1,14 +1,13 @@
 class_name PickupAction
 extends Action
-## An action that picks up a holdable item.
-## This action requires the agent to be at the target location (via at_target fact)
-## and does NOT handle navigation itself - that's handled by GoToAction.
+## Picks up a holdable item, freeing it. Navigation is GoTo's job, via [code]at_target[/code].[br]
+## Provides [code]held_item = <item_id>[/code], plus [code]is_food[/code] for items in the
+## [code]Food[/code] group. Items are not reserved: an agent arriving second fails and replans.
 
-## Reference to the holdable item that provided this action.
+## The item that offers this action.
 var holdable_item: HoldableObject
-## The location data for this item - used to specify the at_target requirement.
+## The item's location, named in the [code]at_target[/code] requirement.
 var object_location: GdPAILocationData
-## Reference to the GdPAI interactable attributes.
 var interactable_attribs: GdPAIInteractable
 
 
@@ -28,7 +27,7 @@ func get_action_cost(
 	_agent_blackboard: GdPAIBlackboard,
 	_world_state: GdPAIBlackboard,
 ) -> float:
-	# Interaction cost is minimal - navigation is handled by GoToAction
+	# GoTo's distance-based cost decides between items.
 	return 1.0
 
 
@@ -48,7 +47,6 @@ func get_preconditions() -> Array[Precondition]:
 
 # Override
 func get_requirements() -> Array[RequirementSpec]:
-	# Require that the agent is at this specific object's location
 	if object_location != null:
 		return [RequirementSpec.fact("at_target", [object_location])]
 	return []
@@ -56,8 +54,6 @@ func get_requirements() -> Array[RequirementSpec]:
 
 # Override
 func get_provisions() -> Array[ProvisionSpec]:
-	# Provide the held_item binding that EatHeldFoodAction requires.
-	# Also provide an 'is_food' fact if this object belongs to the Food group.
 	var provs: Array[ProvisionSpec] = [ProvisionSpec.binding("held_item", holdable_item.item_id)]
 	if is_instance_valid(holdable_item) and holdable_item.is_in_group("Food"):
 		provs.append(ProvisionSpec.fact("is_food", []))
@@ -69,7 +65,6 @@ func simulate_effect(
 	agent_blackboard: GdPAIBlackboard,
 	_world_state: GdPAIBlackboard,
 ) -> void:
-	# Ensure the holdable item is still valid
 	if not is_instance_valid(holdable_item) or not is_instance_valid(holdable_item.entity):
 		return
 
@@ -78,7 +73,6 @@ func simulate_effect(
 
 # Override
 func pre_perform_action(_agent: GdPAIAgent) -> Action.Status:
-	# Check if the holdable item is still valid
 	if not is_instance_valid(holdable_item) or not is_instance_valid(holdable_item.entity):
 		return Action.Status.FAILURE
 	return Action.Status.SUCCESS
@@ -86,12 +80,9 @@ func pre_perform_action(_agent: GdPAIAgent) -> Action.Status:
 
 # Override
 func perform_action(agent: GdPAIAgent, _delta: float) -> Action.Status:
-	# Check if the holdable item is still valid
 	if not is_instance_valid(holdable_item) or not is_instance_valid(holdable_item.entity):
 		return Action.Status.FAILURE
 
-	# Agent should already be at the location (GoToAction handled navigation)
-	# Just pick up the item
 	agent.blackboard.set_property("held_item", holdable_item.item_id)
 	holdable_item.entity.queue_free()
 	return Action.Status.SUCCESS

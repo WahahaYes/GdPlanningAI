@@ -1,7 +1,10 @@
 extends Node
 ## Drives an [AnimatedSprite2D] based on a [RigidBody2D] entity's velocity.
 ## Plays "Run" while moving and "Idle" when still. Flips the sprite horizontally
-## to face the direction of travel.
+## to face the direction of travel.[br]
+##[br]
+## Presentation only. The animation is derived from the body's velocity, never from the
+## planner's current action, so skins can change without touching any planning code.
 
 ## The entity whose velocity drives the animation.
 @export var entity: RigidBody2D
@@ -11,6 +14,7 @@ extends Node
 @export var idle_threshold: float = 16.0
 
 
+## Picks the clip and facing from the current velocity.
 func _process(_delta: float) -> void:
 	if entity.linear_velocity.length() > idle_threshold:
 		animated_sprite.play("Run")

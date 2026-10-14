@@ -1,9 +1,7 @@
-//! Simulation snapshot of a world object used during planning.
+//! Planning-time snapshot of a `GdPAIObjectData` node, built from `get_sim_properties()`.
 //!
-//! A [`SimObjectProxy`] captures the state of a `GdPAIObjectData` node at
-//! planning start via its `get_sim_properties()` dictionary. Instances live
-//! inside a [`super::gdpai_blackboard::GdPAIBlackboard`] and are cloned
-//! alongside it when the engine branches into a new simulation path.
+//! The GDScript-facing form of [`crate::snapshot::SimObjectData`]; main-thread only, since its
+//! properties are Godot values.
 
 use godot::prelude::*;
 use std::collections::HashMap;
@@ -18,8 +16,14 @@ use std::collections::HashMap;
 #[derive(GodotClass)]
 #[class(base=RefCounted)]
 pub struct SimObjectProxy {
+    /// The source node's instance id as a string; the key under which the owning blackboard
+    /// stores this proxy.
     pub uid: String,
+    /// Names of the groups the source node belonged to when the proxy was created. Fixed for
+    /// the proxy's lifetime.
     pub groups: Vec<String>,
+    /// Simulation-relevant state, as reported by the source node's `get_sim_properties()` and
+    /// then modified by simulated effects.
     pub properties: HashMap<String, Variant>,
     base: Base<RefCounted>,
 }
@@ -76,11 +80,8 @@ impl SimObjectProxy {
         self.properties.contains_key(&key.to_string())
     }
 
-    /// Constructs a [`SimObjectProxy`] from a live `GdPAIObjectData` node.
-    ///
-    /// Calls `get_groups()` on the Godot Node to capture group membership,
-    /// and `get_sim_properties()` to snapshot simulation-relevant properties.
-    /// The resulting proxy is fully independent of the source node.
+    /// Snapshots a `GdPAIObjectData` node's groups and `get_sim_properties()` into an independent
+    /// proxy. Called when a blackboard's `GDPAI_OBJECTS` is set.
     pub fn from_object_data(mut obj: Gd<Node>) -> Option<Gd<SimObjectProxy>> {
         let uid = obj.instance_id().to_i64().to_string();
         let name = obj.get_name().to_string();

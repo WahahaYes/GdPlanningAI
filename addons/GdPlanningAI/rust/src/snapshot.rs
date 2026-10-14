@@ -1,37 +1,42 @@
-//! Send-safe snapshot types for planning.
+//! Send-safe, plain-data mirrors of Godot state ([`VariantSnapshot`], [`SimObjectData`],
+//! [`BlackboardSnapshot`]) so planning can run off the main thread.
 //!
-//! [`VariantSnapshot`], [`SimObjectData`], and [`BlackboardSnapshot`] mirror
-//! their Godot-bound counterparts but contain only plain Rust data so they
-//! can be sent across threads.
+//! Converting to or from live blackboards creates Godot objects, so it is main-thread only.
+//! Snapshots are cloned per branch, so they stay cheap value types with `Eq`/`Hash`.
 
 use crate::gdpai_blackboard::GdPAIBlackboard;
 use crate::sim_object_proxy::SimObjectProxy;
 use godot::prelude::*;
 use std::collections::HashMap;
 
-/// Send-safe mirror of a Godot [`Variant`].
-///
-/// Three tiers:
-/// - **Tier 1** — primitives stored as plain Rust values (fast, comparable).
-/// - **Tier 2** — everything else Godot can serialise via `var_to_bytes`.
-/// - **Tier 3** — live `Object` references stored as instance-ID handles.
+/// Send-safe mirror of a Godot [`Variant`]: primitives as Rust values, live objects as
+/// instance-id handles, and everything else as opaque `var_to_bytes` blobs the planner can
+/// compare but not inspect.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum VariantSnapshot {
+    /// A nil variant (also the fallback when a value cannot be serialised).
     Nil,
+    /// Tier 1: a boolean.
     Bool(bool),
+    /// Tier 1: an integer.
     Int(i64),
-    Float(u64), // Store bits for stable hashing
+    /// Tier 1: a float, stored as its IEEE-754 bits (`f64::to_bits`) so the enum can be
+    /// `Eq` and `Hash`. Convert with `f64::from_bits`.
+    Float(u64),
+    /// Tier 1: a string.
     Str(String),
     /// Tier 2: binary blob produced by `var_to_bytes`.
     Bytes(Vec<u8>),
     /// Tier 3: Godot instance-ID of a live object (opaque handle).
     ObjectRef(i64),
-    /// Array of VariantSnapshot values.
+    /// Untyped array whose elements are snapshotted individually (so object handles and
+    /// primitives inside it keep their tier).
     Array(Vec<VariantSnapshot>),
 }
 
 impl VariantSnapshot {
-    /// Snapshot a [`Variant`]. **Must be called on the main thread.**
+    /// Snapshots a [`Variant`]. Main thread only. Objects are caught before `var_to_bytes`, which
+    /// would encode only a dangling id.
     pub fn from_variant(v: &Variant) -> Self {
         if v.is_nil() {
             return Self::Nil;
@@ -64,7 +69,7 @@ impl VariantSnapshot {
             return Self::ObjectRef(obj.instance_id().to_i64());
         }
 
-        // Tier 2: Godot binary serialiser (for Vector2/3, Color, Dictionary, Resources, etc.)
+        // Tier 2: Godot binary serialiser (for Vector2/3, Color, Dictionary, etc.)
         let bytes: PackedByteArray = godot::global::var_to_bytes(&v.clone());
         if !bytes.is_empty() {
             return Self::Bytes(bytes.to_vec());
@@ -77,7 +82,7 @@ impl VariantSnapshot {
         Self::Nil
     }
 
-    /// Reconstruct a [`Variant`]. **Must be called on the main thread.**
+    /// Rebuilds the [`Variant`]. Main thread only; a freed object becomes nil.
     pub fn to_variant(&self) -> Variant {
         match self {
             Self::Nil => Variant::nil(),
@@ -126,8 +131,12 @@ impl VariantSnapshot {
 /// Send-safe mirror of [`SimObjectProxy`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SimObjectData {
+    /// The source node's instance id as a string; also this object's key in
+    /// [`BlackboardSnapshot::objects`].
     pub uid: String,
+    /// Group names the source node belongs to.
     pub groups: Vec<String>,
+    /// The simulation-relevant properties the object exposed at snapshot time.
     pub properties: HashMap<String, VariantSnapshot>,
 }
 
@@ -138,24 +147,27 @@ pub struct SimObjectData {
 /// in `objects` as [`SimObjectData`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BlackboardSnapshot {
+    /// Plain properties of the blackboard.
     pub properties: HashMap<String, VariantSnapshot>,
+    /// World objects keyed by uid (instance id as a string).
     pub objects: HashMap<String, SimObjectData>,
 }
 
 impl BlackboardSnapshot {
-    /// Returns the first object that belongs to the given group, if any.
+    /// Returns an object in `group`. Map order is unspecified, so use it for single-member groups.
     pub fn get_object_by_group(&self, group: &str) -> Option<&SimObjectData> {
         self.objects
             .values()
             .find(|obj| obj.groups.contains(&group.to_string()))
     }
 
-    /// Returns the object with the given Godot instance ID, if any.
+    /// Returns the object with the given Godot instance ID, if any. Object-valued
+    /// properties (`ObjectRef`) are resolved to world objects through this.
     pub fn get_object_by_instance_id(&self, id: i64) -> Option<&SimObjectData> {
         self.objects.get(&id.to_string())
     }
 
-    /// Snapshot a live [`GdPAIBlackboard`]. **Must be called on the main thread.**
+    /// Snapshots a live blackboard. Main thread only; `GDPAI_OBJECTS` is carried by `objects`.
     pub fn from_blackboard(bb: &GdPAIBlackboard) -> Self {
         let properties = bb
             .properties
@@ -191,7 +203,7 @@ impl BlackboardSnapshot {
         }
     }
 
-    /// Reconstruct a [`GdPAIBlackboard`] from this snapshot. **Main thread only.**
+    /// Rebuilds a simulation blackboard (proxies, no live nodes). Main thread only.
     pub fn into_blackboard(self) -> Gd<GdPAIBlackboard> {
         let mut bb = GdPAIBlackboard::new_gd();
         {

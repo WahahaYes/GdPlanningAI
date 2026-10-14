@@ -1,7 +1,8 @@
 //! Integration tests for the backward-chaining planner.
 //!
-//! These tests exercise `run_plan` end-to-end with a mock callback responder
-//! thread, verifying that the planner correctly chains actions to satisfy goals.
+//! These tests drive a `PlannerEngine` end-to-end (via the `run_planner` helper below) with a
+//! mock callback responder thread standing in for the Godot main thread, verifying that the
+//! planner correctly chains actions to satisfy goals.
 
 use gdplanningai_rust::plan_tree::PlanResult;
 use gdplanningai_rust::plan_types::{
@@ -19,8 +20,6 @@ use std::sync::atomic::AtomicBool;
 use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
-
-// ── Helpers ────────────────────────────────────────────────────────
 
 fn make_agent(hunger: i64) -> BlackboardSnapshot {
     let mut props = HashMap::new();
@@ -146,8 +145,6 @@ fn run_planner(
         }
     }
 }
-
-// ── Tests ──────────────────────────────────────────────────────────
 
 #[test]
 fn single_action_satisfies_goal() {

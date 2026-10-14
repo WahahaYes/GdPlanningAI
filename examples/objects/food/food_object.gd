@@ -1,15 +1,10 @@
 class_name FoodObject
 extends HoldableObject
-## World object representing a pickupable food item.
-##[br]
-##[br]
-## Demonstrates [HoldableObject]: adds food-specific simulation metadata on top
-## of the shared pickup contract so the item can later be consumed by an
-## agent-provided eating action.
+## A pickupable food item. Its [code]Food[/code] group makes [PickupAction] also provide
+## [code]is_food[/code], which [EatHeldFoodAction] requires.
 
-## How many points of hunger this item should restore when consumed.
-##[br]
-## Kept on the object so other planner-side actions can estimate the value of spawned food.
+## Hunger a fruit of this kind is expected to restore; [ShakeTreeAction] uses it to predict a
+## shake's value. Eating itself uses [member HungerBehaviorConfig.hunger_restored_by_item].
 @export var hunger_value: float = 20.0
 
 
