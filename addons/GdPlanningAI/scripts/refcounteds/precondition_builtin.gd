@@ -1,14 +1,7 @@
 class_name PreconditionBuiltin
 extends Precondition
-## Property comparison evaluated natively by the planning engine. Usually created through the
-## static constructors on [Precondition] (for example [method Precondition.agent_property_equal_to])
-## rather than directly.[br]
-##[br]
-## It compares one property (existence, equality or ordering) on the agent blackboard, on the world
-## blackboard, or on world objects of a group, where the group form is true if [i]any[/i] object
-## in the group satisfies it. Because the engine understands which property is tested, it can
-## evaluate the check on its own thread without callbacks and can search for actions whose
-## simulated effects change that property.
+## Property comparison the engine evaluates natively. Create it with the static constructors on
+## [Precondition]. Group targets are true if [i]any[/i] object in the group matches.
 
 ## Specifies which blackboard to evaluate the precondition against.
 enum Target {
@@ -40,11 +33,8 @@ var group: String
 var value: Variant
 
 
-## Creates a built-in precondition.[br]
-##[br]
-## [param t] is the target blackboard, [param op] the comparison, [param prop] the property name,
-## [param val] the value to compare against (ignored for [constant Op.HAS_PROPERTY]) and
-## [param grp] the object group (only used with [constant Target.WORLD_OBJECT_PROXY]).
+## [param val] is ignored for [constant Op.HAS_PROPERTY]; [param grp] is only used with
+## [constant Target.WORLD_OBJECT_PROXY].
 func _init(t: Target, op: Op, prop: String, val: Variant = null, grp: String = "") -> void:
 	target = t
 	operation = op
@@ -53,7 +43,6 @@ func _init(t: Target, op: Op, prop: String, val: Variant = null, grp: String = "
 	value = val
 
 
-## Serialises this precondition into the dictionary format expected by the Rust bridge.
 func to_bridge_dict() -> Dictionary:
 	var dict = {
 		"target": _target_to_string(target),

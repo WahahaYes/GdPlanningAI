@@ -1,27 +1,10 @@
 extends Label
-## Displays the current goal, active action, and specified
-## properties of a [GdPAIAgent] as a heads-up label.
-##[br]
-##[br]
-## Drop this script onto a [Label] node and assign [member gdpai_agent].
-## The label updates every frame with the agent's current goal title,
-## the title of the action currently being executed, and any properties
-## specified in [member debug_properties].
-##[br]
-##[br]
-## Float values are automatically truncated to 1 decimal place
-## for cleaner display.[br]
-##[br]
-## Presentation only. It reads the agent's current goal, current plan step and
-## blackboard each frame to make planning visible while you watch; nothing here affects
-## decisions. [code]debug_properties[/code] picks what to show ([code]hunger[/code] in
-## the hunger scenes, plus [code]held_item[/code] in the campfire scenes, where the
-## held item explains the plan).
+## Shows a [GdPAIAgent]'s current goal, action and [member debug_properties] on a [Label].
+## Presentation only; floats are shown to one decimal.
 
 ## The agent to display debug info for.
 @export var gdpai_agent: GdPAIAgent
-## Array of property names to display from the agent's blackboard.
-## Example: ["hunger", "held_item"]
+## Blackboard properties to show, e.g. [code]["hunger", "held_item"][/code].
 @export var debug_properties: Array[String] = []
 
 
@@ -32,7 +15,6 @@ func _format_value(value: Variant) -> String:
 	return str(value)
 
 
-## Rebuilds the label text from the agent's live planning state every frame.
 func _process(_delta: float) -> void:
 	if not is_instance_valid(gdpai_agent):
 		return

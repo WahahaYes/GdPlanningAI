@@ -1,38 +1,17 @@
-//! Send-safe snapshot types for planning.
+//! Send-safe, plain-data mirrors of Godot state ([`VariantSnapshot`], [`SimObjectData`],
+//! [`BlackboardSnapshot`]) so planning can run off the main thread.
 //!
-//! [`VariantSnapshot`], [`SimObjectData`], and [`BlackboardSnapshot`] mirror
-//! their Godot-bound counterparts but contain only plain Rust data so they
-//! can be sent across threads.
-//!
-//! # Why snapshots exist
-//!
-//! Godot objects (`Variant`, `Gd<T>`, [`GdPAIBlackboard`]) are not `Send` and may only be used
-//! on the main thread. The planner runs on worker threads, so planning state is copied into
-//! these plain-data mirrors before the job is submitted ([`BlackboardSnapshot::from_blackboard`])
-//! and copied back into live blackboards only when a GDScript callable has to run
-//! ([`BlackboardSnapshot::into_blackboard`]), again on the main thread. That is also why
-//! conversion in either direction is documented as main-thread only: it creates Godot
-//! objects and calls into the engine's variant serialiser.
-//!
-//! Snapshots are cloned freely (every search branch carries two), so they are kept to value
-//! types with cheap `Eq`/`Hash` for caching and branch fingerprints.
+//! Converting to or from live blackboards creates Godot objects, so it is main-thread only.
+//! Snapshots are cloned per branch, so they stay cheap value types with `Eq`/`Hash`.
 
 use crate::gdpai_blackboard::GdPAIBlackboard;
 use crate::sim_object_proxy::SimObjectProxy;
 use godot::prelude::*;
 use std::collections::HashMap;
 
-/// Send-safe mirror of a Godot [`Variant`].
-///
-/// Three tiers:
-/// - **Tier 1** — primitives stored as plain Rust values (fast, comparable).
-/// - **Tier 2** — everything else Godot can serialise via `var_to_bytes`.
-/// - **Tier 3** — live `Object` references stored as instance-ID handles.
-///
-/// Only tier 1 values can be compared and hashed meaningfully by the planner (and tier 3 by
-/// identity). Tier 2 blobs are opaque: two equal vectors give equal bytes, but the planner
-/// cannot inspect or do arithmetic on them. Their content only matters to GDScript callables,
-/// which receive them rebuilt as the original type.
+/// Send-safe mirror of a Godot [`Variant`]: primitives as Rust values, live objects as
+/// instance-id handles, and everything else as opaque `var_to_bytes` blobs the planner can
+/// compare but not inspect.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum VariantSnapshot {
     /// A nil variant (also the fallback when a value cannot be serialised).
@@ -56,12 +35,8 @@ pub enum VariantSnapshot {
 }
 
 impl VariantSnapshot {
-    /// Snapshot a [`Variant`]. **Must be called on the main thread.**
-    ///
-    /// The order of the checks matters: primitives first, then arrays, then objects, and
-    /// only then the binary serialiser. Objects must be caught before `var_to_bytes`, which
-    /// would accept them but encode only a dangling id instead of keeping a handle. This also
-    /// means a `Resource` (an `Object`) becomes an `ObjectRef`, not a blob.
+    /// Snapshots a [`Variant`]. Main thread only. Objects are caught before `var_to_bytes`, which
+    /// would encode only a dangling id.
     pub fn from_variant(v: &Variant) -> Self {
         if v.is_nil() {
             return Self::Nil;
@@ -107,10 +82,7 @@ impl VariantSnapshot {
         Self::Nil
     }
 
-    /// Reconstruct a [`Variant`]. **Must be called on the main thread.**
-    ///
-    /// An `ObjectRef` whose object has been freed since the snapshot was taken becomes nil
-    /// (with a warning), because the planner may outlive scene objects.
+    /// Rebuilds the [`Variant`]. Main thread only; a freed object becomes nil.
     pub fn to_variant(&self) -> Variant {
         match self {
             Self::Nil => Variant::nil(),
@@ -182,9 +154,7 @@ pub struct BlackboardSnapshot {
 }
 
 impl BlackboardSnapshot {
-    /// Returns the first object that belongs to the given group, if any. Iteration order of
-    /// the underlying map is unspecified, so this is only well defined for groups with a
-    /// single member.
+    /// Returns an object in `group`. Map order is unspecified, so use it for single-member groups.
     pub fn get_object_by_group(&self, group: &str) -> Option<&SimObjectData> {
         self.objects
             .values()
@@ -197,10 +167,7 @@ impl BlackboardSnapshot {
         self.objects.get(&id.to_string())
     }
 
-    /// Snapshot a live [`GdPAIBlackboard`]. **Must be called on the main thread.**
-    ///
-    /// The reserved `GDPAI_OBJECTS` property (an array of live nodes) is dropped from
-    /// `properties`; the same information is carried by `objects` through the proxies.
+    /// Snapshots a live blackboard. Main thread only; `GDPAI_OBJECTS` is carried by `objects`.
     pub fn from_blackboard(bb: &GdPAIBlackboard) -> Self {
         let properties = bb
             .properties
@@ -236,11 +203,7 @@ impl BlackboardSnapshot {
         }
     }
 
-    /// Reconstruct a [`GdPAIBlackboard`] from this snapshot. **Main thread only.**
-    ///
-    /// Used to hand a GDScript callable a real blackboard. The result is a simulation
-    /// blackboard: it has proxies but no `source_objects`, so `get_node_in_group` returns
-    /// nothing on it, and it has no `GDPAI_OBJECTS` property.
+    /// Rebuilds a simulation blackboard (proxies, no live nodes). Main thread only.
     pub fn into_blackboard(self) -> Gd<GdPAIBlackboard> {
         let mut bb = GdPAIBlackboard::new_gd();
         {

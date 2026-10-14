@@ -1,19 +1,9 @@
 class_name DropItemAction
 extends Action
-## Drops the currently held inventory item without interacting with a world object.
-##[br]
-##[br]
-## Demonstrates an agent-provided self action that exists to unblock replanning when
-## a single held-item slot prevents the next desired interaction.[br]
-##[br]
-## It has no requirements or provisions: nothing needs to precede it and it hands no
-## binding forward. Its effect is only to empty [code]held_item[/code], which satisfies
-## the [code]held_item == ""[/code] preconditions of pick up and dig. It is registered by
-## [CampfireBehaviorConfig] so a carrying agent can abandon its item (for example a potato
-## when the fire needs wood) instead of being stuck with a full hand. Nothing is
-## spawned into the world: the item is simply discarded.
+## Discards the held item, emptying the single held-item slot so pick-up and dig can run.
+## Registered by [CampfireBehaviorConfig] so a carrying agent is never stuck.
 
-## How long the drop action should take in seconds.
+## Seconds to drop; also the planning cost.
 var drop_duration: float = 0.2
 
 
@@ -23,7 +13,6 @@ func _init(p_drop_duration: float = 0.2) -> void:
 
 # Override
 func get_validity_checks() -> Array[Precondition]:
-	# Always offered; the precondition below decides whether it can run.
 	var checks: Array[Precondition] = []
 	return checks
 

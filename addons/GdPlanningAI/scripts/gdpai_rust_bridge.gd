@@ -1,28 +1,14 @@
 class_name GdPAIRustBridge
 extends RefCounted
 
-## Internal bridge between GDScript and the Rust planning engine.[br]
-##[br]
-## Serialises [Action] and [Goal] objects into the plain-dictionary format consumed by
-## [code]GdPAIPlanScheduler.submit_plan[/code]. This is where the declarative hooks
-## ([method Action.get_preconditions], [method Action.get_validity_checks],
-## [method Action.get_requirements], [method Action.get_provisions], [method Goal.compute_reward],
-## [method Goal.get_desired_state]) are read, on the main thread, once per plan request. The dictionaries embed
-## [Callable] references to [method Action.get_action_cost] and [method Action.simulate_effect];
-## the engine calls them back on the main thread during planning, so game state is never copied
-## across the language boundary.[br]
-##[br]
-## Not intended for direct use: [GdPAIAgent] owns and calls this internally.
+## Internal bridge to the Rust engine; [GdPAIAgent] owns it.[br]
+## Serialises actions and goals for [code]GdPAIPlanScheduler.submit_plan[/code], reading their
+## declarative hooks on the main thread. Cost and effect hooks are passed as [Callable]s, so game
+## state never crosses the language boundary.
 
 
-## Turns a finished planner [param result] into an executable chain.[br]
-##[br]
-## Each index in [code]result.action_chain[/code] is resolved against [param actions] (the actions
-## submitted with the request) and replaced by the result of [method Action.clone_for_plan].
-## Returns a dictionary with [code]action_chain[/code] (the ordered [code]Array[Action][/code]) and
-## [code]bindings_by_position[/code] (planner bindings as arrays of
-## [code][chain_position, fact_name, values][/code], grouped by chain position). The agent injects
-## the bindings itself just before executing each step; this method does not.
+## Turns a planner [param result] into [code]action_chain[/code] (cloned via
+## [method Action.clone_for_plan]) and [code]bindings_by_position[/code] for the agent to inject.
 func deserialize_plan_result(result: Dictionary, actions: Array[Action]) -> Dictionary:
 	var action_chain: Array[Action] = []
 
@@ -46,21 +32,17 @@ func deserialize_plan_result(result: Dictionary, actions: Array[Action]) -> Dict
 	}
 
 
-## Serialises [param actions] for the planner. See [method Action.get_title] and the
-## [code]get_*[/code] hooks of [Action] for what is read. Main thread only.
+## Serialises [param actions] for the planner. Main thread only.
 func serialize_actions(actions: Array[Action]) -> Array[Dictionary]:
 	return _extract_actions(actions)
 
 
-## Serialises [param goals] for the planner, evaluating each goal's reward and desired state
-## against [param agent] now. Main thread only.
+## Serialises [param goals], evaluating reward and desired state against [param agent] now.
 func serialize_goals(goals: Array[Goal], agent: GdPAIAgent) -> Array[Dictionary]:
 	return _extract_goals(goals, agent)
 
 
-## Serialises each [Action] in [param actions] into the dictionary format
-## expected by the Rust layer, embedding [Callable] references for cost and
-## effect evaluation.
+## Serialises each action, embedding [Callable]s for cost and effect.
 func _extract_actions(actions: Array[Action]) -> Array[Dictionary]:
 	var extracted: Array[Dictionary] = []
 	for action in actions:
@@ -81,9 +63,7 @@ func _extract_actions(actions: Array[Action]) -> Array[Dictionary]:
 	return extracted
 
 
-## Serialises each [Precondition] in [param preconditions] into the dictionary
-## format expected by the Rust layer by calling [method Precondition.to_bridge_dict]
-## on each precondition.
+## Serialises preconditions via [method Precondition.to_bridge_dict].
 func _extract_preconditions(preconditions: Array[Precondition]) -> Array[Dictionary]:
 	var extracted: Array[Dictionary] = []
 	for precond in preconditions:
@@ -91,9 +71,7 @@ func _extract_preconditions(preconditions: Array[Precondition]) -> Array[Diction
 	return extracted
 
 
-## Serialises each [RequirementSpec] in [param requirements] into the dictionary
-## format expected by the Rust layer by calling [method RequirementSpec.to_bridge_dict]
-## on each requirement.
+## Serialises requirements via [method RequirementSpec.to_bridge_dict].
 func _extract_requirements(requirements: Array[RequirementSpec]) -> Array[Dictionary]:
 	var extracted: Array[Dictionary] = []
 	for requirement in requirements:
@@ -101,9 +79,7 @@ func _extract_requirements(requirements: Array[RequirementSpec]) -> Array[Dictio
 	return extracted
 
 
-## Serialises each [ProvisionSpec] in [param provisions] into the dictionary
-## format expected by the Rust layer by calling [method ProvisionSpec.to_bridge_dict]
-## on each provision.
+## Serialises provisions via [method ProvisionSpec.to_bridge_dict].
 func _extract_provisions(provisions: Array[ProvisionSpec]) -> Array[Dictionary]:
 	var extracted: Array[Dictionary] = []
 	for provision in provisions:

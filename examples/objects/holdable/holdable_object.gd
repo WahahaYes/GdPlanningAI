@@ -1,21 +1,13 @@
 class_name HoldableObject
 extends GdPAIObjectData
-## World object representing an item that can be picked up into an agent's held slot.
-##[br]
-##[br]
-## Demonstrates a reusable object-side contract for anything that should feed the
-## shared [code]held_item[/code] blackboard flow.[br]
-##[br]
-## Each holdable offers a [PickupAction] and an [member item_id]. The id is what lands
-## in the agent's [code]held_item[/code] and what later actions match on
-## ([code]binding_equals[/code], or a table lookup in [EatHeldFoodAction]). Subclasses
-## ([FoodObject]) extend the group labels and simulated properties, not the action.
+## An item that can be picked up into the agent's [code]held_item[/code] slot. Offers a
+## [PickupAction]; [member item_id] is what later actions match on.
 
-## Item id stored in the agent's [code]held_item[/code] blackboard property when picked up.
+## Value written to the agent's [code]held_item[/code] on pick-up.
 @export var item_id: String = ""
-## Reference to the [GdPAIInteractable] component on this object.
+## This item's [GdPAIInteractable].
 @export var interactable_attribs: GdPAIInteractable
-## Reference to the [GdPAILocationData] component on this object.
+## This item's [GdPAILocationData].
 @export var location_data: GdPAILocationData
 
 

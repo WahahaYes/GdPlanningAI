@@ -71,9 +71,7 @@ Planning runs on a Rayon worker thread, but GDScript callables can only run on t
 1. On the main thread, `GdPAIAutoload._process()` calls `scheduler.process_callbacks()` every frame. It recovers finished engines, delivers `Complete` results to `agent._on_plan_ready(dict)`, drains the request channel, looks up each callable in the registry, and dispatches it via `dispatch_callback`. The response goes back on the request's `response_tx` as a `PlannerCallback` (`Float`, `Bool`, or `UpdatedSnapshots`).
 1. Bindings are injected into the agent blackboard **only** (`inject_bindings_into_agent`, using `values[0]`). The next `step_search` resume cycle re-queues parked nodes whose responses arrived this frame.
 
-The send-safe `VariantSnapshot` has three tiers: Tier 1 primitives (including arrays of snapshots), Tier 2 `var_to_bytes` blobs (vectors, colors, dictionaries), and Tier 3 live `ObjectRef(i64)` instance handles (any `Object`, resources included). Conversion in either direction touches Godot objects and so must happen on the main thread; `BlackboardSnapshot` is what actually crosses thread boundaries.
-
-A finished job's engine owns every open branch, and freeing a large one can take about a second. `process_callbacks` therefore drops reaped engines on a background thread (`drop_in_background`) instead of the main thread. The per-job threading model is described in the `scheduler.rs` module docs and in [ALGORITHM.md](ALGORITHM.md#6-async-architecture).
+The send-safe `VariantSnapshot` has three tiers: Tier 1 primitives, Tier 2 `var_to_bytes` blobs (vectors, colors, dictionaries), and Tier 3 `ObjectRef(i64)` handles for any `Object`. Conversion must happen on the main thread; `BlackboardSnapshot` is what actually crosses thread boundaries.
 
 ______________________________________________________________________
 

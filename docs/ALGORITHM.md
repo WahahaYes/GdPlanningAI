@@ -38,7 +38,7 @@ Every planning job runs two interleaved phases. The search state machine (`step_
 
 ### Phase 1: backward candidate discovery
 
-A branch in the `Searching` state has a list of *open needs*: `open_requirements` (position + requirement) and `open_preconditions` (position + precondition). A position is the index in the action chain of the action that consumes the need, so the need must hold in the state just before that action runs. The goal's preconditions start at position 0 of an empty chain; because they are shifted along whenever an action is inserted in front of them, they end up at position `chain.len()`, meaning "in the final state". The planner asks the *expander* (`find_candidates`) which actions could satisfy those needs:
+A branch in the `Searching` state has a list of *open needs*: `open_requirements` (position + requirement) and `open_preconditions` (position + precondition). A position is the chain index of the action consuming the need: the need must hold just before that action runs. Goal preconditions sit at `chain.len()`, the final state. The planner asks the *expander* (`find_candidates`) which actions could satisfy those needs:
 
 - Actions whose provisions match an open requirement, found via a `provision_index` that maps `(ProvisionKind, name)` to action indices. A `Fact` requirement also pulls in actions that provide the matching `FactWildcard`.
 - All **non-wildcard** actions, because their effects may satisfy an open precondition even though their provisions are too specific to match a requirement by name.
@@ -95,7 +95,7 @@ An `Action` declares two matching surfaces. **Requirements** are the causal link
 
 `FactWildcard` is the mechanism behind `GoToAction`: it provides `fact_wildcard("at_target")` and every interaction action requires `fact("at_target", [some_location])`. The wildcard binds the consumer's concrete arguments during discovery, so one generic navigation action chains in front of any location-dependent interaction.
 
-Concretely, when the expander matches a wildcard provision against a `Fact` requirement it builds the binding `("at_target", [some_location])` (`binding_values_from_match`). Discovery simulates the action with that binding, so its cost and effect callables see the target, and each candidate is keyed by `(action, bindings)`: one generic GoTo yields a separate candidate for every distinct target that is needed. When the candidate is inserted, the binding is recorded in `action_bindings` at the provider's position and at the position of every consumer it satisfied. During verification `collect_bindings_for_position` hands the matching entries to each step, and after the step `clear_requirements_from_provisions` turns the wildcard into a concrete `Fact("at_target", [some_location])` before clearing open requirements, so that this GoTo cannot satisfy `at_target` requirements for other targets. The bindings are also returned in the plan, which is how the agent later knows where to go.
+Matching a wildcard against `Fact("at_target", [loc])` creates the binding `("at_target", [loc])`. Candidates are keyed by `(action, bindings)`, so one GoTo yields a candidate per target. During verification the wildcard is made concrete with its binding before it clears requirements, so a GoTo only satisfies `at_target` for its own target. The bindings are returned with the plan, which is how the agent knows where to go.
 
 ### Matching rules
 
@@ -103,7 +103,7 @@ Matching is structural, performed by `provision_satisfies_requirement`:
 
 | Provision | Requirement | Match condition | |-----------|-------------|-----------------| | `Binding(n, v)` | `BindingExists(n)` | names equal | | `Binding(n, v)` | `BindingEquals(n, v2)` | names and values equal | | `Binding(n, obj)` | `BindingInSet(n, set)` | name matches and `obj` is in world group `set` | | `Fact(n, args)` | `Fact(n, args2)` | names match and args are equal (or consumer args empty) | | `FactWildcard(n)` | `Fact(n, _)` | names match, any arguments |
 
-During verification, `requirement_holds_in_state` re-checks each requirement against the current simulated state, resolving `Binding*` requirements against recorded bindings or live agent properties, and `Fact` requirements against the world context (e.g. `at_target` compares agent and target locations). Facts other than `at_target` are not checked at this stage and are assumed to hold; the symbolic matching in the backward phase is what establishes them.
+During verification, `requirement_holds_in_state` re-checks each requirement against the current simulated state, resolving `Binding*` requirements against recorded bindings or live agent properties, and `Fact` requirements against the world context (e.g. `at_target` compares agent and target locations). Other facts are assumed to hold.
 
 Bindings are injected into the **agent** blackboard only, never the world blackboard, using the first value of each binding vector.
 
@@ -123,9 +123,9 @@ The goal's desired state is itself a list of preconditions. Unmet ones become op
 
 `get_action_cost()` returns a `float`. Costs are fetched through a three-tier cache: the cost already recorded on the branch, then a `GetCost` response in hand, then the shared per-run discovery cache. Only if all three miss does the engine fire a fresh `GetCost` request and return `Pending(id)`.
 
-Because discovery fetches each action's cost first, simulating it against the **initial** state with its bindings, and the result seeds the branch, the cost an action contributes to a plan is the one it reported against the initial state, not against the state at its position in the chain.
+Discovery costs each action against the **initial** state, and that cost seeds the branch, so a plan's cost uses initial-state costs, not costs at each chain position.
 
-A non-numeric return value coerces to `INFINITY`, marking the action invalid. This is how actions gate themselves at runtime: `AddFuelAction` returns `INFINITY` when the campfire is full, and `CookPotatoAction` when fuel is below its minimum. An infinite cost does not just make an action expensive, it makes it unusable: discovery treats the simulation as invalid, so the action never becomes a candidate (and a verification step with infinite cost invalidates the branch).
+A non-numeric return value coerces to `INFINITY`, marking the action invalid. This is how actions gate themselves at runtime: `AddFuelAction` returns `INFINITY` when the campfire is full, and `CookPotatoAction` when fuel is below its minimum. An infinite cost makes the action unusable: it never becomes a candidate, and a verification step with infinite cost invalidates the branch.
 
 ### Effect callables
 
@@ -157,7 +157,7 @@ Each engine step has an `iteration_budget` (default 20000, clamped to at least 1
 
 ### Time slice
 
-Independently, `time_slice_ms` (default 10 in the engine; 0 disables, negative values are clamped to 0 by the scheduler) bounds the wall-clock time of one step. The clock is read every 128 pops, so a slice can overrun slightly; when it has elapsed the current node is re-enqueued and the step yields `Pending(0)` exactly as for the iteration budget. The result of a search is the same with or without slicing; it only changes how the work is spread across frames.
+`time_slice_ms` (default 10, 0 disables) bounds the wall-clock time of one step, checked every 128 pops. It yields `Pending(0)` like the iteration budget and never changes the result, only how work spreads across frames.
 
 ### max_depth and the cycle guard
 
@@ -173,9 +173,7 @@ The planner runs on a Rayon worker thread while GDScript callables must run on t
 
 ### Snapshots and the main thread
 
-Godot values (`Variant`, `Gd<T>`, blackboards) are not thread-safe, so the worker never sees them. On the main thread, `submit_plan` copies the agent and world blackboards into `BlackboardSnapshot`s of `VariantSnapshot` values, and every callback converts snapshots back into live blackboards. A `VariantSnapshot` has three tiers: primitives (nil, bool, int, float bits, string, and arrays of snapshots), `var_to_bytes` blobs for everything else Godot can serialize (vectors, colors, dictionaries), and `ObjectRef` instance-id handles for live objects (including resources). Objects are checked before the serializer because `var_to_bytes` would turn them into bare ids. Conversion always happens on the main thread because it creates and reads Godot objects; the snapshot types are what actually cross thread boundaries, and a handle whose object has been freed by the time it is converted back becomes `null`.
-
-Callables are treated the same way: they are never sent to the worker. The scheduler keeps them in a per-job registry and the specs carry only indices into it.
+Godot values are not thread-safe, so the worker only sees `BlackboardSnapshot`s, converted on the main thread in both directions. A `VariantSnapshot` stores primitives directly, live objects (resources included) as instance-id handles, and everything else as `var_to_bytes` blobs. A handle whose object was freed converts back to `null`. Callables stay in a per-job registry on the main thread; specs carry only indices.
 
 ### The callback protocol
 
@@ -211,9 +209,7 @@ A parked node never resumes before its answer exists, and budget yields never st
 
 ### Ownership and cleanup
 
-The engine is owned by exactly one thread at a time. A worker step takes it, runs, and sends it back to the main thread together with the step result; the scheduler keeps it parked in the job handle until the next resume. This is why the debug tree can only be read while the engine is parked.
-
-A finished job stays in the scheduler for one more frame so the tree can be inspected, then is reaped. The engine owns every open branch, each with its own pair of snapshots, so a big search can take around a second to free. Reaped engines are therefore dropped on a separate short-lived thread (`drop_in_background`) rather than on the main thread, where it would stall a frame.
+The engine is moved, never shared: a worker step takes it and sends it back with the result, and the debug tree can only be read while it is parked. A finished job is reaped a frame later, and its engine is dropped on a background thread (`drop_in_background`), since freeing a large search can take about a second.
 
 ______________________________________________________________________
 
@@ -225,7 +221,7 @@ ______________________________________________________________________
 1. The remaining unsatisfied goals are sorted by reward descending, so the most urgent need is searched first.
 1. If every goal was satisfied, the planner emits an empty success plan for the remembered goal. If any goal is unsatisfied, it searches only the unsatisfied set.
 
-Within a run, when the current goal's search is exhausted without a plan (or completes with an empty best plan) and goals remain, the engine advances to the next goal, so the planner pursues the highest-reward goal it can actually achieve. The first goal that does yield a plan ends the run; lower-reward goals are not searched afterwards.
+Within a run, a goal that yields no plan hands over to the next one. The first goal with a plan ends the run, so the planner pursues the highest-reward goal it can achieve.
 
 ______________________________________________________________________
 
@@ -260,7 +256,7 @@ goal: hunger < 45
 
 **Forward verification.** The branch now flips to `Verifying`. `simulation_index` is reset to 0 and the initial snapshots are restored. `process_simulation` walks the chain:
 
-1. At `GoToAction`, requirements at position 0 that the initial provisions satisfy are cleared. The action is simulated with its `at_target` binding (cost 1.0 if it has no cost callable; the state is unchanged if it has no effect callable), and its concretized `at_target` provision clears the open `at_target` requirement at the next position. When `PickupAction`'s requirement is validated, the agent's location is compared with the banana's if the simulation tracked it; otherwise the recorded `at_target` binding is used.
+1. At `GoToAction`, position-0 requirements satisfied by initial provisions are cleared. The action is simulated with its `at_target` binding, and its concretized provision clears `PickupAction`'s `at_target` requirement.
 1. At `PickupAction`, `at_target` holds and the `held_item == ""` precondition holds. The effect binds `held_item = item_id` and records `is_food`. Cost 1.0.
 1. At `EatHeldFoodAction`, the custom "is holding food" precondition passes (held_item is bound), and `binding_exists("held_item")` plus `fact("is_food", [])` hold. The effect reduces hunger and clears `held_item`. Cost `eat_duration`.
 1. No open needs remain, so the branch's total cost is recorded as `best_plan`.

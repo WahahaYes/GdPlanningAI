@@ -1,50 +1,26 @@
 class_name Precondition
 extends RefCounted
-## A condition on the agent blackboard, the world blackboard or world objects, evaluated against
-## simulated state during planning. Used by [method Action.get_preconditions],
-## [method Action.get_validity_checks] and [method Goal.get_desired_state].[br]
-##[br]
-## Create preconditions with the static constructors, never by instancing this class. Built-in
-## constructors such as [method agent_property_greater_than] or
-## [method world_object_property_geq_than] are evaluated natively by the planning engine and are
-## the preferred choice: the planner can see which property they test and search for actions whose
-## [method Action.simulate_effect] changes it. [method custom] and [method custom_with_deps] wrap
-## your own [Callable]; the planner cannot look inside it, so it is run (on the main thread, once
-## per candidate state it needs to check) as a black box, which is slower and gives the search no
-## guidance. A custom precondition is called with the simulated agent and world blackboards and
-## must return a [bool]; any other return value counts as [code]false[/code]. It must not use
-## [code]await[/code] or the scene tree.
-## [codeblock]
-## var enough_wood: Precondition = Precondition.agent_property_geq_than("wood", 3)
-## var near_home: Precondition = Precondition.custom(
-##     func(agent_bb: GdPAIBlackboard, _world: GdPAIBlackboard) -> bool:
-##         var me: SimObjectProxy = agent_bb.get_proxy_in_group("GdPAILocationData")
-##         return me != null and me.get_property("position").length() < 10.0
-## )
-## [/codeblock]
-## See also [PreconditionBuiltin], [PreconditionCustom] and [PreconditionCustomWithDeps].
+## A condition on agent, world or object state, checked against simulated state during
+## planning. Create one with the static constructors.[br]
+## Prefer built-in constructors: the engine evaluates them natively and can search for actions
+## that change the tested property. [method custom] callables are opaque to the search, run on the
+## main thread, and must not use the scene tree or [code]await[/code].
 
 
-## Returns the dictionary the Rust planning engine reads this precondition from. Called by the
-## bridge on the main thread when a plan request is built. Implemented by
-## [PreconditionBuiltin], [PreconditionCustom] and [PreconditionCustomWithDeps]; user code does not
-## call or override it.
+## Returns the engine's view of this precondition. Implemented by subclasses; internal.
 func to_bridge_dict() -> Dictionary:
 	push_error("Precondition.to_bridge_dict must be overridden")
 	return {}
 
 
-## Creates a precondition that calls [param fn] with the simulated agent blackboard and world
-## blackboard ([code]func(agent_bb: GdPAIBlackboard, world: GdPAIBlackboard) -> bool[/code]).
-## The callable runs on the main thread during planning and must return a [bool]. Prefer a
-## built-in constructor when one can express the condition.
+## Creates a precondition from [param fn]:
+## [code]func(agent_bb: GdPAIBlackboard, world: GdPAIBlackboard) -> bool[/code].
 static func custom(fn: Callable) -> Precondition:
 	return PreconditionCustom.new(fn)
 
 
-## Like [method custom], but also lists the live objects [param fn] captures in [param deps].
-## If any of them has been freed, the precondition is [code]false[/code] and [param fn] is not
-## called, which avoids errors from freed lambda captures.
+## Like [method custom], but [code]false[/code] without calling [param fn] once any of
+## [param deps] is freed.
 static func custom_with_deps(fn: Callable, deps: Array[Object]) -> Precondition:
 	return PreconditionCustomWithDeps.new(fn, deps)
 
@@ -311,9 +287,7 @@ static func world_state_has_object_data_of_group(group: String) -> Precondition:
 	return PreconditionCustom.new(check)
 
 
-## True while [param object] has not been freed. Typically used in
-## [method Action.get_validity_checks] to drop actions whose target is gone. The object is tracked
-## as a dependency, so a freed object never reaches the check callable.
+## True while [param object] has not been freed. Typical in [method Action.get_validity_checks].
 static func check_is_object_valid(object: Variant) -> Precondition:
 	var deps: Array[Object] = []
 	if object is Object:

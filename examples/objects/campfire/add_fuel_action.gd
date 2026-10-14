@@ -1,34 +1,18 @@
 class_name AddFuelAction
 extends Action
-## Adds a held piece of wood to a campfire, raising its fuel.
-##[br]
-##[br]
-## The last link of the maintain-fire chain: Go To (wood pile), Pick Up Wood, Go To
-## (campfire), Add Fuel. It is provided by [CampfireObject], so one instance exists per
-## fire and targets that fire.[br]
-##[br]
-## It states the same need two ways, and both are intentional. The
-## [b]precondition[/b] [code]held_item == "wood"[/code] is checked against the simulated
-## agent at this step. The [b]requirements[/b] (a [code]held_item[/code] binding of
-## wood plus [code]at_target[/code] for this campfire) tell the planner which earlier
-## actions to search for: [PickUpWoodAction] provides the binding, [GoToAction] the
-## location fact. Without the requirements the planner would not know to schedule
-## either; without the precondition the simulation would not check the real state.[br]
-##[br]
-## Its cost is [constant INF] when the fire is already full (or the fire has been freed),
-## which removes the action from consideration. That is how the example keeps agents
-## from carrying wood to a fire that cannot take more, with no extra goal logic.
+## Adds held wood to a campfire. Last step of the maintain-fire chain: Go To (pile), Pick Up
+## Wood, Go To (fire), Add Fuel.[br]
+## The [code]held_item[/code] need appears twice on purpose: the requirements tell the planner
+## which earlier actions to chain in, and the precondition checks the simulated state. Cost is
+## [constant INF] when the fire is full, so agents never carry wood to it.
 
-## Seconds the agent spends adding the wood. Also the planning cost.
+## Seconds spent adding the wood; also the planning cost.
 const ADD_FUEL_DURATION: float = 1.0
 
-## The campfire this action feeds; read for its fuel both when costing and performing.
 var campfire_ref: CampfireObject
-## The campfire's location; named in the [code]at_target[/code] requirement.
+## The campfire's location, named in the [code]at_target[/code] requirement.
 var object_location: GdPAILocationData
-## The campfire's interactable component, kept for parity with the other object actions.
 var interactable_attribs: GdPAIInteractable
-## Fuel gained per wood item, copied from [member CampfireObject.fuel_per_wood].
 var fuel_per_wood: float
 
 
@@ -46,8 +30,6 @@ func _init(
 
 # Override
 func get_validity_checks() -> Array[Precondition]:
-	# Nothing to check statically; a freed campfire is handled by returning INF from
-	# get_action_cost, which is where live references are meant to be tested.
 	return []
 
 
@@ -66,8 +48,6 @@ func get_requirements() -> Array[RequirementSpec]:
 
 # Override
 func get_provisions() -> Array[ProvisionSpec]:
-	# The effect (more fuel) is a change to the world, which the goal reads directly from
-	# the campfire, so there is nothing to hand to a later action.
 	return []
 
 
@@ -89,7 +69,6 @@ func get_action_cost(
 		)
 		return INF
 	var current_fuel: Variant = campfire.get_property("current_fuel")
-	# A full fire makes the action infinitely expensive so it is never planned.
 	if current_fuel == null or float(current_fuel) >= 100.0:
 		return INF
 	return ADD_FUEL_DURATION
@@ -106,18 +85,11 @@ func simulate_effect(
 		if current_fuel != null:
 			campfire.set_property("current_fuel", min(100.0, float(current_fuel) + fuel_per_wood))
 
-	# Action-Led Hypothetical Progress:
-	# This action has a symbolic requirement for 'held_item' == 'wood'.
-	# During the Discovery phase of backward planning, the requirement may not
-	# yet be physically satisfied in the blackboard. We report the effect
-	# anyway so the planner recognizes this action as a candidate for goals
-	# that depend on campfire fuel.
 	agent_blackboard.set_property("held_item", "")
 
 
 # Override
 func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
-	# The timer lives in set_state so each plan step keeps its own progress.
 	set_state(agent, "add_fuel_elapsed", 0.0)
 	return Action.Status.SUCCESS
 

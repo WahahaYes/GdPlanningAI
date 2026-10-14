@@ -1,24 +1,13 @@
 class_name FruitTreeObject
 extends GdPAIObjectData
-## World object representing a fruit tree that drops bananas when shaken.
-##[br]
-##[br]
-## Demonstrates a [GdPAIObjectData] with external cooldown state: validity checks
-## on the provided [ShakeTreeAction] inspect [member is_on_cooldown] to prevent
-## agents from targeting a tree that was recently shaken.[br]
-##[br]
-## The cooldown is plain scene state ticked in [method _process], not a simulated
-## property. The planner never sees it as data; it only sees whether the action is
-## offered, because the validity check re-reads [member is_on_cooldown] each time actions
-## are collected. That is the pattern to copy for state that is awkward to model in the
-## simulation: keep it live and gate the action on it. The tree also uses a
-## [FoodObject] fruit prefab; fruit are spawned into the scene root when shaken, where
-## [FoodObject]'s own [PickupAction] makes them targets like any other banana.
+## A fruit tree that drops bananas when shaken, then rests for [member cooldown_window].[br]
+## The cooldown is live scene state, not a simulated property: [ShakeTreeAction]'s validity
+## check reads it, so a resting tree is simply not offered. Copy this pattern for state that is
+## awkward to simulate.
 
 ## Prefab of the fruit to spawn when the tree is shaken.
 @export var fruit_prefab: PackedScene
-## Radius around the tree in which fruit can land (units match 2D/3D context: pixels in 2D,
-## meters in 3D).
+## Radius in which fruit land (pixels in 2D, meters in 3D).
 @export var drop_distance: float = 128.0
 ## Minimum number of fruit dropped per shake.
 @export var drop_min_amount: int = 1
@@ -26,11 +15,11 @@ extends GdPAIObjectData
 @export var drop_max_amount: int = 3
 ## Seconds the tree must rest between shakes.
 @export var cooldown_window: float = 30.0
-## Optional [Label] node to display the remaining cooldown time.
+## Optional label showing the remaining cooldown.
 @export var cooldown_display: Label
-## Reference to the [GdPAIInteractable] component on this object.
+## This tree's [GdPAIInteractable].
 @export var interactable_attribs: GdPAIInteractable
-## Reference to the [GdPAILocationData] component on this object.
+## This tree's [GdPAILocationData].
 @export var location_data: GdPAILocationData
 
 ## Whether the tree is currently on cooldown and cannot be shaken.
@@ -39,7 +28,6 @@ var _cooldown_timer: float = 0.0
 
 
 func _process(delta: float) -> void:
-	# The countdown also feeds the optional on-screen display below.
 	if is_on_cooldown:
 		_cooldown_timer += delta
 		if _cooldown_timer >= cooldown_window:

@@ -1,25 +1,11 @@
 class_name DigPotatoAction
 extends Action
-## Digs a raw potato out of the ground into the held-item slot.
-##[br]
-##[br]
-## The start of the cook-and-eat chain: Go To (potato), Dig Potato, Go To (campfire),
-## Cook Potato, Eat Held Food. It behaves like [PickupAction] with a fixed item id: the
-## potato node is freed (so a later agent cannot dig the same one) and the agent's
-## [code]held_item[/code] becomes [code]"potato"[/code].[br]
-##[br]
-## It requires [code]held_item == ""[/code] as a [b]precondition[/b] because the agent has
-## a single held-item slot: a full slot blocks digging until [DropItemAction] or another
-## action empties it. The cost is a small constant (0.7), so travel distance supplied by
-## Go To dominates the choice between potatoes.[br]
-##[br]
-## No claim or reservation is made on the potato. Two agents can head for the same
-## one; whoever arrives second finds it freed, [method perform_action] returns
-## failure, and that agent replans. The examples accept this to stay simple.
+## Digs up a raw potato into the agent's single held-item slot, freeing the potato. Start of
+## the chain Go To (potato), Dig, Go To (fire), Cook, Eat.[br]
+## Potatoes are not reserved: an agent arriving second fails and replans.
 
-## The potato's location; named in the [code]at_target[/code] requirement.
+## The potato's location, named in the [code]at_target[/code] requirement.
 var object_location: GdPAILocationData
-## The potato's interactable component, kept for parity with the other object actions.
 var interactable_attribs: GdPAIInteractable
 ## The potato being dug; freed on success.
 var potato_ref: PotatoObject
@@ -37,8 +23,6 @@ func _init(
 
 # Override
 func get_validity_checks() -> Array[Precondition]:
-	# Validity checks run when actions are collected, so a potato that was already freed
-	# (dug by another agent, or removed) never reaches the planner.
 	return [
 		Precondition.check_is_object_valid(potato_ref),
 		Precondition.check_is_object_valid(potato_ref.entity),
@@ -82,8 +66,7 @@ func simulate_effect(
 
 # Override
 func perform_action(agent: GdPAIAgent, _delta: float) -> Action.Status:
-	# Digging is instant, so there is no pre/post_perform or timer state. The validity
-	# check is repeated here because another agent may have dug this potato after planning.
+	# Another agent may have dug this potato since planning.
 	if not is_instance_valid(potato_ref) or not is_instance_valid(potato_ref.entity):
 		return Action.Status.FAILURE
 	agent.blackboard.set_property("held_item", "potato")

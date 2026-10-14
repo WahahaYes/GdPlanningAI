@@ -1,29 +1,20 @@
 class_name PreconditionCustomWithDeps
 extends Precondition
-## Custom callable precondition that also tracks the objects its callable captures. Usually created
-## with [method Precondition.custom_with_deps].[br]
-##[br]
-## Before the callable runs, every object in [member dependent_objects] is checked with
-## [code]is_instance_valid[/code]; if any is freed the precondition is [code]false[/code] and the
-## callable is not invoked. The objects' instance ids are also passed to the engine as metadata.
-## Same rules as [PreconditionCustom] otherwise: the callable runs on
-## the main thread during planning, must return a [bool], and must not use [code]await[/code] or
-## the scene tree.
+## Custom precondition that is [code]false[/code] once any object its callable captures is freed.
+## Create it with [method Precondition.custom_with_deps].
 
-## The callable that evaluates this precondition: (agent blackboard, world blackboard) -> [bool].
+## Takes (agent blackboard, world blackboard) and returns a [bool].
 var eval_func: Callable
-## Objects the callable depends on. A freed object makes the precondition [code]false[/code].
+## Objects the callable captures.
 var dependent_objects: Array[Object] = []
 
 
-## Creates the precondition from [param fn] and the objects it depends on in [param deps].
 func _init(fn: Callable, deps: Array[Object] = []) -> void:
 	eval_func = fn
 	dependent_objects = deps
 
 
-## Returns [code]false[/code] if any dependent object is freed, otherwise the result of
-## [member eval_func]. Bound as the [code]eval_callable[/code] in [method to_bridge_dict].
+## Returns [code]false[/code] if a dependency is freed, else [member eval_func]'s result.
 func _do_evaluate(agent: GdPAIBlackboard, world: GdPAIBlackboard) -> bool:
 	# Validate all dependent objects still exist before invoking
 	for obj in dependent_objects:
@@ -33,8 +24,6 @@ func _do_evaluate(agent: GdPAIBlackboard, world: GdPAIBlackboard) -> bool:
 	return eval_func.call(agent, world)
 
 
-## Serialises this precondition into the dictionary format expected by the Rust bridge.
-## Includes [code]dependent_object_ids[/code] for dependency validity checking.
 func to_bridge_dict() -> Dictionary:
 	var dep_ids: Array[int] = []
 	for obj in dependent_objects:

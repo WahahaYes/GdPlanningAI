@@ -1,23 +1,10 @@
 class_name WanderAction
 extends GoToAction
-## Navigates the agent to a random nearby point.
-##[br]
-##[br]
-## Demonstrates a navigation action with no specific world target — the
-## destination is computed at execution time from the agent's current position.
-## Inherits from [GoToAction] to reuse navigation logic.[br]
-##[br]
-## Two things differ from a plain [GoToAction]. It has no requirements and provides
-## nothing, so interaction actions can never use it to satisfy [code]at_target[/code]:
-## only a real Go To toward a real object may do that. And its target is invented at
-## execution time: a throwaway [Node2D] or [Node3D] is wrapped in a [GdPAILocationData]
-## so the inherited navigation code can treat it like any other location, then freed
-## in [method post_perform_action].[br]
-##[br]
-## During planning the step is simulated as a random move of [member wander_distance];
-## the planner only needs to know the agent ends up far from where it started.
+## Walks to a random nearby point. Reuses [GoToAction]'s navigation with a temporary target
+## created at execution time and freed in [method post_perform_action].[br]
+## It provides no [code]at_target[/code], so interactions can never be satisfied by wandering.
 
-## How far from the agent's current position the wander target may be.
+## Distance of each wander step.
 var wander_distance: float
 ## Temporary node for the wander target location.
 var _wander_target_node: Node
@@ -30,17 +17,13 @@ func _init(p_wander_distance: float) -> void:
 	wander_distance = p_wander_distance
 
 
-## Returns a fresh [WanderAction] instance with the same [member wander_distance].
-## Needed because the temporary target is stored on the instance: each plan gets its own
-## copy so executions never share a target node.
+## Returns a fresh instance so plans never share a temporary target.
 func clone_for_plan() -> Action:
 	return WanderAction.new(wander_distance)
 
 
 # Override
 func get_validity_checks() -> Array[Precondition]:
-	# Wander doesn't need to check a specific target location; it only needs a body to
-	# move and a location record to read its position from.
 	var checks: Array[Precondition] = []
 	checks.append(Precondition.agent_has_property("entity"))
 	checks.append(Precondition.agent_has_object_data_of_group("GdPAILocationData"))
@@ -52,8 +35,6 @@ func get_action_cost(
 	_agent_blackboard: GdPAIBlackboard,
 	_world_state: GdPAIBlackboard,
 ) -> float:
-	# Wander cost is fixed since target is computed at runtime; a flat 1 keeps it
-	# cheap but never free, so a real goal-satisfying plan is not preferred over it by accident.
 	return 1.0
 
 
@@ -64,9 +45,6 @@ func get_preconditions() -> Array[Precondition]:
 
 # Override
 func get_provisions() -> Array[ProvisionSpec]:
-	# WanderAction doesn't provide at_target - only the agent's GoToAction should. If it
-	# did, the planner could use "wander" to satisfy an interaction's location requirement
-	# and plan to pick up an item from wherever the random step lands.
 	return []
 
 
@@ -75,8 +53,7 @@ func simulate_effect(
 	agent_blackboard: GdPAIBlackboard,
 	_world_state: GdPAIBlackboard,
 ) -> void:
-	# Simulate moving wander_distance in a random direction. The origin is recorded the
-	# first time so WanderGoal can measure how far the simulated agent has moved.
+	# Record the origin once so WanderGoal can measure the distance moved.
 	var sim_location: SimObjectProxy = agent_blackboard.get_proxy_in_group("GdPAILocationData")
 	var current_pos: Variant = sim_location.get_property("position")
 
@@ -97,7 +74,6 @@ func simulate_effect(
 
 # Override
 func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
-	# Pick the real target now, at execution time, from the agent's actual position.
 	var location_data: GdPAILocationData = agent.blackboard.get_node_in_group("GdPAILocationData")
 
 	var random_dir: Vector2 = Vector2.from_angle(deg_to_rad(randf_range(-180, 180)))

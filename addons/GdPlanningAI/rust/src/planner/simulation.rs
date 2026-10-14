@@ -1,21 +1,8 @@
-//! Simulation logic for evaluating action effects and preconditions.
+//! Resumable evaluation of action effects, costs and custom preconditions.
 //!
-//! This module handles communication with Godot (via callbacks) to evaluate
-//! dynamic properties that cannot be calculated purely in Rust.
-//!
-//! The request/resume pattern used by both entry points:
-//! 1. The function is called with no response. If it needs GDScript (a cost callable, an
-//!    effect callable or a custom precondition), it allocates a request id, sends a
-//!    [`CallbackRequest`] on `ctx.request_tx` and returns [`StepResult::Pending`] with that id.
-//! 2. The caller parks its search node under the id. When the main thread answers, the node is
-//!    re-enqueued with the answer attached as `response`.
-//! 3. The function is called again with the same arguments plus `response`, consumes it, and
-//!    either completes or asks for the next callback (a cost request is followed by an effect
-//!    request, for example).
-//!
-//! Functions here never block and never touch Godot objects, so they are safe to run on the
-//! planner thread. Bindings travel with each request and are injected into the agent
-//! blackboard on the main thread.
+//! Called without a response, a function that needs GDScript sends a [`CallbackRequest`] and
+//! returns [`StepResult::Pending`] with its id; the caller parks the node and calls again with the
+//! `response` once the main thread answers. Nothing here blocks or touches Godot objects.
 
 use crate::plan_types::*;
 use crate::planner::types::SearchContext;
@@ -31,9 +18,7 @@ pub enum StepResult<T> {
     /// The branch cannot be a valid plan (infinite cost, failed precondition or requirement)
     /// and should be dropped.
     Invalid,
-    /// Terminal success for a verification pass: the branch was recorded as the best plan.
-    /// Only the engine's verification steps produce this; [`eval_precondition`] and
-    /// [`simulate_action`] never do.
+    /// The branch was verified and recorded. Only produced by the engine's verification steps.
     Complete,
 }
 
@@ -75,11 +60,8 @@ pub struct SimArgs<'a> {
     pub bindings: &'a [(String, Vec<VariantSnapshot>)],
 }
 
-/// Evaluates a precondition against the current state.
-///
-/// Builtin preconditions are evaluated immediately on the snapshots. A custom precondition
-/// returns `StepResult::Pending` after sending an [`CallbackKind::EvalCustomPrecond`] request;
-/// call again with the `Bool` response to get `Ready`. Never returns `Invalid` or `Complete`.
+/// Evaluates a precondition on the snapshots. Builtins return `Ready` at once; custom ones
+/// return `Pending` until called again with the `Bool` response.
 pub fn eval_precondition(
     spec: &PreconditionSpec,
     agent: &BlackboardSnapshot,
@@ -112,28 +94,9 @@ pub fn eval_precondition(
     }
 }
 
-/// Simulates the cost and effect of an action against the given state.
-///
-/// This involves potentially two round-trips to Godot:
-/// 1. Evaluate the action's cost.
-/// 2. Simulate the action's effect on the agent and world snapshots.
-///
-/// An infinite cost returns `Invalid` before the effect is requested, so an action can
-/// gate itself out of the search by returning infinity. Actions without a cost callable cost
-/// `1.0`; actions without an effect callable leave the snapshots unchanged.
-///
-/// Used in two places: candidate discovery simulates against the *initial* state to learn
-/// an action's cost and effect, and verification replays the chain against the *running*
-/// simulated state.
-///
-/// # Cost caching
-///
-/// The function reads and writes `args.branch_action_costs[args.simulation_index]`
-/// as a cache. If a non-negative cost is already present, it is returned
-/// directly. Otherwise the cost is computed (from the callback response or
-/// the global discovery cache) and written back to the same index. Callers
-/// must provide the same mutable slice on resumption so that previously
-/// fetched costs are reused.
+/// Simulates an action's cost, then its effect, each possibly via a GDScript callback.
+/// Infinite cost returns `Invalid` before the effect runs. The cost is cached in
+/// `args.branch_action_costs[args.simulation_index]`, so pass the same slice when resuming.
 pub fn simulate_action(action_idx: usize, args: SimArgs) -> StepResult<SimResult> {
     let action = &args.ctx.actions[action_idx];
 

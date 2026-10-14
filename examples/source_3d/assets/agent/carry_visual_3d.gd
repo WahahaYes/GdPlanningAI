@@ -1,22 +1,6 @@
 extends Node3D
-## Floating carry visual for the agent's held item, hovered above its head.
-##[br]
-##[br]
-## Polls [member gdpai_agent] blackboard [code]held_item[/code] each frame
-## ([GdPAIBlackboard] emits no change signal) and swaps the instanced prop
-## from [member held_visuals]. A gentle bob and slow spin keep the item
-## readable at camera distance without knowing anything about the
-## character rig.
-##[br]
-##[br]
-## A physical hand-hold later only needs a second socket node; the swap
-## logic here stays unchanged.[br]
-##[br]
-## Presentation only, and a good example of keeping art out of planning: the planner
-## writes [code]held_item[/code] (potato, cooked potato, wood), and this node merely
-## mirrors it so you can see why an agent walks toward a campfire. It never writes back.
-## The id-to-scene map is exported so a scene can show different props, and defaults to
-## the three items the campfire scenes use.
+## Shows the agent's [code]held_item[/code] as a prop bobbing above its head. Presentation only:
+## it polls the blackboard (which has no change signal) and never writes back.
 
 ## Raw dug-up potato visual.
 const RAW_SCENE: PackedScene = preload("res://examples/source_3d/prefabs/held_potato_raw_3d.tscn")
@@ -29,7 +13,7 @@ const WOOD_SCENE: PackedScene = preload("res://examples/source_3d/prefabs/held_w
 
 ## The agent whose held_item property drives the visual.
 @export var gdpai_agent: GdPAIAgent
-## Maps held_item ids to the visual scene shown for them. Left empty, it fills with the potato pair plus wood on ready.
+## Maps held_item ids to prop scenes. Left empty, it gets the potato pair and wood.
 @export var held_visuals: Dictionary = {}
 ## Vertical bob amplitude in meters.
 @export var hover_amplitude: float = 0.08

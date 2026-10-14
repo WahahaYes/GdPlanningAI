@@ -1,16 +1,7 @@
 extends Node3D
-## Debug driver for the agent showcase scene: gives each child agent a skin
-## and held item by index, parks planning, and keeps them wandering.
-##[br]
-##[br]
-## Agents are discovered via their [GdPAIAgent] nodes, so the scene stays a
-## plain list of prefab instances with no per-agent override blocks.[br]
-##[br]
-## This is a visual showcase, not an example of planning: it switches every agent to
-## on-demand planning (so nothing is ever planned), writes [code]held_item[/code]
-## directly so each agent shows a different carried prop, and walks them around by
-## setting the nav agent targets itself. It exists to inspect skins, animations and
-## carry visuals side by side. For planning behavior, read the campfire scenes.
+## Drives the agent showcase scene: gives each agent a skin and held item, turns planning off,
+## and wanders them around, to inspect skins and animations side by side. Not a planning
+## example; see the campfire scenes for that.
 
 ## Character looks cycled over the agents.
 @export var skins: Array[PackedScene] = []
@@ -72,10 +63,8 @@ func _physics_process(delta: float) -> void:
 			entry["timer"] = timer
 
 
-## Walks on with a fresh target or pauses, then rearms the countdown.
-## The first decision always walks so agents leave their spawn points.
-## Pausing parks the nav target under the body so the controller eases to
-## a stop instead of chasing the previous target through the pause.
+## Walks on to a fresh target or pauses (the first decision always walks). Pausing parks the nav
+## target under the body so it eases to a stop.
 func _decide(entry: Dictionary) -> void:
 	var nav: NavigationAgent3D = entry["nav"] as NavigationAgent3D
 	var first: bool = bool(entry.get("first", false))
