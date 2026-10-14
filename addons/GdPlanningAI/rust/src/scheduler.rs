@@ -254,8 +254,18 @@ impl GdPAIPlanScheduler {
             }
         }
 
-        // Clean up finished jobs that have had one frame to be inspected
-        self.active_jobs.retain(|job| !job.pending_reap);
+        // Clean up finished jobs that have had one frame to be inspected. Their
+        // engines are freed off the main thread (see `drop_in_background`).
+        let mut finished: Vec<PlannerEngine> = Vec::new();
+        self.active_jobs.retain_mut(|job| {
+            if job.pending_reap {
+                finished.extend(job.engine.take());
+                false
+            } else {
+                true
+            }
+        });
+        drop_in_background(finished);
         for job in self.active_jobs.iter_mut().filter(|j| j.done) {
             job.pending_reap = true;
         }
@@ -470,7 +480,12 @@ impl GdPAIPlanScheduler {
             job.cancel_flag
                 .store(true, std::sync::atomic::Ordering::Relaxed);
         }
-        self.active_jobs.clear();
+        let engines: Vec<PlannerEngine> = self
+            .active_jobs
+            .drain(..)
+            .filter_map(|mut job| job.engine.take())
+            .collect();
+        drop_in_background(engines);
         log_debug!("Cleared all active jobs from scheduler");
     }
 
@@ -535,6 +550,19 @@ impl GdPAIPlanScheduler {
         }
         String::new()
     }
+}
+
+/// Frees `items` on a background thread and returns its handle (`None` when empty).
+///
+/// A finished search engine owns every open branch, each with its own agent and
+/// world snapshot, so dropping a large one takes up to ~1.5 s. Doing that inline
+/// in `process_callbacks` stalled the game frame. A plain thread keeps the cost off
+/// both the main thread and the planning pool.
+pub fn drop_in_background<T: Send + 'static>(items: Vec<T>) -> Option<std::thread::JoinHandle<()>> {
+    if items.is_empty() {
+        return None;
+    }
+    Some(std::thread::spawn(move || drop(items)))
 }
 
 fn run_job_step(

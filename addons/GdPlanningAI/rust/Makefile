@@ -37,24 +37,21 @@ build-debug: ## Build debug binary for current platform
 
 .PHONY: build-all
 build-all: ## Build for all supported platforms
-	@echo "Building for all cross-platform targets..."
 	"$(MAKE)" build-linux
 	"$(MAKE)" build-windows
-	@echo "Cross-platform builds completed. Binaries copied to $(BIN_DIR)"
+	@echo "Binaries copied to $(BIN_DIR)"
 
 .PHONY: build-linux
 build-linux: ## Build for Linux x86_64
-	"$(MAKE)" clean
 	@echo "Building for Linux x86_64..."
-	@cross build --release --target x86_64-unknown-linux-gnu --message-format=short 2>&1 | grep -E "(error|Error|warning|Warning)" || true
+	@cargo build --release --quiet --message-format=short --target x86_64-unknown-linux-gnu
 	@mkdir -p $(BIN_DIR)/linux
 	@cp $(TARGET_DIR)/x86_64-unknown-linux-gnu/release/libgdplanningai_rust.so $(BIN_DIR)/linux/
 
 .PHONY: build-windows
-build-windows: ## Build for Windows x86_64
-	"$(MAKE)" clean
+build-windows: ## Build for Windows x86_64 (needs setup-windows and mingw-w64)
 	@echo "Building for Windows x86_64..."
-	@cross build --release --target x86_64-pc-windows-gnu --message-format=short 2>&1 | grep -E "(error|Error|warning|Warning)" || true
+	@cargo build --release --quiet --message-format=short --target x86_64-pc-windows-gnu
 	@mkdir -p $(BIN_DIR)/windows
 	@cp $(TARGET_DIR)/x86_64-pc-windows-gnu/release/gdplanningai_rust.dll $(BIN_DIR)/windows/
 
@@ -113,13 +110,9 @@ doc: ## Generate documentation
 
 ##@ Cross-Compilation
 
-.PHONY: setup-cross
-setup-cross: ## Install cross (requires Docker/Podman)
-	@echo "Installing cross..."
-	cargo install cross
-	@echo "Cross installed. Ensure Docker or Podman is running."
-	@echo "On Windows/macOS: Docker Desktop should be running."
-	@echo "On Linux: Run 'sudo systemctl start docker' or use Podman."
+.PHONY: setup-windows
+setup-windows: ## Add the Windows rustup target (linker: apt install gcc-mingw-w64-x86-64)
+	rustup target add x86_64-pc-windows-gnu
 
 ##@ Help
 
