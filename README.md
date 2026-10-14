@@ -64,7 +64,14 @@ The interactive debugger tab was removed as part of the Rust refactor and has no
 
 The relative links below resolve when reading this file on GitHub. On a local copy of the addon, the `docs/` links won't work; the latest version of the docs always lives at [github.com/WahahaYes/GdPlanningAI](https://github.com/WahahaYes/GdPlanningAI).
 
-| Doc | Purpose | |-----|---------| | `docs/CODEBASE_OVERVIEW.md` | Repo map: addon anatomy, the two-language architecture (Rust engine + GDScript API), class hierarchy, build system, testing, and tooling. | | `docs/ALGORITHM.md` | How the planning search works: two-phase symbolic backward chaining plus forward simulation. | | `docs/PLANNER_PSEUDOCODE.md` | Terse algorithmic reference for the planning search. | | `docs/AUTHORING_GUIDE.md` | How to write actions, goals, preconditions, and object data. | | `docs/EXAMPLES.md` | Demo scenes: how to run them, behavior modules, object types, and plan-formation chains. | | `docs/DOCUMENTATION_GUIDELINES.md` | Code documentation style for this repo. |
+| Doc                                | Purpose                                                                                                                                   |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/CODEBASE_OVERVIEW.md`        | Repo map: addon anatomy, the two-language architecture (Rust engine + GDScript API), class hierarchy, build system, testing, and tooling. |
+| `docs/ALGORITHM.md`                | How the planning search works: two-phase symbolic backward chaining plus forward simulation.                                              |
+| `docs/PLANNER_PSEUDOCODE.md`       | Terse algorithmic reference for the planning search.                                                                                      |
+| `docs/AUTHORING_GUIDE.md`          | How to write actions, goals, preconditions, and object data.                                                                              |
+| `docs/EXAMPLES.md`                 | Demo scenes: how to run them, behavior modules, object types, and plan-formation chains.                                                  |
+| `docs/DOCUMENTATION_GUIDELINES.md` | Code documentation style for this repo.                                                                                                   |
 
 ### License
 
