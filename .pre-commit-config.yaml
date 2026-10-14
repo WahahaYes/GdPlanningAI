@@ -57,6 +57,8 @@ repos:
       - id: mdformat
         args: ["--wrap=no"]
         types: [markdown]
+        # Without the GFM plugin mdformat collapses tables onto one line.
+        additional_dependencies: [mdformat-gfm==0.3.6]
 
   # Python formatting/linting for scripts
   - repo: https://github.com/astral-sh/ruff-pre-commit

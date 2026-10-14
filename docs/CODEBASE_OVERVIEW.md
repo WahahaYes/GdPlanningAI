@@ -10,7 +10,17 @@ ______________________________________________________________________
 
 The top-level of the repo:
 
-| Path | Purpose | |------|---------| | `addons/` | The plugin itself: `addons/GdPlanningAI/` is the installable addon. | | `docs/` | Project documentation (see [section 9](#9-documentation-map)). | | `examples/` | Demonstration scenes (hunger, campfire, multi-agent, stress test). | | `notes/` | Session-scoped research and plans; scratch material, not reference docs. | | `script_templates/` | Godot script templates for subclassing `Action`, `Goal`, `GdPAIObjectData`, and friends. | | `scripts/` | Developer tooling scripts (style linting; recording now via `GdTimeMachine` addon). | | `test/` | GUT GDScript test suite (`test/unit/`, `test/integration/`). | | `media/` | Demo assets used by the README (banner, gifs, screenshots). | | `.omo/` | omo tooling state (for example, run-continuation hooks). |
+| Path                | Purpose                                                                                  |
+| ------------------- | ---------------------------------------------------------------------------------------- |
+| `addons/`           | The plugin itself: `addons/GdPlanningAI/` is the installable addon.                      |
+| `docs/`             | Project documentation (see [section 9](#9-documentation-map)).                           |
+| `examples/`         | Demonstration scenes (hunger, campfire, multi-agent, stress test).                       |
+| `notes/`            | Session-scoped research and plans; scratch material, not reference docs.                 |
+| `script_templates/` | Godot script templates for subclassing `Action`, `Goal`, `GdPAIObjectData`, and friends. |
+| `scripts/`          | Developer tooling scripts (style linting; recording now via `GdTimeMachine` addon).      |
+| `test/`             | GUT GDScript test suite (`test/unit/`, `test/integration/`).                             |
+| `media/`            | Demo assets used by the README (banner, gifs, screenshots).                              |
+| `.omo/`             | omo tooling state (for example, run-continuation hooks).                                 |
 
 Other files of note at the root: `Makefile` (see [section 6](#6-build-system)), `project.godot` (Godot 4.7 project, no main scene), `addons.jsonc` (third-party addon manifest, `gut` v9.6.0 + `GdTimeMachine` via symlink to `../GdTimeMachine`), `.pre-commit-config.yaml`, and `AGENTS.md` (agent working guidelines).
 
@@ -59,7 +69,24 @@ The Rust crate lives in `addons/GdPlanningAI/rust/`. Crate `gdplanningai-rust` v
 
 Module map of `rust/src/`:
 
-| Module | Role | |--------|------| | `lib.rs` | Crate root, module declarations, GDExtension entry. | | `planner/mod.rs` | `SearchHeuristic` trait, Dijkstra/A\* heuristics, `TerminationStrategy`. | | `planner/engine.rs` | `PlannerEngine`, the search state machine (`step_search`, `process_simulation`). | | `planner/expander.rs` | Candidate discovery (`find_candidates`, `lookup_or_start_discovery`). | | `planner/simulation.rs` | `StepResult`/`SimResult`, `eval_precondition`, `simulate_action`. | | `planner/types.rs` | `PlanBranch`, `SearchNode`, `PriorityNode`, `SearchContext`, insertion logic. | | `plan_types.rs` | `ActionSpec`, `GoalSpec`, `PreconditionSpec`, callback channel messages. | | `requirement.rs` | `RequirementSpec`/`ProvisionSpec` enums, matching and holding predicates. | | `scheduler.rs` | `GdPAIPlanScheduler`: job lifecycle, callable registry, dispatch. | | `snapshot.rs` | `VariantSnapshot`, `SimObjectData`, `BlackboardSnapshot` (send-safe mirrors; main-thread conversion to and from Godot types). | | `gdpai_blackboard.rs` | `GdPAIBlackboard` Godot class (agent/world state). | | `precondition.rs` | `PreconditionHandler` (main-thread reconstruction for the pre-filter). | | `plan_tree.rs` | `PlanResult`, the plan handed back to GDScript. | | `sim_object_proxy.rs` | `SimObjectProxy`, a world-object snapshot. | | `debug_tree.rs` | `TreeDump`, search-tree dump structures backing the `get_debug_tree` text output. | | `logger.rs` | Tiered logging macros; messages from planner threads travel over a global channel and are printed by the scheduler on the main thread. |
+| Module                  | Role                                                                                                                                   |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib.rs`                | Crate root, module declarations, GDExtension entry.                                                                                    |
+| `planner/mod.rs`        | `SearchHeuristic` trait, Dijkstra/A\* heuristics, `TerminationStrategy`.                                                               |
+| `planner/engine.rs`     | `PlannerEngine`, the search state machine (`step_search`, `process_simulation`).                                                       |
+| `planner/expander.rs`   | Candidate discovery (`find_candidates`, `lookup_or_start_discovery`).                                                                  |
+| `planner/simulation.rs` | `StepResult`/`SimResult`, `eval_precondition`, `simulate_action`.                                                                      |
+| `planner/types.rs`      | `PlanBranch`, `SearchNode`, `PriorityNode`, `SearchContext`, insertion logic.                                                          |
+| `plan_types.rs`         | `ActionSpec`, `GoalSpec`, `PreconditionSpec`, callback channel messages.                                                               |
+| `requirement.rs`        | `RequirementSpec`/`ProvisionSpec` enums, matching and holding predicates.                                                              |
+| `scheduler.rs`          | `GdPAIPlanScheduler`: job lifecycle, callable registry, dispatch.                                                                      |
+| `snapshot.rs`           | `VariantSnapshot`, `SimObjectData`, `BlackboardSnapshot` (send-safe mirrors; main-thread conversion to and from Godot types).          |
+| `gdpai_blackboard.rs`   | `GdPAIBlackboard` Godot class (agent/world state).                                                                                     |
+| `precondition.rs`       | `PreconditionHandler` (main-thread reconstruction for the pre-filter).                                                                 |
+| `plan_tree.rs`          | `PlanResult`, the plan handed back to GDScript.                                                                                        |
+| `sim_object_proxy.rs`   | `SimObjectProxy`, a world-object snapshot.                                                                                             |
+| `debug_tree.rs`         | `TreeDump`, search-tree dump structures backing the `get_debug_tree` text output.                                                      |
+| `logger.rs`             | Tiered logging macros; messages from planner threads travel over a global channel and are printed by the scheduler on the main thread. |
 
 ### 3.3 How the two languages communicate
 
@@ -81,15 +108,36 @@ The GDScript classes in `scripts/`, grouped by base type:
 
 ### Node classes (scene nodes)
 
-| Class | File | Notes | |-------|------|-------| | `GdPAIAgent` | `scripts/nodes/gdpai_agent.gd` | The central runtime. Two blackboards (self + world), goals, actions, plan execution. | | `GdPAIWorldNode` | `scripts/nodes/gdpai_world_node.gd` | Sources world state; rescans the scene tree for `GdPAIObjectData` nodes. | | `GdPAIObjectData` | `scripts/nodes/gdpai_object_data.gd` | Base for world objects; broadcasts provided actions. | | `GdPAILocationData` | `scripts/nodes/gdpai_location_data.gd` | Extends `GdPAIObjectData`; 2D/3D position and rotation. | | `GdPAIInteractable` | `scripts/nodes/gdpai_interactable.gd` | Extends `GdPAIObjectData`; interaction distance and drift limits. |
+| Class               | File                                   | Notes                                                                                |
+| ------------------- | -------------------------------------- | ------------------------------------------------------------------------------------ |
+| `GdPAIAgent`        | `scripts/nodes/gdpai_agent.gd`         | The central runtime. Two blackboards (self + world), goals, actions, plan execution. |
+| `GdPAIWorldNode`    | `scripts/nodes/gdpai_world_node.gd`    | Sources world state; rescans the scene tree for `GdPAIObjectData` nodes.             |
+| `GdPAIObjectData`   | `scripts/nodes/gdpai_object_data.gd`   | Base for world objects; broadcasts provided actions.                                 |
+| `GdPAILocationData` | `scripts/nodes/gdpai_location_data.gd` | Extends `GdPAIObjectData`; 2D/3D position and rotation.                              |
+| `GdPAIInteractable` | `scripts/nodes/gdpai_interactable.gd`  | Extends `GdPAIObjectData`; interaction distance and drift limits.                    |
 
 ### RefCounted extension points
 
-| Class | File | Notes | |-------|------|-------| | `Action` | `scripts/refcounteds/action.gd` | Planning-time overrides (`get_validity_checks`, `get_action_cost`, `get_preconditions`, `get_requirements`, `get_provisions`, `simulate_effect`) and execution-time overrides (`pre/perform/post_perform_action`). | | `GoToAction` | `scripts/refcounteds/goto_action.gd` | Extends `Action`. Wildcard `at_target` provision; handles navigation via `inject_binding`. | | `Goal` | `scripts/refcounteds/goal.gd` | `compute_reward`, `get_desired_state`. | | `PropertyUpdater` | `scripts/refcounteds/property_updater.gd` | `update_properties` every frame, `initialize` once. | | `Precondition` | `scripts/refcounteds/precondition.gd` | Base plus static factories (agent, world state, world object proxy, custom). | | `PreconditionBuiltin` | `scripts/refcounteds/precondition_builtin.gd` | Evaluated natively in Rust; no callback. | | `PreconditionCustom` | `scripts/refcounteds/precondition_custom.gd` | Evaluated via a main-thread callback. | | `PreconditionCustomWithDeps` | `scripts/refcounteds/precondition_custom.gd` variant | Adds `dependent_object_ids` for Rust liveness validation. | | `RequirementSpec` + subclasses | `scripts/refcounteds/requirement_spec*.gd` | `binding_exists`, `binding_equals`, `binding_in_set`, `fact`. | | `ProvisionSpec` + subclasses | `scripts/refcounteds/provision_spec*.gd` | `binding`, `fact`, `fact_wildcard` (the wildcard is how `GoToAction` satisfies any location requirement). |
+| Class                          | File                                                 | Notes                                                                                                                                                                                                              |
+| ------------------------------ | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Action`                       | `scripts/refcounteds/action.gd`                      | Planning-time overrides (`get_validity_checks`, `get_action_cost`, `get_preconditions`, `get_requirements`, `get_provisions`, `simulate_effect`) and execution-time overrides (`pre/perform/post_perform_action`). |
+| `GoToAction`                   | `scripts/refcounteds/goto_action.gd`                 | Extends `Action`. Wildcard `at_target` provision; handles navigation via `inject_binding`.                                                                                                                         |
+| `Goal`                         | `scripts/refcounteds/goal.gd`                        | `compute_reward`, `get_desired_state`.                                                                                                                                                                             |
+| `PropertyUpdater`              | `scripts/refcounteds/property_updater.gd`            | `update_properties` every frame, `initialize` once.                                                                                                                                                                |
+| `Precondition`                 | `scripts/refcounteds/precondition.gd`                | Base plus static factories (agent, world state, world object proxy, custom).                                                                                                                                       |
+| `PreconditionBuiltin`          | `scripts/refcounteds/precondition_builtin.gd`        | Evaluated natively in Rust; no callback.                                                                                                                                                                           |
+| `PreconditionCustom`           | `scripts/refcounteds/precondition_custom.gd`         | Evaluated via a main-thread callback.                                                                                                                                                                              |
+| `PreconditionCustomWithDeps`   | `scripts/refcounteds/precondition_custom.gd` variant | Adds `dependent_object_ids` for Rust liveness validation.                                                                                                                                                          |
+| `RequirementSpec` + subclasses | `scripts/refcounteds/requirement_spec*.gd`           | `binding_exists`, `binding_equals`, `binding_in_set`, `fact`.                                                                                                                                                      |
+| `ProvisionSpec` + subclasses   | `scripts/refcounteds/provision_spec*.gd`             | `binding`, `fact`, `fact_wildcard` (the wildcard is how `GoToAction` satisfies any location requirement).                                                                                                          |
 
 ### Resource classes (config)
 
-| Class | File | Notes | |-------|------|-------| | `GdPAIAgentConfig` | `scripts/resources/gdpai_agent_config.gd` | Planning strategy (CONTINUOUS, ON_INTERVAL, ON_DEMAND, ON_INTERVAL_FORCED), max recursion, iteration budget, blackboard plan, behavior configs. | | `GdPAIBehaviorConfig` | `scripts/resources/gdpai_behavior_config.gd` | Groups goals, self actions, and property updaters into reusable behavior modules. | | `GdPAIBlackboardPlan` | `scripts/gdpai_blackboard_plan.gd` | Template for agent blackboard properties; `generate_blackboard()`. |
+| Class                 | File                                         | Notes                                                                                                                                           |
+| --------------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GdPAIAgentConfig`    | `scripts/resources/gdpai_agent_config.gd`    | Planning strategy (CONTINUOUS, ON_INTERVAL, ON_DEMAND, ON_INTERVAL_FORCED), max recursion, iteration budget, blackboard plan, behavior configs. |
+| `GdPAIBehaviorConfig` | `scripts/resources/gdpai_behavior_config.gd` | Groups goals, self actions, and property updaters into reusable behavior modules.                                                               |
+| `GdPAIBlackboardPlan` | `scripts/gdpai_blackboard_plan.gd`           | Template for agent blackboard properties; `generate_blackboard()`.                                                                              |
 
 ### Rust-exposed classes (no `.gd` file)
 
@@ -123,11 +171,26 @@ Prefer `make` targets over ad hoc commands. Two Makefiles exist.
 
 ### Root `Makefile`
 
-| Target | Purpose | |--------|---------| | `test`, `test-rust`, `test-godot` | Run all / Rust / Godot suites. `test` runs both and exits nonzero if any sub-suite fails. `test-godot` exits 0 with a `GUT-SUITE-OK`/`GUT-SUITE-FAILED` verdict line (checks load/parse error markers + gut exit status); `test-rust` propagates cargo test's exit code with a `CARGO-TEST-OK`/`CARGO-TEST-FAILED` verdict. | | `test-godot-pipe-output` | Full GUT log written to `test_output.log`. | | `format`, `format-rust`, `format-godot` | Format all / Rust (rustfmt) / GDScript (`fix_gd_spacing.py` + gdformat via uv). | | `lint-style` | Run `uv run scripts/lint_style.py`. | | `check-docs`, `sync-docs` | Diff/sync README + LICENSE between the repo root and the addon copy. | | `launch-editor`, `addons-install`, `godot-pin`, `godot-install-pinned` | Editor and Godot version management (GodotEnv). Recording is via colocated `GdTimeMachine` addon (`../GdTimeMachine`) — see `notes/GODOTENV_GDTIMEMACHINE_AUDIT.md`. |
+| Target                                                                 | Purpose                                                                                                                                                                                                                                                                                                                     |
+| ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `test`, `test-rust`, `test-godot`                                      | Run all / Rust / Godot suites. `test` runs both and exits nonzero if any sub-suite fails. `test-godot` exits 0 with a `GUT-SUITE-OK`/`GUT-SUITE-FAILED` verdict line (checks load/parse error markers + gut exit status); `test-rust` propagates cargo test's exit code with a `CARGO-TEST-OK`/`CARGO-TEST-FAILED` verdict. |
+| `test-godot-pipe-output`                                               | Full GUT log written to `test_output.log`.                                                                                                                                                                                                                                                                                  |
+| `format`, `format-rust`, `format-godot`                                | Format all / Rust (rustfmt) / GDScript (`fix_gd_spacing.py` + gdformat via uv).                                                                                                                                                                                                                                             |
+| `lint-style`                                                           | Run `uv run scripts/lint_style.py`.                                                                                                                                                                                                                                                                                         |
+| `check-docs`, `sync-docs`                                              | Diff/sync README + LICENSE between the repo root and the addon copy.                                                                                                                                                                                                                                                        |
+| `launch-editor`, `addons-install`, `godot-pin`, `godot-install-pinned` | Editor and Godot version management (GodotEnv). Recording is via colocated `GdTimeMachine` addon (`../GdTimeMachine`) — see `notes/GODOTENV_GDTIMEMACHINE_AUDIT.md`.                                                                                                                                                        |
 
 ### `addons/GdPlanningAI/rust/Makefile`
 
-| Target | Purpose | |--------|---------| | `build-release` | `cargo build --release`, then copies the shared library to `addons/GdPlanningAI/bin/{linux,macos,windows}/`. | | `build-debug`, `build-all`, `clean-binaries` | Other build variants and cleanup. | | `build-linux`, `build-windows` | Cross-compilation with plain `cargo build --target`; Windows links with mingw-w64 (`x86_64-w64-mingw32-gcc`). | | `test` | `cargo test`. | | `format`, `lint`, `lint-fix` | rustfmt, clippy (errors block), clippy autofix. | | `clean`, `doc` | Cargo clean and `cargo doc`. | | `setup-windows` | Add the `x86_64-pc-windows-gnu` rustup target. |
+| Target                                       | Purpose                                                                                                       |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `build-release`                              | `cargo build --release`, then copies the shared library to `addons/GdPlanningAI/bin/{linux,macos,windows}/`.  |
+| `build-debug`, `build-all`, `clean-binaries` | Other build variants and cleanup.                                                                             |
+| `build-linux`, `build-windows`               | Cross-compilation with plain `cargo build --target`; Windows links with mingw-w64 (`x86_64-w64-mingw32-gcc`). |
+| `test`                                       | `cargo test`.                                                                                                 |
+| `format`, `lint`, `lint-fix`                 | rustfmt, clippy (errors block), clippy autofix.                                                               |
+| `clean`, `doc`                               | Cargo clean and `cargo doc`.                                                                                  |
+| `setup-windows`                              | Add the `x86_64-pc-windows-gnu` rustup target.                                                                |
 
 ### Build artifact flow
 
@@ -167,7 +230,15 @@ ______________________________________________________________________
 
 ## 9. Documentation map
 
-| Doc | Purpose | |-----|---------| | `README.md` | Project pitch: what GdPlanningAI is, GOAP background, installation, usage concepts, demo list, FAQ. | | `docs/CODEBASE_OVERVIEW.md` | This file: the map of the whole repo. | | `docs/PLANNER_PSEUDOCODE.md` | High-level pseudocode for the planning search. | | `docs/ALGORITHM.md` | Deep dive into the Rust engine's search algorithm, built from the Rust source. | | `docs/AUTHORING_GUIDE.md` | How to write actions, goals, preconditions, and object data for your own agents. | | `docs/EXAMPLES.md` | Step-by-step walkthroughs of the example scenes. | | `docs/DOCUMENTATION_GUIDELINES.md` | Code documentation style: no decorative headers, docstring conventions for GDScript and Rust. |
+| Doc                                | Purpose                                                                                             |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `README.md`                        | Project pitch: what GdPlanningAI is, GOAP background, installation, usage concepts, demo list, FAQ. |
+| `docs/CODEBASE_OVERVIEW.md`        | This file: the map of the whole repo.                                                               |
+| `docs/PLANNER_PSEUDOCODE.md`       | High-level pseudocode for the planning search.                                                      |
+| `docs/ALGORITHM.md`                | Deep dive into the Rust engine's search algorithm, built from the Rust source.                      |
+| `docs/AUTHORING_GUIDE.md`          | How to write actions, goals, preconditions, and object data for your own agents.                    |
+| `docs/EXAMPLES.md`                 | Step-by-step walkthroughs of the example scenes.                                                    |
+| `docs/DOCUMENTATION_GUIDELINES.md` | Code documentation style: no decorative headers, docstring conventions for GDScript and Rust.       |
 
 The `notes/` folder is for session-scoped research (for example, `RESEARCH_RUST_ENGINE.md`, `RESEARCH_GDSCRIPT_API.md`, `RESEARCH_TESTS_TOOLING.md`). Treat it as scratch: it documents the current state of the code at a point in time and is expected to go stale. Reference docs live in `docs/`.
 

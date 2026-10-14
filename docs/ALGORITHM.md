@@ -87,11 +87,20 @@ An `Action` declares two matching surfaces. **Requirements** are the causal link
 
 ### Requirement kinds
 
-| Kind | Meaning | |------|---------| | `BindingExists(name)` | Some earlier action must have bound `name` (or the agent property already exists). | | `BindingEquals(name, value)` | `name` must be bound to `value` (or the agent property already equals it). | | `BindingInSet(name, set)` | `name` must resolve to an object that is a member of the world-object group `set`. | | `Fact(name, args)` | A named world fact must hold, optionally with concrete arguments. |
+| Kind                         | Meaning                                                                            |
+| ---------------------------- | ---------------------------------------------------------------------------------- |
+| `BindingExists(name)`        | Some earlier action must have bound `name` (or the agent property already exists). |
+| `BindingEquals(name, value)` | `name` must be bound to `value` (or the agent property already equals it).         |
+| `BindingInSet(name, set)`    | `name` must resolve to an object that is a member of the world-object group `set`. |
+| `Fact(name, args)`           | A named world fact must hold, optionally with concrete arguments.                  |
 
 ### Provision kinds
 
-| Kind | Meaning | |------|---------| | `Binding(name, value)` | Binds `name` to `value` for consumers later in the chain. | | `Fact(name, args)` | Provides a concrete fact, e.g. `fact("is_food", [])`. | | `FactWildcard(name)` | Provides *any* fact with that name, whatever its arguments. |
+| Kind                   | Meaning                                                     |
+| ---------------------- | ----------------------------------------------------------- |
+| `Binding(name, value)` | Binds `name` to `value` for consumers later in the chain.   |
+| `Fact(name, args)`     | Provides a concrete fact, e.g. `fact("is_food", [])`.       |
+| `FactWildcard(name)`   | Provides *any* fact with that name, whatever its arguments. |
 
 `FactWildcard` is the mechanism behind `GoToAction`: it provides `fact_wildcard("at_target")` and every interaction action requires `fact("at_target", [some_location])`. The wildcard binds the consumer's concrete arguments during discovery, so one generic navigation action chains in front of any location-dependent interaction.
 
@@ -101,7 +110,13 @@ Matching a wildcard against `Fact("at_target", [loc])` creates the binding `("at
 
 Matching is structural, performed by `provision_satisfies_requirement`:
 
-| Provision | Requirement | Match condition | |-----------|-------------|-----------------| | `Binding(n, v)` | `BindingExists(n)` | names equal | | `Binding(n, v)` | `BindingEquals(n, v2)` | names and values equal | | `Binding(n, obj)` | `BindingInSet(n, set)` | name matches and `obj` is in world group `set` | | `Fact(n, args)` | `Fact(n, args2)` | names match and args are equal (or consumer args empty) | | `FactWildcard(n)` | `Fact(n, _)` | names match, any arguments |
+| Provision         | Requirement            | Match condition                                         |
+| ----------------- | ---------------------- | ------------------------------------------------------- |
+| `Binding(n, v)`   | `BindingExists(n)`     | names equal                                             |
+| `Binding(n, v)`   | `BindingEquals(n, v2)` | names and values equal                                  |
+| `Binding(n, obj)` | `BindingInSet(n, set)` | name matches and `obj` is in world group `set`          |
+| `Fact(n, args)`   | `Fact(n, args2)`       | names match and args are equal (or consumer args empty) |
+| `FactWildcard(n)` | `Fact(n, _)`           | names match, any arguments                              |
 
 During verification, `requirement_holds_in_state` re-checks each requirement against the current simulated state, resolving `Binding*` requirements against recorded bindings or live agent properties, and `Fact` requirements against the world context (e.g. `at_target` compares agent and target locations). Other facts are assumed to hold.
 
@@ -147,7 +162,10 @@ The queue is a binary heap ordered by branch cost, and the heuristic is Dijkstra
 
 Two `TerminationStrategy` values control when planning stops:
 
-| Strategy | Behavior | |----------|----------| | `FirstComplete` | Returns the first valid plan the moment verification completes. | | `BestCost` | Keeps searching, pruning branches whose priority is no better than the best cost found, and records the strictly cheaper plan at each completion. |
+| Strategy        | Behavior                                                                                                                                          |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `FirstComplete` | Returns the first valid plan the moment verification completes.                                                                                   |
+| `BestCost`      | Keeps searching, pruning branches whose priority is no better than the best cost found, and records the strictly cheaper plan at each completion. |
 
 The default is **BestCost with Dijkstra**. Because BestCost keeps only strictly cheaper plans and prunes at the best-cost threshold, the returned plan is cost-optimal under the declared cost functions. `FirstComplete` trades that guarantee for speed: it returns the first valid plan, which is not necessarily the cheapest.
 
@@ -237,7 +255,11 @@ The campfire scene uses this exact chain to satisfy the hunger goal. This is tra
 
 The actions involved, as declared by the author:
 
-| Action | Validity | Preconditions | Requirements | Provisions | |--------|----------|---------------|--------------|------------| | `EatHeldFoodAction` | agent has `hunger` | hunger > 0; custom "is holding food" | `binding_exists("held_item")`; `fact("is_food", [])` | none | | `PickupAction` | object valid | `held_item == ""` | `fact("at_target", [banana_location])` | `binding("held_item", item_id)`; `fact("is_food", [])` (banana is in the Food group) | | `GoToAction` | entity, location data | none | none | `fact_wildcard("at_target")` |
+| Action              | Validity              | Preconditions                        | Requirements                                         | Provisions                                                                           |
+| ------------------- | --------------------- | ------------------------------------ | ---------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `EatHeldFoodAction` | agent has `hunger`    | hunger > 0; custom "is holding food" | `binding_exists("held_item")`; `fact("is_food", [])` | none                                                                                 |
+| `PickupAction`      | object valid          | `held_item == ""`                    | `fact("at_target", [banana_location])`               | `binding("held_item", item_id)`; `fact("is_food", [])` (banana is in the Food group) |
+| `GoToAction`        | entity, location data | none                                 | none                                                 | `fact_wildcard("at_target")`                                                         |
 
 The `HungerGoal` has reward `max(0, hunger)` and a desired state that hunger be lower than `max(0, current - 15)`, say `agent_property_less_than("hunger", 45)`.
 
@@ -279,6 +301,9 @@ ______________________________________________________________________
 
 Log verbosity is a single process-wide level (`plugin.cfg` `log_level`, default 2 = Info, applied by the autoload; `GdPAIPlanScheduler.set_log_level` overrides at runtime up to 3 = Debug).
 
-| Level | Visible output | |-------|----------------| | Info (default) | `submit_plan` summary (agent, goals, action count), `Plan complete`, one-line `RESULT goal='…' success=… Branches: … \| Time: …`, warnings/errors | | Debug (3) | Plus search transitions (`Pending` / `Resuming`), one `NOT resuming` notice per stall episode, full tree *recording* (fetch it anytime via `get_debug_tree(agent)`; it is never auto-printed), and `FWD [FAIL]` requirement attributions on verified nodes |
+| Level          | Visible output                                                                                                                                                                                                                                             |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Info (default) | `submit_plan` summary (agent, goals, action count), `Plan complete`, one-line `RESULT goal='…' success=… Branches: … \| Time: …`, warnings/errors                                                                                                          |
+| Debug (3)      | Plus search transitions (`Pending` / `Resuming`), one `NOT resuming` notice per stall episode, full tree *recording* (fetch it anytime via `get_debug_tree(agent)`; it is never auto-printed), and `FWD [FAIL]` requirement attributions on verified nodes |
 
 The tree builder only records nodes at Debug and above, but a lightweight branch counter always runs so the Info `RESULT` line still reports search cost. The time-slice yield itself never logs; slicing is steady-state architecture, not an event.

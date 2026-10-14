@@ -40,13 +40,13 @@ Design principle: requirements express *what* you need, provisions express *what
 
 All hooks run on the main thread.
 
-| Hook | When | Scene tree? |
-|--|--|--|
-| `get_*` on actions, goal hooks, `get_provided_actions`, `get_sim_properties` | Once per plan request | Yes, keep cheap |
-| `get_action_cost`, `simulate_effect`, custom preconditions | Many times per search | No: snapshots only, no `await` |
-| `pre_perform_action` | Once per action when a plan starts, before any `perform_action` | Yes |
-| `perform_action` | Every frame while the action is current | Yes |
-| `post_perform_action` | Once per action when the whole plan ends | Yes |
+| Hook                                                                         | When                                                            | Scene tree?                    |
+| ---------------------------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------ |
+| `get_*` on actions, goal hooks, `get_provided_actions`, `get_sim_properties` | Once per plan request                                           | Yes, keep cheap                |
+| `get_action_cost`, `simulate_effect`, custom preconditions                   | Many times per search                                           | No: snapshots only, no `await` |
+| `pre_perform_action`                                                         | Once per action when a plan starts, before any `perform_action` | Yes                            |
+| `perform_action`                                                             | Every frame while the action is current                         | Yes                            |
+| `post_perform_action`                                                        | Once per action when the whole plan ends                        | Yes                            |
 
 - `post_perform_action` does not run when a single action finishes, nor when a new plan replaces a running one. Stop per-action work (like navigation) in `perform_action`.
 - Keep per-run data in `set_state`, keyed by instance and chain position. If the action has mutable members, return a copy from `clone_for_plan()`.
@@ -104,31 +104,31 @@ The interactive debugger tab was removed during the Rust refactor and has not be
 
 ## Quick Reference: Built-in Preconditions
 
-| Target | Operations |
-|--|--|
-| Agent | `has_property`, `equal`, `not_equal`, `greater_than`, `geq_than`, `less_than`, `leq_than` |
-| WorldState | `has_property`, `equal`, `greater_than`, `geq_than`, `less_than`, `leq_than` (no `not_equal` constructor) |
-| WorldObjectProxy (group) | All of the above, evaluated on each object in the group; succeeds if ANY matches |
+| Target                   | Operations                                                                                                |
+| ------------------------ | --------------------------------------------------------------------------------------------------------- |
+| Agent                    | `has_property`, `equal`, `not_equal`, `greater_than`, `geq_than`, `less_than`, `leq_than`                 |
+| WorldState               | `has_property`, `equal`, `greater_than`, `geq_than`, `less_than`, `leq_than` (no `not_equal` constructor) |
+| WorldObjectProxy (group) | All of the above, evaluated on each object in the group; succeeds if ANY matches                          |
 
 Construct via `Precondition.agent_property_less_than("hunger", 15)`, `Precondition.world_object_property_geq_than("CampfireObject", "current_fuel", 60)`, etc.
 
 ## Quick Reference: Requirement / Provision Constructors
 
-| Need | Requirement | Provided By |
-|--|--|--|
-| Any binding | `binding_exists("name")` | `binding("name", value)` |
-| Specific value | `binding_equals("name", value)` | `binding("name", value)` |
-| Object in group | `binding_in_set("name", "Group")` | `binding("name", obj_ref)` where obj in Group |
-| Location fact | `fact("at_target", [location])` | `fact_wildcard("at_target")` (GoTo) or `fact("at_target", [location])` |
-| Custom fact | `fact("name", [args])` | `fact("name", [args])` |
+| Need            | Requirement                       | Provided By                                                            |
+| --------------- | --------------------------------- | ---------------------------------------------------------------------- |
+| Any binding     | `binding_exists("name")`          | `binding("name", value)`                                               |
+| Specific value  | `binding_equals("name", value)`   | `binding("name", value)`                                               |
+| Object in group | `binding_in_set("name", "Group")` | `binding("name", obj_ref)` where obj in Group                          |
+| Location fact   | `fact("at_target", [location])`   | `fact_wildcard("at_target")` (GoTo) or `fact("at_target", [location])` |
+| Custom fact     | `fact("name", [args])`            | `fact("name", [args])`                                                 |
 
 ## Quick Reference: Property Names in Examples
 
-| Domain | Agent Property | World Object Property |
-|--|--|--|
-| Hunger | `hunger` (0–100) | `hunger_value` on `FoodObject` |
-| Campfire | (none) | `current_fuel` on `CampfireObject` |
-| Inventory | `held_item` (String) | `item_id` on `HoldableObject` |
-| Location | `GdPAILocationData` on agent | `GdPAILocationData` on object |
+| Domain    | Agent Property               | World Object Property              |
+| --------- | ---------------------------- | ---------------------------------- |
+| Hunger    | `hunger` (0–100)             | `hunger_value` on `FoodObject`     |
+| Campfire  | (none)                       | `current_fuel` on `CampfireObject` |
+| Inventory | `held_item` (String)         | `item_id` on `HoldableObject`      |
+| Location  | `GdPAILocationData` on agent | `GdPAILocationData` on object      |
 
 *This guide reflects the current framework. As built-ins expand (distance checks, virtual properties), patterns will simplify further.*
