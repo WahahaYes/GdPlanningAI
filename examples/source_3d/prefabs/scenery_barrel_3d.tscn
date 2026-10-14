@@ -1,0 +1,14 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" uid="uid://b7upkrwpgyegv" path="res://examples/source_3d/assets/vendored/KayKit_ResourceBits/Assets/gltf/Fuel_B_Barrel_Dirty.gltf" id="1_visual"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_body"]
+size = Vector3(0.75, 1.0, 0.75)
+
+[node name="SceneryBarrel" type="StaticBody3D"]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+shape = SubResource("BoxShape3D_body")
+
+[node name="Visual" parent="." instance=ExtResource("1_visual")]

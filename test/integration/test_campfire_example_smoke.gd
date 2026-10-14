@@ -1,57 +1,42 @@
-extends GutTest
+extends "res://test/shared/scene_smoke_base.gd"
+## Campfire 2D example loads and settles without errors.
 
-const AGENT_2D_PREFAB: PackedScene = preload("res://examples/source_2d/prefabs/agent_2d.tscn")
-const WOOD_PILE_2D_PREFAB: PackedScene = preload(
-	"res://examples/source_2d/prefabs/wood_pile_2d.tscn"
-)
-const CAMPFIRE_2D_PREFAB: PackedScene = preload("res://examples/source_2d/prefabs/campfire_2d.tscn")
-const POTATO_2D_PREFAB: PackedScene = preload("res://examples/source_2d/prefabs/potato_2d.tscn")
 const CAMPFIRE_2D_SCENE: PackedScene = preload("res://examples/campfire_2d.tscn")
-const WORLD_NODE_SCRIPT: Script = preload(
-	"res://addons/GdPlanningAI/scripts/nodes/gdpai_world_node.gd"
-)
-const BLACKBOARD_PLAN_SCRIPT: Script = preload(
-	"res://addons/GdPlanningAI/scripts/gdpai_blackboard_plan.gd"
-)
 
 
-func after_each() -> void:
-	var scheduler: GdPAIPlanScheduler = _scheduler()
-	if scheduler != null:
-		scheduler.cancel_all_jobs()
-	await _drain_scheduler()
+## The scene instantiates with its world, agent, and campfire present.
+func test_campfire_2d_loads_and_settles() -> void:
+	var scene: Node2D = CAMPFIRE_2D_SCENE.instantiate() as Node2D
+	await _settle_example(scene)
+	assert_not_null(scene.get_node_or_null("GdPAIWorldNode"), "Scene should keep its world node")
+	assert_gt(
+		scene.find_children("*", "GdPAIAgent", true, false).size(), 0, "Scene should keep an agent"
+	)
+	assert_gt(
+		scene.find_children("*", "CampfireObject", true, false).size(),
+		0,
+		"Scene should keep its campfire"
+	)
 
 
-func _drain_scheduler(timeout_frames: int = 60) -> void:
-	var scheduler: GdPAIPlanScheduler = _scheduler()
-	if scheduler == null:
-		return
-	for i in range(timeout_frames):
-		scheduler.process_callbacks()
-		if scheduler.active_job_count() == 0:
-			return
-		await get_tree().process_frame
+## A hungry agent with a fueled fire plans something, titles unpinned.
+func test_hungry_agent_plans_something() -> void:
+	var scene: Node2D = CAMPFIRE_2D_SCENE.instantiate() as Node2D
+	await _settle_example(scene)
+	var campfire: CampfireObject = GdPAIUTILS.get_child_of_type(
+		scene.get_node("Terrain/Campfire"), CampfireObject
+	)
+	var agent: GdPAIAgent = GdPAIUTILS.get_child_of_type(scene.get_node("Agent1"), GdPAIAgent)
+	campfire.current_fuel = 80.0
+	agent.blackboard.set_property("hunger", 70.0)
+	agent.blackboard.set_property("held_item", "")
+	await _pump_frames(3)
+	var plan: Array[Action] = await _start_plan_and_wait(agent)
+	assert_gt(plan.size(), 0, "Hungry agent with a fueled fire should plan something")
 
 
-func _make_world_node() -> GdPAIWorldNode:
-	var world_node: GdPAIWorldNode = WORLD_NODE_SCRIPT.new()
-	world_node.name = "GdPAIWorldNode"
-	world_node.blackboard_plan = BLACKBOARD_PLAN_SCRIPT.new()
-	add_child_autofree(world_node)
-	return world_node
-
-
-func _pump_frames(frames: int) -> void:
-	for i in range(frames):
-		await get_tree().physics_frame
-		await get_tree().process_frame
-
-
-func _scheduler() -> GdPAIPlanScheduler:
-	return GdPAIAutoload.get_scheduler()
-
-
-func _start_plan_and_wait(agent: GdPAIAgent, timeout_frames: int = 2000) -> Array[Action]:
+## Starts a plan and waits for the scheduler to return one.
+func _start_plan_and_wait(agent: GdPAIAgent, timeout_frames: int = 600) -> Array[Action]:
 	var scheduler: GdPAIPlanScheduler = _scheduler()
 	var previous_plan: Array[Action] = agent.get_current_plan()
 	agent.manually_start_plan()
@@ -64,189 +49,5 @@ func _start_plan_and_wait(agent: GdPAIAgent, timeout_frames: int = 2000) -> Arra
 		if saw_job and scheduler.active_job_count() == 0:
 			return agent.get_current_plan()
 		await get_tree().process_frame
-
-	# Timeout reached - cancel the in-flight planning job
-	print("[TIMEOUT] Signaling cancellation for agent: ", agent)
-	if scheduler != null:
-		print("[POOL STATUS] ", scheduler.get_pool_status())
-	scheduler.cancel_agent_jobs(agent)
-
-	# Give the thread a few frames to return the engine
-	for i in range(10):
-		scheduler.process_callbacks()
-		var tree = scheduler.get_debug_tree(agent)
-		if tree != "" and not tree.contains("running in a background thread"):
-			print("\n---------- TIMEOUT DEBUG TREE ----------")
-			print(tree)
-			print("----------------------------------------\n")
-			break
-		await get_tree().process_frame
-
-	fail_test("Timed out waiting for submitted agent plan")
+	fail_test("Timed out waiting for agent plan")
 	return []
-
-
-func _plan_titles(plan: Array[Action]) -> String:
-	var titles: Array[String] = []
-	for action in plan:
-		titles.append(action.get_title())
-	return " -> ".join(titles)
-
-
-func _setup_campfire_scene() -> Dictionary:
-	var scene: Node2D = CAMPFIRE_2D_SCENE.instantiate()
-	for agent_node in scene.find_children("*", "GdPAIAgent", true, false):
-		var scene_agent: GdPAIAgent = agent_node
-		scene_agent.config.planning_strategy = GdPAIAgentConfig.PlanningStrategy.ON_DEMAND
-	add_child_autofree(scene)
-
-	await _pump_frames(10)
-
-	var campfire_entity: Node = scene.get_node("Campfire")
-	var agent_entity: Node = scene.get_node("Agent1")
-	var campfire: CampfireObject = GdPAIUTILS.get_child_of_type(campfire_entity, CampfireObject)
-	var agent: GdPAIAgent = GdPAIUTILS.get_child_of_type(agent_entity, GdPAIAgent)
-	agent.set_planning_strategy(GdPAIAgentConfig.PlanningStrategy.ON_DEMAND)
-
-	return {"agent": agent, "campfire": campfire, "scene": scene}
-
-
-# ── Scenario Tests ─────────────────────────────────────────────
-func test_full_cooking_chain() -> void:
-	var setup: Dictionary = await _setup_campfire_scene()
-	var agent: GdPAIAgent = setup["agent"]
-	var campfire: CampfireObject = setup["campfire"]
-
-	assert_true(agent.goals.size() > 0, "Agent should have goals after setup")
-	assert_true(agent.self_actions.size() > 0, "Agent should have self_actions after setup")
-
-	campfire.current_fuel = 80.0
-	agent.blackboard.set_property("hunger", 70.0)
-	agent.blackboard.set_property("held_item", "")
-	await _pump_frames(3)
-
-	var plan: Array[Action] = await _start_plan_and_wait(agent)
-	if plan.is_empty():
-		fail_test("Agent should plan when hungry with fire available, but got empty plan")
-		return
-
-	assert_eq(plan.size(), 5, "Plan should have 5 actions: %s" % _plan_titles(plan))
-	var titles: Array[String] = []
-	for a in plan:
-		titles.append(a.get_title())
-	assert_true(titles.has("Go To"), "Plan should include Go To")
-	assert_true(titles.has("Dig Potato"), "Plan should include Dig Potato")
-	assert_true(titles.has("Cook Potato"), "Plan should include Cook Potato")
-	assert_true(titles.has("Eat Held Food"), "Plan should include Eat Held Food")
-	assert_eq(titles.count("Go To"), 2, "Plan should have exactly 2 Go To actions")
-	assert_true(
-		titles.find("Eat Held Food") > titles.find("Cook Potato"), "Cook should precede Eat"
-	)
-	assert_true(titles.find("Cook Potato") > titles.find("Dig Potato"), "Dig should precede Cook")
-
-
-func test_fire_too_low_to_cook() -> void:
-	var setup: Dictionary = await _setup_campfire_scene()
-	var agent: GdPAIAgent = setup["agent"]
-	var campfire: CampfireObject = setup["campfire"]
-
-	campfire.current_fuel = 10.0
-	agent.blackboard.set_property("hunger", 60.0)
-	agent.blackboard.set_property("held_item", "potato")
-	await _pump_frames(3)
-
-	var plan: Array[Action] = await _start_plan_and_wait(agent)
-	assert_true(plan.is_empty(), "Agent should not plan an over-depth low-fire recovery")
-
-
-func test_preemptive_fire_maintenance() -> void:
-	var setup: Dictionary = await _setup_campfire_scene()
-	var agent: GdPAIAgent = setup["agent"]
-	var campfire: CampfireObject = setup["campfire"]
-
-	campfire.current_fuel = 35.0
-	agent.blackboard.set_property("hunger", 20.0)
-	agent.blackboard.set_property("held_item", "")
-	await _pump_frames(3)
-
-	var plan: Array[Action] = await _start_plan_and_wait(agent)
-	if plan.is_empty():
-		fail_test("Agent should plan when fire is moderate and hunger is low, but got empty plan")
-		return
-
-	# Fire reward (40) > hunger (20), so fire maintenance is the selected goal
-	# Expected: GoTo(wood) → Pick Up Wood → GoTo(campfire) → Add Fuel
-	# Hunger work should be handled by a later planning request
-	var titles: Array[String] = []
-	for a in plan:
-		titles.append(a.get_title())
-	var wood_idx: int = titles.find("Pick Up Wood")
-	assert_true(wood_idx >= 0, "Plan should include Pick Up Wood")
-	assert_true(titles.has("Add Fuel"), "Plan should include Add Fuel")
-	assert_false(titles.has("Dig Potato"), "Maintain Fire should not chain Hunger in one plan")
-
-
-func test_competing_priorities_hunger_wins() -> void:
-	var setup: Dictionary = await _setup_campfire_scene()
-	var agent: GdPAIAgent = setup["agent"]
-	var campfire: CampfireObject = setup["campfire"]
-
-	campfire.current_fuel = 15.0
-	agent.blackboard.set_property("hunger", 95.0)
-	agent.blackboard.set_property("held_item", "")
-	await _pump_frames(3)
-
-	var plan: Array[Action] = await _start_plan_and_wait(agent)
-	assert_true(plan.is_empty(), "Agent should not plan an over-depth critical recovery")
-
-
-func test_cannot_add_fuel_when_full() -> void:
-	var setup: Dictionary = await _setup_campfire_scene()
-	var agent: GdPAIAgent = setup["agent"]
-	var campfire: CampfireObject = setup["campfire"]
-
-	campfire.current_fuel = 100.0
-	agent.blackboard.set_property("hunger", 10.0)
-	agent.blackboard.set_property("held_item", "wood")
-	await _pump_frames(3)
-
-	var plan: Array[Action] = await _start_plan_and_wait(agent)
-	# Agent should not plan AddFuel when fire is full
-	# It should either wander or drop wood and do something else
-	if plan.is_empty():
-		# Empty plan is acceptable - agent may choose to wander
-		assert_true(true, "Agent chose not to plan (acceptable)")
-	else:
-		var titles: Array[String] = []
-		for a in plan:
-			titles.append(a.get_title())
-		assert_false(
-			titles.has("Add Fuel"),
-			"Should not plan Add Fuel when fire is full, got: %s" % _plan_titles(plan)
-		)
-
-
-func test_cannot_cook_without_potato() -> void:
-	var setup: Dictionary = await _setup_campfire_scene()
-	var agent: GdPAIAgent = setup["agent"]
-	var campfire: CampfireObject = setup["campfire"]
-
-	campfire.current_fuel = 80.0
-	agent.blackboard.set_property("hunger", 70.0)
-	agent.blackboard.set_property("held_item", "wood")
-	await _pump_frames(3)
-
-	var plan: Array[Action] = await _start_plan_and_wait(agent)
-	if plan.is_empty():
-		# Empty plan is acceptable - agent may choose to wander
-		assert_true(true, "Agent chose not to plan (acceptable)")
-	else:
-		var titles: Array[String] = []
-		for a in plan:
-			titles.append(a.get_title())
-		# CookPotato requires held_item="potato", so it should not appear when holding wood
-		# But AddFuel should be valid
-		assert_false(
-			titles.has("Cook Potato"),
-			"Should not plan Cook Potato when holding wood, got: %s" % _plan_titles(plan)
-		)

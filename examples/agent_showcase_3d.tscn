@@ -1,0 +1,91 @@
+[gd_scene format=3 uid="uid://cy6y8tw855tyj"]
+
+[ext_resource type="PackedScene" uid="uid://iqvgqalpp67h" path="res://examples/source_3d/prefabs/agent_3d.tscn" id="1_agent"]
+[ext_resource type="Script" uid="uid://cosp034doslxh" path="res://examples/source_3d/assets/debug/showcase_driver_3d.gd" id="2_driver"]
+[ext_resource type="PackedScene" uid="uid://c175gqil1di7f" path="res://examples/source_3d/assets/vendored/KayKit_Adventurers/Characters/gltf/Knight.glb" id="3_knight"]
+[ext_resource type="PackedScene" uid="uid://6tnehy36brt4" path="res://examples/source_3d/assets/vendored/KayKit_Adventurers/Characters/gltf/Barbarian.glb" id="4_barb"]
+[ext_resource type="PackedScene" uid="uid://drw7amvckvepy" path="res://examples/source_3d/assets/vendored/KayKit_Adventurers/Characters/gltf/Mage.glb" id="5_mage"]
+[ext_resource type="Script" uid="uid://d2g1imengo7ok" path="res://examples/source_3d/assets/camera/camera_follow_3d.gd" id="6_cam"]
+[ext_resource type="Environment" uid="uid://da3g6trm8sfmb" path="res://examples/source_3d/assets/environment/day_sky_3d.tres" id="7_sky"]
+[ext_resource type="PackedScene" path="res://examples/source_3d/prefabs/scenery_rock_small_3d.tscn" id="8_rock"]
+[ext_resource type="PackedScene" path="res://examples/source_3d/prefabs/scenery_rock_large_3d.tscn" id="9_rockbig"]
+[ext_resource type="PackedScene" path="res://examples/source_3d/prefabs/scenery_ruin_3d.tscn" id="10_ruin"]
+[ext_resource type="PackedScene" path="res://examples/source_3d/prefabs/scenery_barrel_3d.tscn" id="11_barrel"]
+
+[sub_resource type="NavigationMesh" id="NavigationMesh_1"]
+vertices = PackedVector3Array(-6.25, 0.75, -2, -6, 0.75, -2.5, -6.75, 0.75, -2.5, -7.5, 0.75, -2, -8, 0.75, -1.5, -7.5, 0.75, -3.5, -7.5, 0.75, -4.75, -9.5, 0.75, -9.5, -9.5, 0.75, 3.75, -2, 0.75, -7.25, -1, 0.75, -7.5, -1, 0.75, -9.5, -8, 0.75, 3.75, -7.75, 0.75, 1.75, -8, 0.75, 0.75, -2.75, 0.75, 2.25, -5, 0.75, 0.5, -5.25, 0.75, 1, -4.5, 0.75, -4.25, -1.5, 0.75, -5.5, -2, 0.75, -5.75, -6, 0.75, 2, -6, 0.75, 3.75, -3.75, 0.75, 4.25, -6.5, 0.75, -5.5, -5.25, 0.75, -5.5, 0, 0.75, -6, 1, 0.75, -5.25, 1.25, 0.75, -5.75, 7.75, 0.75, -4.25, 8, 0.75, -3.75, 9.5, 0.75, -3.75, 9.5, 0.75, -9.5, 0, 0.75, -7.25, 2.25, 0.75, -5.75, 3.75, 0.75, -4.25, 6, 0.75, -3.75, 6.25, 0.75, -4.25, 3.5, 0.75, -5, 5.75, 0.75, 2.5, 6, 0.75, 2, 5, 0.75, 1.75, 4.5, 0.75, 3.5, -1, 0.75, 5.25, 0, 0.75, 6, 0.25, 0.75, 5.5, -0.25, 0.75, 4.25, -0.25, 0.75, -5.5, 0.25, 0.75, -4.25, 5, 0.75, -0.25, 2.75, 0.75, -2.25, 1.75, 0.75, -2.25, -1.75, 0.75, 2.25, -0.25, 0.75, 3.25, -5, 0.75, -1.5, -4.5, 0.75, -3.25, 0.25, 0.75, -3.25, 1.5, 0.75, 5.5, 4.5, 0.75, 4.5, 1.5, 1.25, -4, 1.75, 1.25, -3.5, 2.5, 1.25, -4, 1.75, 1.25, -4.5, -6.25, 1.75, -3.75, -5.5, 1.75, -3.75, -5.75, 1.75, -4.25, -6.5, 1.75, -4.25, 7.5, 0.75, 3.25, 8, 0.75, 1.75, 6.75, 0.75, 5.5, 5.5, 0.75, 5.5, 2, 0.75, 7.25, 1, 0.75, 9.5, 9.5, 0.75, 9.5, 8, 0.75, -2, 1, 0.75, 7.5, 7.5, 0.75, 4.5, 2, 0.75, 5.75, 5.5, 0.75, -1, 6.25, 0.75, -1.75, 7.5, 0.75, -1, 8, 0.75, -0.5, -7, 1.25, -0.75, -7, 1.25, -0.25, -6, 1.25, -0.25, -6, 1.25, -0.75, 6, 1.25, 0.25, 6, 1.25, 0.75, 7, 1.25, 0.75, 7, 1.25, 0.25, -2.5, 1.25, 4, -2.25, 1.25, 4.5, -1.5, 1.25, 4, -2.25, 1.25, 3.5, -1.25, 0.75, 5.75, 0, 0.75, 7.25, -7.75, 0.75, 4.25, -9.5, 0.75, 9.5, -2.25, 0.75, 5.75, -3.75, 0.75, 4.75, -6.25, 0.75, 4.25)
+polygons = [PackedInt32Array(1, 0, 2), PackedInt32Array(2, 0, 3), PackedInt32Array(5, 4, 6), PackedInt32Array(6, 4, 7), PackedInt32Array(7, 4, 8), PackedInt32Array(5, 2, 3), PackedInt32Array(5, 3, 4), PackedInt32Array(11, 10, 9), PackedInt32Array(13, 12, 14), PackedInt32Array(14, 12, 8), PackedInt32Array(17, 16, 15), PackedInt32Array(20, 19, 18), PackedInt32Array(21, 17, 22), PackedInt32Array(22, 17, 23), PackedInt32Array(23, 17, 15), PackedInt32Array(25, 24, 9), PackedInt32Array(9, 24, 11), PackedInt32Array(11, 24, 7), PackedInt32Array(7, 24, 6), PackedInt32Array(13, 14, 21), PackedInt32Array(21, 14, 17), PackedInt32Array(4, 14, 8), PackedInt32Array(18, 25, 20), PackedInt32Array(20, 25, 9), PackedInt32Array(27, 26, 28), PackedInt32Array(30, 29, 31), PackedInt32Array(31, 29, 32), PackedInt32Array(26, 33, 28), PackedInt32Array(28, 33, 34), PackedInt32Array(33, 10, 11), PackedInt32Array(36, 35, 37), PackedInt32Array(37, 35, 38), PackedInt32Array(37, 38, 29), PackedInt32Array(29, 38, 33), PackedInt32Array(29, 33, 11), PackedInt32Array(29, 11, 32), PackedInt32Array(38, 34, 33), PackedInt32Array(40, 39, 41), PackedInt32Array(41, 39, 42), PackedInt32Array(44, 43, 45), PackedInt32Array(45, 43, 46), PackedInt32Array(26, 27, 47), PackedInt32Array(47, 27, 48), PackedInt32Array(50, 49, 51), PackedInt32Array(51, 49, 42), PackedInt32Array(51, 42, 53), PackedInt32Array(51, 53, 52), PackedInt32Array(49, 41, 42), PackedInt32Array(0, 1, 54), PackedInt32Array(54, 1, 55), PackedInt32Array(16, 52, 15), PackedInt32Array(54, 55, 16), PackedInt32Array(16, 55, 52), PackedInt32Array(52, 55, 56), PackedInt32Array(52, 56, 51), PackedInt32Array(46, 53, 45), PackedInt32Array(45, 53, 57), PackedInt32Array(57, 53, 58), PackedInt32Array(58, 53, 42), PackedInt32Array(48, 56, 47), PackedInt32Array(47, 56, 19), PackedInt32Array(19, 56, 18), PackedInt32Array(18, 56, 55), PackedInt32Array(59, 62, 60), PackedInt32Array(60, 62, 61), PackedInt32Array(66, 65, 63), PackedInt32Array(63, 65, 64), PackedInt32Array(39, 40, 67), PackedInt32Array(67, 40, 68), PackedInt32Array(70, 69, 71), PackedInt32Array(71, 69, 72), PackedInt32Array(72, 69, 73), PackedInt32Array(74, 30, 31), PackedInt32Array(72, 75, 71), PackedInt32Array(76, 67, 68), PackedInt32Array(77, 57, 58), PackedInt32Array(78, 49, 50), PackedInt32Array(58, 70, 77), PackedInt32Array(77, 70, 71), PackedInt32Array(79, 78, 36), PackedInt32Array(36, 78, 35), PackedInt32Array(35, 78, 50), PackedInt32Array(76, 68, 73), PackedInt32Array(73, 68, 31), PackedInt32Array(73, 69, 76), PackedInt32Array(74, 80, 79), PackedInt32Array(79, 80, 78), PackedInt32Array(68, 81, 31), PackedInt32Array(80, 74, 81), PackedInt32Array(81, 74, 31), PackedInt32Array(85, 84, 82), PackedInt32Array(82, 84, 83), PackedInt32Array(89, 88, 86), PackedInt32Array(86, 88, 87), PackedInt32Array(90, 93, 91), PackedInt32Array(91, 93, 92), PackedInt32Array(43, 44, 94), PackedInt32Array(94, 44, 95), PackedInt32Array(12, 96, 8), PackedInt32Array(8, 96, 97), PackedInt32Array(94, 95, 98), PackedInt32Array(98, 95, 72), PackedInt32Array(95, 75, 72), PackedInt32Array(23, 99, 22), PackedInt32Array(22, 99, 100), PackedInt32Array(100, 99, 96), PackedInt32Array(96, 99, 98), PackedInt32Array(96, 98, 97), PackedInt32Array(97, 98, 72)]
+agent_height = 1.0
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_1"]
+albedo_color = Color(0.2, 0.3, 0.2, 1)
+
+[node name="Showcase3D" type="Node3D" unique_id=111468293]
+script = ExtResource("2_driver")
+skins = Array[PackedScene]([ExtResource("3_knight"), ExtResource("4_barb"), ExtResource("5_mage")])
+
+[node name="NavigationRegion3D" type="NavigationRegion3D" parent="." unique_id=2084563272]
+navigation_mesh = SubResource("NavigationMesh_1")
+
+[node name="Ground" type="CSGBox3D" parent="NavigationRegion3D" unique_id=2086732643]
+use_collision = true
+size = Vector3(20, 0.5, 20)
+material = SubResource("StandardMaterial3D_1")
+
+[node name="Ruin1" parent="NavigationRegion3D" unique_id=1934838997 instance=ExtResource("10_ruin")]
+transform = Transform3D(0.866025, 0, -0.5, 0, 1, 0, 0.5, 0, 0.866025, -2, 0.25, 4)
+
+[node name="Ruin2" parent="NavigationRegion3D" unique_id=1824786561 instance=ExtResource("10_ruin")]
+transform = Transform3D(0.866025, 0, -0.5, 0, 1, 0, 0.5, 0, 0.866025, 2, 0.25, -4)
+
+[node name="RockBig1" parent="NavigationRegion3D" unique_id=1914427614 instance=ExtResource("9_rockbig")]
+transform = Transform3D(0.5, 0, -0.866025, 0, 1, 0, 0.866025, 0, 0.5, -6, 0.25, -4)
+
+[node name="RockBig2" parent="NavigationRegion3D" unique_id=431865077 instance=ExtResource("9_rockbig")]
+transform = Transform3D(-0.5, 0, -0.866025, 0, 1, 0, 0.866025, 0, -0.5, 6, 0.25, 4)
+
+[node name="RockSmall1" parent="NavigationRegion3D" unique_id=1222249021 instance=ExtResource("8_rock")]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -7, 0.25, 3)
+
+[node name="RockSmall2" parent="NavigationRegion3D" unique_id=802210615 instance=ExtResource("8_rock")]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 7, 0.25, -3)
+
+[node name="Barrel1" parent="NavigationRegion3D" unique_id=272505934 instance=ExtResource("11_barrel")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 0.25, -6.5)
+
+[node name="Barrel2" parent="NavigationRegion3D" unique_id=2117610743 instance=ExtResource("11_barrel")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0.25, 6.5)
+
+[node name="Ruin3" parent="NavigationRegion3D" unique_id=1039582790 instance=ExtResource("10_ruin")]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -6.5, 0.25, -0.5)
+
+[node name="Ruin4" parent="NavigationRegion3D" unique_id=915294146 instance=ExtResource("10_ruin")]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 6.5, 0.25, 0.5)
+
+[node name="AgentPotato" parent="." unique_id=1994377412 instance=ExtResource("1_agent")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0.25, 0)
+
+[node name="AgentWood" parent="." unique_id=1210992454 instance=ExtResource("1_agent")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 0)
+
+[node name="AgentEmpty" parent="." unique_id=1003618064 instance=ExtResource("1_agent")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0.25, 0)
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=865207300]
+transform = Transform3D(0.707107, 0, -0.707107, 0, 1, 0, 0.707107, 0, 0.707107, 0, 10, 0)
+shadow_enabled = true
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=327428076]
+environment = ExtResource("7_sky")
+
+[node name="CameraRig" type="Node3D" parent="." unique_id=1507473092 node_paths=PackedStringArray("target")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.45, 0)
+script = ExtResource("6_cam")
+target = NodePath("../AgentWood")
+
+[node name="SpringArm3D" type="SpringArm3D" parent="CameraRig" unique_id=77112822]
+transform = Transform3D(0.71091354, 0.55089766, -0.43716547, 0, 0.62161, 0.7833269, 0.7032794, -0.55687773, 0.44191095, 0, 0, 0)
+spring_length = 8.0
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig/SpringArm3D" unique_id=1006286669]
+current = true

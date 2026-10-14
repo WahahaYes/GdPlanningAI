@@ -5,35 +5,44 @@
 [ext_resource type="Script" path="res://examples/shared/ui/agent_debug_label_3d.gd" id="3_wxyz"]
 [ext_resource type="Resource" uid="uid://dx8k4mam2n5p2" path="res://examples/configs/campfire_agent_config.tres" id="4_xyzab"]
 [ext_resource type="Script" path="res://examples/source_3d/assets/agent/nav_controller_3d.gd" id="5_yzabc"]
+[ext_resource type="Script" path="res://examples/source_3d/assets/agent/carry_visual_3d.gd" id="6_carry"]
+[ext_resource type="Script" path="res://examples/source_3d/assets/agent/agent_skin_3d.gd" id="7_skin"]
 
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_1"]
 radius = 0.5
 height = 1.0
 
-[sub_resource type="BoxMesh" id="BoxMesh_1"]
-size = Vector3(0.8, 0.8, 1.6)
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_1"]
-albedo_color = Color(0, 0.501961, 1, 1)
-
 [node name="Agent" type="CharacterBody3D"]
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+position = Vector3(0, 0.5, 0)
 shape = SubResource("CylinderShape3D_1")
 
 [node name="NavigationAgent3D" type="NavigationAgent3D" parent="."]
+avoidance_enabled = true
+height = 1.0
+radius = 0.55
+neighbor_distance = 5.0
 
-[node name="CSGBox3D" type="CSGBox3D" parent="."]
-size = Vector3(0.8, 0.8, 1.6)
-material = SubResource("StandardMaterial3D_1")
+[node name="Skin" type="Node3D" parent="." node_paths=PackedStringArray("entity")]
+script = ExtResource("7_skin")
+entity = NodePath("..")
 
 [node name="Label3D" type="Label3D" parent="." node_paths=PackedStringArray("gdpai_agent")]
 text = "Agent"
+billboard = 1
 pixel_size = 0.01
-position = Vector3(0, 1.0, 0)
+modulate = Color(1, 1, 1, 0.35)
+vertical_alignment = 2
+position = Vector3(0, 2.35, 0)
 script = ExtResource("3_wxyz")
 gdpai_agent = NodePath("../GdPAIAgent")
 debug_properties = Array[String](["hunger", "held_item"])
+
+[node name="CarrySocket" type="Node3D" parent="." node_paths=PackedStringArray("gdpai_agent")]
+position = Vector3(0, 1.95, 0)
+script = ExtResource("6_carry")
+gdpai_agent = NodePath("../GdPAIAgent")
 
 [node name="GdPAIAgent" type="Node" parent="." node_paths=PackedStringArray("entity")]
 script = ExtResource("1_uvwx")

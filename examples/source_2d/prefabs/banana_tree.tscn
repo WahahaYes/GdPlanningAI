@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://h4yk5sl17vo0"]
 
-[ext_resource type="Texture2D" uid="uid://d3ipxyc0fyapi" path="res://examples/source_2d/assets/world/TinySwordsPack/Decorations/Trees/Tree3.png" id="1_kebes"]
+[ext_resource type="Texture2D" uid="uid://d3ipxyc0fyapi" path="res://examples/source_2d/assets/vendored/TinySwordsPack/Decorations/Trees/Tree3.png" id="1_kebes"]
 [ext_resource type="Script" uid="uid://b4nu0eehv0waq" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_location_data.gd" id="2_gjm7u"]
 [ext_resource type="Texture2D" uid="uid://txqc5xqcp8jr" path="res://examples/source_2d/assets/world/banana.png" id="2_pcod6"]
 [ext_resource type="Script" uid="uid://buur1dj8yvfc1" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_interactable.gd" id="3_bvj2h"]

@@ -1,0 +1,8 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" uid="uid://bi2ovcpk86cvh" path="res://examples/source_3d/assets/vendored/KayKit_ResourceBits/Assets/gltf/Wood_Log_B.gltf" id="1_log"]
+
+[node name="HeldWood" type="Node3D"]
+
+[node name="Log" parent="." instance=ExtResource("1_log")]
+transform = Transform3D(0.45, 0, 0, 0, 0.45, 0, 0, 0, 0.45, 0, 0, 0)

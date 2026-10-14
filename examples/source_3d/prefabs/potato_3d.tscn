@@ -5,23 +5,47 @@
 [ext_resource type="Script" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_location_data.gd" id="3_rstuv"]
 
 [sub_resource type="SphereShape3D" id="SphereShape3D_1"]
-radius = 0.3
+radius = 0.25
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_1"]
-albedo_color = Color(0.823529, 0.705882, 0.54902, 1)
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_skin"]
+albedo_color = Color(0.66, 0.51, 0.33, 1)
+roughness = 0.9
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_eye"]
+albedo_color = Color(0.3, 0.22, 0.13, 1)
+roughness = 0.9
 
 [node name="Potato" type="Node3D"]
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+position = Vector3(0, 0.2, 0)
 shape = SubResource("SphereShape3D_1")
 
-[node name="CSGSphere3D" type="CSGSphere3D" parent="."]
+[node name="Body" type="CSGSphere3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.8, 0, 0, 0, 1.15, 0, 0.2, 0)
 radius = 0.25
-material = SubResource("StandardMaterial3D_1")
+material = SubResource("StandardMaterial3D_skin")
+
+[node name="Eye1" type="CSGSphere3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.12, 0.3, 0.2)
+radius = 0.035
+material = SubResource("StandardMaterial3D_eye")
+
+[node name="Eye2" type="CSGSphere3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.14, 0.24, 0.21)
+radius = 0.035
+material = SubResource("StandardMaterial3D_eye")
+
+[node name="Eye3" type="CSGSphere3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.02, 0.12, 0.26)
+radius = 0.035
+material = SubResource("StandardMaterial3D_eye")
 
 [node name="Label3D" type="Label3D" parent="."]
 text = "Potato"
+billboard = 1
 pixel_size = 0.01
+modulate = Color(1, 1, 1, 0.35)
 position = Vector3(0, 0.5, 0)
 
 [node name="GdPAIObjectData" type="Node" parent="." node_paths=PackedStringArray("entity", "interactable_attribs", "location_data")]

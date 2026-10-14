@@ -1,0 +1,31 @@
+[gd_scene format=3]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_skin"]
+albedo_color = Color(0.66, 0.51, 0.33, 1)
+roughness = 0.9
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_eye"]
+albedo_color = Color(0.3, 0.22, 0.13, 1)
+roughness = 0.9
+
+[node name="HeldPotatoRaw" type="Node3D"]
+
+[node name="Body" type="CSGSphere3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.8, 0, 0, 0, 1.15, 0, 0, 0)
+radius = 0.25
+material = SubResource("StandardMaterial3D_skin")
+
+[node name="Eye1" type="CSGSphere3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.12, 0.1, 0.2)
+radius = 0.035
+material = SubResource("StandardMaterial3D_eye")
+
+[node name="Eye2" type="CSGSphere3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.14, 0.04, 0.21)
+radius = 0.035
+material = SubResource("StandardMaterial3D_eye")
+
+[node name="Eye3" type="CSGSphere3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.02, -0.08, 0.26)
+radius = 0.035
+material = SubResource("StandardMaterial3D_eye")

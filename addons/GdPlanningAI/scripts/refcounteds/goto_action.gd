@@ -4,10 +4,15 @@ extends Action
 ## This action provides a wildcard `at_target` provision that can satisfy
 ## any interaction action requiring the agent to be at a specific location.
 
-## Arrival distance threshold for 2D navigation (pixels).
+## Minimum progress over [constant STUCK_WINDOW] for 2D navigation (pixels).
 const ARRIVAL_THRESHOLD_2D: float = 8.0
-## Arrival distance threshold for 3D navigation (meters).
+## Minimum progress over [constant STUCK_WINDOW] for 3D navigation (meters).
 const ARRIVAL_THRESHOLD_3D: float = 0.1
+## Seconds the agent may make less than the minimum progress before it counts as stuck.
+const STUCK_WINDOW: float = 1.0
+## A stuck agent within this many [code]target_desired_distance[/code]s of its path's end
+## has arrived as close as it can get; further away, the action fails so the agent replans.
+const STUCK_ARRIVAL_FACTOR: float = 2.0
 
 
 ## Returns the [NavigationAgent2D] or [NavigationAgent3D] child of [param entity],
@@ -160,7 +165,7 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	set_state(agent, "target_set", false)
 	set_state(agent, "target_reached", false)
 	set_state(agent, "time_elapsed", 0.0)
-	set_state(agent, "prior_positions", [agent_location_data.position])
+	set_state(agent, "prior_positions", [])
 	set_state(agent, "target_orig_position", target_location.position)
 
 	return Action.Status.SUCCESS
@@ -176,17 +181,17 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 	var dist_check: float = get_state(agent, "dist_check")
 	var target_orig_position = get_state(agent, "target_orig_position")
 
-	# Maintain a list of prior positions to check if the agent isn't moving.
-	var prior_positions: Array = get_state(agent, "prior_positions")
-	prior_positions.append(agent_location_data.position)
-	if prior_positions.size() > 60:
-		prior_positions.pop_front()
-	set_state(agent, "prior_positions", prior_positions)
-
 	# Keep track of how long we've been actively pursuing this target.
 	var time_elapsed: float = get_state(agent, "time_elapsed")
 	time_elapsed += delta
 	set_state(agent, "time_elapsed", time_elapsed)
+
+	# Keep [time, position] samples covering the last STUCK_WINDOW seconds.
+	var prior_positions: Array = get_state(agent, "prior_positions")
+	prior_positions.append([time_elapsed, agent_location_data.position])
+	while prior_positions.size() > 1 and time_elapsed - prior_positions[1][0] >= STUCK_WINDOW:
+		prior_positions.pop_front()
+	set_state(agent, "prior_positions", prior_positions)
 
 	# Begin walking to the target on the first action frame.
 	if not get_state(agent, "target_set"):
@@ -194,18 +199,37 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 		set_state(agent, "target_set", true)
 
 	# Terminating conditions.
-	var dist_traveled: float = (
-		(prior_positions[-1] - prior_positions[0]).length() * delta * prior_positions.size()
+	if nav_agent.is_navigation_finished():
+		return _finish(agent, nav_agent, agent_location_data, Action.Status.SUCCESS)
+
+	var oldest: Array = prior_positions[0]
+	var stuck: bool = (
+		time_elapsed - oldest[0] >= STUCK_WINDOW
+		and (agent_location_data.position - oldest[1]).length() < dist_check
 	)
-	if (
-		nav_agent.is_navigation_finished()
-		or (prior_positions.size() == 60 and dist_traveled < dist_check)
-	):
-		set_state(agent, "target_reached", true)
-		return Action.Status.SUCCESS
+	if stuck:
+		# Blocked (by another agent, or an obstacle the navmesh does not carve). Only count it
+		# as arrival when the agent is about as close as its path allows.
+		var to_end: float = agent_location_data.position.distance_to(nav_agent.get_final_position())
+		if to_end <= nav_agent.target_desired_distance * STUCK_ARRIVAL_FACTOR:
+			return _finish(agent, nav_agent, agent_location_data, Action.Status.SUCCESS)
+		return _finish(agent, nav_agent, agent_location_data, Action.Status.FAILURE)
 
 	# Continue navigating.
 	return Action.Status.RUNNING
+
+
+## Stops navigation and records whether the target was reached. Returns [param status].
+func _finish(
+	agent: GdPAIAgent,
+	nav_agent: Node,
+	agent_location_data: GdPAILocationData,
+	status: Action.Status,
+) -> Action.Status:
+	# post_perform_action only runs when the whole plan ends, so stop walking now.
+	nav_agent.target_position = agent_location_data.position
+	set_state(agent, "target_reached", status == Action.Status.SUCCESS)
+	return status
 
 
 # Override
