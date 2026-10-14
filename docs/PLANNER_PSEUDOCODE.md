@@ -6,7 +6,14 @@ ______________________________________________________________________
 
 ## 1. Architecture
 
-| Layer | Role | |-------|------| | **Symbolic** | Requirements ↔ Provisions (causal links, backward chaining) | | **Simulation** | GDScript callbacks for costs, effects, custom preconditions | | **Search** | Dijkstra (uniform-cost) via `SearchHeuristic`; A\* placeholder | | **Async** | Every callback yields `Pending(id)`; node parked, resumed on response. Budget or time-slice exhaustion yields `Pending(0)`, resumed unconditionally | | **Threading** | Planner on Rayon pool; callbacks on Godot main thread. Godot values are converted to Send-safe snapshots on the main thread; the engine is moved (never shared) between worker and main thread | | **Multi-Goal** | Goals sorted by reward desc. Pre-filter: satisfied goals dropped. If ALL satisfied → empty plan for highest-reward. If ANY unsatisfied → search only unsatisfied. |
+| Layer          | Role                                                                                                                                                                                           |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Symbolic**   | Requirements ↔ Provisions (causal links, backward chaining)                                                                                                                                    |
+| **Simulation** | GDScript callbacks for costs, effects, custom preconditions                                                                                                                                    |
+| **Search**     | Dijkstra (uniform-cost) via `SearchHeuristic`; A\* placeholder                                                                                                                                 |
+| **Async**      | Every callback yields `Pending(id)`; node parked, resumed on response. Budget or time-slice exhaustion yields `Pending(0)`, resumed unconditionally                                            |
+| **Threading**  | Planner on Rayon pool; callbacks on Godot main thread. Godot values are converted to Send-safe snapshots on the main thread; the engine is moved (never shared) between worker and main thread |
+| **Multi-Goal** | Goals sorted by reward desc. Pre-filter: satisfied goals dropped. If ALL satisfied → empty plan for highest-reward. If ANY unsatisfied → search only unsatisfied.                              |
 
 ______________________________________________________________________
 
@@ -382,7 +389,10 @@ ______________________________________________________________________
 
 ## 10. Termination
 
-| Strategy | Behavior | |----------|----------| | `FirstComplete` | Return first valid plan | | `BestCost` | Exhaust search (prune via `heuristic.prune_threshold_met`) |
+| Strategy        | Behavior                                                   |
+| --------------- | ---------------------------------------------------------- |
+| `FirstComplete` | Return first valid plan                                    |
+| `BestCost`      | Exhaust search (prune via `heuristic.prune_threshold_met`) |
 
 Default: **BestCost** + Dijkstra.
 

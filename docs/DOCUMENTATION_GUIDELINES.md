@@ -180,4 +180,13 @@ ______________________________________________________________________
 
 ## Docstring Quick Reference
 
-| Language | Tag | Purpose | |----------|-----|---------| | GDScript | `[param name]` | Parameter reference | | GDScript | `[member name]` | Class member reference | | GDScript | `[ClassName]` | Type reference | | GDScript | `[code]...[/code]` | Inline code | | GDScript | `[b]...[/b]` | Bold/emphasis | | GDScript | `[br]` | Line break | | Rust | `` [`Type`] `` | Type cross-reference | | Rust | `` [`crate::mod::Type`] `` | Full path reference |
+| Language | Tag                        | Purpose                |
+| -------- | -------------------------- | ---------------------- |
+| GDScript | `[param name]`             | Parameter reference    |
+| GDScript | `[member name]`            | Class member reference |
+| GDScript | `[ClassName]`              | Type reference         |
+| GDScript | `[code]...[/code]`         | Inline code            |
+| GDScript | `[b]...[/b]`               | Bold/emphasis          |
+| GDScript | `[br]`                     | Line break             |
+| Rust     | `` [`Type`] ``             | Type cross-reference   |
+| Rust     | `` [`crate::mod::Type`] `` | Full path reference    |
