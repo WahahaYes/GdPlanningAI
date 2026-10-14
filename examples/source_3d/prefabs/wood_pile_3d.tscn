@@ -10,9 +10,18 @@ size = Vector3(1.7, 1.5, 1.5)
 
 [node name="WoodPile" type="Node3D" unique_id=117062979]
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=738325746]
+[node name="Body" type="StaticBody3D" parent="."]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Body" unique_id=738325746]
 position = Vector3(0, 0.75, 0)
 shape = SubResource("BoxShape3D_1")
+
+[node name="NavObstacle" type="NavigationObstacle3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+height = 2.5
+vertices = PackedVector3Array(0.95, 0, 0.85, -0.95, 0, 0.85, -0.95, 0, -0.85, 0.95, 0, -0.85)
+affect_navigation_mesh = true
+avoidance_enabled = false
 
 [node name="LogStack" parent="." instance=ExtResource("4_stack")]
 

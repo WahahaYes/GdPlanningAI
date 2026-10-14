@@ -8,7 +8,7 @@
 
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_1"]
 height = 0.3
-radius = 0.8
+radius = 0.6
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ember"]
 shading_mode = 0
@@ -82,9 +82,18 @@ label_node = NodePath("./Label3D")
 fire_primitive = NodePath("./Fire")
 fire_light = NodePath("./OmniLight3D")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1108298127]
+[node name="Body" type="StaticBody3D" parent="."]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Body" unique_id=1108298127]
 position = Vector3(0, 0.15, 0)
 shape = SubResource("CylinderShape3D_1")
+
+[node name="NavObstacle" type="NavigationObstacle3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+height = 2.0
+vertices = PackedVector3Array(0.7391, 0, 0.3061, 0.3061, 0, 0.7391, -0.3061, 0, 0.7391, -0.7391, 0, 0.3061, -0.7391, 0, -0.3061, -0.3061, 0, -0.7391, 0.3061, 0, -0.7391, 0.7391, 0, -0.3061)
+affect_navigation_mesh = true
+avoidance_enabled = false
 
 [node name="Log1" parent="." instance=ExtResource("5_woodlog")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.28, 0)
