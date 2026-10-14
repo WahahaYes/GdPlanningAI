@@ -1,26 +1,13 @@
 class_name PickupAction
 extends Action
-## An action that picks up a holdable item.
-## This action requires the agent to be at the target location (via at_target fact)
-## and does NOT handle navigation itself - that's handled by GoToAction.[br]
-##[br]
-## This is the clearest example of requirements and provisions working with a
-## precondition. The planner reads it as "to pick up this item I need [code]at_target[/code]
-## for its location (requirement), I give you [code]held_item = <id>[/code] and, for
-## food, [code]is_food[/code] (provisions)". Go To satisfies the first; [EatHeldFoodAction]
-## consumes the second. The precondition [code]held_item == ""[/code] is separate and
-## simpler: it is only a check of the simulated agent, so a full hand blocks the pick-up
-## until something empties it.[br]
-##[br]
-## The item is freed on success, so a second agent racing for the same item fails
-## its [method perform_action] and replans. There is no reservation by design; the
-## examples keep contention simple rather than modelling who claimed what.
+## Picks up a holdable item, freeing it. Navigation is GoTo's job, via [code]at_target[/code].[br]
+## Provides [code]held_item = <item_id>[/code], plus [code]is_food[/code] for items in the
+## [code]Food[/code] group. Items are not reserved: an agent arriving second fails and replans.
 
-## Reference to the holdable item that provided this action.
+## The item that offers this action.
 var holdable_item: HoldableObject
-## The location data for this item - used to specify the at_target requirement.
+## The item's location, named in the [code]at_target[/code] requirement.
 var object_location: GdPAILocationData
-## Reference to the GdPAI interactable attributes.
 var interactable_attribs: GdPAIInteractable
 
 
@@ -40,14 +27,12 @@ func get_action_cost(
 	_agent_blackboard: GdPAIBlackboard,
 	_world_state: GdPAIBlackboard,
 ) -> float:
-	# Interaction cost is minimal - navigation is handled by GoToAction. Because Go To's
-	# cost scales with distance, a nearer item wins over a farther one.
+	# GoTo's distance-based cost decides between items.
 	return 1.0
 
 
 # Override
 func get_validity_checks() -> Array[Precondition]:
-	# The item may be freed (picked up by someone else) between plans; this withdraws it.
 	var checks: Array[Precondition] = []
 	checks.append(Precondition.check_is_object_valid(holdable_item))
 	checks.append(Precondition.check_is_object_valid(object_location))
@@ -62,7 +47,6 @@ func get_preconditions() -> Array[Precondition]:
 
 # Override
 func get_requirements() -> Array[RequirementSpec]:
-	# Require that the agent is at this specific object's location
 	if object_location != null:
 		return [RequirementSpec.fact("at_target", [object_location])]
 	return []
@@ -70,9 +54,6 @@ func get_requirements() -> Array[RequirementSpec]:
 
 # Override
 func get_provisions() -> Array[ProvisionSpec]:
-	# Provide the held_item binding that EatHeldFoodAction requires.
-	# Also provide an 'is_food' fact if this object belongs to the Food group. That
-	# group label is how the example separates edible items from carried materials.
 	var provs: Array[ProvisionSpec] = [ProvisionSpec.binding("held_item", holdable_item.item_id)]
 	if is_instance_valid(holdable_item) and holdable_item.is_in_group("Food"):
 		provs.append(ProvisionSpec.fact("is_food", []))
@@ -84,7 +65,6 @@ func simulate_effect(
 	agent_blackboard: GdPAIBlackboard,
 	_world_state: GdPAIBlackboard,
 ) -> void:
-	# Ensure the holdable item is still valid
 	if not is_instance_valid(holdable_item) or not is_instance_valid(holdable_item.entity):
 		return
 
@@ -93,7 +73,6 @@ func simulate_effect(
 
 # Override
 func pre_perform_action(_agent: GdPAIAgent) -> Action.Status:
-	# Check if the holdable item is still valid
 	if not is_instance_valid(holdable_item) or not is_instance_valid(holdable_item.entity):
 		return Action.Status.FAILURE
 	return Action.Status.SUCCESS
@@ -101,12 +80,9 @@ func pre_perform_action(_agent: GdPAIAgent) -> Action.Status:
 
 # Override
 func perform_action(agent: GdPAIAgent, _delta: float) -> Action.Status:
-	# Check if the holdable item is still valid
 	if not is_instance_valid(holdable_item) or not is_instance_valid(holdable_item.entity):
 		return Action.Status.FAILURE
 
-	# Agent should already be at the location (GoToAction handled navigation)
-	# Just pick up the item
 	agent.blackboard.set_property("held_item", holdable_item.item_id)
 	holdable_item.entity.queue_free()
 	return Action.Status.SUCCESS

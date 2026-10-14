@@ -38,22 +38,19 @@ Design principle: requirements express *what* you need, provisions express *what
 
 ## Threading and Timing Rules
 
-Where each hook runs decides what it may touch:
+All hooks run on the main thread.
 
-| Hook | When | Thread | Scene tree? |
-|--|--|--|--|
-| `get_validity_checks`, `get_preconditions`, `get_requirements`, `get_provisions`, `get_title`, `Goal.compute_reward`, `Goal.get_desired_state`, `GdPAIObjectData.get_provided_actions`, `get_sim_properties` | Once per plan request, when the agent submits it | Main | Yes, but keep them cheap |
-| `get_action_cost`, `simulate_effect`, custom precondition callables | Many times during the search, called back by the plan scheduler from the autoload's per-frame update | Main (the search itself runs on a worker thread and waits) | No: use the blackboards and `SimObjectProxy` snapshots only; no `await` |
-| `pre_perform_action` | Once per action at the start of a new plan, in chain order, before any `perform_action` | Main | Yes |
-| `perform_action` | Every frame while the action is the current step | Main | Yes |
-| `post_perform_action` | Once for every action, only when the whole plan ends (completed or aborted) | Main | Yes |
+| Hook | When | Scene tree? |
+|--|--|--|
+| `get_*` on actions, goal hooks, `get_provided_actions`, `get_sim_properties` | Once per plan request | Yes, keep cheap |
+| `get_action_cost`, `simulate_effect`, custom preconditions | Many times per search | No: snapshots only, no `await` |
+| `pre_perform_action` | Once per action when a plan starts, before any `perform_action` | Yes |
+| `perform_action` | Every frame while the action is current | Yes |
+| `post_perform_action` | Once per action when the whole plan ends | Yes |
 
-Consequences for execution code:
-
-- A `FAILURE` from `pre_perform_action` stops the remaining pre-hooks, skips execution and goes straight to the `post_perform_action` phase.
-- `post_perform_action` does not run when a single action finishes. An action that must stop something at its own end (such as `GoToAction` clearing the navigation target) has to do it in `perform_action` before returning `SUCCESS` or `FAILURE`. Replacing a running plan with a new one (for example `ON_INTERVAL_FORCED` or `manually_start_plan`) does not run the old plan's `post_perform_action`.
-- Per-run data belongs in `set_state`/`get_state`/`erase_state`, which are keyed by the action instance id and its chain position, so repeated occurrences do not collide. Return a fresh instance from `clone_for_plan()` if the action keeps member variables that must not be shared.
-- If an action defines `inject_binding(fact_name, values)`, the agent calls it before each execution hook with the objects the planner bound to the action's wildcard provisions.
+- `post_perform_action` does not run when a single action finishes, nor when a new plan replaces a running one. Stop per-action work (like navigation) in `perform_action`.
+- Keep per-run data in `set_state`, keyed by instance and chain position. If the action has mutable members, return a copy from `clone_for_plan()`.
+- An action may define `inject_binding(fact_name, values)` to receive the objects the planner bound to its wildcard provisions.
 
 ## World Objects: Exposing Actions and State
 
@@ -63,7 +60,7 @@ Actions provided by the object typically require `at_target` (via the object's l
 
 ## Behavior Composition
 
-A `GdPAIBehaviorConfig` bundles goals, actions, and property updaters into a reusable module. `_populate(goals, actions, updaters)` appends to the passed arrays. An agent's `GdPAIAgentConfig` resource holds an array of behavior configs. At runtime, the agent merges all behaviors: goals, actions, and updaters from each. Several behaviors may each add a `GoToAction`; the agent does not deduplicate actions, so prefer adding it from one behavior or accept the duplicates. Property names must not conflict across behaviors (two behaviors writing `hunger` would fight). The config resource is assigned in the inspector; no code wiring needed.
+A `GdPAIBehaviorConfig` bundles goals, actions, and property updaters into a reusable module. `_populate(goals, actions, updaters)` appends to the passed arrays. An agent's `GdPAIAgentConfig` resource holds an array of behavior configs. At runtime, the agent merges all behaviors: goals, actions, and updaters from each. The agent does not deduplicate actions, so two behaviors adding a `GoToAction` give the agent two. Property names must not conflict across behaviors (two behaviors writing `hunger` would fight). The config resource is assigned in the inspector; no code wiring needed.
 
 ## Built-in Base Classes
 
@@ -75,7 +72,7 @@ The addon (`addons/GdPlanningAI/`) provides base classes you extend to create be
 
 **PropertyUpdater** is the base for things that modify agent properties over time (hunger decay, stamina regen). Override `initialize(agent)` (called once when the behavior is applied) and `update_properties(agent, delta)` (called every frame on the main thread, never during planning).
 
-**GoToAction** is the default navigation action. The entity must contain one `NavigationAgent2D` or `NavigationAgent3D` and the agent a `GdPAILocationData`. It succeeds when the navigation agent reports it is finished; if the agent makes almost no progress for `STUCK_WINDOW` (1 s) it succeeds when within `STUCK_ARRIVAL_FACTOR` (2) x `target_desired_distance` of the path end and otherwise fails so the agent replans. It stops navigation as soon as it finishes. It provides `fact_wildcard("at_target")` so any interaction action can require `fact("at_target", [location])` and the planner chains navigation automatically. For a custom movement system (grid, flying, swimming), subclass `GoToAction` or write your own action that provides `fact_wildcard("at_target")` and computes cost appropriately.
+**GoToAction** is the default navigation action; the entity needs a `NavigationAgent2D`/`3D` and a `GdPAILocationData`. A stuck agent counts as arrived near its path end and fails otherwise, so it replans. It provides `fact_wildcard("at_target")` so any interaction action can require `fact("at_target", [location])` and the planner chains navigation automatically. For a custom movement system (grid, flying, swimming), subclass `GoToAction` or write your own action that provides `fact_wildcard("at_target")` and computes cost appropriately.
 
 **Action** and **Goal** are the base classes you extend for all custom actions and goals.
 

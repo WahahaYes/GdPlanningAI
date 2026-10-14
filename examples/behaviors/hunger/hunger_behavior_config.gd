@@ -1,30 +1,11 @@
 class_name HungerBehaviorConfig
 extends GdPAIBehaviorConfig
-## Behavior configuration that gives an agent hunger and a goal to eat food.
-##[br]
-##[br]
-## This is the first thing to read when learning how a behavior is packaged. One
-## [GdPAIBehaviorConfig] bundles everything a single concern needs: a [HungerGoal] that
-## says what the agent wants, an [EatHeldFoodAction] that can satisfy it, a [GoToAction]
-## for walking, and a [HungerPropertyUpdater] that makes the [code]hunger[/code]
-## blackboard property exist and grow. Listing the pieces in one resource means a scene
-## designer adds or removes the whole concern in the agent config instead of wiring four
-## scripts by hand.[br]
-##[br]
-## An agent config lists several behavior configs and the agent merges them: it calls
-## [method GdPAIBehaviorConfig.apply_to_agent] on each in order, appending every goal,
-## self action and updater to its own lists. The planner then chooses among all goals.
-## [code]campfire_agent_config.tres[/code] pairs this config with
-## [CampfireBehaviorConfig]; [code]hunger_wander_agent_config.tres[/code] pairs it with
-## [WanderBehaviorConfig]. Each config registers its own [GoToAction] so it still works
-## when used alone.[br]
-##[br]
-## The exported values are tuning knobs that reach the pieces through their
-## constructors, so the goal and action scripts stay free of scene specifics.
-## See [member hunger_decay] and [member initial_hunger] for the tunables.
+## Hunger behavior: a [HungerGoal], an [EatHeldFoodAction], a [GoToAction] and a
+## [HungerPropertyUpdater], packaged so a scene adds or removes the whole concern at once.[br]
+## An agent config can list several behavior configs; the agent merges their goals, actions
+## and updaters, and the planner picks among all goals.
 
-## How much hunger rises per second. Hunger counts up (0 is full, 100 is starving), so
-## the property updater adds this each second rather than subtracting it.
+## Hunger gained per second (0 is full, 100 is starving).
 @export var hunger_decay: float = 1.25
 ## Starting hunger value on agent initialization.
 @export var initial_hunger: float = 0.0
@@ -33,9 +14,9 @@ extends GdPAIBehaviorConfig
 	"banana": 20.0,
 	"cooked_potato": 50.0,
 }
-## How long the self-eating action should take in seconds.
+## Seconds to eat.
 @export var eat_duration: float = 1.5
-## Planning-only hunger restore assumed before a held item provider is bound.
+## Hunger the simulation restores before a held item is bound.
 @export var optimistic_unbound_restore: float = 20.0
 
 
@@ -46,11 +27,8 @@ func _populate(
 	updaters: Array[PropertyUpdater],
 ) -> void:
 	goals.append(HungerGoal.new())
-	# Every interaction action requires an at_target fact and only GoToAction provides
-	# it, so any agent that interacts with objects needs this in its self actions.
+	# Provides at_target, which every interaction action requires.
 	actions.append(GoToAction.new())
-	# Eating acts on the agent itself (the held item), so it is a self action registered
-	# here rather than an action provided by a world object.
 	(
 		actions
 		. append(

@@ -1,19 +1,9 @@
 class_name PotatoSpawner3D
 extends Node
-## Keeps a renewable supply of potatoes inside a box, away from the campfires.
-##[br]
-##[br]
-## 3D counterpart of [PotatoSpawner2D]; see it for why potatoes need replacing. The extra
-## work here is the campfire exclusion. Campfires carve a hole in the baked navigation
-## mesh, so a potato that landed inside or right at the edge of one would be a target
-## the agent cannot reach. Each spawn therefore draws candidate points and takes the
-## first one at least [member campfire_exclusion_radius] from every fire, falling back
-## to the best candidate after [member exclusion_attempts] tries so a crowded area never
-## stalls the spawner. Campfire positions are gathered once on ready because fires do
-## not move.[br]
-##[br]
-## Only campfires are excluded. Wood piles also carve the navmesh but lie inside the
-## spawn area in the 3D scenes, so a potato can occasionally land beside or inside one.
+## 3D [PotatoSpawner2D] that avoids campfires: their carved navmesh would make a potato inside
+## one unreachable. Each spawn takes the first candidate at least
+## [member campfire_exclusion_radius] from every fire, or the best of
+## [member exclusion_attempts]. Wood piles are not excluded.
 
 ## Potato scene instantiated by this spawner.
 @export var potato_scene: PackedScene

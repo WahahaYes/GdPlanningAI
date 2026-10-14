@@ -17,14 +17,10 @@ pub struct PlanResult {
     pub total_cost: f64,
     /// Index into the original goals array passed from GDScript; -1 on failure
     pub goal_index: i64,
-    /// Indices of actions that used placeholder simulation (requirements unresolved at eval time).
-    /// These may need re-simulation with actual cost/effects for accurate planning.
-    ///
-    /// Reserved: the engine currently never populates this, so it is always empty.
+    /// Reserved; the engine never populates it.
     pub deferred_action_indices: Vec<i64>,
-    /// Action-specific bindings: chain_position -> (fact_name, values)
-    /// Each action occurrence gets its own bound values from wildcard provisions during planning.
-    /// A position can appear several times (one entry per binding name).
+    /// `(chain_position, fact_name, values)` bound for each action occurrence; a position can
+    /// appear once per binding name.
     pub action_bindings: Vec<(i64, String, Vec<crate::snapshot::VariantSnapshot>)>,
 }
 

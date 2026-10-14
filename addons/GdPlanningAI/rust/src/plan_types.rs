@@ -18,22 +18,14 @@ use std::sync::mpsc::Sender;
 /// "no outstanding request" sentinel in [`PlannerRunResult::Pending`].
 static NEXT_REQUEST_ID: AtomicUsize = AtomicUsize::new(1);
 
-/// Generates a globally unique ID for a planner-to-main-thread callback request.
-///
-/// Ids are unique across all jobs, so a stray answer can never be mistaken for another
-/// request's.
+/// Returns a callback request id unique across all jobs.
 pub fn next_request_id() -> usize {
     NEXT_REQUEST_ID.fetch_add(1, Ordering::SeqCst)
 }
 
-/// Send-safe mirror of [`crate::precondition::PreconditionHandler`].
-///
-/// Builtin operations carry their data directly and can be evaluated
-/// without any channel round-trip. Custom callbacks store
-/// a `callable_id` that the main thread resolves via the callable registry.
-///
-/// Implements `Hash`/`Eq` so specs can key the discovery caches and take part in branch
-/// fingerprints.
+/// Send-safe mirror of [`crate::precondition::PreconditionHandler`]. Builtins carry their
+/// data; custom ones carry a `callable_id` resolved on the main thread. Hashable, so specs can
+/// key caches and fingerprints.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum PreconditionSpec {
     /// A comparison the engine evaluates itself against the snapshots.
@@ -58,14 +50,8 @@ pub enum PreconditionSpec {
 }
 
 impl PreconditionSpec {
-    /// Evaluate a builtin precondition directly against snapshots.
-    ///
-    /// Returns `None` for `Custom` variants — the caller must use the
-    /// callback channel instead.
-    ///
-    /// Numeric comparisons treat ints and floats alike and use a 1e-4 tolerance. A missing
-    /// property compares as nil; `WorldObjectProxy` targets hold if any object in the group
-    /// satisfies the comparison.
+    /// Evaluates a builtin precondition against snapshots; `None` for `Custom` (use a callback).
+    /// Numbers compare with a 1e-4 tolerance; group targets hold if any object in the group matches.
     pub fn evaluate_builtin(
         &self,
         agent: &BlackboardSnapshot,
@@ -188,9 +174,8 @@ fn eval_builtin_on_snapshot(
     }
 }
 
-/// Equality check mirroring the main-thread `PreconditionHandler` semantics for non-numeric
-/// values: nil equals an empty string, ints and floats compare numerically, and other types
-/// compare only within the same variant. A missing property is treated as nil.
+/// Equality with main-thread semantics: nil equals an empty string, ints and floats compare
+/// numerically, other types only within the same variant.
 fn snap_equal(
     source: &BlackboardSnapshot,
     property_name: &str,
@@ -221,9 +206,8 @@ fn snap_equal(
     }
 }
 
-/// Applies `operation` to a property and a comparison value. Both are compared as numbers when
-/// possible (with a 1e-4 tolerance); otherwise only `Equal` and `NotEqual` are meaningful and
-/// the rest evaluate to false.
+/// Applies `operation` numerically (1e-4 tolerance) when possible; otherwise only `Equal` and
+/// `NotEqual` can hold.
 fn snap_compare_all(
     source: &BlackboardSnapshot,
     property_name: &str,
@@ -304,10 +288,8 @@ pub struct GoalSpec {
     pub original_index: usize,
 }
 
-/// Sent from planner thread → main thread.
-///
-/// The main thread runs `callable_id` from the job's registry on the snapshots in `kind` and
-/// answers on `response_tx` with the same `request_id`.
+/// Planner → main thread: run `callable_id` on the snapshots in `kind` and answer on
+/// `response_tx` with the same `request_id`.
 pub struct CallbackRequest {
     /// Id the answer is matched against; unique process-wide (see [`next_request_id`]).
     pub request_id: usize,
@@ -345,10 +327,8 @@ pub enum PlannerRunResult {
     Pending(usize),
 }
 
-/// What the main thread should do with the callable.
-///
-/// The snapshots are converted back into live blackboards on the main thread, which is why
-/// the request carries snapshots rather than blackboards.
+/// What the main thread should do with the callable. Carries snapshots, rebuilt into
+/// blackboards on the main thread.
 pub enum CallbackKind {
     /// Call `cost_callable(agent, world)` → return `Float(f64)`.
     /// Bindings are pre-injected into `agent` before the call.

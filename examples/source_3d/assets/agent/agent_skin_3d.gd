@@ -1,25 +1,8 @@
 extends Node3D
-## Swappable skin for the 3D agent: instances a KayKit Adventurers character
-## and animates it with the shared Rig_Medium packs.
-##[br]
-##[br]
-## [member skin_scene] points at a character `.glb` directly (all Adventurers
-## share one skeleton, so any of them accepts the same clips). The character
-## is instanced at runtime as [code]Body[/code]; pack tracks are duplicated
-## once into a shared cache with their paths prefixed to match. Swap skins by
-## setting [member skin_scene] or calling [method set_skin] — locomotion and
-## carry behavior never live in the art.
-##[br]
-##[br]
-## Polls [member entity] horizontal speed each frame: above
-## [member walk_threshold] plays [member walk_animation], otherwise
-## [member idle_animation].[br]
-##[br]
-## Presentation only. The animation follows the body's velocity, the same signal the
-## nav controller produces, so the skin never needs to know what the planner is doing
-## and any character can be swapped in. Agents spawned by the large scene get a different
-## skin each through [method set_skin]. The animation clips are built once into a static
-## cache and shared, because every agent would otherwise duplicate the same tracks.
+## Swappable 3D agent skin: instances a KayKit Adventurers character as [code]Body[/code] and
+## plays idle or walk from [member entity]'s horizontal speed. Presentation only.[br]
+## All Adventurers share one skeleton, so the Rig_Medium clips are remapped once into a shared
+## cache. Swap looks with [member skin_scene] or [method set_skin].
 
 ## Default Knight character visual.
 const KNIGHT_SKIN: PackedScene = preload(
@@ -103,9 +86,7 @@ func set_skin(pack: PackedScene) -> void:
 	_play(idle_animation)
 
 
-## Forces looping on the locomotion pair. Imported Rig_Medium clips all
-## arrive LOOP_NONE, so without this both idle and walk freeze after one
-## pass. One-shots (PickUp, Throw, ...) keep their imported mode.
+## Forces looping on idle and walk; imported Rig_Medium clips arrive as LOOP_NONE.
 func _loop_locomotion_clips() -> void:
 	for clip_name in [idle_animation, walk_animation]:
 		if _clip_cache.has(clip_name):

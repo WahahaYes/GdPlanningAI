@@ -1,24 +1,8 @@
-//! Structured debug tree for planner search visualization.
+//! Search tree recorded for debugging when the log level is [`LogLevel::Debug`]; exposed as
+//! `get_debug_tree` on the scheduler. The search never reads it back.
 //!
-//! When log level is [`LogLevel::Debug`] at the time the engine is created, the planner
-//! records a full search tree during backward search, plus the steps of forward verification
-//! on the nodes they concern. Below Debug nothing is recorded, apart from a branch counter
-//! that backs the one-line summary logged at Info. The tree is formatted as human-readable
-//! text and exposed to GDScript as `get_debug_tree` on the scheduler; it is never printed
-//! automatically.
-//!
-//! The tree is a debugging aid only: the search never reads it back, so recording cannot
-//! change planning results.
-//!
-//! ## Design
-//!
-//! Uses a flat, ID-based API designed for the iterative search loop:
-//! - Nodes are allocated in a flat `Vec` and referenced by opaque `usize` IDs.
-//! - `add_child(parent_id, ...)` creates a child node and returns its ID.
-//! - `set_outcome(id, outcome)` updates any node's outcome after processing.
-//! - `exclude_action(id, ...)` records excluded actions on a specific node.
-//!
-//! This avoids the cursor/stack model that only works with recursive traversal.
+//! Nodes live in a flat `Vec` and are addressed by `usize` id, which suits the iterative search
+//! loop.
 
 use crate::logger::LogLevel;
 
@@ -70,10 +54,7 @@ pub struct TreeNode {
     pub children: Vec<usize>,
 }
 
-/// Builder for TreeNode child creation to reduce argument count.
-///
-/// Not used by the engine, which passes a [`ChildNodeConfig`] to [`TreeDump::add_child`]
-/// instead.
+/// Builder for child-node arguments. Unused by the engine, which passes a [`ChildNodeConfig`].
 #[derive(Debug, Default)]
 pub struct ChildNodeBuilder {
     action_name: Option<String>,
@@ -151,9 +132,7 @@ impl ChildNodeBuilder {
     }
 }
 
-/// An action that was considered but excluded from candidates.
-///
-/// Recorded through [`TreeDump::exclude_action`]; the engine does not currently call it.
+/// An action considered but excluded from candidates. The engine does not record these yet.
 #[derive(Clone, Debug)]
 pub struct ExcludedAction {
     /// Name of the rejected action.
@@ -218,11 +197,8 @@ pub struct ChildNodeConfig<'a> {
     pub satisfied_req: &'a [String],
 }
 
-/// Structured debug tree builder for planning search visualization.
-///
-/// When disabled every recording method returns immediately (node-creating methods return
-/// ID 0), so the engine can call them unconditionally without a cost or behavior difference.
-/// One dump covers all goals of a planning run.
+/// Debug tree builder. When disabled, every method returns immediately (ids are 0), so the
+/// engine calls them unconditionally. One dump covers all goals of a run.
 pub struct TreeDump {
     enabled: bool,
     /// All tree nodes, indexed by their opaque ID.
@@ -330,9 +306,7 @@ impl TreeDump {
         }
     }
 
-    /// Create the root node for the current goal. Returns the node ID.
-    /// Must be called after `begin_goal`. Counts towards the branch summary even when
-    /// recording is disabled.
+    /// Creates the root node for the current goal (after `begin_goal`) and returns its id.
     pub fn add_root(&mut self, open_pre: &[String], open_req: &[String]) -> usize {
         self.branch_count += 1;
         if !self.enabled {
@@ -430,9 +404,7 @@ impl TreeDump {
         }
     }
 
-    /// Format the tree as a human-readable string: one section per goal with the indented
-    /// search tree, the result line and the branch/time summary. Empty when recording is off
-    /// or no goal was started.
+    /// Formats the tree, one section per goal. Empty when recording is off.
     pub fn format(&self) -> String {
         if !self.enabled || self.goal_attempts.is_empty() {
             return String::new();
@@ -475,11 +447,8 @@ impl TreeDump {
     }
 }
 
-/// Appends `node_id` and its subtree to `output`, drawing box-drawing guides.
-///
-/// `has_more[d]` records whether the ancestor at depth `d` still has later siblings, which
-/// decides between a `│` guide and blank space in the indentation of deeper lines. The array
-/// is fixed-size, so trees deeper than its length are not supported.
+/// Appends `node_id` and its subtree to `output`. `has_more[d]` says whether the ancestor at
+/// depth `d` has later siblings (draw `│` or a blank).
 fn format_node(
     output: &mut String,
     tree: &TreeDump,

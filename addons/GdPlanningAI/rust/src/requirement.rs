@@ -1,19 +1,9 @@
-//! Requirement and provision specs for planner-readable dependency chaining.
+//! Requirements and provisions: the symbolic causal links of the backward search.
 //!
-//! These are deserialized from built-in Godot wrapper classes such as
-//! `RequirementSpec.binding_exists(...)` and `ProvisionSpec.fact(...)`.
-//!
-//! Requirements and provisions are the causal links of the backward search. An action's
-//! requirements say what must already be true before it runs; its provisions say what it
-//! makes true for later actions. The planner matches them with
-//! [`provision_satisfies_requirement`] while building a chain, and re-checks requirements
-//! against the simulated state with [`requirement_holds_in_state`] while verifying it.
-//!
-//! Wildcard provisions are what make generic actions possible. A `FactWildcard("at_target")`
-//! (provided by GoTo) matches any `Fact("at_target", args)` requirement; the requirement's
-//! `args` are then bound to the provider at its chain position (see `binding_values_from_match`
-//! in the planner's `types` module), so the single GoTo action ends up pinned to the concrete
-//! target the consumer asked for.
+//! [`provision_satisfies_requirement`] matches them while building a chain;
+//! [`requirement_holds_in_state`] re-checks requirements during verification. A wildcard
+//! provision such as GoTo's `FactWildcard("at_target")` matches any `Fact("at_target", args)` and
+//! binds those `args` to the provider.
 
 use crate::snapshot::VariantSnapshot;
 use godot::prelude::*;
@@ -228,11 +218,8 @@ impl ProvisionSpec {
     }
 }
 
-/// Returns `true` if every requirement in `requirements` is satisfied by at least one provision.
-///
-/// This and the set helpers below match without world context, so `BindingInSet` is
-/// accepted on name alone. The search itself calls [`provision_satisfies_requirement`]
-/// directly with the world.
+/// Returns `true` if every requirement has a matching provision. Matches without world
+/// context, so `BindingInSet` passes on name alone.
 pub fn requirements_satisfied(
     requirements: &[RequirementSpec],
     provisions: &[ProvisionSpec],
@@ -307,11 +294,7 @@ pub fn get_unsatisfied_requirements(
         .collect()
 }
 
-/// Extract initial provisions from the current agent state.
-///
-/// This allows existing bindings in the agent state to satisfy requirements
-/// without needing explicit action provisions. Every agent property that is neither nil
-/// nor an empty string becomes a `Binding` provision named after the property.
+/// Turns every non-empty agent property into a `Binding` provision of the same name.
 pub fn extract_initial_provisions(
     agent: &crate::snapshot::BlackboardSnapshot,
 ) -> Vec<ProvisionSpec> {
@@ -331,21 +314,10 @@ pub fn extract_initial_provisions(
     provisions
 }
 
-/// Returns `true` if `requirement` is currently satisfied by the given `agent` and `world` state,
-/// optionally considering the `current_bindings` for the action being validated.
-///
-/// This is the forward-verification counterpart of [`provision_satisfies_requirement`]: instead
-/// of asking whether some action *could* provide a requirement, it asks whether it holds in
-/// the simulated state right now. Only binding requirements and the `at_target` fact are
-/// actually checked; any other fact is assumed to hold, because such facts are expected to be
-/// backed by preconditions too.
-///
-/// `current_bindings` are the per-chain-position bindings for the current action. For `Binding`
-/// requirements and the `at_target` fact, they represent the concrete value a predecessor action
-/// has promised. The actual `agent` state (e.g. `agent_location` position) is preferred for
-/// `at_target` so that a later Go To which moved the agent correctly invalidates an earlier one.
-/// If no state information is available, the bindings are used as a fallback so forward
-/// validation still works for actions whose `simulate_effect` does not explicitly set a property.
+/// Returns `true` if `requirement` holds in the simulated state. Only bindings and the
+/// `at_target` fact are checked; other facts are assumed backed by preconditions. For
+/// `at_target` the agent's simulated location wins over `current_bindings`, so a later GoTo
+/// invalidates an earlier one.
 pub fn requirement_holds_in_state(
     requirement: &RequirementSpec,
     agent: &crate::snapshot::BlackboardSnapshot,
@@ -431,14 +403,9 @@ pub fn requirement_holds_in_state(
     }
 }
 
-/// Returns `true` if a provision satisfies a requirement.
-///
-/// Matching is structural: binding requirements need a `Binding` provision of the same name
-/// (and, for `BindingEquals`, the same value); `Fact` requirements need a `Fact` provision
-/// with the same name and arguments (an empty requirement argument list matches any), or a
-/// `FactWildcard` of the same name, which matches any arguments. `BindingInSet` additionally
-/// needs the provided object handle to belong to the group in `world`; with `world == None`
-/// the name match alone suffices.
+/// Returns `true` if `provision` satisfies `requirement`: same kind and name, matching value or
+/// arguments (empty requirement arguments match any), or a `FactWildcard` of the same name.
+/// `BindingInSet` also checks group membership when `world` is given.
 pub fn provision_satisfies_requirement(
     provision: &ProvisionSpec,
     requirement: &RequirementSpec,

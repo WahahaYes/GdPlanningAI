@@ -1,38 +1,10 @@
-//! Plan scheduler exposed to GDScript.
+//! Plan scheduler exposed to GDScript: owns a Rayon pool and one [`PlannerEngine`] per job.
 //!
-//! [`GdPAIPlanScheduler`] owns a Rayon thread pool. Each submitted job gets its own callable
-//! registry, channels and [`PlannerEngine`]. GDScript agents submit planning jobs via
-//! `submit_plan`; each frame the autoload calls `process_callbacks` to drain pending callback
-//! requests from planner threads and deliver completed results.
-//!
-//! # Threading model
-//!
-//! Godot objects (including every `Callable`) may only be used on the main thread, so the
-//! scheduler is the bridge between two worlds:
-//! - Main thread: `submit_plan` converts the GDScript arrays and blackboards into Send-safe
-//!   specs and snapshots, and `process_callbacks` runs GDScript callables.
-//! - Rayon pool: runs [`PlannerEngine::plan`] one step at a time, in a closure that owns the
-//!   engine. A step ends with the engine being sent back to the main thread together with its
-//!   [`PlannerRunResult`] on the job's `result` channel.
-//!
-//! A job is therefore always in one of three places: running on a worker (`engine` is
-//! `None`), parked in the handle between steps (`engine` is `Some`), or finished. The engine
-//! is moved, never shared, so the scheduler may inspect it (for the debug tree) only while it
-//! is parked in the handle.
-//!
-//! # Anatomy of one frame in `process_callbacks`
-//!
-//! 1. Take back engines that finished a step. `Complete` results are converted to a
-//!    dictionary and delivered to the agent's `_on_plan_ready`; `Pending(id)` is remembered.
-//! 2. Service callback requests that planner threads queued: call the GDScript callable and
-//!    send the answer straight to the engine's response channel.
-//! 3. Resume every parked engine that can make progress: after a budget yield (`Pending(0)`)
-//!    always, otherwise only when the answer to the id it waits on has been sent.
-//! 4. Reap jobs that finished on a previous frame. Their engines are dropped on a background
-//!    thread ([`drop_in_background`]), not here.
-//!
-//! Cancellation is cooperative: a shared flag is set and the engine notices it at its next
-//! check; its step then ends with `Complete(None)` and no result is delivered.
+//! `submit_plan` (main thread) converts GDScript data into Send-safe specs. The engine is moved
+//! into a worker for each step and sent back afterwards, so it is never shared: `engine` is `None`
+//! while a step runs. Each frame `process_callbacks` collects finished steps, runs requested
+//! GDScript callables, resumes engines that can progress, and reaps finished jobs (dropping
+//! engines off the main thread). Cancellation sets a flag the engine checks between iterations.
 
 use crate::gdpai_blackboard::GdPAIBlackboard;
 use crate::plan_tree::PlanResult;
@@ -82,20 +54,14 @@ struct ActiveJobHandle {
     /// The job was already `done` a frame ago and may now be dropped. The extra frame gives
     /// GDScript a chance to read the engine's debug tree right after the result arrives.
     pending_reap: bool,
-    /// Ids of requests answered since the last resume. An answer can arrive after the engine
-    /// finished draining its response channel, in which case the job must be resumed on a
-    /// later frame; remembering the ids prevents that resume from being missed.
+    /// Requests answered since the last resume, so an answer arriving after the engine drained
+    /// its channel still triggers a resume.
     completed_request_ids: HashSet<usize>,
     /// Limits the "not resuming" debug notice to once per stalled request.
     stall_notice: StallNoticeThrottle,
 }
 
-/// Rate limiter for the "NOT resuming" stall notice in `process_callbacks`.
-///
-/// A stalled job keeps the same `pending_request_id` every frame, so logging
-/// unconditionally would spam once per frame for the whole stall. The throttle
-/// emits one line per stall episode (per distinct pending id) so stalls stay
-/// visible without hiding behind — or drowning in — repetition.
+/// Logs the "NOT resuming" stall notice once per pending id instead of every frame.
 #[derive(Default)]
 pub struct StallNoticeThrottle {
     last_logged_id: Option<usize>,
@@ -117,16 +83,9 @@ impl StallNoticeThrottle {
     }
 }
 
-/// Runs planning jobs on background threads and services their GDScript callbacks.
-///
-/// A `Node` meant to live as an autoload. Call `submit_plan` to start a job and call
-/// `process_callbacks` every frame (from `_process`); without the per-frame call no job
-/// can make progress, because every cost, effect and custom precondition is evaluated there on
-/// the main thread. Finished plans are delivered by calling `_on_plan_ready(result)`
-/// on the submitting agent.
-///
-/// The Rayon pool is created in `_ready`, so jobs can only be submitted once the
-/// node has entered the tree.
+/// Runs planning jobs on background threads and services their GDScript callbacks. Meant as an
+/// autoload: call `submit_plan` to start a job and `process_callbacks` every frame, or no job
+/// progresses. The thread pool is created in `_ready`.
 #[derive(GodotClass)]
 #[class(base=Node)]
 pub struct GdPAIPlanScheduler {
@@ -168,15 +127,9 @@ impl INode for GdPAIPlanScheduler {
 
 #[godot_api]
 impl GdPAIPlanScheduler {
-    /// Drain pending callback requests and deliver completed results.
-    /// Call this once per frame from GDScript `_process`.
-    ///
-    /// Also prints log lines queued by planner threads. A plan result is delivered by calling
-    /// `_on_plan_ready` with a dictionary on the submitting agent: `success`,
-    /// `total_cost`, `goal_index` (index in the goals array given to
-    /// `submit_plan`), `action_chain` (indices into the actions array) and
-    /// `action_bindings` (array of `[position, name, values]` triples).
-    /// Cancelled jobs deliver nothing.
+    /// Call once per frame: prints queued logs, runs requested callables, resumes engines, and
+    /// delivers results to the agent's `_on_plan_ready` as a dictionary (`success`, `total_cost`,
+    /// `goal_index`, `action_chain`, `action_bindings`). Cancelled jobs deliver nothing.
     #[func]
     fn process_callbacks(&mut self) {
         crate::logger::process_logs();
@@ -349,22 +302,10 @@ impl GdPAIPlanScheduler {
         crate::logger::process_logs();
     }
 
-    /// Submit a planning job for `agent`.
-    ///
-    /// Any unfinished job of the same agent is cancelled first. The blackboards are snapshotted
-    /// immediately, so later changes to them do not affect this plan. Goals already satisfied
-    /// by the current state are dropped; if all are satisfied the result is an empty successful
-    /// plan for the highest-reward one. The rest are searched in descending reward order, and
-    /// the first goal that has a plan wins.
-    ///
-    /// `actions` and `goals` are the dictionaries produced by the GDScript bridge.
-    /// Entries with a missing or invalid name (and goals without a reward) are skipped with a
-    /// warning.
-    ///
-    /// `max_recursion` is the maximum plan length (clamped to >= 1).
-    /// `iteration_budget` is the maximum number of search nodes per step (clamped to
-    /// >= 100). `time_slice_ms` is the wall-clock budget (ms) per search step; clamped
-    /// to >= 0 where 0 disables time-slicing.
+    /// Submits a planning job for `agent`, cancelling its unfinished one. Blackboards are
+    /// snapshotted now. Already-satisfied goals are dropped; the rest are tried by descending
+    /// reward and the first with a plan wins. Budgets are clamped: `max_recursion` >= 1,
+    /// `iteration_budget` >= 100, `time_slice_ms` = 0 disables time-slicing.
     #[func]
     #[allow(clippy::too_many_arguments)]
     fn submit_plan(
@@ -572,9 +513,7 @@ impl GdPAIPlanScheduler {
         }
     }
 
-    /// Cancel and remove all jobs at once. Engines that are parked are freed on a background
-    /// thread; an engine currently running on a worker is dropped when it finishes its step
-    /// and finds its job gone. After this the debug trees of the cleared jobs are unavailable.
+    /// Cancels and removes all jobs; engines are freed off the main thread.
     #[func]
     fn clear_active_jobs(&mut self) {
         for job in &mut self.active_jobs {
@@ -615,20 +554,15 @@ impl GdPAIPlanScheduler {
         }
     }
 
-    /// Sets the process-wide log verbosity: 0 = errors only, 1 = warnings, 2 = info (default),
-    /// 3 = debug. Values outside that range are clamped. Debug also makes searches started
-    /// afterwards record their search tree for `get_debug_tree`.
+    /// Sets log verbosity: 0 errors, 1 warnings, 2 info (default), 3 debug. Debug also records
+    /// search trees for jobs started afterwards.
     #[func]
     fn set_log_level(&self, level: i64) {
         let log_level = crate::logger::LogLevel::from_u8(level.clamp(0, 3) as u8);
         crate::logger::set_log_level(log_level);
     }
 
-    /// Returns a human-readable search tree for the given agent's current planning job.
-    /// Returns an empty string if no job is found for `agent` (or the tree was not
-    /// recorded because the log level was below debug when the job started), and a short
-    /// notice if the job's engine is currently running on a worker thread.
-    /// A non-cancelled job is preferred over a cancelled one.
+    /// Returns the search tree for `agent`'s job, or an empty string if none was recorded.
     #[func]
     fn get_debug_tree(&self, agent: Gd<Object>) -> String {
         let agent_instance_id = agent.instance_id().to_i64();
@@ -671,12 +605,8 @@ pub fn drop_in_background<T: Send + 'static>(items: Vec<T>) -> Option<std::threa
     Some(std::thread::spawn(move || drop(items)))
 }
 
-/// Runs one step of `engine` on the thread pool and sends the engine back on `res_tx` with
-/// the step's result.
-///
-/// The engine is moved into the closure, so it is exclusively owned by the worker until it
-/// is returned. Does nothing (and drops the engine) when the pool is missing, i.e. before the
-/// node was ready.
+/// Runs one step of `engine` on the pool and sends it back on `res_tx`. Drops the engine if the
+/// pool does not exist yet.
 fn spawn_engine_step(
     thread_pool: Option<&rayon::ThreadPool>,
     goals: Vec<GoalSpec>,
@@ -700,12 +630,8 @@ fn register_callable(registry: &mut Vec<Callable>, callable: Callable) -> usize 
     id
 }
 
-/// Converts the serialized action dictionaries into [`ActionSpec`]s, registering their
-/// callables. Actions without a usable `name` are skipped.
-///
-/// Skipping shifts the indices of later actions, while the plan's `action_chain` is read by
-/// GDScript against the original array. The GDScript bridge always sets a name, so this does
-/// not happen in practice, but indices stay aligned only if no entry is skipped.
+/// Converts the bridge's action dictionaries into [`ActionSpec`]s. An action without a name is
+/// skipped, which would misalign indices with the GDScript array; the bridge always names them.
 fn build_action_specs(
     actions: &Array<VarDictionary>,
     registry: &mut Vec<Callable>,
@@ -866,9 +792,7 @@ fn extract_provision_specs(dict: &VarDictionary, key: &str) -> Vec<ProvisionSpec
     extract_typed_specs(dict, key, ProvisionSpec::from_dict)
 }
 
-/// Builds a [`PreconditionSpec`] from a precondition dictionary: a custom-callback
-/// precondition registers its callable and keeps only the id; builtin ones keep their
-/// operands as snapshots.
+/// Builds a [`PreconditionSpec`], registering a custom precondition's callable.
 fn precond_spec_from_dict(
     dict: &VarDictionary,
     registry: &mut Vec<Callable>,
@@ -903,13 +827,8 @@ fn precond_spec_from_dict(
     })
 }
 
-/// Runs one requested callable on the main thread and wraps the outcome as a response.
-///
-/// Each request rebuilds fresh live blackboards from the snapshots, injects the bindings,
-/// and calls the callable with `(agent, world)`. A cost callable returning a non-number yields
-/// infinity (the action becomes unusable); a custom precondition returning a non-bool yields
-/// false; an effect callable's return value is ignored and the mutated blackboards are
-/// snapshotted again.
+/// Runs one requested callable on fresh blackboards rebuilt from the snapshots. A non-number
+/// cost means infinity; a non-bool precondition means false; effects are snapshotted back.
 fn dispatch_callback(
     callable: &Callable,
     kind: CallbackKind,
@@ -977,10 +896,8 @@ fn dispatch_callback(
     }
 }
 
-/// Injects bindings into the agent blackboard only. World-state bindings are not currently supported.
-///
-/// Each binding becomes an agent property named after the binding, set to its first value, so
-/// that a callable can read e.g. `at_target` as if it were agent state.
+/// Sets each binding as an agent property (its first value), so callables can read e.g.
+/// `at_target`.
 fn inject_bindings_into_agent(
     agent_bb: &mut Gd<GdPAIBlackboard>,
     bindings: &[(String, Vec<VariantSnapshot>)],
@@ -993,9 +910,7 @@ fn inject_bindings_into_agent(
     }
 }
 
-/// Collects facts that world objects advertise through a `provides` string property: each
-/// such object yields `Fact(provides, [object id])`, which lets requirements be satisfied by
-/// the scene as it already is.
+/// Turns each world object's `provides` property into `Fact(provides, [object id])`.
 fn extract_provisions_from_snapshot(snap: &BlackboardSnapshot) -> Vec<ProvisionSpec> {
     let mut provisions = Vec::new();
     for (uid, obj) in &snap.objects {

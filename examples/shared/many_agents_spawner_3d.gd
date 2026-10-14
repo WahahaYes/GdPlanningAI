@@ -1,20 +1,9 @@
 extends Node
-## Spawns a configurable number of agents scattered in a ground box.
-## 3D counterpart of many_agents_spawner.
-##[br]
-##[br]
-## Add this node to a scene, assign [member agent_scene], and set
-## [member agent_count]. Agents spawn between [member spawn_min] and [member spawn_max].[br]
-##[br]
-## It is more than a scatterer: it does the scene wiring the large campfire scene needs
-## that a plain prefab instance cannot express. It cycles character [member skins],
-## hands the camera rig a followable agent, and, when [member agents_per_campfire] is
-## set, builds [i]home fires[/i]. Each block of agents gets one campfire, which is
-## tagged with a group; the block's [MaintainFireGoal] is pointed at that group
-## so those agents tend only that fire. This spreads wood hauling over several fires
-## instead of every agent racing for the same one. The assignment happens in code at spawn
-## time because agents are created at runtime and there is no per-instance override to
-## edit in the scene.
+## 3D agent spawner: scatters agents between [member spawn_min] and [member spawn_max], cycles
+## [member skins], and hands a camera rig an agent to follow.[br]
+## With [member agents_per_campfire] set it gives each block of agents a home fire, so wood
+## hauling spreads over several fires. This is done in code because the agents only exist at
+## runtime.
 
 ## Agent packed scene to instantiate.
 @export var agent_scene: PackedScene
@@ -28,10 +17,8 @@ extends Node
 @export var hide_debug_labels: bool = false
 ## Character looks cycled over spawned agents by spawn index. Empty keeps prefab defaults.
 @export var skins: Array[PackedScene] = []
-## Agents sharing each home campfire, assigned in spawn order to the scene's
-## campfires in tree order (two per fire in the large scene, with six agents and three
-## fires). 0 leaves every agent free to tend any campfire, as do agents beyond the last
-## campfire.
+## Agents per home campfire, assigned in spawn order to the scene's campfires. 0 lets every
+## agent tend any fire.
 @export var agents_per_campfire: int = 0
 ## Index of the spawned agent a camera rig should follow (-1 assigns none).
 @export var camera_agent_index: int = 0

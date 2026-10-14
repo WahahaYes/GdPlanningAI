@@ -1,28 +1,17 @@
-//! Precondition handling for the planning engine.
+//! Preconditions: built-in comparisons evaluated in Rust, custom ones via GDScript `Callable`s.
 //!
-//! Built-in operations (has_property, equal, greater_than, etc.) are handled
-//! in Rust for performance. Custom preconditions use Callables for GDScript evaluation.
-//!
-//! Two evaluators exist for builtin operations, and they are used at different times:
-//! - During planning, on worker threads, [`PreconditionSpec::evaluate_builtin`] evaluates
-//!   against [`BlackboardSnapshot`](crate::snapshot::BlackboardSnapshot)s.
-//! - [`PreconditionHandler`] evaluates against live [`GdPAIBlackboard`]s on the main thread.
-//!   The scheduler uses it once per `submit_plan` to drop goals that are already satisfied.
-//!
-//! The handler is built from the serialized GDScript dictionary (`from_dict`) or rebuilt from
-//! a spec plus the job's callable registry (`from_spec`). The two evaluators are meant to agree
-//! but are separate implementations, with slightly different tolerances (see
-//! [`PreconditionHandler::evaluate`]).
+//! There are two builtin evaluators: [`PreconditionSpec::evaluate_builtin`] on snapshots during
+//! planning, and [`PreconditionHandler`] on live blackboards, used once per `submit_plan` to skip
+//! goals that are already satisfied. They are separate implementations with slightly different
+//! tolerances.
 
 use super::gdpai_blackboard::GdPAIBlackboard;
 use crate::plan_types::PreconditionSpec;
 use crate::snapshot::VariantSnapshot;
 use godot::prelude::*;
 
-/// Main-thread evaluator for a precondition with a built-in or custom operation.
-///
-/// Holds live Godot values (`Variant`, `Callable`), so it is not `Send` and must stay on the
-/// main thread; the planner thread uses [`PreconditionSpec`] instead.
+/// Main-thread precondition evaluator holding live Godot values; the planner uses
+/// [`PreconditionSpec`] instead.
 #[derive(Clone, Debug)]
 pub struct PreconditionHandler {
     /// Where to evaluate the precondition
@@ -44,11 +33,7 @@ pub enum PreconditionTarget {
     Agent,
     /// The shared world blackboard.
     WorldState,
-    /// Evaluate against properties of world objects in a specific group.
-    /// The planner iterates all SimObjectProxy snapshots in the world state
-    /// that belong to the given group and checks the property on each.
-    ///
-    /// The precondition holds if any object in the group satisfies it.
+    /// Properties of world objects in `group`; holds if any object matches.
     WorldObjectProxy {
         /// Group the objects must belong to.
         group: String,
@@ -79,12 +64,8 @@ pub enum PreconditionOp {
 }
 
 impl PreconditionHandler {
-    /// Creates a handler from a Godot dictionary.
-    ///
-    /// Recognised keys: `target` (`agent` by default, `world_state` or `world_object_proxy`,
-    /// the latter also reading `group` and `property`), `operation`, `property_name`, `value`
-    /// and `eval_callable`. Missing or malformed keys fall back to defaults (agent target,
-    /// `has_property`, empty name), so this currently always returns `Some`.
+    /// Creates a handler from the bridge dictionary. Missing keys fall back to defaults, so this
+    /// currently always returns `Some`.
     pub fn from_dict(dict: &VarDictionary) -> Option<Self> {
         let target = dict
             .get("target")
@@ -183,14 +164,9 @@ impl PreconditionHandler {
         }
     }
 
-    /// Evaluates this precondition against the given states.
-    ///
-    /// Builtin operations compare numerically as `f64` (ints and floats alike) with an
-    /// exact-equality tolerance of `f64::EPSILON`; a missing (nil) property fails every
-    /// operation, and agent/world-state operations without a `value` fail (including
-    /// `has_property`, which the snapshot evaluator answers without one). A custom callback is
-    /// called with `(agent_state, world_state)` and must return a bool; anything else counts
-    /// as false. Must be called on the main thread.
+    /// Evaluates this precondition against live blackboards. Main thread only.
+    /// Numbers compare as `f64` with `f64::EPSILON` tolerance; nil fails every operation. A custom
+    /// callback must return a bool; anything else counts as false.
     pub fn evaluate(
         &self,
         agent_state: &Gd<GdPAIBlackboard>,

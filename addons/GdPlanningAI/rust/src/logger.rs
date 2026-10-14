@@ -1,30 +1,10 @@
-//! Tiered logging for the GdPlanningAI Rust extension.
+//! Tiered logging: [`log_error!`](crate::log_error), [`log_warn!`](crate::log_warn),
+//! [`log_info!`](crate::log_info) (default level) and [`log_debug!`](crate::log_debug).
 //!
-//! Four log levels map to Godot's print functions:
-//! - [`log_error!`](crate::log_error) always routes through `godot_error!`.
-//! - [`log_warn!`](crate::log_warn) uses `godot_warn!` when level ≥ [`LogLevel::Warn`].
-//! - [`log_info!`](crate::log_info) uses `godot_print!` when level ≥ [`LogLevel::Info`] (default).
-//! - [`log_debug!`](crate::log_debug) uses `godot_print!` when the level is [`LogLevel::Debug`].
-//!
-//! [`LogLevel::Info`] is the default: plan lifecycle summaries (`submit_plan`,
-//! `Plan complete`, one-line `RESULT` lines) are visible while search
-//! transitions and stall notices stay behind [`LogLevel::Debug`]. Per-node
-//! search detail is never printed; fetch it via `get_debug_tree()`.
-//!
-//! The level is a single process-wide value. Change it at runtime via
-//! [`set_log_level`] (Rust) or `GdPAIPlanScheduler.set_log_level` (GDScript).
-//!
-//! # Threading
-//!
-//! Godot's print functions may only be called from the main thread, but planner threads log
-//! too. So the macros never print directly: they format the message, stamp it, and push a
-//! [`LogMessage`] onto a global channel; the scheduler drains it on the main thread with
-//! [`process_logs`] at the start and end of every `process_callbacks`. Messages are therefore
-//! printed in batches, slightly after they were produced (the timestamp shown is when they were
-//! logged, in seconds since the Unix epoch).
-//!
-//! Until [`init_log_channel`] has run (the extension calls it at startup), and in unit tests
-//! without Godot, the macros fall back to plain `println!`/`eprintln!`.
+//! Godot can only print on the main thread, so the macros queue a [`LogMessage`] that the
+//! scheduler prints in batches via [`process_logs`]. Before [`init_log_channel`] runs (and in
+//! unit tests) they fall back to `println!`. Set the level with [`set_log_level`] or
+//! `GdPAIPlanScheduler.set_log_level`.
 
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
@@ -64,10 +44,7 @@ pub fn get_log_sender() -> Option<&'static Mutex<Sender<LogMessage>>> {
     LOG_CHANNEL.get().map(|(tx, _)| tx)
 }
 
-/// Process pending log messages on the main thread.
-/// Call this from the main thread (e.g., in the scheduler's process_callbacks).
-/// Prints every queued message through the matching Godot function and returns once the
-/// channel is empty.
+/// Prints every queued log message. Main thread only; the scheduler calls it each frame.
 #[cfg(not(test))]
 pub fn process_logs() {
     if let Some((_, rx)) = LOG_CHANNEL.get() {
