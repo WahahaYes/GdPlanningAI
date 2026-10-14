@@ -15,11 +15,13 @@ GDScript
   - gd-export          : ``@export`` variable without a ``##`` docstring on the preceding line
   - gd-inline-lambda  : any lambda literal (``func(``) inside a dict/array/paren;
                          predefine as a ``var name: Callable = func(...)`` instead
+  - gd-doc-length      : ``##`` block longer than 10 lines (class header) or 6 (anything else)
 
 Rust
   - rs-module   : ``.rs`` file missing ``//!`` module-level doc at the top
   - rs-pub-doc  : ``pub`` struct / enum / fn without a ``///`` doc-comment immediately above
   - rs-border   : decorative comment border (``// ---...``)
+  - rs-doc-length : doc block longer than 10 lines (``//!`` or type header) or 6 (anything else)
 """
 
 import re
@@ -28,6 +30,8 @@ import sys
 from pathlib import Path
 
 BORDER_DASHES = 6  # minimum run of dashes to count as a border
+HEADER_DOC_MAX = 10  # max lines in a file / class / type doc block
+ITEM_DOC_MAX = 6  # max lines in any other doc block
 
 
 def git_tracked_files(extensions: list[str]) -> list[Path]:
@@ -49,6 +53,28 @@ def git_tracked_files(extensions: list[str]) -> list[Path]:
         if p.suffix in extensions:
             paths.append(p)
     return paths
+
+
+def doc_length_violations(
+    path: Path, lines: list[str], is_doc, is_header, rule: str
+) -> list[tuple]:
+    """Flag contiguous doc-comment runs longer than the header or item limit."""
+    violations: list[tuple] = []
+    i = 0
+    while i < len(lines):
+        if not is_doc(lines[i]):
+            i += 1
+            continue
+        j = i
+        while j < len(lines) and is_doc(lines[j]):
+            j += 1
+        limit = HEADER_DOC_MAX if is_header(i, j) else ITEM_DOC_MAX
+        if j - i > limit:
+            violations.append(
+                (path, i + 1, rule, f"doc block is {j - i} lines (max {limit})")
+            )
+        i = j
+    return violations
 
 
 def report(violations: list[tuple]) -> int:
@@ -73,6 +99,9 @@ RE_GD_INLINE_LAMBDA = re.compile(r"\bfunc\s*\(")  # any func( usage (lambda)
 RE_GD_EXPORT = re.compile(r"^\s*@export\b")
 RE_GD_DOCSTRING = re.compile(r"^\s*##")
 RE_GD_COMMENT = re.compile(r"^##?")  # unindented only, mirrors RE_GD_FUNC
+RE_GD_DOC = re.compile(r"^\s*##(?!#)")
+RE_GD_PREAMBLE = re.compile(r"^(@tool|@icon|class_name |extends |##|$)")
+RE_GD_CLASS = re.compile(r"^\s*class ")
 
 
 def lint_gdscript(path: Path) -> list[tuple]:
@@ -183,6 +212,27 @@ def lint_gdscript(path: Path) -> list[tuple]:
                 )
             prev_block_lineno = block_lineno
 
+    # gd-doc-length: the class doc (file preamble or inner class) gets the header limit
+    preamble_end = next(
+        (k for k, line in enumerate(lines) if not RE_GD_PREAMBLE.match(line.strip())),
+        len(lines),
+    )
+
+    def gd_is_header(start: int, end: int) -> bool:
+        return end <= preamble_end or (
+            end < len(lines) and bool(RE_GD_CLASS.match(lines[end]))
+        )
+
+    violations.extend(
+        doc_length_violations(
+            path,
+            lines,
+            lambda line: bool(RE_GD_DOC.match(line)),
+            gd_is_header,
+            "gd-doc-length",
+        )
+    )
+
     return violations
 
 
@@ -191,6 +241,10 @@ RE_RS_MODULE_DOC = re.compile(r"^//!")
 RE_RS_PUB_ITEM = re.compile(r"^pub\s+(struct|enum|fn|async fn)\b")
 RE_RS_DOC_COMMENT = re.compile(r"^\s*///")
 RE_RS_ATTR_OR_DERIVE = re.compile(r"^\s*#\[")
+RE_RS_ANY_DOC = re.compile(r"^\s*//[/!](?!/)")
+RE_RS_TYPE_ITEM = re.compile(
+    r"^\s*(pub(\([^)]*\))?\s+)?(struct|enum|trait|union|impl)\b"
+)
 
 
 def lint_rust(path: Path) -> list[tuple]:
@@ -241,6 +295,25 @@ def lint_rust(path: Path) -> list[tuple]:
                         f"public item without '///' doc comment above: {stripped!r}",
                     )
                 )
+
+    # rs-doc-length: module docs and type docs get the header limit
+    def rs_is_header(start: int, end: int) -> bool:
+        if RE_RS_MODULE_DOC.match(lines[start].strip()):
+            return True
+        k = end
+        while k < len(lines) and RE_RS_ATTR_OR_DERIVE.match(lines[k]):
+            k += 1
+        return k < len(lines) and bool(RE_RS_TYPE_ITEM.match(lines[k]))
+
+    violations.extend(
+        doc_length_violations(
+            path,
+            lines,
+            lambda line: bool(RE_RS_ANY_DOC.match(line)),
+            rs_is_header,
+            "rs-doc-length",
+        )
+    )
 
     return violations
 

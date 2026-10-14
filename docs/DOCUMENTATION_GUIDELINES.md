@@ -38,6 +38,17 @@ Never use comment borders as section headers in any language. If a file is large
 
 Keep comments purposeful. Use docstrings for documentation, simple comments for implementation notes.
 
+### Keep Docs Short
+
+Docs should be simple; names and types should carry most of the meaning. Say what a reader cannot see from the signature (contracts, gotchas, why), not what the code already says. Skip docs that only restate a name.
+
+`make lint-style` enforces hard limits on each contiguous doc block, code examples included:
+
+- **10 lines** for a file, class or type header (`##` after `extends`, `//!`, or `///` on a struct/enum/trait).
+- **6 lines** for anything else (functions, members, variants).
+
+Longer explanations belong in `docs/`. Worked examples belong in `examples/`, not in doc comments.
+
 ______________________________________________________________________
 
 ## GDScript
@@ -78,14 +89,10 @@ var is_on_cooldown: bool = false
 
 ### Function Documentation
 
-All functions get `##` docstrings. Use `[param name]` for parameters, `[code]...[/code]` for inline code, `[b]...[/b]` for critical constraints.
+Document functions whose name and signature don't say it all. Use `[param name]` for parameters, `[code]...[/code]` for inline code, `[b]...[/b]` for critical constraints.
 
 ```gdscript
-## Computes action cost during Rust planning simulation.[br]
-##[br]
-## Access simulated objects via [code]world_state.get_object_for(obj)[/code].[br]
-##[br]
-## [b]Do not use await from this method.[/b]
+## Returns the cost of this action in the simulated state; [code]INF[/code] rules it out.
 func get_action_cost(
 	_agent_blackboard: GdPAIBlackboard,
 	_world_state: GdPAIBlackboard,
