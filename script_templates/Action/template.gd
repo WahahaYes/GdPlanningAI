@@ -2,6 +2,10 @@
 # meta-default: true
 extends Action
 
+# Planning hooks (cost, simulate_effect) run on simulated blackboards: no scene tree, no await.
+# Execution hooks (*_perform_action) run the real action on the main thread.
+# Keep per-run data in set_state()/get_state(), not member variables.
+
 
 # Override
 func get_title() -> String:
@@ -15,7 +19,8 @@ func get_description() -> String:
 
 # Override
 func get_validity_checks() -> Array[Precondition]:
-	# Return conditions that must be true for this action to be considered at all.
+	# Gates checked once against the initial state; a failing check drops the action.
+	# e.g. Precondition.check_is_object_valid(target)
 	return []
 
 
@@ -24,36 +29,33 @@ func get_action_cost(
 	_agent_blackboard: GdPAIBlackboard,
 	_world_state: GdPAIBlackboard,
 ) -> float:
-	# Return the cost of performing this action. Lower cost is preferred.
+	# Lower is preferred. Return INF to rule the action out in this state.
 	return 0
 
 
 # Override
 func get_preconditions() -> Array[Precondition]:
-	# Return conditions that must hold in the simulated state for this action to apply.
+	# Must hold in the simulated state before this action; the planner chains in earlier
+	# actions to make them true. Prefer built-in preconditions.
 	return []
 
 
 # Override
 func get_requirements() -> Array[RequirementSpec]:
-	# Return symbolic dependencies that must be satisfied by predecessor action provisions.
-	# Used by the backward-chaining planner to discover which earlier actions enable this one.
+	# What an earlier action must provide, e.g. RequirementSpec.fact("at_target", [location])
+	# to have a GoToAction planned first.
 	return []
 
 
 # Override
 func get_provisions() -> Array[ProvisionSpec]:
-	# Return bindings and facts this action makes available to later actions in the chain.
-	# Provisions are injected into the agent blackboard of the consumer action.
-	# They do not affect world state.
+	# Bindings and facts this action offers later actions' requirements.
 	return []
 
 
 # Override
 func clone_for_plan() -> Action:
-	# Return a clean copy of this action for use in planning.
-	# The scheduler clones actions when they appear multiple times in a plan with different bindings.
-	# Override this if your action stores mutable state that must be isolated per occurrence.
+	# Return a copy if the action keeps mutable members; one instance may appear several times.
 	return self
 
 
@@ -62,13 +64,14 @@ func simulate_effect(
 	_agent_blackboard: GdPAIBlackboard,
 	_world_state: GdPAIBlackboard,
 ) -> void:
-	# Mutate the passed blackboards in-place. The return value is ignored.
+	# Change the blackboards in place to match what perform_action really does.
 	pass
 
 
 # Override
 func pre_perform_action(_agent: GdPAIAgent) -> Action.Status:
-	# One-time setup before the action starts. Return FAILURE to abort the plan.
+	# Runs for every action when the plan starts, before the first one runs.
+	# Validate the live scene and set up set_state() data. FAILURE aborts the plan.
 	return Action.Status.SUCCESS
 
 
@@ -77,12 +80,13 @@ func perform_action(
 	_agent: GdPAIAgent,
 	_delta: float,
 ) -> Action.Status:
-	# Called every frame while the action is active.
-	# Return RUNNING to continue, SUCCESS to advance, FAILURE to abort.
+	# Called every frame while current: RUNNING to continue, SUCCESS to advance, FAILURE to abort.
+	# Stop anything this action started before returning SUCCESS or FAILURE.
 	return Action.Status.SUCCESS
 
 
 # Override
 func post_perform_action(_agent: GdPAIAgent) -> Action.Status:
-	# Cleanup after the action finishes (success or failure).
+	# Runs for every action only when the whole plan ends, even ones that never ran.
+	# Erase set_state() data here.
 	return Action.Status.SUCCESS
