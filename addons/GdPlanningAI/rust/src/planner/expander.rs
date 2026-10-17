@@ -408,6 +408,7 @@ pub fn find_candidates(branch: &PlanBranch, ctx: &SearchContext) -> CandidatesRe
             match lookup_or_start_discovery(idx, &empty_bindings, ctx) {
                 StepResult::Ready(res) => {
                     let mut satisfied_preconditions = Vec::new();
+                    let mut precond_pending_for_this_candidate = false;
                     for (pre_idx, (_pos, pre)) in branch.open_preconditions.iter().enumerate() {
                         if let Some(eval_res) = pre.evaluate_builtin(&res.agent, &res.world) {
                             if eval_res {
@@ -429,8 +430,9 @@ pub fn find_candidates(branch: &PlanBranch, ctx: &SearchContext) -> CandidatesRe
                                 ) {
                                     some_pending = true;
                                     last_pending_id = id;
+                                    precond_pending_for_this_candidate = true;
                                 }
-                                if !some_pending {
+                                if !precond_pending_for_this_candidate {
                                     match eval_precondition(
                                         pre,
                                         &res.agent,
@@ -469,6 +471,7 @@ pub fn find_candidates(branch: &PlanBranch, ctx: &SearchContext) -> CandidatesRe
                                             );
                                             some_pending = true;
                                             last_pending_id = id;
+                                            precond_pending_for_this_candidate = true;
                                         }
                                         _ => {}
                                     }
@@ -477,7 +480,10 @@ pub fn find_candidates(branch: &PlanBranch, ctx: &SearchContext) -> CandidatesRe
                         }
                     }
 
-                    if !satisfied_requirements.is_empty() || !satisfied_preconditions.is_empty() {
+                    if !precond_pending_for_this_candidate
+                        && (!satisfied_requirements.is_empty()
+                            || !satisfied_preconditions.is_empty())
+                    {
                         candidates.push(Candidate {
                             action_idx: idx,
                             satisfied_requirements,
