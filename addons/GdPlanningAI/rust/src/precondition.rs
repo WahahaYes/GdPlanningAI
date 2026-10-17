@@ -1,9 +1,12 @@
 //! Preconditions: built-in comparisons evaluated in Rust, custom ones via GDScript `Callable`s.
 //!
-//! There are two builtin evaluators: [`PreconditionSpec::evaluate_builtin`] on snapshots during
-//! planning, and [`PreconditionHandler`] on live blackboards, used once per `submit_plan` to skip
-//! goals that are already satisfied. They are separate implementations with slightly different
-//! tolerances.
+//! Builtins have a single implementation on the planning path:
+//! [`PreconditionSpec::evaluate_builtin`] on snapshots. The goal pre-filter in `submit_plan`
+//! runs builtins on the submit-time snapshots through it, so it cannot disagree with simulation
+//! on nil/empty or float tolerance; only `Custom` conditions fall back to [`PreconditionHandler`]
+//! on the live blackboards, which alone can run their GDScript callables. The builtin arms of
+//! [`PreconditionHandler::evaluate`] below are retained for direct handler use and keep their
+//! historical live-blackboard semantics (nil fails every operation, `f64::EPSILON` tolerance).
 
 use super::gdpai_blackboard::GdPAIBlackboard;
 use crate::plan_types::PreconditionSpec;
@@ -165,8 +168,9 @@ impl PreconditionHandler {
     }
 
     /// Evaluates this precondition against live blackboards. Main thread only.
-    /// Numbers compare as `f64` with `f64::EPSILON` tolerance; nil fails every operation. A custom
-    /// callback must return a bool; anything else counts as false.
+    /// Numbers compare as `f64` with `f64::EPSILON` tolerance; nil fails every operation.
+    /// A custom callback must return a bool; anything else counts as false. Note: the
+    /// `submit_plan` pre-filter runs builtins on snapshots instead; only `Custom` reaches here.
     pub fn evaluate(
         &self,
         agent_state: &Gd<GdPAIBlackboard>,
