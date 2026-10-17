@@ -57,16 +57,18 @@ func simulate_effect(
 	var sim_location: SimObjectProxy = agent_blackboard.get_proxy_in_group("GdPAILocationData")
 	var current_pos: Variant = sim_location.get_property("position")
 
-	var random_dir: Vector2 = Vector2.from_angle(randf_range(0, TAU))
+	# The planner only needs the distance; a fixed direction keeps plans reproducible.
+	# pre_perform_action picks the real, random direction.
+	var sim_dir: Vector2 = Vector2.RIGHT
 
 	if current_pos is Vector2:
-		sim_location.set_property("position", current_pos + random_dir * wander_distance)
+		sim_location.set_property("position", current_pos + sim_dir * wander_distance)
 		# Also track origin position for wander goal evaluation
 		if not sim_location.has_property("wander_origin"):
 			sim_location.set_property("wander_origin", current_pos)
 	elif current_pos is Vector3:
-		var random_dir_3d: Vector3 = Vector3(random_dir.x, 0, random_dir.y)
-		sim_location.set_property("position", current_pos + random_dir_3d * wander_distance)
+		var sim_dir_3d: Vector3 = Vector3(sim_dir.x, 0, sim_dir.y)
+		sim_location.set_property("position", current_pos + sim_dir_3d * wander_distance)
 		# Also track origin position for wander goal evaluation
 		if not sim_location.has_property("wander_origin"):
 			sim_location.set_property("wander_origin", current_pos)
