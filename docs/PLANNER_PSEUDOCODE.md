@@ -261,7 +261,7 @@ function process_simulation(node) → StepResult:
 
         key = (current_agent, current_world, action_idx, bindings)
         if cost known:
-            if step_cache[key]: take it (no callback)
+            if step_cache[key]: take it, skip simulate_action (no callback)
             elif no response and step_pending[key] = id: return Pending(id)  // share the request
         match simulate_action(action_idx, {agent, world, ctx, response, branch_action_costs[simulation_index], bindings}):
             Ready(res):

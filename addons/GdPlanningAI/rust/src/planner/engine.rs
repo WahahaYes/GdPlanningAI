@@ -909,7 +909,7 @@ impl PlannerEngine {
                     .clone(),
                 StepResult::Pending(id) => {
                     // A request sent once the cost is known is the effect: let others share it.
-                    if cost_known(branch) {
+                    if cost_known(branch) && !self.step_pending.contains_key(&key) {
                         self.step_pending.insert(key.clone(), id);
                         self.step_requests.insert(id, key);
                     }
