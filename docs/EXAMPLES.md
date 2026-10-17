@@ -51,7 +51,7 @@ Each scene adds one idea to the previous one.
 
 An action often states one need both ways: the requirement drives discovery, the precondition guards correctness.
 
-**Go To and `at_target`.** Every interaction requires `fact("at_target", [location])`. Only `GoToAction` provides it, as a wildcard bound to the requested location, so navigation is planned in automatically and one plan can contain several Go To steps. `WanderAction` extends Go To but provides no `at_target`.
+**Go To and `at_target`.** Every interaction requires `fact("at_target", [location])`. Only `GoToAction` provides it, as a wildcard bound to the requested location, so navigation is planned in automatically and one plan can contain several Go To steps. `WanderAction` extends Go To but provides no `at_target`, and its simulation moves nothing: the target is drawn at execution, so it only sets `wandered`, which `WanderGoal` checks.
 
 **Food.** Pick-up provides `is_food` only for objects in the `Food` group, and Eat Held Food requires it, so wood can never be eaten. Eat Held Food also only accepts items in its restore table, which lists `cooked_potato` but not a raw `potato`.
 
