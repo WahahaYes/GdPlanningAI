@@ -12,7 +12,7 @@ A goal has two jobs: compute a reward that scales with urgency, and declare the 
 
 The desired state uses preconditions. For agent-internal properties like hunger, use `agent_property_less_than("hunger", 15)`. For world-object properties like campfire fuel, use `world_object_property_geq_than("CampfireObject", "current_fuel", 60)`. This built-in lets the planner evaluate the condition directly on simulated `SimObjectProxy` snapshots during search, so it can discover that `AddFuelAction` (which increments `current_fuel` in its simulation) satisfies the goal. No custom callable needed.
 
-If you genuinely need logic that no built-in expresses, e.g. a distance check against a remembered origin, a compound condition across multiple unrelated properties, etc., use `Precondition.custom(callable)` sparingly. For object-dependent checks that must survive the object being freed, use `Precondition.custom_with_deps(callable, [object_refs])` so the planner validates liveness before invoking.
+If you genuinely need logic that no built-in expresses, e.g. a compound condition across multiple unrelated properties, use `Precondition.custom(callable)` sparingly. For object-dependent checks that must survive the object being freed, use `Precondition.custom_with_deps(callable, [object_refs])` so the planner validates liveness before invoking.
 
 ## Actions: What the Agent Can Do
 
