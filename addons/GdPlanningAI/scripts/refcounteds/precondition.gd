@@ -290,7 +290,7 @@ static func world_state_has_object_data_of_group(group: String) -> Precondition:
 ## True while [param object] has not been freed. Typical in [method Action.get_validity_checks].
 static func check_is_object_valid(object: Variant) -> Precondition:
 	var deps: Array[Object] = []
-	if object is Object:
+	if is_instance_valid(object) and object is Object:
 		deps.append(object)
 
 	var check: Callable = func(_b: GdPAIBlackboard, _w: GdPAIBlackboard) -> bool:
