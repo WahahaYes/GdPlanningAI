@@ -54,8 +54,10 @@ func get_requirements() -> Array[RequirementSpec]:
 
 # Override
 func get_provisions() -> Array[ProvisionSpec]:
+	if not is_instance_valid(holdable_item):
+		return []
 	var provs: Array[ProvisionSpec] = [ProvisionSpec.binding("held_item", holdable_item.item_id)]
-	if is_instance_valid(holdable_item) and holdable_item.is_in_group("Food"):
+	if holdable_item.is_in_group("Food"):
 		provs.append(ProvisionSpec.fact("is_food", []))
 	return provs
 
