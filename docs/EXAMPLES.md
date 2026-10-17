@@ -39,7 +39,7 @@ Each scene adds one idea to the previous one.
 
 ## Key Ideas
 
-**Behavior configs.** An agent config (`examples/configs/*.tres`) lists behavior configs; the agent merges their goals, self actions and property updaters. `hunger_wander_agent_config.tres` combines Hunger and Wander, `campfire_agent_config.tres` Hunger and Campfire. Each config registers its own Go To so it also works alone.
+**Behavior configs.** An agent config (`examples/configs/*.tres`) lists behavior configs; the agent merges their goals, self actions and property updaters. `hunger_wander_agent_config.tres` combines Hunger and Wander, `campfire_agent_config.tres` Hunger and Campfire. Hunger registers the Go To; Wander and Campfire rely on it. Configs are merged without deduplication, so a second Go To would double navigation branching.
 
 **Objects offer actions.** Anything that can be done at a place is offered by the object there (`get_provided_actions`), so adding a campfire or a potato to a scene needs no agent change.
 
