@@ -585,29 +585,24 @@ impl PlannerEngine {
 
             // Search exhausted or optimal plan found. With no plan, report failure so the caller
             // can distinguish it from cancellation (`Complete(None)`).
-            let final_plan = self.best_plan.take().unwrap_or_else(|| PlanResult {
-                success: false,
-                action_chain: vec![],
-                total_cost: 0.0,
-                goal_index: -1,
-                deferred_action_indices: vec![],
-                action_bindings: vec![],
-            });
+            let final_plan = self.best_plan.take().unwrap_or_else(PlanResult::failure);
 
-            if final_plan.success {
-                let action_names: Vec<String> = final_plan
-                    .action_chain
-                    .iter()
-                    .map(|&idx| self.ctx.actions[idx as usize].name.clone())
-                    .collect();
-                self.tree
-                    .end_goal(true, &action_names, final_plan.total_cost);
-            } else {
-                self.tree.end_goal(false, &[], 0.0);
-                log_debug!("no plan found; inspect the search via get_debug_tree()");
+            // With no goals there was nothing to search, so there is nothing to report.
+            if !goals.is_empty() {
+                if final_plan.success {
+                    let action_names: Vec<String> = final_plan
+                        .action_chain
+                        .iter()
+                        .map(|&idx| self.ctx.actions[idx as usize].name.clone())
+                        .collect();
+                    self.tree
+                        .end_goal(true, &action_names, final_plan.total_cost);
+                } else {
+                    self.tree.end_goal(false, &[], 0.0);
+                    log_debug!("no plan found; inspect the search via get_debug_tree()");
+                }
+                self.log_result_summary(&final_plan, goals);
             }
-
-            self.log_result_summary(&final_plan, goals);
             PlannerRunResult::Complete(Some(final_plan))
         }
     }

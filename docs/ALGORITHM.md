@@ -303,7 +303,7 @@ Log verbosity is a single process-wide level (`plugin.cfg` `log_level`, default 
 
 | Level          | Visible output                                                                                                                                                                                                                                             |
 | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Info (default) | `submit_plan` summary (agent, goals, action count), `Plan complete`, one-line `RESULT goal='…' success=… Branches: … \| Time: …`, warnings/errors                                                                                                          |
+| Info (default) | `submit_plan` summary (agent, goals, action count), `Plan complete`, one-line `RESULT goal='…' success=… Branches: … \| Time: …` (skipped when no goal needed a search), warnings/errors                                                                   |
 | Debug (3)      | Plus search transitions (`Pending` / `Resuming`), one `NOT resuming` notice per stall episode, full tree *recording* (fetch it anytime via `get_debug_tree(agent)`; it is never auto-printed), and `FWD [FAIL]` requirement attributions on verified nodes |
 
 The tree builder only records nodes at Debug and above, but a lightweight branch counter always runs so the Info `RESULT` line still reports search cost. The time-slice yield itself never logs; slicing is steady-state architecture, not an event.

@@ -412,6 +412,7 @@ process_callbacks()  // each frame:
 
 plan completion [Info]:
     log "RESULT goal='...' success=... actions=... cost=... Branches: ... | Time: ...ms"
+    (skipped when there were no goals to search)
     full tree never auto-prints; fetch via get_debug_tree(agent) [Debug records it]
 
 per-iteration detail (candidate lists, simulation payloads,

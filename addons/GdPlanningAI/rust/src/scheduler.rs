@@ -154,43 +154,13 @@ impl GdPAIPlanScheduler {
                             continue;
                         }
 
-                        let Some(result) = result else {
-                            // If all goals were already satisfied by the initial state,
-                            // return an empty, successful plan pointing at the highest-reward
-                            // satisfied goal. Otherwise report a failed search.
-                            if job.agent.is_instance_valid() {
-                                let res = if job.satisfied_goal_index >= 0 {
-                                    PlanResult {
-                                        success: true,
-                                        action_chain: vec![],
-                                        total_cost: 0.0,
-                                        goal_index: job.satisfied_goal_index,
-                                        deferred_action_indices: vec![],
-                                        action_bindings: vec![],
-                                    }
-                                } else {
-                                    PlanResult {
-                                        success: false,
-                                        action_chain: vec![],
-                                        total_cost: 0.0,
-                                        goal_index: -1,
-                                        deferred_action_indices: vec![],
-                                        action_bindings: vec![],
-                                    }
-                                };
-                                log_info!(
-                                    "Plan complete: success={}, actions=0, cost=0.0 (no search ran)",
-                                    res.success
-                                );
-                                let dict = result_to_dict(&res);
-                                job.agent.call("_on_plan_ready", &[dict.to_variant()]);
-                            }
+                        // `None` only comes from cancellation, handled above.
+                        let Some(mut result) = result else {
                             continue;
                         };
 
                         // If every goal was already satisfied, the engine returned an empty
                         // failed plan because it had no goals to search. Report success.
-                        let mut result = result;
                         if !result.success && job.satisfied_goal_index >= 0 {
                             result.success = true;
                             result.goal_index = job.satisfied_goal_index;
