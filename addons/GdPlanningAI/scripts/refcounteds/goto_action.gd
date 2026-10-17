@@ -235,16 +235,18 @@ func _finish(
 
 
 # Override
-## Resets the navigation target and erases this action's state.
+## Resets the navigation target and erases this action's state, even without a valid target.
 func post_perform_action(agent: GdPAIAgent) -> Action.Status:
-	if target_location == null or not is_instance_valid(target_location):
-		return Action.Status.FAILURE
-
 	var nav_agent: Node = get_state(agent, "nav_agent")
 	var agent_location_data: GdPAILocationData = get_state(agent, "agent_location")
 
 	# Clear the navigation target.
-	if nav_agent != null and agent_location_data != null and is_instance_valid(agent_location_data):
+	if (
+		nav_agent != null
+		and is_instance_valid(nav_agent)
+		and agent_location_data != null
+		and is_instance_valid(agent_location_data)
+	):
 		nav_agent.target_position = agent_location_data.position
 
 	# Clean up state.
@@ -257,6 +259,8 @@ func post_perform_action(agent: GdPAIAgent) -> Action.Status:
 	erase_state(agent, "prior_positions")
 	erase_state(agent, "target_orig_position")
 
+	if target_location == null or not is_instance_valid(target_location):
+		return Action.Status.FAILURE
 	return Action.Status.SUCCESS
 
 
