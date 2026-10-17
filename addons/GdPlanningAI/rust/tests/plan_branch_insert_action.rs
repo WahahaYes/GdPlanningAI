@@ -182,6 +182,62 @@ fn insert_at_end_does_not_shift_existing_entries() {
 }
 
 #[test]
+fn distinct_requirements_scope_consumer_bindings_per_requirement() {
+    let agent = create_test_agent(vec![]);
+    let world = create_test_world(vec![], vec![]);
+    let mut branch = PlanBranch::new(&agent, &world);
+
+    branch.action_chain = vec![0];
+    branch.action_costs = vec![1.0];
+    let req_a = make_req("at_target", 100);
+    let req_b = make_req("held_item", 200);
+    branch.open_requirements = vec![(1, req_a.clone()), (2, req_b.clone())];
+
+    let bindings = branch.insert_action_at(
+        1,
+        1,
+        2.0,
+        vec![
+            (0, req_a.clone(), make_prov("at_target", 100)),
+            (1, req_b.clone(), make_prov("held_item", 200)),
+        ],
+        HashSet::new(),
+        vec![],
+        vec![],
+    );
+
+    // After the shift, req_a's consumer sits at 2 and req_b's at 3. Each
+    // requirement's consumer binding must only cover its own consumers: with
+    // the old accumulated removal set, held_item's binding leaked onto
+    // at_target's consumer position (2).
+    let expected = vec![
+        (
+            1,
+            "at_target".to_string(),
+            vec![VariantSnapshot::ObjectRef(100)],
+        ),
+        (
+            2,
+            "at_target".to_string(),
+            vec![VariantSnapshot::ObjectRef(100)],
+        ),
+        (
+            1,
+            "held_item".to_string(),
+            vec![VariantSnapshot::ObjectRef(200)],
+        ),
+        (
+            3,
+            "held_item".to_string(),
+            vec![VariantSnapshot::ObjectRef(200)],
+        ),
+    ];
+    assert_eq!(bindings, expected);
+    assert_eq!(branch.action_bindings, expected);
+    assert!(branch.open_requirements.is_empty());
+}
+
+#[test]
 fn removes_satisfied_preconditions_and_adds_new_ones() {
     let agent = create_test_agent(vec![]);
     let world = create_test_world(vec![], vec![]);

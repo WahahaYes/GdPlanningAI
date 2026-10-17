@@ -334,22 +334,25 @@ impl PlanBranch {
 
         for (_req_idx, req, prov) in satisfied_requirements {
             // Greedy clearing: all identical requirements are satisfied by this one action.
+            // Matched indices are scoped per requirement so a later requirement's
+            // consumer bindings don't inherit earlier requirements' consumers.
+            let mut matched: Vec<usize> = Vec::new();
             for (idx, (_, other_req)) in self.open_requirements.iter().enumerate() {
                 if other_req == &req {
-                    reqs_to_remove.insert(idx);
+                    matched.push(idx);
                 }
             }
+            matched.sort_unstable();
+            reqs_to_remove.extend(matched.iter().copied());
 
             let (binding_name, values) = binding_values_from_match(&prov, &req);
             if !binding_name.is_empty() {
                 // Provider binding: at the newly inserted action's position.
                 new_bindings.push((insert_pos, binding_name.clone(), values.clone()));
 
-                // Consumer bindings: at each shifted consumer position.
-                // Sort indices for deterministic iteration order (HashSet is unordered).
-                let mut sorted_indices: Vec<usize> = reqs_to_remove.iter().copied().collect();
-                sorted_indices.sort_unstable();
-                for idx in sorted_indices {
+                // Consumer bindings: at each shifted consumer position matched by
+                // this requirement only.
+                for idx in matched {
                     let consumer_pos = self.open_requirements[idx].0;
                     new_bindings.push((consumer_pos, binding_name.clone(), values.clone()));
                 }
