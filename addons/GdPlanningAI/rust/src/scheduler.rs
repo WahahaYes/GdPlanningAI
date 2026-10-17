@@ -347,12 +347,18 @@ impl GdPAIPlanScheduler {
         // plan instead of asking the planner to search.
         let mut satisfied_goal_index = -1i64;
         let mut best_satisfied_reward = f64::NEG_INFINITY;
-        // Evaluated with the main-thread `PreconditionHandler` against the live blackboards,
-        // so custom goal conditions are called synchronously here.
+        // Builtins run on the submit-time snapshots through the same
+        // `evaluate_builtin` the planner searches with, so the pre-filter
+        // cannot disagree with simulation on nil/empty or float tolerance.
+        // Only `Custom` conditions fall back to the live `PreconditionHandler`,
+        // which alone can run their GDScript callables.
         let goal_satisfied = |goal: &GoalSpec| -> bool {
             goal.desired_state.iter().all(|pre| {
-                PreconditionHandler::from_spec(pre, &callable_registry)
-                    .is_some_and(|h| h.evaluate(&agent_bb, &world_bb))
+                match pre.evaluate_builtin(&snap_agent, &snap_world) {
+                    Some(result) => result,
+                    None => PreconditionHandler::from_spec(pre, &callable_registry)
+                        .is_some_and(|h| h.evaluate(&agent_bb, &world_bb)),
+                }
             })
         };
         for goal in &goal_specs {
@@ -966,6 +972,10 @@ fn result_to_dict(result: &PlanResult) -> VarDictionary {
 #[cfg(test)]
 mod tests {
     use super::StallNoticeThrottle;
+    use crate::plan_types::PreconditionSpec;
+    use crate::precondition::{PreconditionOp, PreconditionTarget};
+    use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
+    use std::collections::HashMap;
 
     #[test]
     fn first_sight_of_pending_id_logs() {
@@ -996,5 +1006,56 @@ mod tests {
         assert!(throttle.should_log(7));
         throttle.reset();
         assert!(throttle.should_log(7));
+    }
+
+    #[test]
+    fn every_builtin_op_resolves_on_snapshots() {
+        // Routing contract for the `submit_plan` goal pre-filter: every builtin
+        // operation answers via `evaluate_builtin` (`Some`), so builtins never fall
+        // back to the live handler. Only `Custom` may return `None`.
+        let mut properties = HashMap::new();
+        properties.insert("health".to_string(), VariantSnapshot::Int(80));
+        let agent = BlackboardSnapshot {
+            properties,
+            objects: HashMap::new(),
+        };
+        let world = BlackboardSnapshot {
+            properties: HashMap::new(),
+            objects: HashMap::new(),
+        };
+
+        let cases = [
+            (PreconditionOp::HasProperty, None),
+            (PreconditionOp::Equal, Some(VariantSnapshot::Int(80))),
+            (PreconditionOp::NotEqual, Some(VariantSnapshot::Int(10))),
+            (PreconditionOp::GreaterThan, Some(VariantSnapshot::Int(50))),
+            (
+                PreconditionOp::GreaterThanOrEqual,
+                Some(VariantSnapshot::Int(80)),
+            ),
+            (PreconditionOp::LessThan, Some(VariantSnapshot::Int(100))),
+            (
+                PreconditionOp::LessThanOrEqual,
+                Some(VariantSnapshot::Int(80)),
+            ),
+        ];
+        for (operation, value) in cases {
+            let spec = PreconditionSpec::Builtin {
+                target: PreconditionTarget::Agent,
+                operation,
+                property_name: "health".to_string(),
+                value,
+            };
+            assert!(
+                spec.evaluate_builtin(&agent, &world).is_some(),
+                "builtin must resolve on snapshots: {spec}"
+            );
+        }
+
+        let custom = PreconditionSpec::Custom {
+            callable_id: 0,
+            dependent_object_ids: vec![],
+        };
+        assert_eq!(custom.evaluate_builtin(&agent, &world), None);
     }
 }

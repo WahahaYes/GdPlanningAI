@@ -16,6 +16,7 @@ pub fn create_test_agent(properties: Vec<(&str, VariantSnapshot)>) -> Blackboard
 }
 
 /// Create a test world snapshot with objects.
+#[allow(dead_code)]
 pub fn create_test_world(
     properties: Vec<(&str, VariantSnapshot)>,
     objects: Vec<(&str, SimObjectData)>,
