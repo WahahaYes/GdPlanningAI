@@ -12,8 +12,7 @@ pub struct PlanResult {
     pub success: bool,
     /// Indices into the actions array passed to `submit_plan`, in execution order.
     pub action_chain: Vec<i64>,
-    /// Sum of the action costs of the chain. Not meaningful on failure: [`PlanResult::failure`]
-    /// reports infinity while failures built inside the engine and scheduler report 0.
+    /// Sum of the action costs of the chain; 0 on failure.
     pub total_cost: f64,
     /// Index into the original goals array passed from GDScript; -1 on failure
     pub goal_index: i64,
@@ -30,7 +29,7 @@ impl PlanResult {
         Self {
             success: false,
             action_chain: vec![],
-            total_cost: f64::INFINITY,
+            total_cost: 0.0,
             goal_index: -1,
             deferred_action_indices: vec![],
             action_bindings: vec![],
