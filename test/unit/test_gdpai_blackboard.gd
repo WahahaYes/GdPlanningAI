@@ -194,3 +194,118 @@ func test_clone_preserves_object_proxies():
 			100,
 			"Original proxy should remain unchanged"
 		)
+
+
+# A bare agent with an empty blackboard; skips scene setup since these tests never plan.
+func _make_bare_agent() -> GdPAIAgent:
+	var agent: GdPAIAgent = GdPAIAgent.new()
+	add_child_autofree(agent)
+	agent.blackboard = GdPAIBlackboard.new()
+	return agent
+
+
+func test_unpositioned_state_does_not_collide_with_position_zero():
+	var agent: GdPAIAgent = _make_bare_agent()
+	var action: Action = Action.new()
+	action.chain_position = -1
+	action.set_state(agent, "scratch", "unpositioned")
+	action.chain_position = 0
+	action.set_state(agent, "scratch", "at-zero")
+	action.chain_position = -1
+	assert_eq(action.get_state(agent, "scratch"), "unpositioned", "-1 keys are separate")
+	action.chain_position = 0
+	assert_eq(action.get_state(agent, "scratch"), "at-zero", "0 keys are separate")
+
+
+func test_execute_plan_clears_state_without_per_action_erase():
+	var agent: GdPAIAgent = _make_bare_agent()
+	var action: LeakyAction = LeakyAction.new()
+	var chain: Array[Action] = [action]
+	agent._current_action_chain = chain
+	agent._current_plan_step = -1
+	agent._execute_plan(0.016)
+	assert_eq(
+		agent.blackboard.get_dict().keys().size(), 0, "Framework clears scoped keys after post"
+	)
+
+
+func test_plan_replacement_clears_old_chain_state():
+	var agent: GdPAIAgent = _make_bare_agent()
+	var old_action: LeakyAction = LeakyAction.new()
+	old_action.chain_position = 0
+	old_action.set_state(agent, "scratch", 1)
+	old_action.chain_position = -1
+	old_action.set_state(agent, "scratch", 2)
+	assert_eq(agent.blackboard.get_dict().keys().size(), 2, "Setup should write two keys")
+	var chain: Array[Action] = [old_action]
+	agent._current_action_chain = chain
+	agent._plan_generation = 1
+	agent._inflight_generation = 1
+	agent._on_plan_ready({"success": false})
+	assert_true(agent._current_action_chain.is_empty(), "Failed plan clears the chain")
+	assert_eq(agent.blackboard.get_dict().keys().size(), 0, "Replacement retires old scoped keys")
+
+
+func test_goto_post_without_target_still_cleans_state():
+	var agent: GdPAIAgent = _make_bare_agent()
+	var holder: Node3D = Node3D.new()
+	add_child_autofree(holder)
+	var nav_agent: NavigationAgent3D = NavigationAgent3D.new()
+	holder.add_child(nav_agent)
+	var location: GdPAILocationData = GdPAILocationData.new()
+	location.location_node_3d = holder
+	holder.add_child(location)
+	await get_tree().process_frame
+	var action: GoToAction = GoToAction.new()
+	action.chain_position = 0
+	action.set_state(agent, "nav_agent", nav_agent)
+	action.set_state(agent, "dist_check", 0.1)
+	action.set_state(agent, "agent_location", location)
+	action.set_state(agent, "target_set", true)
+	action.set_state(agent, "target_reached", false)
+	action.set_state(agent, "time_elapsed", 0.5)
+	action.set_state(agent, "prior_positions", [])
+	action.set_state(agent, "target_orig_position", Vector3.ZERO)
+	var status: Action.Status = action.post_perform_action(agent)
+	assert_eq(status, Action.Status.FAILURE, "Missing target still fails")
+	assert_eq(
+		nav_agent.target_position,
+		holder.global_position,
+		"Navigation target resets without a valid target"
+	)
+	var keys: Array[String] = [
+		"nav_agent",
+		"dist_check",
+		"agent_location",
+		"target_set",
+		"target_reached",
+		"time_elapsed",
+		"prior_positions",
+		"target_orig_position",
+	]
+	for key in keys:
+		assert_false(action.has_state(agent, key), "post cleans without a target")
+	assert_eq(agent.blackboard.get_dict().keys().size(), 0, "No scoped keys leak")
+
+
+func test_repeated_executions_leave_key_count_flat():
+	var agent: GdPAIAgent = _make_bare_agent()
+	for i in 10:
+		var action: LeakyAction = LeakyAction.new()
+		var chain: Array[Action] = [action]
+		agent._current_action_chain = chain
+		agent._current_plan_step = -1
+		agent._execute_plan(0.016)
+		assert_eq(agent.blackboard.get_dict().keys().size(), 0, "Keys stay flat after run %d" % i)
+
+
+# Writes scoped state in pre but never erases it: cleanup must come from the framework.
+class LeakyAction:
+	extends Action
+
+	func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
+		set_state(agent, "scratch", 1)
+		return Action.Status.SUCCESS
+
+	func perform_action(agent: GdPAIAgent, _delta: float) -> Action.Status:
+		return Action.Status.SUCCESS

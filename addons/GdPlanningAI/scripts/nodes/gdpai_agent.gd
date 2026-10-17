@@ -130,8 +130,8 @@ func set_planning_strategy(
 		_planning_timer.wait_time = interval
 
 
-## Requests a plan now. The result replaces any running plan without calling its
-## [method Action.post_perform_action].
+## Requests a plan now. The result retires any running plan through its
+## [method Action.post_perform_action] cleanup before replacing it.
 func manually_start_plan() -> void:
 	if goals.size() == 0:
 		return
@@ -189,6 +189,7 @@ func _on_plan_ready(result: Dictionary) -> void:
 	# Discard stale results if goals changed since submission.
 	if _inflight_generation != _plan_generation:
 		return
+	_retire_current_chain()
 	_current_plan_step = -1
 	if result.get("success", false):
 		var deserialized: Dictionary = _bridge.deserialize_plan_result(
@@ -211,6 +212,21 @@ func _on_plan_ready(result: Dictionary) -> void:
 		_current_action_chain = []
 		_current_bindings_by_position = {}
 		_current_goal = null
+
+
+## Runs the guaranteed cleanup phase for the outgoing chain before it is replaced. Posts run
+## first so navigation targets stop, then scoped keys are cleared even if a post forgot them.
+func _retire_current_chain() -> void:
+	for i in range(_current_action_chain.size()):
+		var action: Action = _current_action_chain[i]
+		if is_instance_valid(action):
+			action.chain_position = i
+			_inject_bindings_for_position(i, action)
+			action.post_perform_action(self)
+			action.chain_position = -1
+	for action: Action in _current_action_chain:
+		if is_instance_valid(action):
+			action.erase_all_state(self)
 
 
 ## Timer callback for interval planning.
@@ -297,6 +313,7 @@ func _execute_plan(delta: float) -> void:
 	# This is a guaranteed cleanup phase: post_perform_action is called for every action
 	# in the chain, regardless of whether the plan completed or was aborted. Implementations
 	# must be safe to call even if pre_perform_action or perform_action returned FAILURE.
+	# The framework then clears each step's scoped keys, so per-action erases are hygiene.
 	if _current_plan_step == action_chain.size():
 		for i in range(action_chain.size()):
 			var action: Action = action_chain[i]
@@ -304,6 +321,7 @@ func _execute_plan(delta: float) -> void:
 				action.chain_position = i
 				_inject_bindings_for_position(i, action)
 				action.post_perform_action(self)
+				action.erase_position_state(self, i)
 				action.chain_position = -1
 		_current_plan_step += 1
 		_current_bindings_by_position = {}

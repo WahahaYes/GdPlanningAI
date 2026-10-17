@@ -16,8 +16,9 @@ enum Status {
 	SUCCESS,  ## Done; the next action starts.
 }
 
-## Index of this action in the executing plan, or [code]-1[/code]. Set by the agent; keys
-## [method set_state] data.
+## Index of this action in the executing plan, or [code]-1[/code] outside execution. Set by
+## the agent before every execution hook; keys [method set_state] data. The [code]-1[/code]
+## namespace is literal, so unpositioned access never collides with position [code]0[/code].
 var chain_position: int = -1
 
 
@@ -82,34 +83,56 @@ func perform_action(
 
 
 # Override
-## Called on every action in the chain when the plan completes or fails, even ones that never
-## ran. Erase [method set_state] data here. Not called when a newer plan replaces this one.
+## Called on every action in the chain when the plan completes, fails, or is replaced by a
+## newer plan, even ones that never ran. Erase [method set_state] data here; the agent also
+## clears leftover scoped keys afterwards.
 func post_perform_action(_agent: GdPAIAgent) -> Status:
 	return Status.SUCCESS
 
 
 ## Stores a per-run value, keyed by this instance and its [member chain_position].
+## Unpositioned ([code]-1[/code]) keys live under [code]"-1"[/code], never position [code]0[/code].
 func set_state(agent: GdPAIAgent, key: String, value: Variant) -> void:
-	var pos: String = str(chain_position) if chain_position >= 0 else "0"
-	agent.blackboard.set_property(str(get_instance_id()) + "_" + pos + "_" + key, value)
+	agent.blackboard.set_property(_scoped_key(key), value)
 
 
 ## Returns the value stored by [method set_state], or [code]null[/code].
 func get_state(agent: GdPAIAgent, key: String) -> Variant:
-	var pos: String = str(chain_position) if chain_position >= 0 else "0"
-	return agent.blackboard.get_property(str(get_instance_id()) + "_" + pos + "_" + key)
+	return agent.blackboard.get_property(_scoped_key(key))
 
 
 ## Removes a value stored by [method set_state].
 func erase_state(agent: GdPAIAgent, key: String) -> void:
-	var pos: String = str(chain_position) if chain_position >= 0 else "0"
-	agent.blackboard.erase_property(str(get_instance_id()) + "_" + pos + "_" + key)
+	agent.blackboard.erase_property(_scoped_key(key))
 
 
 ## Returns [code]true[/code] if [method set_state] stored a value for [param key].
 func has_state(agent: GdPAIAgent, key: String) -> bool:
-	var pos: String = str(chain_position) if chain_position >= 0 else "0"
-	return agent.blackboard.has_property(str(get_instance_id()) + "_" + pos + "_" + key)
+	return agent.blackboard.has_property(_scoped_key(key))
+
+
+## Returns the blackboard key for [param key] at the current [member chain_position].
+func _scoped_key(key: String) -> String:
+	return str(get_instance_id()) + "_" + str(chain_position) + "_" + key
+
+
+## Erases every scoped key for this instance at [param pos], regardless of
+## [member chain_position]. Position-scoped, so repeated occurrences of one instance survive.
+func erase_position_state(agent: GdPAIAgent, pos: int) -> void:
+	var prefix: String = str(get_instance_id()) + "_" + str(pos) + "_"
+	for key in agent.blackboard.get_dict().keys():
+		var key_string: String = str(key)
+		if key_string.begins_with(prefix):
+			agent.blackboard.erase_property(key_string)
+
+
+## Erases every scoped key for this instance at all positions, including unpositioned ones.
+func erase_all_state(agent: GdPAIAgent) -> void:
+	var prefix: String = str(get_instance_id()) + "_"
+	for key in agent.blackboard.get_dict().keys():
+		var key_string: String = str(key)
+		if key_string.begins_with(prefix):
+			agent.blackboard.erase_property(key_string)
 
 
 ## Returns the instance used for one plan step. Override to return a copy when the action keeps
