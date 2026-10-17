@@ -30,7 +30,7 @@ fn make_prov(name: &str, arg: i64) -> ProvisionSpec {
 fn insert_first_action_into_empty_branch() {
     let agent = create_test_agent(vec![]);
     let world = create_test_world(vec![], vec![]);
-    let mut branch = PlanBranch::new(&agent, &world);
+    let mut branch = PlanBranch::new(agent.clone().into(), world.clone().into());
 
     let bindings = branch.insert_action_at(0, 7, 1.5, vec![], HashSet::new(), vec![], vec![]);
 
@@ -47,7 +47,7 @@ fn insert_first_action_into_empty_branch() {
 fn insert_before_consumer_shifts_positions() {
     let agent = create_test_agent(vec![]);
     let world = create_test_world(vec![], vec![]);
-    let mut branch = PlanBranch::new(&agent, &world);
+    let mut branch = PlanBranch::new(agent.clone().into(), world.clone().into());
 
     branch.action_chain = vec![0];
     branch.action_costs = vec![1.0];
@@ -79,7 +79,7 @@ fn insert_before_consumer_shifts_positions() {
 fn greedy_clears_identical_requirements() {
     let agent = create_test_agent(vec![]);
     let world = create_test_world(vec![], vec![]);
-    let mut branch = PlanBranch::new(&agent, &world);
+    let mut branch = PlanBranch::new(agent.clone().into(), world.clone().into());
 
     branch.action_chain = vec![0];
     branch.action_costs = vec![1.0];
@@ -106,7 +106,7 @@ fn greedy_clears_identical_requirements() {
 fn records_provider_and_consumer_bindings() {
     let agent = create_test_agent(vec![]);
     let world = create_test_world(vec![], vec![]);
-    let mut branch = PlanBranch::new(&agent, &world);
+    let mut branch = PlanBranch::new(agent.clone().into(), world.clone().into());
 
     branch.action_chain = vec![0];
     branch.action_costs = vec![1.0];
@@ -151,7 +151,7 @@ fn records_provider_and_consumer_bindings() {
 fn insert_at_end_does_not_shift_existing_entries() {
     let agent = create_test_agent(vec![]);
     let world = create_test_world(vec![], vec![]);
-    let mut branch = PlanBranch::new(&agent, &world);
+    let mut branch = PlanBranch::new(agent.clone().into(), world.clone().into());
 
     branch.action_chain = vec![0, 1];
     branch.action_costs = vec![1.0, 2.0];
@@ -185,7 +185,7 @@ fn insert_at_end_does_not_shift_existing_entries() {
 fn distinct_requirements_scope_consumer_bindings_per_requirement() {
     let agent = create_test_agent(vec![]);
     let world = create_test_world(vec![], vec![]);
-    let mut branch = PlanBranch::new(&agent, &world);
+    let mut branch = PlanBranch::new(agent.clone().into(), world.clone().into());
 
     branch.action_chain = vec![0];
     branch.action_costs = vec![1.0];
@@ -241,7 +241,7 @@ fn distinct_requirements_scope_consumer_bindings_per_requirement() {
 fn removes_satisfied_preconditions_and_adds_new_ones() {
     let agent = create_test_agent(vec![]);
     let world = create_test_world(vec![], vec![]);
-    let mut branch = PlanBranch::new(&agent, &world);
+    let mut branch = PlanBranch::new(agent.clone().into(), world.clone().into());
 
     branch.action_chain = vec![0];
     branch.action_costs = vec![1.0];

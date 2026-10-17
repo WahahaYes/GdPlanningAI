@@ -10,6 +10,7 @@ use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
+use std::sync::Arc;
 use std::sync::mpsc::Sender;
 
 use std::cmp::Ordering;
@@ -27,7 +28,8 @@ pub enum BranchState {
 ///
 /// The chain is stored in execution order. A position next to a need or binding is the state just
 /// before the action at that index; `chain.len()` is the final state, where goal preconditions
-/// sit. `current_agent`/`current_world` only advance during [`BranchState::Verifying`].
+/// sit. `current_agent`/`current_world` only advance during [`BranchState::Verifying`]; they are
+/// shared, so cloning a branch while searching copies no state.
 #[derive(Clone, Debug)]
 pub struct PlanBranch {
     /// Indices into the `SearchContext.actions` list.
@@ -50,9 +52,9 @@ pub struct PlanBranch {
     /// open preconditions are being evaluated. Always 0 while searching.
     pub simulation_index: usize,
     /// Simulated agent state after `simulation_index` actions.
-    pub current_agent: BlackboardSnapshot,
+    pub current_agent: Arc<BlackboardSnapshot>,
     /// Simulated world state after `simulation_index` actions.
-    pub current_world: BlackboardSnapshot,
+    pub current_world: Arc<BlackboardSnapshot>,
     /// Total grounded cost of the actions in this branch: always the sum of `action_costs`
     /// (see [`PlanBranch::recalculate_cost`]).
     pub cost: f64,
@@ -145,9 +147,9 @@ pub struct SearchContext {
     /// and `PlanResult::action_chain` contain.
     pub actions: Vec<ActionSpec>,
     /// Agent state at submission time; every branch simulates forward from here.
-    pub initial_agent: BlackboardSnapshot,
+    pub initial_agent: Arc<BlackboardSnapshot>,
     /// World state at submission time.
-    pub initial_world: BlackboardSnapshot,
+    pub initial_world: Arc<BlackboardSnapshot>,
     /// Bindings and facts that already hold before any action runs; requirements they match
     /// never become open needs.
     pub initial_provisions: Vec<ProvisionSpec>,
@@ -232,7 +234,10 @@ pub(crate) fn binding_values_from_match(
 
 impl PlanBranch {
     /// Creates a new, empty plan branch starting from the initial states.
-    pub fn new(initial_agent: &BlackboardSnapshot, initial_world: &BlackboardSnapshot) -> Self {
+    pub fn new(
+        initial_agent: Arc<BlackboardSnapshot>,
+        initial_world: Arc<BlackboardSnapshot>,
+    ) -> Self {
         Self {
             action_chain: Vec::new(),
             action_costs: Vec::new(),
@@ -242,8 +247,8 @@ impl PlanBranch {
             state: BranchState::Searching,
             goal_index: 0,
             simulation_index: 0,
-            current_agent: initial_agent.clone(),
-            current_world: initial_world.clone(),
+            current_agent: initial_agent,
+            current_world: initial_world,
             cost: 0.0,
             tree_node_id: 0,
         }

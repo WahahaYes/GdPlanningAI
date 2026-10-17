@@ -87,8 +87,8 @@ fn cancellation_returns_failure_quickly() {
 
     let ctx = Arc::new(SearchContext {
         actions,
-        initial_agent: agent,
-        initial_world: world,
+        initial_agent: agent.into(),
+        initial_world: world.into(),
         initial_provisions: vec![],
         request_tx: req_tx,
         engine_response_tx: engine_tx.clone(),

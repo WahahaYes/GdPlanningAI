@@ -71,8 +71,8 @@ fn iteration_budget_exhaustion_returns_pending() {
 
     let ctx = Arc::new(SearchContext {
         actions,
-        initial_agent: agent,
-        initial_world: world,
+        initial_agent: agent.into(),
+        initial_world: world.into(),
         initial_provisions: vec![],
         request_tx: mpsc::channel().0, // dummy sender; not used in this test
         engine_response_tx: engine_tx.clone(),
@@ -198,8 +198,8 @@ fn max_depth_prevents_plan_completion() {
 
     let ctx = Arc::new(SearchContext {
         actions,
-        initial_agent: agent,
-        initial_world: world,
+        initial_agent: agent.into(),
+        initial_world: world.into(),
         initial_provisions: vec![],
         request_tx: req_tx,
         engine_response_tx: engine_tx.clone(),

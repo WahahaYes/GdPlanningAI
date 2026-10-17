@@ -165,7 +165,10 @@ impl PlannerEngine {
         self.tree
             .begin_goal(&goal.name, goal.reward, &goal_pre_strings);
 
-        let mut branch = PlanBranch::new(&self.ctx.initial_agent, &self.ctx.initial_world);
+        let mut branch = PlanBranch::new(
+            Arc::clone(&self.ctx.initial_agent),
+            Arc::clone(&self.ctx.initial_world),
+        );
         branch.goal_index = goal.original_index; // Use original index for Godot
         for pre in &goal.desired_state {
             let satisfied_by_initial = pre
@@ -388,8 +391,8 @@ impl PlannerEngine {
                     {
                         node.branch.state = BranchState::Verifying;
                         node.branch.simulation_index = 0;
-                        node.branch.current_agent = self.ctx.initial_agent.clone();
-                        node.branch.current_world = self.ctx.initial_world.clone();
+                        node.branch.current_agent = Arc::clone(&self.ctx.initial_agent);
+                        node.branch.current_world = Arc::clone(&self.ctx.initial_world);
                         self.enqueue(node);
                         continue;
                     }
@@ -518,8 +521,8 @@ impl PlannerEngine {
                         {
                             new_branch.state = BranchState::Verifying;
                             new_branch.simulation_index = 0;
-                            new_branch.current_agent = self.ctx.initial_agent.clone();
-                            new_branch.current_world = self.ctx.initial_world.clone();
+                            new_branch.current_agent = Arc::clone(&self.ctx.initial_agent);
+                            new_branch.current_world = Arc::clone(&self.ctx.initial_world);
                         }
 
                         // Guard against runaway requirement accumulation (cycle detection).
@@ -814,8 +817,8 @@ impl PlannerEngine {
             },
         ) {
             StepResult::Ready(res) => {
-                branch.current_agent = res.agent;
-                branch.current_world = res.world;
+                branch.current_agent = Arc::new(res.agent);
+                branch.current_world = Arc::new(res.world);
 
                 self.clear_requirements_from_provisions(branch, action_idx, current_bindings);
 

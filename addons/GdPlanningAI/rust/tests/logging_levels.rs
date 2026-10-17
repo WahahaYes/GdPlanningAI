@@ -122,8 +122,8 @@ fn run_eat_plan() -> PlanOutcome {
     let non_wildcard_actions: Vec<usize> = (0..actions.len()).collect();
     let ctx = Arc::new(SearchContext {
         actions,
-        initial_agent: agent,
-        initial_world: world,
+        initial_agent: agent.into(),
+        initial_world: world.into(),
         initial_provisions: vec![],
         request_tx: req_tx,
         engine_response_tx: engine_tx.clone(),
@@ -238,8 +238,8 @@ fn verification_requirement_failure_is_recorded_on_tree() {
     let (engine_tx, _) = mpsc::channel::<PlannerCallback>();
     let ctx = Arc::new(SearchContext {
         actions: vec![action.clone()],
-        initial_agent: agent.clone(),
-        initial_world: world.clone(),
+        initial_agent: agent.clone().into(),
+        initial_world: world.clone().into(),
         initial_provisions: vec![],
         request_tx: req_tx,
         engine_response_tx: engine_tx.clone(),
@@ -256,7 +256,7 @@ fn verification_requirement_failure_is_recorded_on_tree() {
     engine.tree.begin_goal("carry_goal", 1.0, &[]);
     let root = engine.tree.add_root(&[], &[]);
 
-    let mut branch = PlanBranch::new(&agent, &world);
+    let mut branch = PlanBranch::new(agent.clone().into(), world.clone().into());
     branch.action_chain = vec![0];
     branch.state = BranchState::Verifying;
     branch.tree_node_id = root;

@@ -61,8 +61,8 @@ fn setup() -> (Arc<SearchContext>, Receiver<CallbackRequest>) {
 
     let ctx = Arc::new(SearchContext {
         actions,
-        initial_agent: agent,
-        initial_world: world,
+        initial_agent: agent.into(),
+        initial_world: world.into(),
         initial_provisions: vec![],
         request_tx: req_tx,
         engine_response_tx: engine_tx,
@@ -86,7 +86,10 @@ fn setup() -> (Arc<SearchContext>, Receiver<CallbackRequest>) {
 }
 
 fn open_branch(ctx: &SearchContext) -> PlanBranch {
-    let mut branch = PlanBranch::new(&ctx.initial_agent, &ctx.initial_world);
+    let mut branch = PlanBranch::new(
+        Arc::clone(&ctx.initial_agent),
+        Arc::clone(&ctx.initial_world),
+    );
     branch.open_requirements = vec![(
         0,
         RequirementSpec::BindingExists {
