@@ -49,29 +49,13 @@ func get_provisions() -> Array[ProvisionSpec]:
 
 
 # Override
+## Records the step without moving the agent. The direction is only drawn at execution, so a
+## simulated position would mislead later costs and position checks.
 func simulate_effect(
 	agent_blackboard: GdPAIBlackboard,
 	_world_state: GdPAIBlackboard,
 ) -> void:
-	# Record the origin once so WanderGoal can measure the distance moved.
-	var sim_location: SimObjectProxy = agent_blackboard.get_proxy_in_group("GdPAILocationData")
-	var current_pos: Variant = sim_location.get_property("position")
-
-	# The planner only needs the distance; a fixed direction keeps plans reproducible.
-	# pre_perform_action picks the real, random direction.
-	var sim_dir: Vector2 = Vector2.RIGHT
-
-	if current_pos is Vector2:
-		sim_location.set_property("position", current_pos + sim_dir * wander_distance)
-		# Also track origin position for wander goal evaluation
-		if not sim_location.has_property("wander_origin"):
-			sim_location.set_property("wander_origin", current_pos)
-	elif current_pos is Vector3:
-		var sim_dir_3d: Vector3 = Vector3(sim_dir.x, 0, sim_dir.y)
-		sim_location.set_property("position", current_pos + sim_dir_3d * wander_distance)
-		# Also track origin position for wander goal evaluation
-		if not sim_location.has_property("wander_origin"):
-			sim_location.set_property("wander_origin", current_pos)
+	agent_blackboard.set_property("wandered", true)
 
 
 # Override
