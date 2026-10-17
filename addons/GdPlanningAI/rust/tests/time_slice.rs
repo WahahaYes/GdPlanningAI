@@ -111,8 +111,8 @@ fn run_to_completion(time_slice_ms: u64, action_count: usize) -> (Option<PlanRes
 
     let ctx = Arc::new(SearchContext {
         actions,
-        initial_agent: agent,
-        initial_world: world,
+        initial_agent: agent.into(),
+        initial_world: world.into(),
         initial_provisions: vec![],
         request_tx,
         engine_response_tx: engine_tx.clone(),
@@ -218,8 +218,8 @@ fn cancel_returns_complete_immediately() {
 
     let ctx = Arc::new(SearchContext {
         actions,
-        initial_agent: agent,
-        initial_world: world,
+        initial_agent: agent.into(),
+        initial_world: world.into(),
         initial_provisions: vec![],
         request_tx,
         engine_response_tx: engine_tx.clone(),

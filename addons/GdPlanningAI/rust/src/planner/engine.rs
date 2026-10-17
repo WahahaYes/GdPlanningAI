@@ -17,7 +17,7 @@ use crate::planner::types::*;
 use crate::requirement::{
     ProvisionSpec, RequirementSpec, provision_satisfies_requirement, requirement_holds_in_state,
 };
-use crate::snapshot::VariantSnapshot;
+use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
 
 use super::{SearchHeuristic, TerminationStrategy};
 use crate::planner::expander::find_candidates;
@@ -67,6 +67,40 @@ pub struct PlannerEngine {
     pub current_goal_index: usize,
     /// Debug record of the search; only populated when the log level was Debug at creation.
     pub tree: TreeDump,
+    /// Post-states of verified steps, so branches sharing a chain prefix replay it without
+    /// callbacks; see [`StepKey`]. Holds every distinct verified prefix until the job ends.
+    pub step_cache: HashMap<StepKey, SharedState>,
+    /// In-flight effect requests: key -> request id, so other branches wait on the same one.
+    pub step_pending: HashMap<StepKey, usize>,
+    /// Request id -> the step it simulates, so its answer fills `step_cache`.
+    pub step_requests: HashMap<usize, StepKey>,
+}
+
+/// Agent and world state shared between branches.
+pub type SharedState = (Arc<BlackboardSnapshot>, Arc<BlackboardSnapshot>);
+
+/// One simulation step: the pre-state, the action and its bindings. Effects are deterministic, so
+/// equal keys give equal post-states, and a branch replaying a cached state keys its next step
+/// the same way.
+pub type StepKey = (StateRef, StateRef, usize, BindingMap);
+
+/// A shared snapshot compared and hashed by identity. Holding the `Arc` keeps the address
+/// from being reused while a key refers to it.
+#[derive(Clone, Debug)]
+pub struct StateRef(pub Arc<BlackboardSnapshot>);
+
+impl PartialEq for StateRef {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+impl Eq for StateRef {}
+
+impl std::hash::Hash for StateRef {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        Arc::as_ptr(&self.0).hash(state);
+    }
 }
 
 impl PlannerEngine {
@@ -92,6 +126,9 @@ impl PlannerEngine {
             best_cost: f64::INFINITY,
             current_goal_index: 0,
             tree: TreeDump::new(),
+            step_cache: HashMap::new(),
+            step_pending: HashMap::new(),
+            step_requests: HashMap::new(),
         }
     }
 
@@ -165,7 +202,10 @@ impl PlannerEngine {
         self.tree
             .begin_goal(&goal.name, goal.reward, &goal_pre_strings);
 
-        let mut branch = PlanBranch::new(&self.ctx.initial_agent, &self.ctx.initial_world);
+        let mut branch = PlanBranch::new(
+            Arc::clone(&self.ctx.initial_agent),
+            Arc::clone(&self.ctx.initial_world),
+        );
         branch.goal_index = goal.original_index; // Use original index for Godot
         for pre in &goal.desired_state {
             let satisfied_by_initial = pre
@@ -257,6 +297,16 @@ impl PlannerEngine {
                 }
                 let mut req_map = self.ctx.discovery_request_map.lock().unwrap();
                 req_map.remove(&callback.request_id);
+            }
+
+            if let Some(key) = self.step_requests.remove(&callback.request_id) {
+                self.step_pending.remove(&key);
+                if let CallbackResponse::UpdatedSnapshots(ref agent, ref world) = callback.response
+                {
+                    self.step_cache
+                        .entry(key)
+                        .or_insert_with(|| (Arc::new(agent.clone()), Arc::new(world.clone())));
+                }
             }
 
             // Nodes parked on this id resume with the answer attached. Discovery-parked nodes
@@ -388,8 +438,8 @@ impl PlannerEngine {
                     {
                         node.branch.state = BranchState::Verifying;
                         node.branch.simulation_index = 0;
-                        node.branch.current_agent = self.ctx.initial_agent.clone();
-                        node.branch.current_world = self.ctx.initial_world.clone();
+                        node.branch.current_agent = Arc::clone(&self.ctx.initial_agent);
+                        node.branch.current_world = Arc::clone(&self.ctx.initial_world);
                         self.enqueue(node);
                         continue;
                     }
@@ -518,8 +568,8 @@ impl PlannerEngine {
                         {
                             new_branch.state = BranchState::Verifying;
                             new_branch.simulation_index = 0;
-                            new_branch.current_agent = self.ctx.initial_agent.clone();
-                            new_branch.current_world = self.ctx.initial_world.clone();
+                            new_branch.current_agent = Arc::clone(&self.ctx.initial_agent);
+                            new_branch.current_world = Arc::clone(&self.ctx.initial_world);
                         }
 
                         // Guard against runaway requirement accumulation (cycle detection).
@@ -801,32 +851,82 @@ impl PlannerEngine {
             }
         }
 
-        match simulate_action(
+        let key: StepKey = (
+            StateRef(Arc::clone(&branch.current_agent)),
+            StateRef(Arc::clone(&branch.current_world)),
             action_idx,
-            SimArgs {
-                agent: &branch.current_agent,
-                world: &branch.current_world,
-                ctx: &self.ctx,
-                response: callback_response,
-                branch_action_costs: &mut branch.action_costs,
-                simulation_index: branch.simulation_index,
-                bindings: current_bindings,
-            },
-        ) {
-            StepResult::Ready(res) => {
-                branch.current_agent = res.agent;
-                branch.current_world = res.world;
-
-                self.clear_requirements_from_provisions(branch, action_idx, current_bindings);
-
-                branch.simulation_index += 1;
-                branch.recalculate_cost();
-                StepResult::Ready(())
+            current_bindings.to_vec(),
+        );
+        let cost_known = |branch: &PlanBranch| {
+            branch
+                .action_costs
+                .get(branch.simulation_index)
+                .is_some_and(|c| c.is_finite() && *c >= 0.0)
+        };
+        // With the cost known, only the effect is left: reuse another branch's post-state, or
+        // wait on its request.
+        let cached = if cost_known(branch) {
+            if let Some(state) = self.step_cache.get(&key) {
+                Some(state.clone())
+            } else if callback_response.is_none()
+                && let Some(&id) = self.step_pending.get(&key)
+            {
+                return StepResult::Pending(id);
+            } else {
+                None
             }
-            StepResult::Pending(id) => StepResult::Pending(id),
-            StepResult::Invalid => StepResult::Invalid,
-            StepResult::Complete => unreachable!("simulate_action cannot return Complete"),
-        }
+        } else {
+            None
+        };
+
+        let (agent, world) = match cached {
+            Some(state) => state,
+            None => match simulate_action(
+                action_idx,
+                SimArgs {
+                    agent: &branch.current_agent,
+                    world: &branch.current_world,
+                    ctx: &self.ctx,
+                    response: callback_response,
+                    branch_action_costs: &mut branch.action_costs,
+                    simulation_index: branch.simulation_index,
+                    bindings: current_bindings,
+                },
+            ) {
+                // No effect: the state is unchanged, so keep sharing it.
+                StepResult::Ready(_)
+                    if self.ctx.actions[action_idx].effect_callable_id.is_none() =>
+                {
+                    (
+                        Arc::clone(&branch.current_agent),
+                        Arc::clone(&branch.current_world),
+                    )
+                }
+                StepResult::Ready(res) => self
+                    .step_cache
+                    .entry(key)
+                    .or_insert_with(|| (Arc::new(res.agent), Arc::new(res.world)))
+                    .clone(),
+                StepResult::Pending(id) => {
+                    // A request sent once the cost is known is the effect: let others share it.
+                    if cost_known(branch) && !self.step_pending.contains_key(&key) {
+                        self.step_pending.insert(key.clone(), id);
+                        self.step_requests.insert(id, key);
+                    }
+                    return StepResult::Pending(id);
+                }
+                StepResult::Invalid => return StepResult::Invalid,
+                StepResult::Complete => unreachable!("simulate_action cannot return Complete"),
+            },
+        };
+        branch.current_agent = agent;
+        branch.current_world = world;
+
+        self.clear_requirements_from_provisions(branch, action_idx, current_bindings);
+
+        branch.simulation_index += 1;
+        branch.recalculate_cost();
+        StepResult::Ready(())
     }
 
     /// Clears requirements at or after the current position that this action's provisions satisfy.

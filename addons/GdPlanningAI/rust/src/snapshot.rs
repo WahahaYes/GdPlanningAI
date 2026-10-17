@@ -2,7 +2,8 @@
 //! [`BlackboardSnapshot`]) so planning can run off the main thread.
 //!
 //! Converting to or from live blackboards creates Godot objects, so it is main-thread only.
-//! Snapshots are cloned per branch, so they stay cheap value types with `Eq`/`Hash`.
+//! Branches share snapshots behind `Arc`; an effect produces a new one. They stay plain value
+//! types with `Eq`/`Hash`.
 
 use crate::gdpai_blackboard::GdPAIBlackboard;
 use crate::sim_object_proxy::SimObjectProxy;

@@ -46,8 +46,8 @@ fn create_test_engine(
 
     let ctx = Arc::new(SearchContext {
         actions,
-        initial_agent,
-        initial_world,
+        initial_agent: initial_agent.into(),
+        initial_world: initial_world.into(),
         initial_provisions,
         request_tx: req_tx,
         engine_response_tx: engine_tx.clone(),
@@ -71,7 +71,7 @@ fn create_test_engine(
 fn collect_bindings_for_position_filters_by_position() {
     let agent = create_test_agent(vec![]);
     let world = create_test_world(vec![], vec![]);
-    let mut branch = PlanBranch::new(&agent, &world);
+    let mut branch = PlanBranch::new(agent.clone().into(), world.clone().into());
     branch.action_bindings = vec![
         (
             0,
@@ -134,7 +134,10 @@ fn clear_initial_state_requirements_removes_satisfied_pos_zero() {
     }];
 
     let engine = create_test_engine(actions, agent, world, initial_provisions);
-    let mut branch = PlanBranch::new(&engine.ctx.initial_agent, &engine.ctx.initial_world);
+    let mut branch = PlanBranch::new(
+        Arc::clone(&engine.ctx.initial_agent),
+        Arc::clone(&engine.ctx.initial_world),
+    );
     branch.open_requirements = vec![
         (
             0,
@@ -189,7 +192,10 @@ fn validate_action_returns_invalid_for_false_builtin_in_verifying() {
     let world = create_test_world(vec![], vec![]);
     let engine = create_test_engine(vec![], agent, world, vec![]);
 
-    let mut branch = PlanBranch::new(&engine.ctx.initial_agent, &engine.ctx.initial_world);
+    let mut branch = PlanBranch::new(
+        Arc::clone(&engine.ctx.initial_agent),
+        Arc::clone(&engine.ctx.initial_world),
+    );
     branch.state = BranchState::Verifying;
 
     let action = ActionSpec {
@@ -221,7 +227,10 @@ fn validate_action_returns_none_for_satisfied_builtin() {
     let world = create_test_world(vec![], vec![]);
     let engine = create_test_engine(vec![], agent, world, vec![]);
 
-    let branch = PlanBranch::new(&engine.ctx.initial_agent, &engine.ctx.initial_world);
+    let branch = PlanBranch::new(
+        Arc::clone(&engine.ctx.initial_agent),
+        Arc::clone(&engine.ctx.initial_world),
+    );
     let action = ActionSpec {
         name: "needs_health".to_string(),
         cost_callable_id: None,
@@ -254,7 +263,10 @@ fn validate_action_skips_open_preconditions_and_custom() {
     let world = create_test_world(vec![], vec![]);
     let engine = create_test_engine(vec![], agent, world, vec![]);
 
-    let mut branch = PlanBranch::new(&engine.ctx.initial_agent, &engine.ctx.initial_world);
+    let mut branch = PlanBranch::new(
+        Arc::clone(&engine.ctx.initial_agent),
+        Arc::clone(&engine.ctx.initial_world),
+    );
     branch.state = BranchState::Verifying;
     branch.simulation_index = 0;
     branch.open_preconditions = vec![(
@@ -302,7 +314,10 @@ fn evaluate_open_preconditions_removes_satisfied_and_returns_ready() {
     let world = create_test_world(vec![], vec![]);
     let engine = create_test_engine(vec![], agent, world, vec![]);
 
-    let mut branch = PlanBranch::new(&engine.ctx.initial_agent, &engine.ctx.initial_world);
+    let mut branch = PlanBranch::new(
+        Arc::clone(&engine.ctx.initial_agent),
+        Arc::clone(&engine.ctx.initial_world),
+    );
     branch.simulation_index = 0;
     branch.open_preconditions = vec![
         (
@@ -343,7 +358,10 @@ fn evaluate_open_preconditions_returns_invalid_for_false_in_verifying() {
     let world = create_test_world(vec![], vec![]);
     let engine = create_test_engine(vec![], agent, world, vec![]);
 
-    let mut branch = PlanBranch::new(&engine.ctx.initial_agent, &engine.ctx.initial_world);
+    let mut branch = PlanBranch::new(
+        Arc::clone(&engine.ctx.initial_agent),
+        Arc::clone(&engine.ctx.initial_world),
+    );
     branch.simulation_index = 0;
     branch.state = BranchState::Verifying;
     branch.open_preconditions = vec![(
@@ -369,7 +387,10 @@ fn evaluate_open_preconditions_uses_callback_response_for_custom() {
     let world = create_test_world(vec![], vec![]);
     let engine = create_test_engine(vec![], agent, world, vec![]);
 
-    let mut branch = PlanBranch::new(&engine.ctx.initial_agent, &engine.ctx.initial_world);
+    let mut branch = PlanBranch::new(
+        Arc::clone(&engine.ctx.initial_agent),
+        Arc::clone(&engine.ctx.initial_world),
+    );
     branch.simulation_index = 0;
     branch.open_preconditions = vec![(
         0,
@@ -413,7 +434,10 @@ fn clear_requirements_from_provisions_concretizes_wildcard_and_clears_matches() 
     }];
 
     let engine = create_test_engine(actions, agent, world, vec![]);
-    let mut branch = PlanBranch::new(&engine.ctx.initial_agent, &engine.ctx.initial_world);
+    let mut branch = PlanBranch::new(
+        Arc::clone(&engine.ctx.initial_agent),
+        Arc::clone(&engine.ctx.initial_world),
+    );
     branch.simulation_index = 0;
     branch.action_chain = vec![0];
     branch.open_requirements = vec![
@@ -471,7 +495,10 @@ fn finalize_verified_branch_records_best_plan_when_complete() {
     }];
 
     let mut engine = create_test_engine(actions, agent, world, vec![]);
-    let mut branch = PlanBranch::new(&engine.ctx.initial_agent, &engine.ctx.initial_world);
+    let mut branch = PlanBranch::new(
+        Arc::clone(&engine.ctx.initial_agent),
+        Arc::clone(&engine.ctx.initial_world),
+    );
     branch.state = BranchState::Verifying;
     branch.action_chain = vec![0];
     branch.action_costs = vec![1.0];
@@ -500,7 +527,10 @@ fn finalize_verified_branch_invalid_when_open_needs_remain() {
     let agent = create_test_agent(vec![]);
     let world = create_test_world(vec![], vec![]);
     let mut engine = create_test_engine(vec![], agent, world, vec![]);
-    let mut branch = PlanBranch::new(&engine.ctx.initial_agent, &engine.ctx.initial_world);
+    let mut branch = PlanBranch::new(
+        Arc::clone(&engine.ctx.initial_agent),
+        Arc::clone(&engine.ctx.initial_world),
+    );
     branch.state = BranchState::Verifying;
     branch.action_chain = vec![];
     branch.simulation_index = 0; // end of empty chain
@@ -530,7 +560,10 @@ fn finalize_verified_branch_searching_returns_ready() {
     let agent = create_test_agent(vec![]);
     let world = create_test_world(vec![], vec![]);
     let mut engine = create_test_engine(vec![], agent, world, vec![]);
-    let mut branch = PlanBranch::new(&engine.ctx.initial_agent, &engine.ctx.initial_world);
+    let mut branch = PlanBranch::new(
+        Arc::clone(&engine.ctx.initial_agent),
+        Arc::clone(&engine.ctx.initial_world),
+    );
     branch.state = BranchState::Searching;
     branch.action_chain = vec![];
     branch.simulation_index = 0;

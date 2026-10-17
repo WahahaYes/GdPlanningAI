@@ -41,6 +41,7 @@ SearchContext  { actions[], initial_agent, initial_world, initial_provisions[], 
 - `discovery_costs[(action_idx,bindings)] → f64`
 - `discovery_precond_results[(action_idx,spec,bindings)] → bool`
 - Pending maps (`discovery_pending`, `discovery_precond_pending`) with stale-entry cleanup via `discovery_request_map` (request id → what it was for)
+- On the engine (verification): `step_cache[(pre_agent,pre_world,action_idx,bindings)] → shared post-state`, keyed by snapshot identity, with `step_pending` / `step_requests` for in-flight effects
 
 ______________________________________________________________________
 
@@ -54,6 +55,7 @@ function step_search(goals):
     while response = response_rx.try_recv():
         if cancel_flag: parked_nodes.clear(); return Complete(None)
         if DiscoveryResponse: write into caches, remove from pending maps
+        if step request: step_cache[key] = snapshots, remove from step_pending
         for parked_node waiting on request_id:
             parked_node.resumed = true; parked_node.callback_response = response
             enqueue(parked_node)
@@ -257,13 +259,17 @@ function process_simulation(node) → StepResult:
             for req in action.requirements:
                 if not requirement_holds_in_state(req, current_agent, current_world, bindings): return Invalid
 
+        key = (current_agent, current_world, action_idx, bindings)
+        if cost known:
+            if step_cache[key]: take it, skip simulate_action (no callback)
+            elif no response and step_pending[key] = id: return Pending(id)  // share the request
         match simulate_action(action_idx, {agent, world, ctx, response, branch_action_costs[simulation_index], bindings}):
             Ready(res):
-                current_agent = res.agent; current_world = res.world
+                current_agent, current_world = no effect ? unchanged : step_cache.get_or_insert(key, res)
                 clear_requirements_from_provisions(branch, action_idx, bindings)  // concretize wildcards
                 simulation_index++; recalculate_cost(); callback_response = None
                 return Ready(())
-            Pending(id) → Pending(id)
+            Pending(id) → if cost known: step_pending[key] = id; Pending(id)
             Invalid → Invalid
 
     // 4. End of chain
