@@ -141,6 +141,10 @@ func manually_start_plan() -> void:
 
 ## Submit a planning job to the background scheduler.
 func _start_plan_async() -> void:
+	if entity == null:
+		push_warning("GdPAIAgent: entity is not assigned; skipping plan submission")
+		return
+
 	var agent_objects: Array = GdPAIUTILS.get_children_in_group(entity, "GdPAIObjectData")
 	blackboard.set_property("GDPAI_OBJECTS", agent_objects)
 
