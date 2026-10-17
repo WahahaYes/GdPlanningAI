@@ -585,14 +585,7 @@ impl PlannerEngine {
 
             // Search exhausted or optimal plan found. With no plan, report failure so the caller
             // can distinguish it from cancellation (`Complete(None)`).
-            let final_plan = self.best_plan.take().unwrap_or_else(|| PlanResult {
-                success: false,
-                action_chain: vec![],
-                total_cost: 0.0,
-                goal_index: -1,
-                deferred_action_indices: vec![],
-                action_bindings: vec![],
-            });
+            let final_plan = self.best_plan.take().unwrap_or_else(PlanResult::failure);
 
             if final_plan.success {
                 let action_names: Vec<String> = final_plan
@@ -607,7 +600,11 @@ impl PlannerEngine {
                 log_debug!("no plan found; inspect the search via get_debug_tree()");
             }
 
-            self.log_result_summary(&final_plan, goals);
+            // No goals means the scheduler dropped them all as already satisfied: nothing was
+            // searched, so there is no result to summarize.
+            if !goals.is_empty() {
+                self.log_result_summary(&final_plan, goals);
+            }
             PlannerRunResult::Complete(Some(final_plan))
         }
     }
