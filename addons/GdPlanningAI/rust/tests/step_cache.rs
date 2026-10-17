@@ -1,5 +1,5 @@
 //! Verification shares simulated steps: branches replaying the same action from the same state
-//! wait on one effect request and end up holding the same post-state.
+//! wait on one effect request, later ones reuse its answer, and all hold the same post-state.
 
 mod common;
 use common::{create_test_agent, create_test_world};
@@ -98,4 +98,13 @@ fn branches_replaying_the_same_step_share_one_request_and_its_state() {
         a.current_agent.properties.get("hunger"),
         Some(&VariantSnapshot::Int(20))
     );
+
+    // A branch reaching the step later reuses the post-state without a callback.
+    let mut c = verifying_branch(&engine);
+    assert!(matches!(
+        engine.simulate_and_advance(&mut c, 0, &[], None),
+        StepResult::Ready(())
+    ));
+    assert!(Arc::ptr_eq(&a.current_agent, &c.current_agent));
+    assert!(requests.try_recv().is_err(), "no request for a cached step");
 }

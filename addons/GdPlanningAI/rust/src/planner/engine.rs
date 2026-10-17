@@ -68,7 +68,7 @@ pub struct PlannerEngine {
     /// Debug record of the search; only populated when the log level was Debug at creation.
     pub tree: TreeDump,
     /// Post-states of verified steps, so branches sharing a chain prefix replay it without
-    /// callbacks; see [`StepKey`].
+    /// callbacks; see [`StepKey`]. Holds every distinct verified prefix until the job ends.
     pub step_cache: HashMap<StepKey, SharedState>,
     /// In-flight effect requests: key -> request id, so other branches wait on the same one.
     pub step_pending: HashMap<StepKey, usize>,
@@ -79,10 +79,29 @@ pub struct PlannerEngine {
 /// Agent and world state shared between branches.
 pub type SharedState = (Arc<BlackboardSnapshot>, Arc<BlackboardSnapshot>);
 
-/// One simulation step: the pre-state's pointers, the action and its bindings. Effects are
-/// deterministic and `step_cache` keeps every state it hands out alive, so equal keys always
-/// give equal post-states, and a branch replaying a cached state keys its next step the same way.
-pub type StepKey = (usize, usize, usize, BindingMap);
+/// One simulation step: the pre-state, the action and its bindings. Effects are deterministic, so
+/// equal keys give equal post-states, and a branch replaying a cached state keys its next step
+/// the same way.
+pub type StepKey = (StateRef, StateRef, usize, BindingMap);
+
+/// A shared snapshot compared and hashed by identity. Holding the `Arc` keeps the address
+/// from being reused while a key refers to it.
+#[derive(Clone, Debug)]
+pub struct StateRef(pub Arc<BlackboardSnapshot>);
+
+impl PartialEq for StateRef {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+impl Eq for StateRef {}
+
+impl std::hash::Hash for StateRef {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        Arc::as_ptr(&self.0).hash(state);
+    }
+}
 
 impl PlannerEngine {
     /// Creates an engine (Dijkstra, [`TerminationStrategy::BestCost`], 20000 iterations, 10 ms).
@@ -833,22 +852,29 @@ impl PlannerEngine {
         }
 
         let key: StepKey = (
-            Arc::as_ptr(&branch.current_agent) as usize,
-            Arc::as_ptr(&branch.current_world) as usize,
+            StateRef(Arc::clone(&branch.current_agent)),
+            StateRef(Arc::clone(&branch.current_world)),
             action_idx,
             current_bindings.to_vec(),
         );
-        // A step whose cost is already known can reuse another branch's post-state, or wait on
-        // its request.
-        let cost_known = branch
-            .action_costs
-            .get(branch.simulation_index)
-            .is_some_and(|c| *c >= 0.0);
-        let cached = if cost_known && callback_response.is_none() {
-            if let Some(&id) = self.step_pending.get(&key) {
+        let cost_known = |branch: &PlanBranch| {
+            branch
+                .action_costs
+                .get(branch.simulation_index)
+                .is_some_and(|c| c.is_finite() && *c >= 0.0)
+        };
+        // With the cost known, only the effect is left: reuse another branch's post-state, or
+        // wait on its request.
+        let cached = if cost_known(branch) {
+            if let Some(state) = self.step_cache.get(&key) {
+                Some(state.clone())
+            } else if callback_response.is_none()
+                && let Some(&id) = self.step_pending.get(&key)
+            {
                 return StepResult::Pending(id);
+            } else {
+                None
             }
-            self.step_cache.get(&key).cloned()
         } else {
             None
         };
@@ -867,14 +893,23 @@ impl PlannerEngine {
                     bindings: current_bindings,
                 },
             ) {
+                // No effect: the state is unchanged, so keep sharing it.
+                StepResult::Ready(_)
+                    if self.ctx.actions[action_idx].effect_callable_id.is_none() =>
+                {
+                    (
+                        Arc::clone(&branch.current_agent),
+                        Arc::clone(&branch.current_world),
+                    )
+                }
                 StepResult::Ready(res) => self
                     .step_cache
                     .entry(key)
                     .or_insert_with(|| (Arc::new(res.agent), Arc::new(res.world)))
                     .clone(),
                 StepResult::Pending(id) => {
-                    // With the cost known, the request is the effect: let others share it.
-                    if cost_known {
+                    // A request sent once the cost is known is the effect: let others share it.
+                    if cost_known(branch) {
                         self.step_pending.insert(key.clone(), id);
                         self.step_requests.insert(id, key);
                     }
