@@ -5,9 +5,6 @@
 [ext_resource type="Script" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_location_data.gd" id="3_ijklm"]
 [ext_resource type="Script" path="res://examples/objects/campfire/campfire_runtime.gd" id="4_jklmn"]
 
-[sub_resource type="CircleShape2D" id="CircleShape2D_1"]
-radius = 24.0
-
 [sub_resource type="LabelSettings" id="LabelSettings_1"]
 font_size = 16
 
@@ -16,9 +13,6 @@ script = ExtResource("4_jklmn")
 campfire_object = NodePath("./GdPAIObjectData")
 label_node = NodePath("./Label")
 fire_primitive = NodePath("./FireGlow")
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
-shape = SubResource("CircleShape2D_1")
 
 [node name="FireGlow" type="ColorRect" parent="."]
 offset_left = -20.0

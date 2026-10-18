@@ -4,9 +4,6 @@
 [ext_resource type="Script" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_interactable.gd" id="2_qrstu"]
 [ext_resource type="Script" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_location_data.gd" id="3_rstuv"]
 
-[sub_resource type="SphereShape3D" id="SphereShape3D_1"]
-radius = 0.25
-
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_skin"]
 albedo_color = Color(0.66, 0.51, 0.33, 1)
 roughness = 0.9
@@ -16,10 +13,6 @@ albedo_color = Color(0.3, 0.22, 0.13, 1)
 roughness = 0.9
 
 [node name="Potato" type="Node3D"]
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
-position = Vector3(0, 0.2, 0)
-shape = SubResource("SphereShape3D_1")
 
 [node name="Body" type="CSGSphere3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.8, 0, 0, 0, 1.15, 0, 0.2, 0)
