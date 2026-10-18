@@ -53,7 +53,7 @@ When the chain has no open needs left, the branch flips to `Verifying`, resets i
 
 A branch in the `Verifying` state is run through `process_simulation`. This executes the chain from first to last action against simulated snapshots, one careful step at a time:
 
-1. On entering `Verifying`, every goal precondition is re-opened at the end of the chain, so the goal is checked against the final simulated state: a later insertion can undo a need an earlier action satisfied.
+1. On entering `Verifying`, each action's custom preconditions are re-opened at its position and every goal precondition at the end of the chain, so they are checked against the simulated state: a later insertion can undo a need an earlier action satisfied. Builtin action preconditions are re-checked in the next step.
 1. On the first step, requirements at position 0 (already satisfied by initial provisions) are cleared.
 1. The current action's own builtin preconditions are re-checked against the *current simulated* state. In Verifying, a failure here is fatal: `Invalid`.
 1. Open preconditions at this position are evaluated one at a time. Each satisfied precondition is removed and the node is re-queued, so callbacks for custom preconditions can be serviced atomically between steps.
@@ -131,7 +131,7 @@ The symbolic layer decides *which* chains to try; the simulation layer decides w
 
 ### Preconditions: builtin vs custom
 
-`Precondition` comes in two forms. **Builtin** preconditions describe a simple comparison over the agent or world blackboards, e.g. `agent_property_less_than("hunger", 15)`, and evaluate synchronously inside the engine. **Custom** preconditions wrap a GDScript callable that must run on the main thread; they are fired through the callback channel during discovery (against the state an action would produce from the initial state) and again during verification (against the simulated state). Discovery results are cached per `(action, precondition, bindings)` so repeated branches do not re-run them; verification re-evaluates, since the state differs per branch.
+`Precondition` comes in two forms. **Builtin** preconditions describe a simple comparison over the agent or world blackboards, e.g. `agent_property_less_than("hunger", 15)`, and evaluate synchronously inside the engine. **Custom** preconditions wrap a GDScript callable that must run on the main thread; they are fired through the callback channel during discovery (against the state an action would produce from the initial state) and again during verification, before the action runs (against the simulated state). Discovery results are cached per `(action, precondition, bindings)` so repeated branches do not re-run them; verification re-evaluates, since the state differs per branch.
 
 The goal's desired state is itself a list of preconditions. Unmet ones become open preconditions at position 0; verification checks all of them again after the last action.
 
