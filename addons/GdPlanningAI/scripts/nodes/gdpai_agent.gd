@@ -72,11 +72,11 @@ func _process(delta: float) -> void:
 	for updater in property_updaters:
 		updater.update_properties(self, delta)
 
+	_failure_backoff_left = maxf(0.0, _failure_backoff_left - delta)
 	# Until some goals and actions have been provided, this agent is effectively turned off.
 	if goals.size() == 0:
 		return
 
-	_failure_backoff_left = maxf(0.0, _failure_backoff_left - delta)
 	if (
 		_planning_strategy == GdPAIAgentConfig.PlanningStrategy.CONTINUOUS
 		and _failure_backoff_left == 0.0
@@ -198,6 +198,7 @@ func _on_plan_ready(result: Dictionary) -> void:
 	_retire_current_chain()
 	_current_plan_step = -1
 	if result.get("success", false):
+		_failure_backoff_left = 0.0
 		var deserialized: Dictionary = _bridge.deserialize_plan_result(
 			result, _last_submitted_actions
 		)

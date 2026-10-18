@@ -59,6 +59,17 @@ func test_interval_skips_timeouts_during_backoff() -> void:
 	assert_eq(agent._plan_generation, submitted + 1, "Plans on the first timeout after it")
 
 
+## A successful plan ends the backoff early.
+func test_success_clears_backoff() -> void:
+	var agent: GdPAIAgent = _make_agent(GdPAIAgentConfig.PlanningStrategy.CONTINUOUS)
+	_answer(agent, FAILED)
+	agent.manually_start_plan()
+	_answer(agent, IDLE)
+	var submitted: int = agent._plan_generation
+	agent._process(0.1)
+	assert_eq(agent._plan_generation, submitted + 1, "No wait left after a success")
+
+
 ## A manual request ignores the backoff.
 func test_manual_start_ignores_backoff() -> void:
 	var agent: GdPAIAgent = _make_agent(GdPAIAgentConfig.PlanningStrategy.ON_DEMAND)
