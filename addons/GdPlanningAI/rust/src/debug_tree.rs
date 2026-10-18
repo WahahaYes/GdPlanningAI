@@ -15,8 +15,6 @@ pub struct GoalAttempt {
     pub goal_reward: f64,
     /// The goal's desired state, rendered as text.
     pub goal_preconditions: Vec<String>,
-    /// True if no search was needed because the goal already held.
-    pub already_satisfied: bool,
     /// ID of the root node of this goal's search tree.
     pub root_id: usize,
     /// Whether a plan was found.
@@ -44,101 +42,12 @@ pub struct TreeNode {
     pub satisfied_preconditions: Vec<String>,
     /// Open requirements this node's action satisfied.
     pub satisfied_requirements: Vec<String>,
-    /// Actions that were considered at this node and rejected.
-    pub excluded_actions: Vec<ExcludedAction>,
     /// What eventually happened to the node.
     pub outcome: NodeOutcome,
     /// Steps of forward verification that concern this node's branch.
     pub forward_validation: Vec<FwdStep>,
     /// IDs of child nodes (indexes into TreeDump.nodes).
     pub children: Vec<usize>,
-}
-
-/// Builder for child-node arguments. Unused by the engine, which passes a [`ChildNodeConfig`].
-#[derive(Debug, Default)]
-pub struct ChildNodeBuilder {
-    action_name: Option<String>,
-    estimated_cost: f64,
-    accumulated_cost: f64,
-    open_preconditions: Vec<String>,
-    open_requirements: Vec<String>,
-    satisfied_preconditions: Vec<String>,
-    satisfied_requirements: Vec<String>,
-}
-
-impl ChildNodeBuilder {
-    /// Creates a new ChildNodeBuilder with default values.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Sets the action name for the child node.
-    pub fn action_name(mut self, name: impl Into<String>) -> Self {
-        self.action_name = Some(name.into());
-        self
-    }
-
-    /// Sets the estimated cost for the child node.
-    pub fn estimated_cost(mut self, cost: f64) -> Self {
-        self.estimated_cost = cost;
-        self
-    }
-
-    /// Sets the accumulated cost for the child node.
-    pub fn accumulated_cost(mut self, cost: f64) -> Self {
-        self.accumulated_cost = cost;
-        self
-    }
-
-    /// Sets the open preconditions for the child node.
-    pub fn open_preconditions(mut self, pre: Vec<String>) -> Self {
-        self.open_preconditions = pre;
-        self
-    }
-
-    /// Sets the open requirements for the child node.
-    pub fn open_requirements(mut self, req: Vec<String>) -> Self {
-        self.open_requirements = req;
-        self
-    }
-
-    /// Sets the satisfied preconditions for the child node.
-    pub fn satisfied_preconditions(mut self, pre: Vec<String>) -> Self {
-        self.satisfied_preconditions = pre;
-        self
-    }
-
-    /// Sets the satisfied requirements for the child node.
-    pub fn satisfied_requirements(mut self, req: Vec<String>) -> Self {
-        self.satisfied_requirements = req;
-        self
-    }
-
-    /// Builds the TreeNode from the configured builder.
-    pub fn build(self) -> TreeNode {
-        TreeNode {
-            action_name: self.action_name,
-            estimated_cost: self.estimated_cost,
-            accumulated_cost: self.accumulated_cost,
-            open_preconditions: self.open_preconditions,
-            open_requirements: self.open_requirements,
-            satisfied_preconditions: self.satisfied_preconditions,
-            satisfied_requirements: self.satisfied_requirements,
-            excluded_actions: Vec::new(),
-            outcome: NodeOutcome::Expanded,
-            forward_validation: Vec::new(),
-            children: Vec::new(),
-        }
-    }
-}
-
-/// An action considered but excluded from candidates. The engine does not record these yet.
-#[derive(Clone, Debug)]
-pub struct ExcludedAction {
-    /// Name of the rejected action.
-    pub action_name: String,
-    /// Why it was rejected.
-    pub reason: String,
 }
 
 /// What happened at this search node.
@@ -151,9 +60,6 @@ pub enum NodeOutcome {
         /// Short explanation shown in the tree.
         reason: String,
     },
-    /// No candidates could satisfy the open needs. Available to callers, not set by the
-    /// engine.
-    DeadEnd,
     /// Branch completed — forward validation ran.
     Complete {
         /// Number of actions in the verified chain.
@@ -272,25 +178,12 @@ impl TreeDump {
             goal_name: name.to_string(),
             goal_reward: reward,
             goal_preconditions: preconditions.to_vec(),
-            already_satisfied: false,
             root_id: 0,
             success: false,
             plan_actions: Vec::new(),
             plan_cost: 0.0,
         });
         idx
-    }
-
-    /// Mark the current goal as already satisfied (no search needed). The engine does not call
-    /// this today: the scheduler removes already-satisfied goals before the engine sees them.
-    pub fn goal_already_satisfied(&mut self) {
-        if !self.enabled {
-            return;
-        }
-        if let Some(ga) = self.goal_attempts.last_mut() {
-            ga.already_satisfied = true;
-            ga.success = true;
-        }
     }
 
     /// Finalize the current goal attempt with its result: the plan's action names and cost on
@@ -321,7 +214,6 @@ impl TreeDump {
             open_requirements: open_req.to_vec(),
             satisfied_preconditions: Vec::new(),
             satisfied_requirements: Vec::new(),
-            excluded_actions: Vec::new(),
             outcome: NodeOutcome::Expanded,
             forward_validation: Vec::new(),
             children: Vec::new(),
@@ -348,7 +240,6 @@ impl TreeDump {
             open_requirements: config.open_req.to_vec(),
             satisfied_preconditions: config.satisfied_pre.to_vec(),
             satisfied_requirements: config.satisfied_req.to_vec(),
-            excluded_actions: Vec::new(),
             outcome: NodeOutcome::Expanded,
             forward_validation: Vec::new(),
             children: Vec::new(),
@@ -366,19 +257,6 @@ impl TreeDump {
         }
         if let Some(node) = self.nodes.get_mut(node_id) {
             node.outcome = outcome;
-        }
-    }
-
-    /// Record an excluded action on a node.
-    pub fn exclude_action(&mut self, node_id: usize, action_name: &str, reason: &str) {
-        if !self.enabled {
-            return;
-        }
-        if let Some(node) = self.nodes.get_mut(node_id) {
-            node.excluded_actions.push(ExcludedAction {
-                action_name: action_name.to_string(),
-                reason: reason.to_string(),
-            });
         }
     }
 
@@ -419,10 +297,8 @@ impl TreeDump {
                 ga.goal_reward,
                 ga.goal_preconditions.join(", ")
             ));
-            if ga.already_satisfied {
-                output.push_str("  └── ALREADY SATISFIED\n");
-            } else if ga.root_id < self.nodes.len() {
-                format_node(&mut output, self, ga.root_id, 1, &mut [false; 64]);
+            if ga.root_id < self.nodes.len() {
+                format_node(&mut output, self, ga.root_id, 1, &mut vec![false]);
             } else {
                 output.push_str("  └── (no search)\n");
             }
@@ -447,14 +323,14 @@ impl TreeDump {
     }
 }
 
-/// Appends `node_id` and its subtree to `output`. `has_more[d]` says whether the ancestor at
-/// depth `d` has later siblings (draw `│` or a blank).
+/// Appends `node_id` and its subtree to `output`. `has_more[d]` says whether the path's node at
+/// depth `d + 1` has later siblings (draw `│` or a blank).
 fn format_node(
     output: &mut String,
     tree: &TreeDump,
     node_id: usize,
     depth: usize,
-    has_more: &mut [bool],
+    has_more: &mut Vec<bool>,
 ) {
     let node = &tree.nodes[node_id];
 
@@ -502,16 +378,6 @@ fn format_node(
             let name = node.action_name.as_deref().unwrap_or("?");
             output.push_str(&format!("{}'{}' PRUNED: {}\n", prefix, name, reason));
         }
-        NodeOutcome::DeadEnd => {
-            output.push_str(&format!("{}DEAD END (no candidates)\n", prefix));
-        }
-    }
-
-    for ex in &node.excluded_actions {
-        output.push_str(&format!(
-            "{}  EXCLUDE '{}': {}\n",
-            indent, ex.action_name, ex.reason
-        ));
     }
 
     for step in &node.forward_validation {
@@ -523,8 +389,10 @@ fn format_node(
     }
 
     let n = node.children.len();
+    has_more.push(false);
     for (i, &child_id) in node.children.iter().enumerate() {
         has_more[depth] = i + 1 < n;
         format_node(output, tree, child_id, depth + 1, has_more);
     }
+    has_more.pop();
 }

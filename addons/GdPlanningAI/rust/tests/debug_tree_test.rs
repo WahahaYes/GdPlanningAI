@@ -2,34 +2,21 @@
 //!
 //! These tests verify that the TreeDump ID-based builder produces a
 //! correct tree with proper parent-child relationships, outcomes,
-//! excluded actions, and forward-validation steps.
+//! and forward-validation steps.
 
 use gdplanningai_rust::debug_tree::{ChildNodeConfig, NodeOutcome, TreeDump};
-
-#[test]
-fn single_goal_already_satisfied() {
-    let mut dump = TreeDump::new_forced();
-    dump.begin_goal("eat_goal", 10.0, &["hunger < 30".to_string()]);
-    dump.goal_already_satisfied();
-    dump.end_goal(true, &[], 0.0);
-
-    let output = dump.format();
-    assert!(output.contains("eat_goal"));
-    assert!(output.contains("ALREADY SATISFIED"));
-}
 
 #[test]
 fn goal_with_root_and_no_candidates() {
     let mut dump = TreeDump::new_forced();
     dump.begin_goal("test_goal", 5.0, &["pre_a".to_string()]);
-    let root_id = dump.add_root(&["pre_a".to_string()], &[]);
-    dump.set_outcome(root_id, NodeOutcome::DeadEnd);
+    dump.add_root(&["pre_a".to_string()], &[]);
     dump.end_goal(false, &[], 0.0);
 
     let output = dump.format();
     assert!(output.contains("test_goal"));
-    assert!(output.contains("DEAD END"));
-    assert!(output.contains("FAILURE"));
+    assert!(output.contains("ROOT"));
+    assert!(output.contains("no plan found"));
 }
 
 #[test]
@@ -100,31 +87,6 @@ fn candidate_pruned_by_cost() {
 }
 
 #[test]
-fn excluded_actions_attached_to_node() {
-    let mut dump = TreeDump::new_forced();
-    dump.begin_goal("goal", 10.0, &["need_x".to_string()]);
-    let root_id = dump.add_root(&["need_x".to_string()], &[]);
-
-    dump.exclude_action(
-        root_id,
-        "no_effect_action",
-        "no effect to satisfy open preconditions",
-    );
-    dump.exclude_action(
-        root_id,
-        "freed_action",
-        "dependencies invalid (object freed)",
-    );
-
-    dump.set_outcome(root_id, NodeOutcome::DeadEnd);
-    dump.end_goal(false, &[], 0.0);
-
-    let output = dump.format();
-    assert!(output.contains("no_effect_action"));
-    assert!(output.contains("freed_action"));
-}
-
-#[test]
 fn forward_validation_steps_attached_to_completing_node() {
     let mut dump = TreeDump::new_forced();
     dump.begin_goal("goal", 10.0, &["need_x".to_string()]);
@@ -170,7 +132,12 @@ fn multiple_goal_attempts() {
     // First goal fails
     dump.begin_goal("goal_a", 20.0, &["pre_a".to_string()]);
     let root_a = dump.add_root(&["pre_a".to_string()], &[]);
-    dump.set_outcome(root_a, NodeOutcome::DeadEnd);
+    dump.set_outcome(
+        root_a,
+        NodeOutcome::Pruned {
+            reason: "no candidates".to_string(),
+        },
+    );
     dump.end_goal(false, &[], 0.0);
 
     // Second goal succeeds
@@ -223,7 +190,12 @@ fn branches_counted_by_nodes() {
             satisfied_req: &[],
         },
     );
-    dump.set_outcome(a, NodeOutcome::DeadEnd);
+    dump.set_outcome(
+        a,
+        NodeOutcome::Pruned {
+            reason: "no candidates".to_string(),
+        },
+    );
 
     let b = dump.add_child(
         root_id,
@@ -357,4 +329,29 @@ fn nested_candidates_build_correct_tree() {
     assert!(output.contains("outer_action"));
     assert!(output.contains("inner_action"));
     assert!(output.contains("SUCCESS"));
+}
+
+#[test]
+fn deep_chain_formats_without_depth_limit() {
+    let mut dump = TreeDump::new_forced();
+    dump.begin_goal("goal", 10.0, &["need".to_string()]);
+    let mut parent = dump.add_root(&["need".to_string()], &[]);
+    for i in 0..100 {
+        parent = dump.add_child(
+            parent,
+            ChildNodeConfig {
+                action_name: &format!("step_{i}"),
+                estimated_cost: 1.0,
+                accumulated_cost: (i + 1) as f64,
+                open_pre: &[],
+                open_req: &[],
+                satisfied_pre: &[],
+                satisfied_req: &[],
+            },
+        );
+    }
+    dump.end_goal(false, &[], 0.0);
+
+    let line = format!("\n{}└── Try 'step_99'", "    ".repeat(100));
+    assert!(dump.format().contains(&line));
 }

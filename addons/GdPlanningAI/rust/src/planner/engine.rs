@@ -993,7 +993,6 @@ impl PlannerEngine {
                         action_chain: branch.action_chain.iter().map(|&i| i as i64).collect(),
                         total_cost: branch.cost,
                         goal_index: branch.goal_index as i64,
-                        deferred_action_indices: vec![],
                         action_bindings: branch
                             .action_bindings
                             .iter()

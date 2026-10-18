@@ -16,8 +16,6 @@ pub struct PlanResult {
     pub total_cost: f64,
     /// Index into the original goals array passed from GDScript; -1 on failure
     pub goal_index: i64,
-    /// Reserved; the engine never populates it.
-    pub deferred_action_indices: Vec<i64>,
     /// `(chain_position, fact_name, values)` bound for each action occurrence; a position can
     /// appear once per binding name.
     pub action_bindings: Vec<(i64, String, Vec<crate::snapshot::VariantSnapshot>)>,
@@ -31,7 +29,6 @@ impl PlanResult {
             action_chain: vec![],
             total_cost: 0.0,
             goal_index: -1,
-            deferred_action_indices: vec![],
             action_bindings: vec![],
         }
     }
