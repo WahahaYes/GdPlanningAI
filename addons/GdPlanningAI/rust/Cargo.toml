@@ -1,6 +1,6 @@
 [package]
 name = "gdplanningai-rust"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 
 [lib]
@@ -14,3 +14,6 @@ rayon = "1.8"
 
 [build-dependencies]
 godot-bindings = "0.4.5"
+
+[profile.release]
+strip = true

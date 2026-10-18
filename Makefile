@@ -132,6 +132,10 @@ godot-pin-version: ## Pin specific Godot version (usage: make godot-pin-version 
 	godotenv godot use $(VERSION) --no-dotnet
 	godotenv godot pin
 
+.PHONY: godot-version
+godot-version: ## Print the pinned Godot version (global.json, the one source CI and godotenv read)
+	@python3 -c "import json; print(json.load(open('global.json'))['msbuild-sdks']['Godot.NET.Sdk'])"
+
 .PHONY: godot-install-pinned
 godot-install-pinned: ## Install the pinned Godot version (uses godotenv)
 	godotenv godot install --no-dotnet

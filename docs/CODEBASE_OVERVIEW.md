@@ -63,7 +63,7 @@ Everything under `scripts/` is the user-facing API. Users subclass `Action`, `Go
 
 ### 3.2 Rust planning engine
 
-The Rust crate lives in `addons/GdPlanningAI/rust/`. Crate `gdplanningai-rust` v0.1.0, edition 2024, `crate-type = ["cdylib", "lib"]`. It depends on `godot` 0.4.5 (gdext) and `rayon` 1.8 for its thread pool. The GDExtension entry point `GdPlanningAIExt` calls `logger::init_log_channel()` at `InitLevel::Servers`.
+The Rust crate lives in `addons/GdPlanningAI/rust/`. Crate `gdplanningai-rust`, edition 2024, `crate-type = ["cdylib", "lib"]`. It depends on `godot` 0.4.5 (gdext) and `rayon` 1.8 for its thread pool. The GDExtension entry point `GdPlanningAIExt` calls `logger::init_log_channel()` at `InitLevel::Servers`.
 
 Module map of `rust/src/`:
 
