@@ -40,6 +40,13 @@ chmod +x "$dir/pkg/$exe"
 case "$(uname -s)" in
 Darwin) ln -sf "$dir/pkg/$exe" "$dir/godot" ;;
 Linux) ln -sf "$dir/pkg/$exe" "$dir/godot" ;;
-*) cp "$dir/pkg/$exe" "$dir/godot.exe" ;;
+*)
+	# The _console exe is a wrapper that launches the plain exe of the same base name,
+	# so both are kept; `godot` is a shim for the wrapper (Git Bash finds it before godot.exe).
+	cp "$dir/pkg/Godot_v${release}_win64.exe" "$dir/godot.exe"
+	cp "$dir/pkg/$exe" "$dir/godot_console.exe"
+	printf '#!/bin/sh\nexec "$(dirname "$0")/godot_console.exe" "$@"\n' >"$dir/godot"
+	chmod +x "$dir/godot"
+	;;
 esac
 echo "$dir"
