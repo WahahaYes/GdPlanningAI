@@ -5,10 +5,13 @@ TARGET_DIR = $(RUST_DIR)/target
 
 # Keep local paths out of the committed binaries, so builds match across checkouts. Every
 # target shares these flags; changing RUSTFLAGS between targets would rebuild everything.
+# filter-out keeps recursive makes (build-all) from adding them twice. RUSTFLAGS overrides any
+# rustflags in a cargo config.
 CARGO_HOME ?= $(HOME)/.cargo
-export RUSTFLAGS += --remap-path-prefix=$(CURDIR)=/gdplanningai_rust \
+REMAP_FLAGS := --remap-path-prefix=$(CURDIR)=/gdplanningai_rust \
 	--remap-path-prefix=$(CARGO_HOME)=/cargo \
 	--remap-path-prefix=$(shell rustc --print sysroot)=/rustc
+export RUSTFLAGS := $(strip $(filter-out $(REMAP_FLAGS),$(RUSTFLAGS)) $(REMAP_FLAGS))
 
 ##@ Build
 
