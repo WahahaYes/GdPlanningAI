@@ -17,7 +17,7 @@ GdPlanningAI (shortened as **GdPAI**) is an agent planning addon for Godot 4. Ag
 
 ![GIF of the hunger_multi_agent_2d.tscn scene running](https://raw.githubusercontent.com/WahahaYes/GdPlanningAI/refs/heads/main/media/2d_demo.gif)
 
-The framework is based on Goal Oriented Action Planning (GOAP), the planning system Jeff Orkin developed in the early 2000s and used in games like F.E.A.R., Fallout 3, and Alien Isolation. It started as a reimplementation of GOAP, then expanded the planning logic and put more emphasis on interactable objects.
+The framework is based on Goal Oriented Action Planning (GOAP), the planning system Jeff Orkin developed in the early 2000s and used in games like F.E.A.R., Fallout 3, and Middle-earth: Shadow of Mordor. It started as a reimplementation of GOAP, then expanded the planning logic and put more emphasis on interactable objects.
 
 The planner is written in Rust and searches on background threads. Agents, goals, and actions are written in GDScript. [docs/ALGORITHM.md](docs/ALGORITHM.md) explains how a plan is found.
 
