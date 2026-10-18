@@ -194,9 +194,9 @@ Every target sets `RUSTFLAGS` with `--remap-path-prefix`, so the committed binar
 
 `make build-release` produces the shared library for the current OS and copies it into `addons/GdPlanningAI/bin/<platform>/`. `gdplanningai.gdextension` loads the platform-appropriate file at runtime (`.so` on Linux, `.dll` on Windows, `.dylib` on macOS). The binaries are committed through Git LFS, so a tag archive is a usable addon.
 
-The committed binaries are built by CI (`build.yml`): Linux and macOS (universal, `lipo` of aarch64 and x86_64) on their runners, Windows natively with MSVC. `addons/GdPlanningAI/bin/.source` stamps them with the git tree id of `addons/GdPlanningAI/rust`, which covers sources, `Cargo.lock`, `rust-toolchain.toml` and the Makefile. CI fails a PR whose stamp differs from that tree (`scripts/binaries.sh check`); it never compares binary bytes or pulls LFS objects. After a Rust change: commit it, push, wait for the build jobs, then `scripts/binaries.sh fetch` stages the three fresh binaries and the stamp for a follow-up commit.
+The committed binaries are built by CI (`build.yml`): Linux and macOS (universal, `lipo` of aarch64 and x86_64) on their runners, Windows natively with MSVC. They are not checked on pull requests, so they can lag the Rust sources between releases. `addons/GdPlanningAI/bin/.source` stamps them with the git tree id of `addons/GdPlanningAI/rust` (sources, `Cargo.lock`, `rust-toolchain.toml`, Makefile); only `release.sh` and `release.yml` require it to match (`scripts/binaries.sh check`; no LFS download, no byte compare). To refresh before a release: push a branch from main, wait for the build jobs, run `scripts/binaries.sh fetch`, commit the staged binaries and stamp, and merge.
 
-Locally, run `make -C addons/GdPlanningAI/rust build-release` after any Rust change so the GDScript test suite picks up the new behavior, but do not commit the result.
+**Local development:** after any Rust change, or when your platform's committed binary is out of date, rebuild it with `make -C addons/GdPlanningAI/rust build-release` before running the GDScript tests or the editor. Do not commit the result; CI builds the committed binaries.
 
 ______________________________________________________________________
 

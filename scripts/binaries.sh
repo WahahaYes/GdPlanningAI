@@ -6,14 +6,15 @@
 # updates change them), and the check never pulls LFS objects.
 #
 #   scripts/binaries.sh key           print the tree id of HEAD's rust/ (or REV's)
-#   scripts/binaries.sh check [REV]   fail unless the stamp equals the key and all three
+#   scripts/binaries.sh check [REV]   (release gate) fail unless the stamp equals the key and all three
 #                                     binaries are tracked as LFS pointers
 #   scripts/binaries.sh fetch [RUN]   download the build artifacts of a CI run (default: the
 #                                     latest build run on HEAD), write the stamp, stage all
 #   scripts/binaries.sh stamp         write the stamp for HEAD's rust/ (what fetch does)
 #
-# Flow: commit the Rust change, push, wait for the build jobs, run `fetch`, commit the
-# staged binaries and stamp, push. Rust must be committed first: the key is HEAD's tree.
+# PR checks do not gate on this; release.sh and release.yml do. Before a release, refresh:
+# on a branch from main, push, wait for the build jobs, run `fetch`, commit the staged
+# binaries and stamp, merge. Rust must be committed first: the key is HEAD's tree.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."

@@ -10,7 +10,7 @@
 #
 # Pull requests that touch the release machinery run the same checks and
 # build the archive as a dry run: nothing is published, the tag-only checks
-# are skipped and CHANGELOG is exercised with stub notes.
+# and the binaries check are skipped and CHANGELOG is exercised with stub notes.
 name: release
 run-name: release ${{ github.ref_name }}
 
@@ -85,7 +85,9 @@ jobs:
           python3 scripts/release-meta.py notes 9.9.9
       - name: No hardcoded versions
         run: python3 scripts/release-meta.py stale
+      # Binaries are not gated on PRs; a release needs them current.
       - name: Binaries match the Rust sources
+        if: github.event_name == 'push'
         run: scripts/binaries.sh check
 
   build:
