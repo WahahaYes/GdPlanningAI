@@ -15,14 +15,12 @@ The top-level of the repo:
 | `addons/`           | The plugin itself: `addons/GdPlanningAI/` is the installable addon.                      |
 | `docs/`             | Project documentation (see [section 9](#9-documentation-map)).                           |
 | `examples/`         | Demonstration scenes (hunger, campfire, multi-agent, stress test).                       |
-| `notes/`            | Session-scoped research and plans; scratch material, not reference docs.                 |
 | `script_templates/` | Godot script templates for subclassing `Action`, `Goal`, `GdPAIObjectData`, and friends. |
 | `scripts/`          | Developer tooling scripts (style linting; recording now via `GdTimeMachine` addon).      |
 | `test/`             | GUT GDScript test suite (`test/unit/`, `test/integration/`).                             |
 | `media/`            | Demo assets used by the README (banner, gifs, screenshots).                              |
-| `.omo/`             | omo tooling state (for example, run-continuation hooks).                                 |
 
-Other files of note at the root: `Makefile` (see [section 6](#6-build-system)), `project.godot` (Godot 4.7 project, no main scene), `addons.jsonc` (third-party addon manifest, `gut` v9.6.0 + `GdTimeMachine` via symlink to `../GdTimeMachine`), `.pre-commit-config.yaml`, and `AGENTS.md` (agent working guidelines).
+Other files of note at the root: `Makefile` (see [section 6](#6-build-system)), `project.godot` (Godot 4.7 project, no main scene), `addons.jsonc` (third-party addon manifest, `gut` v9.6.0 + `GdTimeMachine` via symlink to `../GdTimeMachine`), and `.pre-commit-config.yaml`.
 
 ______________________________________________________________________
 
@@ -178,7 +176,7 @@ Prefer `make` targets over ad hoc commands. Two Makefiles exist.
 | `format`, `format-rust`, `format-godot`                                | Format all / Rust (rustfmt) / GDScript (`fix_gd_spacing.py` + gdformat via uv).                                                                                                                                                                                                                                                                |
 | `lint-style`, `lint-godot`                                             | Run `uv run scripts/lint_style.py` / gdlint (gdtoolkit defaults).                                                                                                                                                                                                                                                                              |
 | `check-docs`, `sync-docs`                                              | Diff/sync README + LICENSE between the repo root and the addon copy.                                                                                                                                                                                                                                                                           |
-| `launch-editor`, `addons-install`, `godot-pin`, `godot-install-pinned` | Editor and Godot version management (GodotEnv). Recording is via colocated `GdTimeMachine` addon (`../GdTimeMachine`) — see `notes/GODOTENV_GDTIMEMACHINE_AUDIT.md`.                                                                                                                                                                           |
+| `launch-editor`, `addons-install`, `godot-pin`, `godot-install-pinned` | Editor and Godot version management (GodotEnv). Recording is via colocated `GdTimeMachine` addon (`../GdTimeMachine`).                                                                                                                                                                                                                         |
 
 ### `addons/GdPlanningAI/rust/Makefile`
 
@@ -241,7 +239,5 @@ ______________________________________________________________________
 | `docs/AUTHORING_GUIDE.md`          | How to write actions, goals, preconditions, and object data for your own agents.                    |
 | `docs/EXAMPLES.md`                 | Step-by-step walkthroughs of the example scenes.                                                    |
 | `docs/DOCUMENTATION_GUIDELINES.md` | Code documentation style: no decorative headers, docstring conventions for GDScript and Rust.       |
-
-The `notes/` folder is for session-scoped research (for example, `RESEARCH_RUST_ENGINE.md`, `RESEARCH_GDSCRIPT_API.md`, `RESEARCH_TESTS_TOOLING.md`). Treat it as scratch: it documents the current state of the code at a point in time and is expected to go stale. Reference docs live in `docs/`.
 
 A good reading order for a new contributor: this file, then `docs/ALGORITHM.md`, then `docs/EXAMPLES.md` for a concrete end-to-end picture.

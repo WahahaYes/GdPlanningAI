@@ -21,7 +21,6 @@ config/icon="res://icon.svg"
 [autoload]
 
 GdPAIAutoload="*uid://ol4q4tu0vtwo"
-_mcp_game_helper="*res://addons/godot_ai/runtime/game_helper.gd"
 GdTimeMachineGracefulStop="*uid://c3xtfhcvwdmob"
 
 [dotnet]
@@ -30,4 +29,4 @@ project/assembly_name="GdPlanningAI"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/GdPlanningAI/plugin.cfg", "res://addons/GdTimeMachine/plugin.cfg", "res://addons/godot_ai/plugin.cfg", "res://addons/gut/plugin.cfg")
+enabled=PackedStringArray("res://addons/GdPlanningAI/plugin.cfg", "res://addons/GdTimeMachine/plugin.cfg", "res://addons/gut/plugin.cfg")
