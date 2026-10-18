@@ -45,7 +45,7 @@ func get_requirements() -> Array[RequirementSpec]:
 
 # Override
 func get_provisions() -> Array[ProvisionSpec]:
-	return [ProvisionSpec.binding("held_item", "potato"), ProvisionSpec.fact("is_food", [])]
+	return [ProvisionSpec.binding("held_item", "potato")]
 
 
 # Override
