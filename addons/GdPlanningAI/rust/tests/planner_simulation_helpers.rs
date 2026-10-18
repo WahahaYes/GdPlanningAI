@@ -312,7 +312,7 @@ fn validate_action_skips_open_preconditions_and_custom() {
 fn evaluate_open_preconditions_removes_satisfied_and_returns_ready() {
     let agent = create_test_agent(vec![("health", VariantSnapshot::Int(100))]);
     let world = create_test_world(vec![], vec![]);
-    let engine = create_test_engine(vec![], agent, world, vec![]);
+    let mut engine = create_test_engine(vec![], agent, world, vec![]);
 
     let mut branch = PlanBranch::new(
         Arc::clone(&engine.ctx.initial_agent),
@@ -356,7 +356,7 @@ fn evaluate_open_preconditions_removes_satisfied_and_returns_ready() {
 fn evaluate_open_preconditions_returns_invalid_for_false_in_verifying() {
     let agent = create_test_agent(vec![("health", VariantSnapshot::Int(10))]);
     let world = create_test_world(vec![], vec![]);
-    let engine = create_test_engine(vec![], agent, world, vec![]);
+    let mut engine = create_test_engine(vec![], agent, world, vec![]);
 
     let mut branch = PlanBranch::new(
         Arc::clone(&engine.ctx.initial_agent),
@@ -385,7 +385,7 @@ fn evaluate_open_preconditions_returns_invalid_for_false_in_verifying() {
 fn evaluate_open_preconditions_uses_callback_response_for_custom() {
     let agent = create_test_agent(vec![]);
     let world = create_test_world(vec![], vec![]);
-    let engine = create_test_engine(vec![], agent, world, vec![]);
+    let mut engine = create_test_engine(vec![], agent, world, vec![]);
 
     let mut branch = PlanBranch::new(
         Arc::clone(&engine.ctx.initial_agent),

@@ -85,7 +85,7 @@ function step_search(goals):
 
             Searching:
                 if open_preconditions.empty and open_requirements.empty:
-                    state = Verifying; simulation_index = 0; reset to initial state; enqueue; continue
+                    begin_verification(branch, goal); enqueue; continue
                 if action_chain.len >= max_depth: continue
 
                 candidates = find_candidates(branch, ctx)
@@ -96,7 +96,7 @@ function step_search(goals):
 
                     new_branch = branch.clone()
                     insert_pos = min_position(cand.satisfied_preconditions, cand.satisfied_requirements)
-                    // (falls back to 0 when no consumer sits before the end of the chain)
+                    // (the end of the chain when the candidate only serves the goal)
 
                     // Insert action + cost
                     new_branch.action_chain.insert(insert_pos, cand.action_idx)
@@ -123,7 +123,7 @@ function step_search(goals):
 
                     // Fully satisfied → verify immediately
                     if new_branch.open_preconditions.empty and new_branch.open_requirements.empty:
-                        new_branch.state = Verifying; simulation_index = 0; reset to initial
+                        begin_verification(new_branch, goal)
 
                     // Cycle guard
                     if new_branch.open_requirements.len > max_depth: mark Pruned; continue
@@ -230,6 +230,11 @@ ______________________________________________________________________
 ## 5. Forward Verification (`process_simulation`)
 
 ```
+function begin_verification(branch, goal):
+    // A later insertion can undo a need an earlier action satisfied: re-check the goal at the end
+    for pre in goal.desired_state: branch.open_preconditions.push((action_chain.len, pre))
+    state = Verifying; simulation_index = 0; reset to initial state
+
 function process_simulation(node) → StepResult:
     branch = node.branch
     if simulation_index == 0: clear_initial_state_requirements(branch)  // pos-0 reqs satisfied by initial provisions
@@ -380,7 +385,8 @@ ______________________________________________________________________
 1. One precondition per simulation step (re-queue after each).
 1. Cost = sum(action_costs) always (recalculated, not accumulated).
 1. Discovery caches per planning run (shared across branches).
-1. Insertion position = earliest consumer (predecessor before first consumer).
+1. Insertion position = earliest consumer (predecessor before first consumer; the goal is the last consumer).
+1. A verified plan satisfies the goal in its final simulated state.
 1. Goal handling: satisfied goals are dropped and the rest searched by reward (section 1, `submit_plan`).
 1. Bindings injected into agent only.
 1. Greedy requirement clearing: one action clears ALL identical open requirements.

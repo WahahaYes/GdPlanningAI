@@ -368,12 +368,10 @@ func test_async_chooses_cheaper_deeper_chain_over_direct_expensive_completion() 
 
 	assert_true(result["success"], "Plan should succeed")
 	assert_eq(result["total_cost"], 2.0, "Should prefer the cheaper two-step chain")
-	# Backward chaining produces [2, 1] (LightFire then GetFood) - prepares fire before getting food
-	assert_eq(
-		result["action_chain"],
-		[2, 1],
-		"Backward chaining: LightFire then GetFood (prepares fire before food)"
-	)
+	# GetFood and LightFire are independent, so either order is a valid plan.
+	var chain: Array = result["action_chain"].duplicate()
+	chain.sort()
+	assert_eq(chain, [1, 2], "GetFood and LightFire, in either order")
 
 
 func test_async_newer_submission_cancels_older_inflight_plan() -> void:
