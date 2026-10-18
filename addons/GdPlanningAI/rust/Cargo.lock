@@ -50,7 +50,7 @@ checksum = "5383f33a2772746bbc83e5b0480862dd1eedfd0518b976f37f3db11c81e71a6a"
 
 [[package]]
 name = "gdplanningai-rust"
-version = "0.2.0"
+version = "0.0.0"
 dependencies = [
  "godot",
  "godot-bindings",

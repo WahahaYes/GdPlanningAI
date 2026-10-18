@@ -1,0 +1,136 @@
+# Publish a GitHub release when a vX.Y.Z tag is pushed. scripts/release.sh
+# pushes it on the merge commit of the release PR (only repository admins
+# may create v* tags). Checks that the tag is on main, that plugin.cfg and
+# CHANGELOG are at X.Y.Z and that the stamped binaries match the Rust
+# sources, runs build.yml, then attaches GdPlanningAI-X.Y.Z.zip (the addon
+# with its LFS binaries; GitHub's source archives hold pointers instead) and
+# publishes the release with the CHANGELOG section as its notes. A failed run
+# can be rerun from the Actions tab; a leftover draft for the version is
+# published in place.
+#
+# Pull requests that touch the release machinery run the same checks and
+# build the archive as a dry run: nothing is published, the tag-only checks
+# are skipped and CHANGELOG is exercised with stub notes.
+name: release
+run-name: release ${{ github.ref_name }}
+
+on:
+  push:
+    tags: ['v*']
+  pull_request:
+    paths:
+      - '.github/workflows/release.yml'
+      - 'scripts/release.sh'
+      - 'scripts/release-meta.py'
+      - 'scripts/package-addon.sh'
+      - 'scripts/binaries.sh'
+      - 'CHANGELOG.md'
+
+permissions:
+  contents: read
+
+env:
+  GIT_LFS_SKIP_SMUDGE: '1'
+
+concurrency:
+  group: release-${{ github.ref }}
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - id: ver
+        name: Version
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            VER="${GITHUB_REF_NAME#v}"
+            case "$VER" in (*[!0-9.]*|""|.*|*.|*..*) echo "::error::bad version tag $GITHUB_REF_NAME"; exit 1;; esac
+          else
+            VER=$(python3 scripts/release-meta.py version)
+          fi
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+      - name: Tag is on main
+        if: github.event_name == 'push'
+        run: |
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_REF_NAME ($GITHUB_SHA) is not on main"
+            exit 1
+          fi
+      - name: plugin.cfg, CHANGELOG and not already published
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VER: ${{ steps.ver.outputs.version }}
+        run: |
+          python3 scripts/release-meta.py check "$VER"
+          python3 scripts/release-meta.py notes "$VER" >/dev/null
+          if gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft 2>/dev/null | grep -qx false; then
+            echo "::error::release $GITHUB_REF_NAME is already published"
+            exit 1
+          fi
+      # What release.sh does to the files, on this checkout, with stub notes.
+      - name: Dry run of the version and CHANGELOG steps
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "- stub note" > "$RUNNER_TEMP/notes.md"
+          python3 scripts/release-meta.py changelog 9.9.9 2000-01-01 "$RUNNER_TEMP/notes.md"
+          python3 scripts/release-meta.py notes 9.9.9
+      - name: No hardcoded versions
+        run: python3 scripts/release-meta.py stale
+      - name: Binaries match the Rust sources
+        run: scripts/binaries.sh check
+
+  build:
+    needs: check
+    if: github.event_name == 'push'
+    uses: ./.github/workflows/build.yml
+    # A called workflow gets no more than this. build.yml's purge_caches asks
+    # for actions: write, and GitHub rejects the whole run if it is not
+    # granted here, even though that job only runs on pushes to main.
+    permissions:
+      actions: write
+      contents: read
+
+  package:
+    needs: [check, build]
+    # A skipped build (dry run) does not block; a failed one does.
+    if: ${{ !cancelled() && needs.check.result == 'success' && needs.build.result != 'failure' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          lfs: true
+      - name: Archive
+        run: scripts/package-addon.sh "${{ needs.check.outputs.version }}" dist
+      - name: Keep the archive (dry run)
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-archive
+          path: dist/*.zip
+          if-no-files-found: error
+          retention-days: 7
+      - name: Publish the release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VER: ${{ needs.check.outputs.version }}
+        run: |
+          python3 scripts/release-meta.py notes "$VER" > notes.md
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" --clobber "dist/GdPlanningAI-$VER.zip"
+            gh release edit "$GITHUB_REF_NAME" --draft=false --title "$GITHUB_REF_NAME" --notes-file notes.md
+          else
+            gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --notes-file notes.md "dist/GdPlanningAI-$VER.zip"
+          fi
