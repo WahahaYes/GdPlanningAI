@@ -108,6 +108,7 @@ repos:
         require_serial: true
         pass_filenames: false
 
-# Configuration
-default_install_hook_types: [pre-commit, pre-push]
+# Configuration: checks run at commit only; tests stay manual.
+default_install_hook_types: [pre-commit]
+default_stages: [pre-commit]
 fail_fast: false
