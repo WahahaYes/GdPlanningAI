@@ -386,15 +386,15 @@ impl PlanBranch {
     }
 }
 
-/// Returns the earliest position among the consumers a new action satisfies, or `0` when none
-/// sits before the end of the chain. Indices refer to the open lists before insertion.
+/// Returns the earliest position among the consumers a new action satisfies; the goal sits at
+/// the end of the chain, so an action serving only the goal runs last. Indices refer to the open
+/// lists before insertion.
 pub(crate) fn compute_insert_pos(
     branch: &PlanBranch,
     satisfied_precondition_indices: &[usize],
     satisfied_requirements: &[(usize, RequirementSpec, ProvisionSpec)],
 ) -> usize {
-    let old_chain_len = branch.action_chain.len();
-    let mut insert_pos = old_chain_len;
+    let mut insert_pos = branch.action_chain.len();
 
     for &idx in satisfied_precondition_indices {
         let pos = branch.open_preconditions[idx].0;
@@ -409,8 +409,5 @@ pub(crate) fn compute_insert_pos(
         }
     }
 
-    if insert_pos == old_chain_len {
-        insert_pos = 0;
-    }
     insert_pos
 }
