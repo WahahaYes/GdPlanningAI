@@ -785,7 +785,7 @@ impl PlannerEngine {
     /// Checks one open precondition at the current position per call (custom ones may need a
     /// callback). Returns `None` when none remain; a false one invalidates the branch.
     pub fn evaluate_open_preconditions_for_position(
-        &self,
+        &mut self,
         branch: &mut PlanBranch,
         current_bindings: &[(String, Vec<VariantSnapshot>)],
         callback_response: Option<&CallbackResponse>,
@@ -807,6 +807,18 @@ impl PlannerEngine {
                     }
                     StepResult::Ready(false) => {
                         if branch.state == BranchState::Verifying {
+                            let consumer = match branch.action_chain.get(branch.simulation_index) {
+                                Some(&idx) => self.ctx.actions[idx].name.clone(),
+                                None => "GOAL".to_string(),
+                            };
+                            let detail = format!("failed: {}", branch.open_preconditions[i].1);
+                            self.tree.add_fwd_step(
+                                branch.tree_node_id,
+                                &consumer,
+                                "precondition",
+                                &detail,
+                                false,
+                            );
                             return Some(StepResult::Invalid);
                         }
                     }
