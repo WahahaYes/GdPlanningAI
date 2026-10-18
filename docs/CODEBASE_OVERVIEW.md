@@ -192,6 +192,8 @@ Prefer `make` targets over ad hoc commands. Two Makefiles exist.
 | `clean`, `doc`                               | Cargo clean and `cargo doc`.                                                                                  |
 | `setup-windows`                              | Add the `x86_64-pc-windows-gnu` rustup target.                                                                |
 
+Every target sets `RUSTFLAGS` with `--remap-path-prefix`, so the committed binaries carry no local paths and are identical from any checkout. Build through these targets; a plain `cargo` call without the flags rebuilds everything.
+
 ### Build artifact flow
 
 `make build-release` produces the shared library and copies it into `addons/GdPlanningAI/bin/<platform>/`. `gdplanningai.gdextension` loads the platform-appropriate file at runtime (`.so` on Linux, `.dll` on Windows, `.dylib` on macOS). The binaries are committed to the repo.
