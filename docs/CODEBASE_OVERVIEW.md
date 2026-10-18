@@ -63,7 +63,7 @@ Everything under `scripts/` is the user-facing API. Users subclass `Action`, `Go
 
 ### 3.2 Rust planning engine
 
-The Rust crate lives in `addons/GdPlanningAI/rust/`. Crate `gdplanningai-rust` v0.1.0, edition 2024, `crate-type = ["cdylib", "lib"]`. It depends on `godot` 0.4.5 (gdext) and `rayon` 1.8 for its thread pool. The GDExtension entry point `GdPlanningAIExt` calls `logger::init_log_channel()` at `InitLevel::Servers`.
+The Rust crate lives in `addons/GdPlanningAI/rust/`. Crate `gdplanningai-rust`, edition 2024, `crate-type = ["cdylib", "lib"]`. It depends on `godot` 0.4.5 (gdext) and `rayon` 1.8 for its thread pool. The GDExtension entry point `GdPlanningAIExt` calls `logger::init_log_channel()` at `InitLevel::Servers`.
 
 Module map of `rust/src/`:
 
@@ -180,23 +180,23 @@ Prefer `make` targets over ad hoc commands. Two Makefiles exist.
 
 ### `addons/GdPlanningAI/rust/Makefile`
 
-| Target                                       | Purpose                                                                                                       |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `build-release`                              | `cargo build --release`, then copies the shared library to `addons/GdPlanningAI/bin/{linux,macos,windows}/`.  |
-| `build-debug`, `build-all`, `clean-binaries` | Other build variants and cleanup.                                                                             |
-| `build-linux`, `build-windows`               | Cross-compilation with plain `cargo build --target`; Windows links with mingw-w64 (`x86_64-w64-mingw32-gcc`). |
-| `test`                                       | `cargo test`.                                                                                                 |
-| `format`, `lint`, `lint-fix`                 | rustfmt, clippy (errors block), clippy autofix.                                                               |
-| `clean`, `doc`                               | Cargo clean and `cargo doc`.                                                                                  |
-| `setup-windows`                              | Add the `x86_64-pc-windows-gnu` rustup target.                                                                |
+| Target                           | Purpose                                                                                                                                       |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `build-release`                  | `cargo build --release` for this OS (macOS: universal via lipo), then copies the library to `addons/GdPlanningAI/bin/{linux,macos,windows}/`. |
+| `build-debug`, `clean-binaries`  | Debug build and cleanup.                                                                                                                      |
+| `test`                           | `cargo test`.                                                                                                                                 |
+| `format`, `format-check`, `lint` | rustfmt (rewrite, check), clippy with warnings denied.                                                                                        |
+| `clean`, `doc`                   | Cargo clean and `cargo doc`.                                                                                                                  |
 
 Every target sets `RUSTFLAGS` with `--remap-path-prefix`, so the committed binaries carry no local paths and are identical from any checkout. Build through these targets; a plain `cargo` call without the flags rebuilds everything.
 
 ### Build artifact flow
 
-`make build-release` produces the shared library and copies it into `addons/GdPlanningAI/bin/<platform>/`. `gdplanningai.gdextension` loads the platform-appropriate file at runtime (`.so` on Linux, `.dll` on Windows, `.dylib` on macOS). The binaries are committed to the repo.
+`make build-release` produces the shared library for the current OS and copies it into `addons/GdPlanningAI/bin/<platform>/`. `gdplanningai.gdextension` loads the platform-appropriate file at runtime (`.so` on Linux, `.dll` on Windows, `.dylib` on macOS). Binaries under `bin/` are tracked with Git LFS.
 
-Important: after any Rust change you must run `make build-release` before the GDScript test suite will pick up the new behavior.
+Release binaries are built by CI (`build.yml`): Linux and macOS (universal, `lipo` of aarch64 and x86_64) on their runners, Windows natively with MSVC. The release workflow packages those fresh builds into `GdPlanningAI-X.Y.Z.zip`; the binaries committed under `bin/` are not checked or refreshed, and can lag the Rust sources.
+
+**Local development:** after any Rust change, or when your platform's committed binary is out of date, rebuild it with `make -C addons/GdPlanningAI/rust build-release` before running the GDScript tests or the editor. Do not commit the result; CI builds the committed binaries.
 
 ______________________________________________________________________
 
