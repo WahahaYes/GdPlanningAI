@@ -83,7 +83,7 @@ test: ## Run unit tests (full log capture; CARGO-TEST-OK/FAILED verdict; propaga
 .PHONY: format
 format: ## Format code using rustfmt
 	@rustup component add rustfmt 2>&1 | grep -E "(error|Error)" || true
-	@cargo fmt 2>&1 | grep -E "(error|Error)" || true
+	@cargo fmt
 
 .PHONY: lint
 lint: ## Run clippy (errors block commit, warnings print only)
