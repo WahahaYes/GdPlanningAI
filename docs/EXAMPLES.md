@@ -1,6 +1,6 @@
 # GdPlanningAI Examples
 
-The `examples/` folder ships seven runnable demo scenes. This page is the map: how to run them, the order to read them in, and the ideas they share. Each script's class doc says what it is for.
+The `examples/` folder ships seven runnable demo scenes. This page covers how to run them, the order to read them in, and the ideas they share. Each script's class doc says what it is for.
 
 ## Running the Examples
 

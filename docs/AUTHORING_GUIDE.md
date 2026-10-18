@@ -2,23 +2,23 @@
 
 This guide explains how to create goals, actions, world objects, and behavior configurations for agents. It assumes you understand GOAP basics: goals define what an agent wants, actions define what it can do, and the planner chains them together.
 
-## The Mental Model
+## How Planning Works
 
-You describe **what matters** (goals, state changes) not **how to sequence**. The planner searches backward from a goal's desired state, finding actions whose simulated effects satisfy open preconditions, then recursively satisfying those actions' requirements through provisions from earlier actions. Built-in preconditions let the planner evaluate matches natively during search. Custom callables are opaque: the planner must callback to GDScript for every candidate, which can hinder discovery performance and debuggability. Use built-ins wherever the property you care about lives on the agent blackboard, world blackboard, or a world object in a known group.
+You describe **what matters** (goals, state changes) not **how to sequence**. The planner searches backward from a goal's desired state, finding actions whose simulated effects satisfy open preconditions, then recursively satisfying those actions' requirements through provisions from earlier actions. Built-in preconditions let the planner evaluate matches natively during search. Custom callables are opaque: the planner must callback to GDScript for every candidate, which slows the search and is harder to debug. Use built-ins wherever the property you care about lives on the agent blackboard, world blackboard, or a world object in a known group.
 
-## Goals: What the Agent Wants
+## Goals
 
 A goal has two jobs: compute a reward that scales with urgency, and declare the state that counts as "satisfied." The reward function runs once per planning request when the agent submits a new plan. A hunger goal returns the current hunger value (0–100), so a starving agent prioritizes eating over wandering. A fire-maintenance goal returns a fixed reward when any campfire's fuel drops below a threshold, otherwise zero, so the agent ignores the fire when it's healthy.
 
 The desired state uses preconditions. For agent-internal properties like hunger, use `agent_property_less_than("hunger", 15)`. For world-object properties like campfire fuel, use `world_object_property_geq_than("CampfireObject", "current_fuel", 60)`. This built-in lets the planner evaluate the condition directly on simulated `SimObjectProxy` snapshots during search, so it can discover that `AddFuelAction` (which increments `current_fuel` in its simulation) satisfies the goal. No custom callable needed.
 
-If you genuinely need logic that no built-in expresses, e.g. a compound condition across multiple unrelated properties, use `Precondition.custom(callable)` sparingly. For object-dependent checks that must survive the object being freed, use `Precondition.custom_with_deps(callable, [object_refs])` so the planner validates liveness before invoking.
+If you need logic that no built-in expresses, e.g. a compound condition across multiple unrelated properties, use `Precondition.custom(callable)` sparingly. For object-dependent checks that must survive the object being freed, use `Precondition.custom_with_deps(callable, [object_refs])` so the planner validates liveness before invoking.
 
-## Actions: What the Agent Can Do
+## Actions
 
-An action exposes five declarative surfaces plus runtime execution:
+An action declares six things for planning, plus the code that runs it:
 
-**Validity checks** are hard gates evaluated once against the initial state during candidate discovery. They answer "is this action even meaningful right now?"; target exists, agent has the required property. They do not participate in backward chaining. Use `Precondition.check_is_object_valid(ref)` for object liveness; avoid custom callables here.
+**Validity checks** run once against the starting state while the planner looks for candidate actions: does the target exist, does the agent have the property. They do not participate in backward chaining. Use `Precondition.check_is_object_valid(ref)` for object liveness; avoid custom callables here.
 
 **Preconditions** are dynamic needs the planner *chains backward* to satisfy. If an action needs stamina > 20, declare `agent_property_greater_than("stamina", 20)` and the planner will search for a predecessor that restores stamina. Keep these to built-ins matching property names your simulation writes.
 
@@ -30,11 +30,11 @@ An action exposes five declarative surfaces plus runtime execution:
 
 **Cost** estimates planning-time expense. It can be a constant or a distance heuristic computed from the snapshots; like simulation it is synchronous and must not touch the scene tree. Return `INF` (or `float('inf')` in GDScript) to disable the action in the current context; e.g., `AddFuelAction` returns infinite cost when the campfire is already full.
 
-## Chaining: Requirements Meet Provisions
+## Chaining
 
-The planner matches requirements to provisions symbolically during search. A `Binding` provision satisfies `BindingExists` (any value), `BindingEquals` (exact value), or `BindingInSet` (value's object in the named group). A `Fact` provision satisfies an identical `Fact` requirement (name and args). A `FactWildcard` provision satisfies any `Fact` with the same name, capturing the requirement's args as the binding; this is how `GoToAction` universally satisfies navigation requirements.
+The planner matches requirements to provisions symbolically during search. A `Binding` provision satisfies `BindingExists` (any value), `BindingEquals` (exact value), or `BindingInSet` (value's object in the named group). A `Fact` provision satisfies an identical `Fact` requirement (name and args). A `FactWildcard` provision satisfies any `Fact` with the same name, capturing the requirement's args as the binding; this is how `GoToAction` satisfies every navigation requirement.
 
-Design principle: requirements express *what* you need, provisions express *what you give*. The planner handles *who gives what to whom*. You rarely need to think about insertion order; the placer inserts each predecessor immediately before the earliest consumer it satisfies.
+Requirements say what an action needs; provisions say what it gives. The planner decides which action supplies which need, and inserts each supplier just before the first action that needs it, so you rarely think about order.
 
 ## Threading and Timing Rules
 
@@ -52,9 +52,9 @@ All hooks run on the main thread.
 - Keep per-run data in `set_state`, keyed by instance and chain position. If the action has mutable members, return a copy from `clone_for_plan()`.
 - An action may define `inject_binding(fact_name, values)` to receive the objects the planner bound to its wildcard provisions.
 
-## World Objects: Exposing Actions and State
+## World Objects
 
-A `GdPAIObjectData` subclass lives on a scene node, holds `@export` references to its `GdPAIInteractable` and `GdPAILocationData` children, and returns actions from `get_provided_actions()` that capture `self`. Its `get_sim_properties()` dictionary defines the snapshot the planner works with; properties like `current_fuel`, `berries_remaining`, `hunger_value`. Groups returned by `get_group_labels()` enable `WorldObjectProxy` preconditions: `"CampfireObject"` lets a goal check `current_fuel` on any campfire; `"FoodSource"` lets a hunger goal find berries.
+A `GdPAIObjectData` subclass lives on a scene node, holds `@export` references to its `GdPAIInteractable` and `GdPAILocationData` children, and returns actions from `get_provided_actions()` that capture `self`. Its `get_sim_properties()` dictionary defines the snapshot the planner works with; properties like `current_fuel` or `hunger_value`. Groups returned by `get_group_labels()` enable `WorldObjectProxy` preconditions: `"CampfireObject"` lets a goal check `current_fuel` on any campfire; `"Food"` lets an action find anything edible.
 
 Actions provided by the object typically require `at_target` (via the object's location data) and provide `held_item` bindings plus `is_food` facts. The object's own runtime script (separate from the data class) handles visual updates, cooldowns, and actual `queue_free()` of picked-up items; the action's `perform_action` mirrors this but operates on the live scene.
 
@@ -76,13 +76,13 @@ The addon (`addons/GdPlanningAI/`) provides base classes you extend to create be
 
 **Action** and **Goal** are the base classes you extend for all custom actions and goals.
 
-These are the building blocks. The examples demonstrate concrete implementations (HungerBehaviorConfig, WanderBehaviorConfig, CampfireBehaviorConfig) but your project defines its own behaviors by subclassing the addon's base classes.
+The examples demonstrate concrete implementations (HungerBehaviorConfig, WanderBehaviorConfig, CampfireBehaviorConfig) but your project defines its own behaviors by subclassing the addon's base classes.
 
 ## Common Patterns
 
 **Inventory → Consumption**: Pickup actions provide `binding("held_item", id)` + `fact("is_food", [])`. Eat action requires `binding_exists("held_item")` + `fact("is_food", [])`. Planner chains GoTo → Pickup → Eat automatically.
 
-**Navigation Glue**: `GoToAction` provides `fact_wildcard("at_target")`. Every interaction action requires `fact("at_target", [my_location])`. One navigation action serves all interactions.
+**Navigation**: `GoToAction` provides `fact_wildcard("at_target")`. Every interaction action requires `fact("at_target", [my_location])`. One navigation action serves all interactions.
 
 **Object State Goals**: Use `world_object_property_geq_than(group, property, threshold)` in the goal's desired state. The matching action modifies that property in `simulate_effect`. Planner discovers the chain without custom code.
 
@@ -92,7 +92,7 @@ These are the building blocks. The examples demonstrate concrete implementations
 
 ## Debugging
 
-The interactive debugger tab was removed during the Rust refactor and has not been reintroduced yet. For now, the engine exposes the search tree as a text dump: `GdPAIPlanScheduler.get_debug_tree(agent)` returns a human-readable rendering of the agent's most recent planning job. The default log level is Info (2): each plan logs a `submit_plan` summary, a `Plan complete` line, and a one-line `RESULT goal='...' success=... Branches: ... | Time: ...` summary (skipped when every goal already held, since nothing was searched). Raise the level via `GdPAIAutoload.get_scheduler().set_log_level(3)` to also see search transitions and stall notices (the full tree is recorded at 3 but never auto-printed — fetch it via `get_debug_tree`).
+The interactive debugger tab was removed as part of the Rust rewrite and hasn't been brought back yet. Until it is, `GdPAIPlanScheduler.get_debug_tree(agent)` returns a text printout of the agent's most recent planning search. The default log level is Info (2): each plan logs a `submit_plan` summary, a `Plan complete` line, and a one-line `RESULT goal='...' success=... Branches: ... | Time: ...` summary (skipped when every goal already held, since nothing was searched). Raise the level via `GdPAIAutoload.get_scheduler().set_log_level(3)` to also see search transitions and stall notices (the full tree is recorded at 3 but never printed automatically; fetch it with `get_debug_tree`).
 
 **Empty plan, goal not satisfied**: No action provides a needed provision, or a validity check filters everything out. Check that your action's provisions match the requirement types exactly (Binding vs Fact, group names match).
 
@@ -130,5 +130,3 @@ Construct via `Precondition.agent_property_less_than("hunger", 15)`, `Preconditi
 | Campfire  | (none)                       | `current_fuel` on `CampfireObject` |
 | Inventory | `held_item` (String)         | `item_id` on `HoldableObject`      |
 | Location  | `GdPAILocationData` on agent | `GdPAILocationData` on object      |
-
-*This guide reflects the current framework. As built-ins expand (distance checks, virtual properties), patterns will simplify further.*
