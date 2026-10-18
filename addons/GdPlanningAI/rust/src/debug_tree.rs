@@ -323,8 +323,8 @@ impl TreeDump {
     }
 }
 
-/// Appends `node_id` and its subtree to `output`. `has_more[d]` says whether the ancestor at
-/// depth `d` has later siblings (draw `│` or a blank).
+/// Appends `node_id` and its subtree to `output`. `has_more[d]` says whether the path's node at
+/// depth `d + 1` has later siblings (draw `│` or a blank).
 fn format_node(
     output: &mut String,
     tree: &TreeDump,

@@ -352,5 +352,6 @@ fn deep_chain_formats_without_depth_limit() {
     }
     dump.end_goal(false, &[], 0.0);
 
-    assert!(dump.format().contains("step_99"));
+    let line = format!("\n{}└── Try 'step_99'", "    ".repeat(100));
+    assert!(dump.format().contains(&line));
 }
