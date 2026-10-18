@@ -16,8 +16,8 @@
       "subfolder": "addons/gut"
     },
     "GdTimeMachine": {
-      "url": "../GdTimeMachine",
-      "source": "symlink",
+      "url": "https://github.com/WahahaYes/GdTimeMachine",
+      "checkout": "v0.1.1",
       "subfolder": "addons/GdTimeMachine"
     }
   }

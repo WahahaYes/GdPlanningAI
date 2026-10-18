@@ -23,7 +23,7 @@ mono_crash.*.json
 
 # Ignore third-party addons managed by godot-env
 addons/gut/
-addons/GdTimeMachine
+addons/GdTimeMachine/
 .addons/
 
 # GdTimeMachine captures
