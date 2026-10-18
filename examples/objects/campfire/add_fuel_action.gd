@@ -57,16 +57,9 @@ func get_action_cost(
 	world_state: GdPAIBlackboard,
 ) -> float:
 	if not is_instance_valid(campfire_ref):
-		push_warning("[DEBUG] AddFuelAction.get_action_cost: campfire_ref is invalid")
 		return INF
 	var campfire: SimObjectProxy = world_state.get_object_for(campfire_ref)
 	if campfire == null:
-		push_warning(
-			(
-				"[DEBUG] AddFuelAction.get_action_cost: campfire proxy is null for UID "
-				+ str(campfire_ref.instance_id())
-			)
-		)
 		return INF
 	var current_fuel: Variant = campfire.get_property("current_fuel")
 	if current_fuel == null or float(current_fuel) >= 100.0:
