@@ -34,3 +34,4 @@ media/captures/
 
 # Python
 __pycache__/
+.godot-bin/

@@ -56,6 +56,12 @@ test-godot: ## Run Godot integration tests (GUT headless); concise output, exits
 	fi; \
 	exit 0
 
+.PHONY: test-godot-ci
+test-godot-ci: ## Run the GUT suite like test-godot but exit nonzero unless GUT-SUITE-OK (CI)
+	@LOG=$$(mktemp /tmp/gut-ci.XXXXXX); \
+	"$(MAKE)" test-godot | tee $$LOG; \
+	grep -q "^GUT-SUITE-OK" $$LOG
+
 .PHONY: test-godot-pipe-output
 test-godot-pipe-output: ## Run Godot integration tests with full output to file
 	@echo "Running tests with full output to test_output.log..."
@@ -66,6 +72,10 @@ test-godot-pipe-output: ## Run Godot integration tests with full output to file
 
 .PHONY: format
 format: format-rust format-godot ## Format all source files (Rust + GDScript)
+
+.PHONY: format-check
+format-check: ## Check Rust formatting without rewriting (CI)
+	"$(MAKE)" -C addons/GdPlanningAI/rust format-check
 
 .PHONY: format-rust
 format-rust: ## Format Rust source files with rustfmt

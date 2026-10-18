@@ -95,6 +95,10 @@ format: ## Format code using rustfmt
 	@rustup component add rustfmt 2>&1 | grep -E "(error|Error)" || true
 	@cargo fmt
 
+.PHONY: format-check
+format-check: ## Check formatting with rustfmt (no rewrite)
+	@cargo fmt --check
+
 .PHONY: lint
 lint: ## Run clippy; warnings fail
 	@rustup component add clippy 2>&1 | grep -E "(error|Error)" || true
