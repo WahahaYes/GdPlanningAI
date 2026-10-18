@@ -1,8 +1,8 @@
 # Codebase Overview
 
-A developer-oriented map of the GdPlanningAI repository. Read this first to figure out which file, module, or test you need to touch for any task. It covers the repository layout, the addon anatomy, the two-language architecture, the class hierarchy, the runtime flow, the build system, testing, developer tooling, and the documentation map.
+Where things live in the GdPlanningAI repository, for contributors: the folder layout, the addon's files, how the Rust engine and the GDScript code work together, the classes, what happens at runtime, and how to build and test.
 
-For the search algorithm itself, see [docs/ALGORITHM.md](ALGORITHM.md) and [docs/PLANNER_PSEUDOCODE.md](PLANNER_PSEUDOCODE.md). For authoring actions and goals, see [docs/AUTHORING_GUIDE.md](AUTHORING_GUIDE.md). For step-by-step walkthroughs of the demo scenes, see [docs/EXAMPLES.md](EXAMPLES.md).
+For the search algorithm itself, see [docs/ALGORITHM.md](ALGORITHM.md) and [docs/PLANNER_PSEUDOCODE.md](PLANNER_PSEUDOCODE.md). For authoring actions and goals, see [docs/AUTHORING_GUIDE.md](AUTHORING_GUIDE.md). For the demo scenes, see [docs/EXAMPLES.md](EXAMPLES.md).
 
 ______________________________________________________________________
 
@@ -10,21 +10,21 @@ ______________________________________________________________________
 
 The top-level of the repo:
 
-| Path                | Purpose                                                                                  |
-| ------------------- | ---------------------------------------------------------------------------------------- |
-| `addons/`           | The plugin itself: `addons/GdPlanningAI/` is the installable addon.                      |
-| `docs/`             | Project documentation (see [section 9](#9-documentation-map)).                           |
-| `examples/`         | Demonstration scenes (hunger, campfire, multi-agent, stress test).                       |
-| `script_templates/` | Godot script templates for subclassing `Action`, `Goal`, `GdPAIObjectData`, and friends. |
-| `scripts/`          | Developer tooling scripts (style linting; recording now via `GdTimeMachine` addon).      |
-| `test/`             | GUT GDScript test suite (`test/unit/`, `test/integration/`).                             |
-| `media/`            | Demo assets used by the README (banner, gifs, screenshots).                              |
+| Path                | Purpose                                                                                 |
+| ------------------- | --------------------------------------------------------------------------------------- |
+| `addons/`           | The plugin itself: `addons/GdPlanningAI/` is the installable addon.                     |
+| `docs/`             | Project documentation (see [section 9](#9-documentation-map)).                          |
+| `examples/`         | Demo scenes (2D hunger and campfire, 3D campfire, character showcase).                  |
+| `script_templates/` | Godot script templates for subclassing `Action`, `Goal`, `GdPAIObjectData`, and others. |
+| `scripts/`          | Developer scripts (style linting and formatting).                                       |
+| `test/`             | GUT GDScript test suite (`test/unit/`, `test/integration/`).                            |
+| `media/`            | Demo assets used by the README (banner, gifs, screenshots).                             |
 
 Other files of note at the root: `Makefile` (see [section 6](#6-build-system)), `project.godot` (Godot 4.7 project, no main scene), `addons.jsonc` (third-party addon manifest, `gut` v9.6.0 + `GdTimeMachine` v0.1.1), and `.pre-commit-config.yaml`.
 
 ______________________________________________________________________
 
-## 2. Addon anatomy
+## 2. Addon files
 
 `addons/GdPlanningAI/` is the Godot addon that gets copied into a user's project. It is also a full Godot project in its own right when opened at the repo root. The key files:
 
@@ -47,21 +47,21 @@ addons/GdPlanningAI/
 ```
 
 - `plugin.gd` is `@tool extends EditorPlugin`. Its only job is to register the `GdPAIAutoload` autoload in `_enter_tree`.
-- `gdpai_autoload.gd` creates the `GdPAIPlanScheduler` in `_ready` and calls `_scheduler.process_callbacks()` every frame in `_process`. That drain is what shuttles results and callback requests between the background planner threads and the main thread. It also applies the log level from `plugin.cfg`.
+- `gdpai_autoload.gd` creates the `GdPAIPlanScheduler` in `_ready` and calls `_scheduler.process_callbacks()` every frame in `_process`. This call passes results and callback requests between the background planner threads and the main thread. It also applies the log level from `plugin.cfg`.
 - `gdplanningai.gdextension` declares the entry symbol `gdext_rust_init`, `compatibility_minimum "4.5"`, and loads the platform shared library from `addons/GdPlanningAI/bin/{linux,macos,windows}/`.
 - The Rust-exposed classes (`GdPAIBlackboard`, `SimObjectProxy`, `GdPAIPlanScheduler`) are registered via the `.gdextension`; they have no `.gd` file.
 
 ______________________________________________________________________
 
-## 3. Two-language architecture
+## 3. Rust and GDScript
 
-The addon is split across two languages with a strict division of labor.
+The planner is written in Rust; everything users write is GDScript.
 
-### 3.1 GDScript API layer (what users write)
+### 3.1 GDScript API (what users write)
 
-Everything under `scripts/` is the user-facing API. Users subclass `Action`, `Goal`, `GdPAIObjectData`, `Precondition`, `RequirementSpec`, `ProvisionSpec`, `PropertyUpdater`, `GdPAIBehaviorConfig`, and `GdPAIAgentConfig` to describe what their agents can do. `GdPAIAgent` and `GdPAIWorldNode` are the runtime nodes. `GdPAIRustBridge` is the internal serialization layer between the two languages. See [section 4](#4-class-hierarchy-overview) for the full class map.
+Everything under `scripts/` is the user-facing API. Users subclass `Action`, `Goal`, `GdPAIObjectData`, `Precondition`, `RequirementSpec`, `ProvisionSpec`, `PropertyUpdater`, `GdPAIBehaviorConfig`, and `GdPAIAgentConfig` to describe what their agents can do. `GdPAIAgent` and `GdPAIWorldNode` are the runtime nodes. `GdPAIRustBridge` converts GDScript objects into the data the Rust engine reads. See [section 4](#4-class-hierarchy-overview) for the full class map.
 
-### 3.2 Rust planner engine (the brains)
+### 3.2 Rust planning engine
 
 The Rust crate lives in `addons/GdPlanningAI/rust/`. Crate `gdplanningai-rust` v0.1.0, edition 2024, `crate-type = ["cdylib", "lib"]`. It depends on `godot` 0.4.5 (gdext) and `rayon` 1.8 for its thread pool. The GDExtension entry point `GdPlanningAIExt` calls `logger::init_log_channel()` at `InitLevel::Servers`.
 
@@ -88,7 +88,7 @@ Module map of `rust/src/`:
 
 ### 3.3 How the two languages communicate
 
-Planning runs on a Rayon worker thread, but GDScript callables can only run on the main thread. The two sides communicate over a request/response channel protocol:
+Planning runs on a Rayon worker thread, but GDScript callables can only run on the main thread. The two sides exchange requests and responses over channels:
 
 1. `GdPAIRustBridge.serialize_actions()` and `serialize_goals()` turn GDScript `Action`/`Goal` objects into plain `Array[Dictionary]` payloads. The bridge registers the actual callables (`get_action_cost`, `simulate_effect`, the eval callables) into a per-job registry on the Rust side; the serialized specs carry only callable **ids** plus the preconditions, requirements, and provisions as bridge dictionaries.
 1. `GdPAIPlanScheduler.submit_plan(agent, agent_bb, world_bb, actions, goals, max_recursion, iteration_budget, time_slice_ms)` snapshots the blackboards into `BlackboardSnapshot`s, builds a `SearchContext` and a `PlannerEngine` (wired with the iteration budget and `time_slice_ms`), and spawns the worker. `time_slice_ms` is the wall-clock budget in milliseconds per search step; the worker yields `Pending(0)` and resumes later once the slice elapses (checked every 128 pops), and `0` disables time-slicing.
@@ -106,15 +106,15 @@ The GDScript classes in `scripts/`, grouped by base type:
 
 ### Node classes (scene nodes)
 
-| Class               | File                                   | Notes                                                                                |
-| ------------------- | -------------------------------------- | ------------------------------------------------------------------------------------ |
-| `GdPAIAgent`        | `scripts/nodes/gdpai_agent.gd`         | The central runtime. Two blackboards (self + world), goals, actions, plan execution. |
-| `GdPAIWorldNode`    | `scripts/nodes/gdpai_world_node.gd`    | Sources world state; rescans the scene tree for `GdPAIObjectData` nodes.             |
-| `GdPAIObjectData`   | `scripts/nodes/gdpai_object_data.gd`   | Base for world objects; broadcasts provided actions.                                 |
-| `GdPAILocationData` | `scripts/nodes/gdpai_location_data.gd` | Extends `GdPAIObjectData`; 2D/3D position and rotation.                              |
-| `GdPAIInteractable` | `scripts/nodes/gdpai_interactable.gd`  | Extends `GdPAIObjectData`; interaction distance and drift limits.                    |
+| Class               | File                                   | Notes                                                                           |
+| ------------------- | -------------------------------------- | ------------------------------------------------------------------------------- |
+| `GdPAIAgent`        | `scripts/nodes/gdpai_agent.gd`         | The agent node. Two blackboards (self + world), goals, actions, plan execution. |
+| `GdPAIWorldNode`    | `scripts/nodes/gdpai_world_node.gd`    | Sources world state; rescans the scene tree for `GdPAIObjectData` nodes.        |
+| `GdPAIObjectData`   | `scripts/nodes/gdpai_object_data.gd`   | Base for world objects; broadcasts provided actions.                            |
+| `GdPAILocationData` | `scripts/nodes/gdpai_location_data.gd` | Extends `GdPAIObjectData`; 2D/3D position and rotation.                         |
+| `GdPAIInteractable` | `scripts/nodes/gdpai_interactable.gd`  | Extends `GdPAIObjectData`; interaction distance and drift limits.               |
 
-### RefCounted extension points
+### RefCounted classes you extend
 
 | Class                          | File                                                 | Notes                                                                                                                                                                                                              |
 | ------------------------------ | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -143,7 +143,7 @@ The GDScript classes in `scripts/`, grouped by base type:
 - `SimObjectProxy`: a send-safe world-object snapshot (uid, groups, properties).
 - `GdPAIPlanScheduler`: the planning job manager and the callable dispatcher.
 
-### Internal surface (do not use)
+### Internal (do not use)
 
 `Action.set_state/get_state/erase_state/has_state` (namespaced state on the agent blackboard), all `GdPAIAgent` underscore members, `GdPAIRustBridge` (the agent owns it), and the base `to_bridge_dict` implementations.
 
@@ -208,36 +208,36 @@ Two independent suites.
 
 Configured by `.gutconfig.json` (`dirs ["res://test"]`, `include_subdirs true`). Run with `make test-godot` (headless GUT via `addons/gut/gut_cmdln.gd`).
 
-- `test/unit/` (2 files): `test_sim_object_proxy.gd` (SimObjectProxy property ops) and `test_gdpai_blackboard.gd` (blackboard property ops, dict round-trips, `GDPAI_OBJECTS` to proxies, group queries, clone isolation).
-- `test/integration/` (10 files): blackboard clone isolation; async planner behavior (empty plans, satisfied goals, cheapest plan selection, cancellation of stale submissions); requirements/provisions chaining (Pickup to Eat, GoTo wildcard chaining, binding sets, cost comparisons); example scene smoke tests, which park the agents and check the scenes load; and live loop tests (`test_example_loops_live.gd`), which run `hunger_basic_2d` and `campfire_2d` sped up with agents planning normally until each loop action (pick up, eat, add fuel, dig, cook) has completed.
+- `test/unit/`: blackboard and `SimObjectProxy` property operations; agent config (planning strategy switching, failure backoff, log level); and single example classes (`GoToAction`, pickup, hunger and fire goals).
+- `test/integration/`: blackboard clone isolation; async planner behavior (empty plans, satisfied goals, cheapest plan selection, cancellation of stale submissions); requirements/provisions chaining (Pickup to Eat, GoTo wildcard chaining, binding sets, cost comparisons); example scene tests, which check that every 2D and 3D scene loads and settles without errors (plus the 3D campfire flame going out with the fire); and live loop tests (`test_example_loops_live.gd`), which run `hunger_basic_2d` and `campfire_2d` sped up with agents planning normally until each loop action (pick up, eat, add fuel, dig, cook) has completed.
 
 ### Rust suite
 
-In `addons/GdPlanningAI/rust/tests/` (13 files plus `common/mod.rs` helpers). Run with `make test-rust` (`cargo test`). Integration tests build `PlannerEngine`/`SearchContext` directly with mock callback-responder threads, so no Godot runtime is needed. They cover the search state machine (goal priority, depth, budget, cancellation), BestCost vs FirstComplete termination, requirement/provision chaining, branch insertion, snapshot evaluation, debug tree rendering, and a regression test for the Verifying state.
+In `addons/GdPlanningAI/rust/tests/` (plus `common/mod.rs` helpers). Run with `make test-rust` (`cargo test`). Integration tests build `PlannerEngine`/`SearchContext` directly with mock callback-responder threads, so no Godot runtime is needed. They cover the search state machine (goal priority, depth, budget, cancellation), BestCost vs FirstComplete termination, requirement/provision chaining, branch insertion, snapshot evaluation, debug tree rendering, and a regression test for the Verifying state.
 
 ______________________________________________________________________
 
 ## 8. Developer tooling
 
 - **Formatting and linting**: `make format-rust` (rustfmt), `make format-godot` (spacing fixer + gdformat), `make lint-godot` (gdlint), `make lint-style` (style linter over git-tracked `.gd`/`.rs` files: bans `:=`, checks borders, docstrings, and spacing).
-- **`scripts/` one-liners**: `fix_gd_spacing.py` (2 blank lines before top-level funcs), `lint_style.py` (style linter).
+- **`scripts/`**: `fix_gd_spacing.py` (2 blank lines before top-level funcs), `lint_style.py` (style linter).
 - **Pre-commit hooks** (`.pre-commit-config.yaml`, commit stage only; tests are run by hand): pre-commit-hooks v5.0.0, cargo fmt/clippy (via the rust Makefile), gitleaks v8.24.0, mdformat 0.7.19 (`--wrap=no`, GFM tables), ruff v0.6.0 + ruff-format, gdformat, gdlint, `lint-style`, and `check-docs`.
 - **Third-party addons** (`addons.jsonc`): `gut` v9.6.0 (bitwes/Gut) + `GdTimeMachine` v0.1.1 (WahahaYes/GdTimeMachine), installed via GodotEnv, gitignored, cached under `.addons/`. All three editor plugins (GdPlanningAI, gut, GdTimeMachine) are enabled.
-- **`project.godot`**: Godot 4.7, Forward Plus renderer, **no main scene** (run scenes directly). Autoloads: `GdPAIAutoload`, `GdTimeMachineGracefulStop`. There is a vestigial `.NET`/Mono section that is unused.
+- **`project.godot`**: Godot 4.7, Forward Plus renderer, **no main scene** (run scenes directly). Autoloads: `GdPAIAutoload`, `GdTimeMachineGracefulStop`. Its `[dotnet]` section is written by the .NET build of the editor; the project has no C#.
 - **No CI**: there is no `.github/` and no GitHub Actions. Quality gates are the local Make targets and the pre-commit hooks.
 
 ______________________________________________________________________
 
 ## 9. Documentation map
 
-| Doc                                | Purpose                                                                                             |
-| ---------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `README.md`                        | Project pitch: what GdPlanningAI is, GOAP background, installation, usage concepts, demo list, FAQ. |
-| `docs/CODEBASE_OVERVIEW.md`        | This file: the map of the whole repo.                                                               |
-| `docs/PLANNER_PSEUDOCODE.md`       | High-level pseudocode for the planning search.                                                      |
-| `docs/ALGORITHM.md`                | Deep dive into the Rust engine's search algorithm, built from the Rust source.                      |
-| `docs/AUTHORING_GUIDE.md`          | How to write actions, goals, preconditions, and object data for your own agents.                    |
-| `docs/EXAMPLES.md`                 | Step-by-step walkthroughs of the example scenes.                                                    |
-| `docs/DOCUMENTATION_GUIDELINES.md` | Code documentation style: no decorative headers, docstring conventions for GDScript and Rust.       |
+| Doc                                | Purpose                                                                                       |
+| ---------------------------------- | --------------------------------------------------------------------------------------------- |
+| `README.md`                        | What GdPlanningAI is, installation, the demo scenes, the main classes, credits, FAQ.          |
+| `docs/CODEBASE_OVERVIEW.md`        | This file: where things live in the repo.                                                     |
+| `docs/PLANNER_PSEUDOCODE.md`       | High-level pseudocode for the planning search.                                                |
+| `docs/ALGORITHM.md`                | How the Rust engine searches for a plan.                                                      |
+| `docs/AUTHORING_GUIDE.md`          | How to write actions, goals, preconditions, and object data for your own agents.              |
+| `docs/EXAMPLES.md`                 | What each demo scene shows and which scripts to read.                                         |
+| `docs/DOCUMENTATION_GUIDELINES.md` | Code documentation style: no decorative headers, docstring conventions for GDScript and Rust. |
 
 A good reading order for a new contributor: this file, then `docs/ALGORITHM.md`, then `docs/EXAMPLES.md` for a concrete end-to-end picture.

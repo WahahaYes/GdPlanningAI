@@ -1,6 +1,6 @@
 # Planning Algorithm
 
-A readable explanation of how the GdPlanningAI planner works, aimed at a developer who already understands GOAP basics. For the exhaustive step-by-step pseudocode, see [PLANNER_PSEUDOCODE.md](PLANNER_PSEUDOCODE.md). That document is the terse algorithmic reference; this one is the intuition behind it.
+How the GdPlanningAI planner works, for readers who know GOAP basics. [PLANNER_PSEUDOCODE.md](PLANNER_PSEUDOCODE.md) has the same algorithm as step-by-step pseudocode.
 
 The planner lives in the Rust crate at `addons/GdPlanningAI/rust/src/`. Users never touch that code directly. They define `Action`, `Goal`, `Precondition`, `RequirementSpec`, and `ProvisionSpec` in GDScript, submit them through the `GdPAIPlanScheduler`, and receive a `Plan` back through `agent._on_plan_ready(dict)`.
 
@@ -8,9 +8,9 @@ ______________________________________________________________________
 
 ## 1. High-level concept
 
-GdPlanningAI is a GOAP planner with a twist. Classic GOAP works by backward chaining: start from a goal, find actions whose effects would satisfy it, then recursively find actions to satisfy those actions' preconditions. This planner does the same, but it separates that reasoning into two cooperating layers:
+GdPlanningAI is a GOAP planner. Classic GOAP works by backward chaining: start from a goal, find actions whose effects would satisfy it, then recursively find actions to satisfy those actions' preconditions. This planner does the same, but splits the work into two parts:
 
-1. **A symbolic layer** that matches *requirements* against *provisions*. These are lightweight, structured descriptions of "what an action needs" and "what an action provides", like `fact("is_food", [])` or `binding("held_item", item_id)`. Backward chaining happens here, which is fast because it is pure pattern matching.
+1. **A symbolic layer** that matches *requirements* against *provisions*. These are short descriptions of "what an action needs" and "what an action provides", like `fact("is_food", [])` or `binding("held_item", item_id)`. Backward chaining happens here, which is fast because it is pure pattern matching.
 1. **A simulation layer** that runs the candidate chains forward, executing real GDScript callables for costs, effects, and custom preconditions against simulated blackboard snapshots. This is where a candidate chain is accepted or rejected as a real, valid plan.
 
 Symbolic matching alone is not enough. A binding might match textually while `get_action_cost()` or `apply_effects()` still fails at runtime, or the simulated state violates an action's own preconditions once effects apply. So every backward-chained candidate is later *verified* by simulating it forward.
@@ -51,7 +51,7 @@ When the chain has no open needs left, the branch flips to `Verifying`, resets i
 
 ### Phase 2: forward verification
 
-A branch in the `Verifying` state is run through `process_simulation`. This executes the chain from first to last action against simulated snapshots, one careful step at a time:
+A branch in the `Verifying` state is run through `process_simulation`. This executes the chain from first to last action against simulated snapshots, one step at a time:
 
 1. On entering `Verifying`, each action's custom preconditions are re-opened at its position and every goal precondition at the end of the chain, so they are checked against the simulated state: a later insertion can undo a need an earlier action satisfied. Builtin action preconditions are re-checked in the next step.
 1. On the first step, requirements at position 0 (already satisfied by initial provisions) are cleared.
@@ -84,7 +84,7 @@ ______________________________________________________________________
 
 ## 3. The symbolic layer: requirements and provisions
 
-An `Action` declares two matching surfaces. **Requirements** are the causal links it depends on; **provisions** are what it offers to earlier actions. The provision index and the expander do all backward chaining through these.
+An `Action` declares two lists the planner matches. **Requirements** are the causal links it depends on; **provisions** are what it offers to later actions. The provision index and the expander do all backward chaining through these.
 
 ### Requirement kinds
 
@@ -219,7 +219,7 @@ Bindings are injected into the agent blackboard only, using `values[0]`.
 
 ### Pending and resume semantics
 
-A callback response either completes a pending discovery request (cache write) or resumes a parked node (stored as its `callback_response` and re-enqueued). Resume gating is precise:
+A callback response either completes a pending discovery request (cache write) or resumes a parked node (stored as its `callback_response` and re-enqueued). A parked job resumes only when it can make progress:
 
 - A job whose `pending_request_id == 0` (the budget-yield sentinel) is always resumable.
 - Otherwise it resumes only if its response was dispatched this frame or is already recorded in `completed_request_ids`.
@@ -252,7 +252,7 @@ ______________________________________________________________________
 
 ## 9. Worked example: GoTo -> PickUp -> EatHeldFood
 
-The campfire scene uses this exact chain to satisfy the hunger goal. This is trace A from the examples research. Suppose the agent is hungry (hunger = 60), standing nowhere near a banana.
+The campfire scene uses this chain to satisfy the hunger goal. Suppose the agent is hungry (hunger = 60), standing nowhere near a banana.
 
 The actions involved, as declared by the author:
 
@@ -286,7 +286,7 @@ goal: hunger < 45
 
 Under BestCost + Dijkstra, the engine keeps searching for a strictly cheaper plan. If a banana is reachable, the direct GoTo -> PickUp -> Eat chain wins over alternatives such as the tree-shake route, whose `ShakeTreeAction` costs 10.0 versus the banana chain's small pickup cost. The final plan is delivered to `agent._on_plan_ready(dict)`.
 
-Two other chains from the same scene use the identical machinery: the fire chain `GoTo -> Pick Up Wood -> Add Fuel` (trace C), where `AddFuelAction` requires `binding_equals("held_item", "wood")` and `PickUpWoodAction` provides `binding("held_item", "wood")`, and the cook-and-eat chain (trace D), where `CookPotatoAction` gates itself to `INFINITY` when the campfire is too low, which is how hunger and fire maintenance become coupled in the search.
+Two other chains from the same scene work the same way: the fire chain `GoTo -> Pick Up Wood -> Add Fuel`, where `AddFuelAction` requires `binding_equals("held_item", "wood")` and `PickUpWoodAction` provides `binding("held_item", "wood")`, and the cook-and-eat chain, where `CookPotatoAction` gates itself to `INFINITY` when the campfire is too low, which is how hunger and fire maintenance become coupled in the search.
 
 ______________________________________________________________________
 
@@ -307,4 +307,4 @@ Log verbosity is a single process-wide level (`plugin.cfg` `log_level`, default 
 | Info (default) | `submit_plan` summary (agent, goals, action count), `Plan complete`, one-line `RESULT goal='…' success=… Branches: … \| Time: …` (skipped when no goal needed a search), warnings/errors                                                                   |
 | Debug (3)      | Plus search transitions (`Pending` / `Resuming`), one `NOT resuming` notice per stall episode, full tree *recording* (fetch it anytime via `get_debug_tree(agent)`; it is never auto-printed), and `FWD [FAIL]` requirement attributions on verified nodes |
 
-The tree builder only records nodes at Debug and above, but a lightweight branch counter always runs so the Info `RESULT` line still reports search cost. The time-slice yield itself never logs; slicing is steady-state architecture, not an event.
+The tree builder only records nodes at Debug and above, but a lightweight branch counter always runs so the Info `RESULT` line still reports search cost. Time-slice yields are not logged; they happen on every long search.
