@@ -20,7 +20,7 @@ The top-level of the repo:
 | `test/`             | GUT GDScript test suite (`test/unit/`, `test/integration/`).                             |
 | `media/`            | Demo assets used by the README (banner, gifs, screenshots).                              |
 
-Other files of note at the root: `Makefile` (see [section 6](#6-build-system)), `project.godot` (Godot 4.7 project, no main scene), `addons.jsonc` (third-party addon manifest, `gut` v9.6.0 + `GdTimeMachine` via symlink to `../GdTimeMachine`), and `.pre-commit-config.yaml`.
+Other files of note at the root: `Makefile` (see [section 6](#6-build-system)), `project.godot` (Godot 4.7 project, no main scene), `addons.jsonc` (third-party addon manifest, `gut` v9.6.0 + `GdTimeMachine` v0.1.1), and `.pre-commit-config.yaml`.
 
 ______________________________________________________________________
 
@@ -176,7 +176,7 @@ Prefer `make` targets over ad hoc commands. Two Makefiles exist.
 | `format`, `format-rust`, `format-godot`                                | Format all / Rust (rustfmt) / GDScript (`fix_gd_spacing.py` + gdformat via uv).                                                                                                                                                                                                                                                                |
 | `lint-style`, `lint-godot`                                             | Run `uv run scripts/lint_style.py` / gdlint (gdtoolkit defaults).                                                                                                                                                                                                                                                                              |
 | `check-docs`, `sync-docs`                                              | Diff/sync README + LICENSE between the repo root and the addon copy.                                                                                                                                                                                                                                                                           |
-| `launch-editor`, `addons-install`, `godot-pin`, `godot-install-pinned` | Editor and Godot version management (GodotEnv). Recording is via colocated `GdTimeMachine` addon (`../GdTimeMachine`).                                                                                                                                                                                                                         |
+| `launch-editor`, `addons-install`, `godot-pin`, `godot-install-pinned` | Editor and Godot version management (GodotEnv). Recording is via the `GdTimeMachine` addon.                                                                                                                                                                                                                                                    |
 
 ### `addons/GdPlanningAI/rust/Makefile`
 
@@ -222,8 +222,8 @@ ______________________________________________________________________
 - **Formatting and linting**: `make format-rust` (rustfmt), `make format-godot` (spacing fixer + gdformat), `make lint-godot` (gdlint), `make lint-style` (style linter over git-tracked `.gd`/`.rs` files: bans `:=`, checks borders, docstrings, and spacing).
 - **`scripts/` one-liners**: `fix_gd_spacing.py` (2 blank lines before top-level funcs), `lint_style.py` (style linter).
 - **Pre-commit hooks** (`.pre-commit-config.yaml`, commit stage only; tests are run by hand): pre-commit-hooks v5.0.0, cargo fmt/clippy (via the rust Makefile), gitleaks v8.24.0, mdformat 0.7.19 (`--wrap=no`, GFM tables), ruff v0.6.0 + ruff-format, gdformat, gdlint, `lint-style`, and `check-docs`.
-- **Third-party addons** (`addons.jsonc`): `gut` v9.6.0 (bitwes/Gut) + `GdTimeMachine` (symlink `../GdTimeMachine`), installed via GodotEnv, gitignored, cached under `.addons/`. Both editor plugins (GdPlanningAI and gut) are enabled; GdTimeMachine is installed as a symlink.
-- **`project.godot`**: Godot 4.7, Forward Plus renderer, **no main scene** (run scenes directly). Autoload: `GdPAIAutoload`. There is a vestigial `.NET`/Mono section that is unused.
+- **Third-party addons** (`addons.jsonc`): `gut` v9.6.0 (bitwes/Gut) + `GdTimeMachine` v0.1.1 (WahahaYes/GdTimeMachine), installed via GodotEnv, gitignored, cached under `.addons/`. All three editor plugins (GdPlanningAI, gut, GdTimeMachine) are enabled.
+- **`project.godot`**: Godot 4.7, Forward Plus renderer, **no main scene** (run scenes directly). Autoloads: `GdPAIAutoload`, `GdTimeMachineGracefulStop`. There is a vestigial `.NET`/Mono section that is unused.
 - **No CI**: there is no `.github/` and no GitHub Actions. Quality gates are the local Make targets and the pre-commit hooks.
 
 ______________________________________________________________________
