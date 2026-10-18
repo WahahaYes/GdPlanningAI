@@ -24,6 +24,13 @@ test: ## Run all tests (Rust + Godot); exits nonzero if any sub-suite fails
 test-rust: ## Run Rust tests only (propagates cargo test exit code)
 	"$(MAKE)" -C addons/GdPlanningAI/rust test
 
+.PHONY: test-rust-verbose
+test-rust-verbose: ## Run Rust tests with cargo's full output and exit code (CI)
+	"$(MAKE)" -C addons/GdPlanningAI/rust test-verbose
+
+.PHONY: test-verbose
+test-verbose: test-rust-verbose test-godot-verbose ## Run both suites with full output (CI); stops at the first failing suite
+
 .PHONY: test-godot
 test-godot: ## Run Godot integration tests (GUT headless); concise output, exits 0
 	@echo "Running tests..."
@@ -56,11 +63,29 @@ test-godot: ## Run Godot integration tests (GUT headless); concise output, exits
 	fi; \
 	exit 0
 
-.PHONY: test-godot-ci
-test-godot-ci: ## Run the GUT suite like test-godot but exit nonzero unless GUT-SUITE-OK (CI)
-	@LOG=$$(mktemp /tmp/gut-ci.XXXXXX); \
-	"$(MAKE)" test-godot | tee $$LOG; \
-	grep -q "^GUT-SUITE-OK" $$LOG
+.PHONY: test-godot-verbose
+test-godot-verbose: ## Run the GUT suite with its full output and a real exit code (CI; test-godot is quiet on purpose)
+	@LOG=$$(mktemp /tmp/gut-verbose.XXXXXX); \
+	godot --headless -s --path . addons/gut/gut_cmdln.gd -gexit 2>&1 | tee $$LOG; \
+	STATUS=$${PIPESTATUS[0]}; \
+	OK=1; \
+	for PAT in "SCRIPT ERROR" "Failed to load script" "Parse error"; do \
+		if grep -qF "$$PAT" $$LOG; then \
+			echo "GUT-SUITE-FAILED: output contains '$$PAT' (a test file failed to LOAD/parse)"; \
+			OK=0; \
+		fi; \
+	done; \
+	if [ $$STATUS -ne 0 ]; then \
+		echo "GUT-SUITE-FAILED: gut_cmdln exited with $$STATUS"; \
+		OK=0; \
+	fi; \
+	PASS=$$(grep -E "^Passing Tests" $$LOG | awk '{print $$NF}'); \
+	if [ -z "$$PASS" ] || [ "$$PASS" = 0 ]; then \
+		echo "GUT-SUITE-FAILED: no tests ran (is the .godot import cache missing?)"; \
+		OK=0; \
+	fi; \
+	[ $$OK -eq 1 ] && echo "GUT-SUITE-OK ($$PASS passing)"; \
+	[ $$OK -eq 1 ]
 
 .PHONY: test-godot-pipe-output
 test-godot-pipe-output: ## Run Godot integration tests with full output to file

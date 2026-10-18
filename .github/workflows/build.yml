@@ -1,8 +1,9 @@
 # CI for the addon. Every job step is one local command (see Makefile):
 #   uv run pre-commit run --all-files       hooks (formatters, lints, secrets)
-#   make format-check; make -C addons/GdPlanningAI/rust lint; make test-rust   Rust checks
+#   make format-check; make -C addons/GdPlanningAI/rust lint; make test-rust-verbose   Rust checks
 #   make godot-version                      the Godot pin (global.json)
-#   make test-godot-ci                      the GUT suite, nonzero on failure
+#   make test-godot-verbose                 the GUT suite, full log, nonzero on failure
+# The quiet make test, test-rust and test-godot are for agents' context; CI reads the verbose ones.
 # Toolchains are pinned in the repo: addons/GdPlanningAI/rust/rust-toolchain.toml
 # and global.json. Checkouts skip LFS: binaries are built in the job, never pulled.
 # Runs on pull requests and pushes to main; release.yml calls it.
@@ -111,7 +112,7 @@ jobs:
           done
 
   # Rust checks run once, on Linux. Debug tests: one test fails under
-  # --release by design (see make test-rust).
+  # --release by design (see make test-rust-verbose).
   rust:
     needs: [changes, precommit]
     if: needs.changes.outputs.rust == 'true'
@@ -129,7 +130,7 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: make format-check
       - run: make -C addons/GdPlanningAI/rust lint
-      - run: make test-rust
+      - run: make test-rust-verbose
 
   # The GUT suite on each OS against a binary built here for that OS.
   godot:
@@ -182,7 +183,7 @@ jobs:
       - name: Import
         run: godot --headless --import
       - name: GUT
-        run: make test-godot-ci
+        run: make test-godot-verbose
 
   # The only required check. A skipped job counts as pass.
   ci:
