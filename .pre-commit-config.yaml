@@ -11,8 +11,9 @@ repos:
       - id: check-json
       - id: check-toml
       - id: check-added-large-files
-        # Vendored binary art (glTF/PNG) is intentionally committed.
-        exclude: ^examples/source_[23]d/assets/vendored/
+        args: ['--maxkb=512']
+        # Vendored binary art (glTF), binary media and self-contained html stay out of the size check.
+        exclude: '(?i)^examples/source_[23]d/assets/vendored/|\.(png|jpe?g|webp|avif|svg|gif|html|glb|gltf)$'
       - id: check-merge-conflict
       - id: fix-byte-order-marker
       - id: mixed-line-ending
