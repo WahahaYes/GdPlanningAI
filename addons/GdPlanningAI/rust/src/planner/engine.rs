@@ -653,10 +653,20 @@ impl PlannerEngine {
         }
     }
 
-    /// Restarts a symbolically complete branch from the initial state to verify it forward. The
-    /// goal is re-checked after the last action, since a later insertion can undo a need an
-    /// earlier one satisfied.
+    /// Restarts a symbolically complete branch from the initial state to verify it forward. A
+    /// later insertion can undo a need an earlier one satisfied, so needs are re-opened where
+    /// they are checked against the simulated state: each action's custom preconditions before it
+    /// (builtin ones are re-checked by the action validator) and the goal after the last action.
     fn begin_verification(&self, branch: &mut PlanBranch, goal: &GoalSpec) {
+        for (pos, &action_idx) in branch.action_chain.iter().enumerate() {
+            let customs = self.ctx.actions[action_idx]
+                .preconditions
+                .iter()
+                .filter(|pre| matches!(pre, PreconditionSpec::Custom { .. }));
+            branch
+                .open_preconditions
+                .extend(customs.map(|pre| (pos, pre.clone())));
+        }
         let end = branch.action_chain.len();
         branch
             .open_preconditions

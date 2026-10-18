@@ -407,24 +407,32 @@ fn int_effect_action(name: &str, effect_id: usize, pre: Vec<PreconditionSpec>) -
     }
 }
 
-#[test]
-fn goal_level_action_runs_after_the_chain() {
-    // Goal: fed and at the fire. Eating needs the agent at the food, so walking to the fire
-    // must come last: [goto_food, eat, goto_fire]. Effects set one agent int each.
-    let effects: [(&str, i64); 3] = [("pos", 1), ("fed", 1), ("pos", 2)];
+/// Answers callbacks for actions whose effects set agent ints: `effects[callable_id]` lists the
+/// `(property, value)` pairs an effect writes, and `customs[callable_id]` is the
+/// `(property, value)` a custom precondition requires. Costs are 1.0.
+fn spawn_int_responder(
+    effects: Vec<Vec<(&'static str, i64)>>,
+    customs: HashMap<usize, (&'static str, i64)>,
+) -> (mpsc::Sender<CallbackRequest>, thread::JoinHandle<()>) {
     let (req_tx, req_rx) = mpsc::channel::<CallbackRequest>();
     let handle = thread::spawn(move || {
         for req in req_rx {
             let response = match req.kind {
                 CallbackKind::GetCost { .. } => CallbackResponse::Float(1.0),
                 CallbackKind::ApplyEffect { mut agent, world } => {
-                    let (prop, value) = effects[req.callable_id];
-                    agent
-                        .properties
-                        .insert(prop.to_string(), VariantSnapshot::Int(value));
+                    for &(prop, value) in &effects[req.callable_id] {
+                        agent
+                            .properties
+                            .insert(prop.to_string(), VariantSnapshot::Int(value));
+                    }
                     CallbackResponse::UpdatedSnapshots(agent, world)
                 }
-                CallbackKind::EvalCustomPrecond { .. } => CallbackResponse::Bool(true),
+                CallbackKind::EvalCustomPrecond { agent, .. } => {
+                    let (prop, value) = customs[&req.callable_id];
+                    CallbackResponse::Bool(
+                        agent.properties.get(prop) == Some(&VariantSnapshot::Int(value)),
+                    )
+                }
             };
             let _ = req.response_tx.send(PlannerCallback {
                 request_id: req.request_id,
@@ -432,6 +440,17 @@ fn goal_level_action_runs_after_the_chain() {
             });
         }
     });
+    (req_tx, handle)
+}
+
+#[test]
+fn goal_level_action_runs_after_the_chain() {
+    // Goal: fed and at the fire. Eating needs the agent at the food, so walking to the fire
+    // must come last: [goto_food, eat, goto_fire]. Effects set one agent int each.
+    let (req_tx, handle) = spawn_int_responder(
+        vec![vec![("pos", 1)], vec![("fed", 1)], vec![("pos", 2)]],
+        HashMap::new(),
+    );
 
     let mut agent = make_agent(0);
     agent
@@ -455,4 +474,88 @@ fn goal_level_action_runs_after_the_chain() {
     let plan = result.expect("should produce a plan");
     assert!(plan.success);
     assert_eq!(plan.action_chain, vec![0, 1, 2]);
+}
+
+#[test]
+fn custom_precondition_is_rechecked_before_its_action() {
+    // Eating needs the agent at the food (builtin) and holding food (custom). Walking to the food
+    // drops the held item, so picking up must come after it: [goto_food, pickup, eat].
+    let mut agent = make_agent(0);
+    for prop in ["pos", "held"] {
+        agent
+            .properties
+            .insert(prop.to_string(), VariantSnapshot::Int(0));
+    }
+    let holding = PreconditionSpec::Custom {
+        callable_id: 3,
+        dependent_object_ids: vec![],
+    };
+    let actions = vec![
+        int_effect_action("goto_food", 0, vec![]),
+        int_effect_action("pickup", 1, vec![]),
+        int_effect_action("eat", 2, vec![agent_int_equal("pos", 1), holding]),
+    ];
+    let goals = vec![GoalSpec {
+        name: "fed".to_string(),
+        reward: 10.0,
+        desired_state: vec![agent_int_equal("fed", 1)],
+        original_index: 0,
+    }];
+    let (req_tx, handle) = spawn_int_responder(
+        vec![
+            vec![("pos", 1), ("held", 0)],
+            vec![("held", 1)],
+            vec![("fed", 1), ("held", 0)],
+        ],
+        HashMap::from([(3, ("held", 1))]),
+    );
+
+    let result = run_planner(agent, make_world(), actions, goals, 10, req_tx);
+    drop(handle);
+
+    let plan = result.expect("should produce a plan");
+    assert!(plan.success);
+    assert_eq!(plan.action_chain, vec![0, 1, 2]);
+}
+
+#[test]
+fn plan_breaking_a_custom_precondition_is_rejected() {
+    // As above, but picking up also walks the agent home, so no order has it at the food and
+    // holding food at once. [pickup, goto_food, eat] satisfies each need once; goto_food then
+    // drops the item, which only re-checking the custom precondition catches.
+    let mut agent = make_agent(0);
+    for prop in ["pos", "held"] {
+        agent
+            .properties
+            .insert(prop.to_string(), VariantSnapshot::Int(0));
+    }
+    let holding = PreconditionSpec::Custom {
+        callable_id: 3,
+        dependent_object_ids: vec![],
+    };
+    let actions = vec![
+        int_effect_action("goto_food", 0, vec![]),
+        int_effect_action("pickup", 1, vec![]),
+        int_effect_action("eat", 2, vec![agent_int_equal("pos", 1), holding]),
+    ];
+    let goals = vec![GoalSpec {
+        name: "fed".to_string(),
+        reward: 10.0,
+        desired_state: vec![agent_int_equal("fed", 1)],
+        original_index: 0,
+    }];
+    let (req_tx, handle) = spawn_int_responder(
+        vec![
+            vec![("pos", 1), ("held", 0)],
+            vec![("pos", 0), ("held", 1)],
+            vec![("fed", 1), ("held", 0)],
+        ],
+        HashMap::from([(3, ("held", 1))]),
+    );
+
+    let result = run_planner(agent, make_world(), actions, goals, 10, req_tx);
+    drop(handle);
+
+    let plan = result.expect("should produce a result");
+    assert!(!plan.success, "got {:?}", plan.action_chain);
 }
