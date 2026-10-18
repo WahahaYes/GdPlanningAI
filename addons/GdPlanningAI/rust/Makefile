@@ -96,18 +96,9 @@ format: ## Format code using rustfmt
 	@cargo fmt
 
 .PHONY: lint
-lint: ## Run clippy (errors block commit, warnings print only)
+lint: ## Run clippy; warnings fail
 	@rustup component add clippy 2>&1 | grep -E "(error|Error)" || true
-	@result=$$(cargo clippy --message-format=short 2>&1); status=$$?; \
-	errors=$$(echo "$$result" | grep -cE ": error(\[|:)" || true); \
-	warnings=$$(echo "$$result" | grep -cE ": warning(\[|:)" || true); \
-	echo "$$result" | grep -vE "^\s*$$" || true; \
-	echo "clippy: $$errors error(s), $$warnings warning(s)"; \
-	exit $$status
-
-.PHONY: lint-fix
-lint-fix: ## Run clippy linter with autofix
-	rustup component add clippy && cargo clippy --fix --allow-dirty --allow-no-vcs
+	@cargo clippy --message-format=short -- -D warnings
 
 .PHONY: clean
 clean: ## Clean build artifacts
