@@ -5,7 +5,7 @@ TARGET_DIR = $(RUST_DIR)/target
 
 # Keep local paths out of the committed binaries, so builds match across checkouts. Every
 # target shares these flags; changing RUSTFLAGS between targets would rebuild everything.
-# filter-out keeps recursive makes (build-all) from adding them twice. RUSTFLAGS overrides any
+# filter-out keeps recursive makes from adding them twice. RUSTFLAGS overrides any
 # rustflags in a cargo config.
 CARGO_HOME ?= $(HOME)/.cargo
 REMAP_FLAGS := --remap-path-prefix=$(CURDIR)=/gdplanningai_rust \
@@ -15,20 +15,31 @@ export RUSTFLAGS := $(strip $(filter-out $(REMAP_FLAGS),$(RUSTFLAGS)) $(REMAP_FL
 
 ##@ Build
 
+# Each OS builds its own binary natively (CI does all three; see scripts/binaries.sh).
+# macOS ships one universal dylib: aarch64 and x86_64 slices joined with lipo.
+MAC_TARGETS := aarch64-apple-darwin x86_64-apple-darwin
+MAC_DYLIB := libgdplanningai_rust.dylib
+
 .PHONY: build-release
-build-release: ## Build release binary for current platform
-	@cargo build --release --quiet --message-format=short
-	@echo "Copying release binary for current platform..."
+build-release: ## Build the release binary for this OS into ../bin (macOS: universal)
 	@if [ "$$(uname -s)" = "Linux" ]; then \
+		cargo build --release --quiet --message-format=short && \
 		mkdir -p $(BIN_DIR)/linux && \
 		cp $(TARGET_DIR)/release/*.so $(BIN_DIR)/linux/; \
 	elif [ "$$(uname -s)" = "Darwin" ]; then \
+		for t in $(MAC_TARGETS); do \
+			cargo build --release --quiet --message-format=short --target $$t || exit 1; \
+		done && \
 		mkdir -p $(BIN_DIR)/macos && \
-		cp $(TARGET_DIR)/release/*.dylib $(BIN_DIR)/macos/; \
+		lipo -create -output $(BIN_DIR)/macos/$(MAC_DYLIB) \
+			$(foreach t,$(MAC_TARGETS),$(TARGET_DIR)/$(t)/release/$(MAC_DYLIB)) && \
+		codesign --force --sign - $(BIN_DIR)/macos/$(MAC_DYLIB); \
 	else \
+		cargo build --release --quiet --message-format=short && \
 		mkdir -p $(BIN_DIR)/windows && \
 		cp $(TARGET_DIR)/release/*.dll $(BIN_DIR)/windows/; \
 	fi
+	@echo "Release binary copied to $(BIN_DIR)"
 
 .PHONY: build-debug
 build-debug: ## Build debug binary for current platform
@@ -45,30 +56,11 @@ build-debug: ## Build debug binary for current platform
 		cp $(TARGET_DIR)/debug/*.dll $(BIN_DIR)/windows/; \
 	fi
 
-.PHONY: build-all
-build-all: ## Build for all supported platforms
-	"$(MAKE)" build-linux
-	"$(MAKE)" build-windows
-	@echo "Binaries copied to $(BIN_DIR)"
-
-.PHONY: build-linux
-build-linux: ## Build for Linux x86_64
-	@echo "Building for Linux x86_64..."
-	@cargo build --release --quiet --message-format=short --target x86_64-unknown-linux-gnu
-	@mkdir -p $(BIN_DIR)/linux
-	@cp $(TARGET_DIR)/x86_64-unknown-linux-gnu/release/libgdplanningai_rust.so $(BIN_DIR)/linux/
-
-.PHONY: build-windows
-build-windows: ## Build for Windows x86_64 (needs setup-windows and mingw-w64)
-	@echo "Building for Windows x86_64..."
-	@cargo build --release --quiet --message-format=short --target x86_64-pc-windows-gnu
-	@mkdir -p $(BIN_DIR)/windows
-	@cp $(TARGET_DIR)/x86_64-pc-windows-gnu/release/gdplanningai_rust.dll $(BIN_DIR)/windows/
-
 .PHONY: clean-binaries
 clean-binaries: ## Clean all binary directories
 	@echo "Cleaning all binary directories..."
 	rm -rf $(BIN_DIR)/linux/*
+	rm -rf $(BIN_DIR)/macos/*
 	rm -rf $(BIN_DIR)/windows/*
 	@echo "Binary directories cleaned"
 
@@ -111,12 +103,6 @@ clean: ## Clean build artifacts
 .PHONY: doc
 doc: ## Generate documentation
 	cargo doc --open
-
-##@ Cross-Compilation
-
-.PHONY: setup-windows
-setup-windows: ## Add the Windows rustup target (linker: apt install gcc-mingw-w64-x86-64)
-	rustup target add x86_64-pc-windows-gnu
 
 ##@ Help
 

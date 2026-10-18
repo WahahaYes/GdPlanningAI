@@ -2,6 +2,7 @@
 #   uv run pre-commit run --all-files       hooks (formatters, lints, secrets)
 #   make format-check; make -C addons/GdPlanningAI/rust lint; make test-rust   Rust checks
 #   make godot-version                      the Godot pin (global.json)
+#   scripts/binaries.sh check               the committed binaries match the Rust sources
 #   make test-godot-ci                      the GUT suite, nonzero on failure
 # Toolchains are pinned in the repo: addons/GdPlanningAI/rust/rust-toolchain.toml
 # and global.json. Checkouts skip LFS: binaries are built in the job, never pulled.
@@ -166,26 +167,45 @@ jobs:
           "$HOME/.dotnet/tools/godotenv" addons install
       - name: Build the Rust binary over the LFS pointer
         run: make -C addons/GdPlanningAI/rust build-release
+      # These are the binaries to commit: scripts/binaries.sh fetch downloads them.
+      - name: Upload the binary
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: binaries-${{ matrix.artifact }}
+          path: addons/GdPlanningAI/bin/${{ matrix.artifact }}/*
+          if-no-files-found: error
+          retention-days: 14
       - name: Import
         run: godot --headless --import
       - name: GUT
         run: make test-godot-ci
 
+  # The committed binaries must come from the current Rust sources: the stamp
+  # beside them is the git tree id of rust/. No LFS download, no byte compare.
+  stamp:
+    needs: [changes]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: scripts/binaries.sh check
+
   # The only required check. A skipped job counts as pass.
   ci:
     runs-on: ubuntu-24.04
-    needs: [changes, precommit, rust, godot]
+    needs: [changes, precommit, rust, godot, stamp]
     if: always()
     steps:
       - name: Gate
         run: |
           fail=0
-          for r in "${{ needs.precommit.result }}" "${{ needs.rust.result }}" "${{ needs.godot.result }}" "${{ needs.changes.result }}"; do
+          for r in "${{ needs.precommit.result }}" "${{ needs.rust.result }}" "${{ needs.godot.result }}" "${{ needs.stamp.result }}" "${{ needs.changes.result }}"; do
             echo "result: $r"
             case "$r" in success|skipped) ;; *) fail=1 ;; esac
           done
-          # precommit never skips: skipped there means a broken workflow.
+          # These never skip: skipped there means a broken workflow.
           [ "${{ needs.precommit.result }}" = success ] || fail=1
+          [ "${{ needs.stamp.result }}" = success ] || fail=1
           exit $fail
 
   # Main seeds the caches PRs read; drop everything else once main is built.

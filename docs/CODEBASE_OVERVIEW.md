@@ -180,23 +180,23 @@ Prefer `make` targets over ad hoc commands. Two Makefiles exist.
 
 ### `addons/GdPlanningAI/rust/Makefile`
 
-| Target                                       | Purpose                                                                                                       |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `build-release`                              | `cargo build --release`, then copies the shared library to `addons/GdPlanningAI/bin/{linux,macos,windows}/`.  |
-| `build-debug`, `build-all`, `clean-binaries` | Other build variants and cleanup.                                                                             |
-| `build-linux`, `build-windows`               | Cross-compilation with plain `cargo build --target`; Windows links with mingw-w64 (`x86_64-w64-mingw32-gcc`). |
-| `test`                                       | `cargo test`.                                                                                                 |
-| `format`, `lint`, `lint-fix`                 | rustfmt, clippy (errors block), clippy autofix.                                                               |
-| `clean`, `doc`                               | Cargo clean and `cargo doc`.                                                                                  |
-| `setup-windows`                              | Add the `x86_64-pc-windows-gnu` rustup target.                                                                |
+| Target                           | Purpose                                                                                                                                       |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `build-release`                  | `cargo build --release` for this OS (macOS: universal via lipo), then copies the library to `addons/GdPlanningAI/bin/{linux,macos,windows}/`. |
+| `build-debug`, `clean-binaries`  | Debug build and cleanup.                                                                                                                      |
+| `test`                           | `cargo test`.                                                                                                                                 |
+| `format`, `format-check`, `lint` | rustfmt (rewrite, check), clippy with warnings denied.                                                                                        |
+| `clean`, `doc`                   | Cargo clean and `cargo doc`.                                                                                                                  |
 
 Every target sets `RUSTFLAGS` with `--remap-path-prefix`, so the committed binaries carry no local paths and are identical from any checkout. Build through these targets; a plain `cargo` call without the flags rebuilds everything.
 
 ### Build artifact flow
 
-`make build-release` produces the shared library and copies it into `addons/GdPlanningAI/bin/<platform>/`. `gdplanningai.gdextension` loads the platform-appropriate file at runtime (`.so` on Linux, `.dll` on Windows, `.dylib` on macOS). The binaries are committed to the repo.
+`make build-release` produces the shared library for the current OS and copies it into `addons/GdPlanningAI/bin/<platform>/`. `gdplanningai.gdextension` loads the platform-appropriate file at runtime (`.so` on Linux, `.dll` on Windows, `.dylib` on macOS). The binaries are committed through Git LFS, so a tag archive is a usable addon.
 
-Important: after any Rust change you must run `make build-release` before the GDScript test suite will pick up the new behavior.
+The committed binaries are built by CI (`build.yml`): Linux and macOS (universal, `lipo` of aarch64 and x86_64) on their runners, Windows natively with MSVC. `addons/GdPlanningAI/bin/.source` stamps them with the git tree id of `addons/GdPlanningAI/rust`, which covers sources, `Cargo.lock`, `rust-toolchain.toml` and the Makefile. CI fails a PR whose stamp differs from that tree (`scripts/binaries.sh check`); it never compares binary bytes or pulls LFS objects. After a Rust change: commit it, push, wait for the build jobs, then `scripts/binaries.sh fetch` stages the three fresh binaries and the stamp for a follow-up commit.
+
+Locally, run `make -C addons/GdPlanningAI/rust build-release` after any Rust change so the GDScript test suite picks up the new behavior, but do not commit the result.
 
 ______________________________________________________________________
 
