@@ -88,13 +88,12 @@ format: ## Format code using rustfmt
 .PHONY: lint
 lint: ## Run clippy (errors block commit, warnings print only)
 	@rustup component add clippy 2>&1 | grep -E "(error|Error)" || true
-	@result=$$(cargo clippy --message-format=short 2>&1); \
-	errors=$$(echo "$$result" | grep -cE "^error" || true); \
-	warnings=$$(echo "$$result" | grep -cE "^warning" || true); \
+	@result=$$(cargo clippy --message-format=short 2>&1); status=$$?; \
+	errors=$$(echo "$$result" | grep -cE ": error(\[|:)" || true); \
+	warnings=$$(echo "$$result" | grep -cE ": warning(\[|:)" || true); \
 	echo "$$result" | grep -vE "^\s*$$" || true; \
 	echo "clippy: $$errors error(s), $$warnings warning(s)"; \
-	[ "$$errors" -gt 0 ] && exit 1; \
-	exit 0
+	exit $$status
 
 .PHONY: lint-fix
 lint-fix: ## Run clippy linter with autofix
