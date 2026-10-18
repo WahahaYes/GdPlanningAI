@@ -5,8 +5,10 @@ extends RefCounted
 ## once per plan request.[br]
 ## [b]Planning hooks[/b] ([method get_action_cost], [method simulate_effect]) run on simulated
 ## blackboards: no scene tree access, no [code]await[/code].[br]
-## [b]Execution hooks[/b] ([code]*_perform_action[/code]) run the chosen plan on the main thread.[br]
-## See [code]docs/AUTHORING_GUIDE.md[/code] for timing rules and [code]examples/objects/[/code] for real actions.
+## [b]Execution hooks[/b] ([code]*_perform_action[/code]) run the chosen plan on the main
+## thread.[br]
+## See [code]docs/AUTHORING_GUIDE.md[/code] for timing rules and [code]examples/objects/[/code]
+## for real actions.
 
 ## Result of [method pre_perform_action], [method perform_action] and
 ## [method post_perform_action].

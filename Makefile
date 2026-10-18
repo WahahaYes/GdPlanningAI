@@ -48,7 +48,11 @@ test-godot: ## Run Godot integration tests (GUT headless); concise output, exits
 		PASS=$$(grep -E "^Passing Tests" $$LOG | awk '{print $$NF}'); \
 		FAIL=$$(grep -E "^Failing Tests" $$LOG | awk '{print $$NF}'); \
 		[ -z "$$FAIL" ] && FAIL=0; \
-		echo "GUT-SUITE-OK ($$PASS passing, $$FAIL failing)"; \
+		if [ -z "$$PASS" ] || [ "$$PASS" = 0 ]; then \
+			echo "GUT-SUITE-FAILED: no tests ran (is the .godot import cache missing?); see $$LOG"; \
+		else \
+			echo "GUT-SUITE-OK ($$PASS passing, $$FAIL failing)"; \
+		fi; \
 	fi; \
 	exit 0
 
@@ -68,15 +72,19 @@ format-rust: ## Format Rust source files with rustfmt
 	"$(MAKE)" -C addons/GdPlanningAI/rust format
 
 .PHONY: format-godot
-format-godot: ## Format GDScript files with gdformat (requires gdtoolkit)
-	@uv run scripts/fix_gd_spacing.py 2>&1 | grep -E "(error|Error)" || true
-	@git ls-files '*.gd' | xargs uv run gdformat 2>&1 | grep -E "(error|Error)" || true
+format-godot: ## Format tracked GDScript files with gdformat (requires gdtoolkit); fails on parse errors
+	@out=$$(uv run scripts/fix_gd_spacing.py 2>&1) || { echo "$$out"; exit 1; }
+	@out=$$(git ls-files -z '*.gd' | xargs -0 -r uv run gdformat 2>&1) || { echo "$$out"; exit 1; }
 
 ##@ Linting
 
 .PHONY: lint-style
 lint-style: ## Check GDScript and Rust files for style-guide violations
 	uv run scripts/lint_style.py
+
+.PHONY: lint-godot
+lint-godot: ## Lint tracked GDScript files with gdlint (gdtoolkit defaults)
+	@out=$$(git ls-files -z '*.gd' | xargs -0 -r uv run gdlint 2>&1) || { echo "$$out"; exit 1; }
 
 ##@ Documentation
 

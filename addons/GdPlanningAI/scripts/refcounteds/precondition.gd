@@ -216,7 +216,8 @@ static func world_object_property_greater_than(
 	)
 
 
-## Check if any object in a group in the world state has a property greater than or equal to the given value.
+## Check if any object in a group in the world state has a property greater than or equal to
+## the given value.
 static func world_object_property_geq_than(
 	group: String,
 	property: String,
@@ -246,7 +247,8 @@ static func world_object_property_less_than(
 	)
 
 
-## Check if any object in a group in the world state has a property less than or equal to the given value.
+## Check if any object in a group in the world state has a property less than or equal to the
+## given value.
 static func world_object_property_leq_than(
 	group: String,
 	property: String,

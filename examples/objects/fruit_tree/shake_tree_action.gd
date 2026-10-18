@@ -10,10 +10,10 @@ const SHAKE_DURATION: float = 0.5
 
 ## Reference to the fruit tree this action targets.
 var fruit_tree: FruitTreeObject
-## Hunger the simulation assumes a shake restores (minimum drop x [member FoodObject.hunger_value]).
-var _sim_hunger_gain: float
 ## Planning cost; high so real food is preferred.
 var shake_cost: float = 10.0
+## Hunger the simulation assumes a shake restores (minimum drop x [member FoodObject.hunger_value]).
+var _sim_hunger_gain: float
 
 
 # Override

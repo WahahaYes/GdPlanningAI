@@ -91,7 +91,7 @@ func perform_action(agent: GdPAIAgent, _delta: float) -> Action.Status:
 
 
 # Override
-func post_perform_action(agent: GdPAIAgent) -> Action.Status:
+func post_perform_action(_agent: GdPAIAgent) -> Action.Status:
 	return Action.Status.SUCCESS
 
 

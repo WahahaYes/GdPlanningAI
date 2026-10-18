@@ -10,10 +10,12 @@ const KNIGHT_SKIN: PackedScene = preload(
 )
 ## General Rig_Medium clips (idle, pickup, interact).
 const PACK_GENERAL: PackedScene = preload(
+	# gdlint:ignore = max-line-length
 	"res://examples/source_3d/assets/vendored/KayKit_Adventurers/Animations/gltf/Rig_Medium/Rig_Medium_General.glb"
 )
 ## Movement Rig_Medium clips (walk, run, jump).
 const PACK_MOVEMENT: PackedScene = preload(
+	# gdlint:ignore = max-line-length
 	"res://examples/source_3d/assets/vendored/KayKit_Adventurers/Animations/gltf/Rig_Medium/Rig_Medium_MovementBasic.glb"
 )
 

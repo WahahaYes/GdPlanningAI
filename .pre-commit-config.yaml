@@ -81,6 +81,14 @@ repos:
         require_serial: true
         pass_filenames: false
 
+      - id: gdlint
+        name: GDScript lint (via make)
+        entry: make lint-godot
+        language: system
+        types: [gdscript]
+        require_serial: true
+        pass_filenames: false
+
       - id: gdlint-style
         name: GDScript/Rust style check (via make)
         entry: make lint-style
@@ -100,6 +108,7 @@ repos:
         require_serial: true
         pass_filenames: false
 
-# Configuration
-default_install_hook_types: [pre-commit, pre-push]
+# Configuration: checks run at commit only; tests stay manual.
+default_install_hook_types: [pre-commit]
+default_stages: [pre-commit]
 fail_fast: false
