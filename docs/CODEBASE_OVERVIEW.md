@@ -133,11 +133,11 @@ The GDScript classes in `scripts/`, grouped by base type:
 
 ### Resource classes (config)
 
-| Class                 | File                                         | Notes                                                                                                                                           |
-| --------------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GdPAIAgentConfig`    | `scripts/resources/gdpai_agent_config.gd`    | Planning strategy (CONTINUOUS, ON_INTERVAL, ON_DEMAND, ON_INTERVAL_FORCED), max recursion, iteration budget, blackboard plan, behavior configs. |
-| `GdPAIBehaviorConfig` | `scripts/resources/gdpai_behavior_config.gd` | Groups goals, self actions, and property updaters into reusable behavior modules.                                                               |
-| `GdPAIBlackboardPlan` | `scripts/gdpai_blackboard_plan.gd`           | Template for agent blackboard properties; `generate_blackboard()`.                                                                              |
+| Class                 | File                                         | Notes                                                                                                                                                            |
+| --------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GdPAIAgentConfig`    | `scripts/resources/gdpai_agent_config.gd`    | Planning strategy (CONTINUOUS, ON_INTERVAL, ON_DEMAND, ON_INTERVAL_FORCED), failure backoff, max recursion, iteration budget, blackboard plan, behavior configs. |
+| `GdPAIBehaviorConfig` | `scripts/resources/gdpai_behavior_config.gd` | Groups goals, self actions, and property updaters into reusable behavior modules.                                                                                |
+| `GdPAIBlackboardPlan` | `scripts/gdpai_blackboard_plan.gd`           | Template for agent blackboard properties; `generate_blackboard()`.                                                                                               |
 
 ### Rust-exposed classes (no `.gd` file)
 
@@ -161,7 +161,7 @@ The agent lifecycle, from configuration to execution:
 1. **Plan ready**: `_on_plan_ready(result)` is generation-guarded so stale results from a superseded submission are discarded. It deserializes the plan into `{action_chain, bindings_by_position}`, sets the current goal from `result.goal_index`, and clones the actions via `clone_for_plan()`.
 1. **Execution**: plans run in three phases. **Pre**: every action's `pre_perform_action` runs; any FAILURE aborts the plan. **Action**: the current action's `perform_action(agent, delta)` returns SUCCESS (advance), RUNNING (stay), or FAILURE (abort). **Post**: every action's `post_perform_action` runs as guaranteed cleanup.
 
-Planning strategies: CONTINUOUS replans each frame once the current plan is done; ON_INTERVAL replans on a timer; ON_INTERVAL_FORCED replans every tick regardless of plan state; ON_DEMAND only plans when `manually_start_plan()` is called.
+Planning strategies: CONTINUOUS replans each frame once the current plan is done; ON_INTERVAL replans on a timer; ON_INTERVAL_FORCED replans every tick regardless of plan state; ON_DEMAND only plans when `manually_start_plan()` is called. `failure_backoff` delays the automatic strategies after a failed plan.
 
 ______________________________________________________________________
 

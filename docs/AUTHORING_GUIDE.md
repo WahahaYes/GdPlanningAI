@@ -68,7 +68,7 @@ The addon (`addons/GdPlanningAI/`) provides base classes you extend to create be
 
 **GdPAIBehaviorConfig** is the base class for all behaviors. Override `_populate(goals, actions, updaters)` to append your goals, actions, and property updaters.
 
-**GdPAIAgentConfig** is a resource that holds an array of behavior configs plus the planning strategy, search budgets and blackboard plan. `CONTINUOUS` plans whenever there is no active plan; `ON_INTERVAL` checks every `planning_interval` seconds and plans if idle; `ON_INTERVAL_FORCED` plans every interval even while a plan is running (the new plan replaces it); `ON_DEMAND` plans only on `GdPAIAgent.manually_start_plan()`.
+**GdPAIAgentConfig** is a resource that holds an array of behavior configs plus the planning strategy, search budgets and blackboard plan. `CONTINUOUS` plans whenever there is no active plan; `ON_INTERVAL` checks every `planning_interval` seconds and plans if idle; `ON_INTERVAL_FORCED` plans every interval even while a plan is running (the new plan replaces it); `ON_DEMAND` plans only on `GdPAIAgent.manually_start_plan()`. After a failed search the automatic strategies wait `failure_backoff` seconds before planning again (0, the default, retries at once); an idle (empty) plan is not a failure.
 
 **PropertyUpdater** is the base for things that modify agent properties over time (hunger decay, stamina regen). Override `initialize(agent)` (called once when the behavior is applied) and `update_properties(agent, delta)` (called every frame on the main thread, never during planning).
 

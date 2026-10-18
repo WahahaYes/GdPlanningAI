@@ -45,6 +45,8 @@ var _last_submitted_actions: Array[Action] = []
 var _plan_generation: int = 0
 ## The generation that the in-flight plan was submitted under.
 var _inflight_generation: int = 0
+## Seconds left before the strategy may plan again after a failure.
+var _failure_backoff_left: float = 0.0
 
 
 func _ready() -> void:
@@ -74,7 +76,11 @@ func _process(delta: float) -> void:
 	if goals.size() == 0:
 		return
 
-	if _planning_strategy == GdPAIAgentConfig.PlanningStrategy.CONTINUOUS:
+	_failure_backoff_left = maxf(0.0, _failure_backoff_left - delta)
+	if (
+		_planning_strategy == GdPAIAgentConfig.PlanningStrategy.CONTINUOUS
+		and _failure_backoff_left == 0.0
+	):
 		# Check if a new plan is needed.
 		var plan_done: bool = (
 			_current_action_chain.is_empty() or _current_plan_step > _current_action_chain.size()
@@ -212,6 +218,7 @@ func _on_plan_ready(result: Dictionary) -> void:
 		_current_action_chain = []
 		_current_bindings_by_position = {}
 		_current_goal = null
+		_failure_backoff_left = config.failure_backoff
 
 
 ## Runs the guaranteed cleanup phase for the outgoing chain before it is replaced. Posts run
@@ -234,7 +241,7 @@ func _on_planning_timer_timeout() -> void:
 	# A timer replaced by set_planning_strategy can still deliver a timeout; ignore it.
 	if _planning_timer == null:
 		return
-	if goals.size() == 0:
+	if goals.size() == 0 or _failure_backoff_left > 0.0:
 		return
 	if _planning_strategy == GdPAIAgentConfig.PlanningStrategy.ON_INTERVAL_FORCED:
 		_start_plan_async()

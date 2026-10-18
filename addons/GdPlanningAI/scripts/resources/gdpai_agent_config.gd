@@ -15,6 +15,10 @@ enum PlanningStrategy {
 ## Seconds between planning checks for the interval strategies. Each agent starts at a random
 ## offset.
 @export var planning_interval: float = 0.5
+## Seconds to wait after a failed plan before planning again on its own; [code]0[/code] retries
+## at once. Idle (empty) plans do not count as failures, and
+## [method GdPAIAgent.manually_start_plan] ignores the wait.
+@export var failure_backoff: float = 0.0
 ## Maximum search depth; deeper branches are pruned.
 @export var max_recursion: int = 100
 ## Search iterations per step before yielding to a later frame.
