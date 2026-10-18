@@ -34,7 +34,5 @@ unsafe impl ExtensionLibrary for GdPlanningAIExt {
     }
 }
 
-/// Throwaway probe: clippy flags the `&Vec` parameter.
-pub fn gate_probe(v: &Vec<i32>) -> bool {
-    v.is_empty()
-}
+/// Throwaway probe: badly formatted on purpose.
+pub fn gate_probe( ) ->bool{ true }
