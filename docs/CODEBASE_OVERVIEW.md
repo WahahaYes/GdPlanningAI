@@ -209,7 +209,7 @@ Two independent suites.
 Configured by `.gutconfig.json` (`dirs ["res://test"]`, `include_subdirs true`). Run with `make test-godot` (headless GUT via `addons/gut/gut_cmdln.gd`).
 
 - `test/unit/` (2 files): `test_sim_object_proxy.gd` (SimObjectProxy property ops) and `test_gdpai_blackboard.gd` (blackboard property ops, dict round-trips, `GDPAI_OBJECTS` to proxies, group queries, clone isolation).
-- `test/integration/` (5 files): blackboard clone isolation; async planner behavior (empty plans, satisfied goals, cheapest plan selection, cancellation of stale submissions); requirements/provisions chaining (Pickup to Eat, GoTo wildcard chaining, binding sets, cost comparisons); campfire example smoke tests against the real `campfire_2d.tscn`; and the hunger example smoke test (a full wander, shake, pick-up, eat cycle).
+- `test/integration/` (10 files): blackboard clone isolation; async planner behavior (empty plans, satisfied goals, cheapest plan selection, cancellation of stale submissions); requirements/provisions chaining (Pickup to Eat, GoTo wildcard chaining, binding sets, cost comparisons); example scene smoke tests, which park the agents and check the scenes load; and live loop tests (`test_example_loops_live.gd`), which run `hunger_basic_2d` and `campfire_2d` sped up with agents planning normally until each loop action (pick up, eat, add fuel, dig, cook) has completed.
 
 ### Rust suite
 
