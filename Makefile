@@ -48,7 +48,11 @@ test-godot: ## Run Godot integration tests (GUT headless); concise output, exits
 		PASS=$$(grep -E "^Passing Tests" $$LOG | awk '{print $$NF}'); \
 		FAIL=$$(grep -E "^Failing Tests" $$LOG | awk '{print $$NF}'); \
 		[ -z "$$FAIL" ] && FAIL=0; \
-		echo "GUT-SUITE-OK ($$PASS passing, $$FAIL failing)"; \
+		if [ -z "$$PASS" ] || [ "$$PASS" = 0 ]; then \
+			echo "GUT-SUITE-FAILED: no tests ran (is the .godot import cache missing?); see $$LOG"; \
+		else \
+			echo "GUT-SUITE-OK ($$PASS passing, $$FAIL failing)"; \
+		fi; \
 	fi; \
 	exit 0
 
