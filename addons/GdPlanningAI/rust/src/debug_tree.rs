@@ -422,7 +422,7 @@ impl TreeDump {
             if ga.already_satisfied {
                 output.push_str("  └── ALREADY SATISFIED\n");
             } else if ga.root_id < self.nodes.len() {
-                format_node(&mut output, self, ga.root_id, 1, &mut [false; 64]);
+                format_node(&mut output, self, ga.root_id, 1, &mut vec![false]);
             } else {
                 output.push_str("  └── (no search)\n");
             }
@@ -454,7 +454,7 @@ fn format_node(
     tree: &TreeDump,
     node_id: usize,
     depth: usize,
-    has_more: &mut [bool],
+    has_more: &mut Vec<bool>,
 ) {
     let node = &tree.nodes[node_id];
 
@@ -523,8 +523,10 @@ fn format_node(
     }
 
     let n = node.children.len();
+    has_more.push(false);
     for (i, &child_id) in node.children.iter().enumerate() {
         has_more[depth] = i + 1 < n;
         format_node(output, tree, child_id, depth + 1, has_more);
     }
+    has_more.pop();
 }

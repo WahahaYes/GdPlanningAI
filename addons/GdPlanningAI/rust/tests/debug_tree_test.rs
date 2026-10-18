@@ -358,3 +358,27 @@ fn nested_candidates_build_correct_tree() {
     assert!(output.contains("inner_action"));
     assert!(output.contains("SUCCESS"));
 }
+
+#[test]
+fn deep_chain_formats_without_depth_limit() {
+    let mut dump = TreeDump::new_forced();
+    dump.begin_goal("goal", 10.0, &["need".to_string()]);
+    let mut parent = dump.add_root(&["need".to_string()], &[]);
+    for i in 0..100 {
+        parent = dump.add_child(
+            parent,
+            ChildNodeConfig {
+                action_name: &format!("step_{i}"),
+                estimated_cost: 1.0,
+                accumulated_cost: (i + 1) as f64,
+                open_pre: &[],
+                open_req: &[],
+                satisfied_pre: &[],
+                satisfied_req: &[],
+            },
+        );
+    }
+    dump.end_goal(false, &[], 0.0);
+
+    assert!(dump.format().contains("step_99"));
+}
