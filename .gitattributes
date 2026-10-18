@@ -25,3 +25,9 @@ addons/GdPlanningAI/bin/.gitignore !text !filter !merge !diff
 
 # Keep third-party example assets out of GitHub language stats.
 examples/**/vendored/** linguist-vendored
+
+# Keep lockfiles and Godot-generated files out of GitHub language stats.
+uv.lock linguist-generated
+addons/GdPlanningAI/rust/Cargo.lock linguist-generated
+*.uid linguist-generated
+*.import linguist-generated
