@@ -10,8 +10,8 @@
 #       2. Wait for the PR's required checks, then merge it.
 #       3. Tag the merge commit vX.Y.Z and push the tag (as you: only
 #          repository admins may create v* tags).
-#       4. The tag runs release.yml, which checks the stamped binaries,
-#          builds again and publishes the GitHub release with
+#       4. The tag runs release.yml, which builds all three
+#          binaries and publishes the GitHub release with
 #          GdPlanningAI-X.Y.Z.zip attached. Wait for it and print its URL.
 #       Rerunning resumes: an open PR is updated, a merged release is tagged,
 #       a pushed tag is watched. --no-push stops after the commit and keeps
@@ -95,8 +95,6 @@ open_pr() {
         || die "no CHANGELOG notes for $VER"
     meta stale \
         || die "a version is hardcoded outside plugin.cfg; read it from the build instead"
-    # Binaries must still match the Rust sources (the bump touches neither).
-    (cd "$WT" && scripts/binaries.sh check) || die "the binaries stamp does not match rust/ on $BASE"
 
     git -C "$WT" add "$CFG" CHANGELOG.md
     git -C "$WT" diff --cached --quiet || git -C "$WT" commit --quiet -m "release $VER"

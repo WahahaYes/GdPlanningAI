@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Build the release archive GdPlanningAI-X.Y.Z.zip from a checkout whose LFS binaries are
-# materialized (git lfs pull). GitHub's own source archives hold LFS pointers in place of
-# the binaries; this one holds the real files, so it is the release's deliverable.
+# Build the release archive GdPlanningAI-X.Y.Z.zip from a checkout whose bin/{linux,macos,windows}
+# hold real binaries (CI's build artifacts, or make build-release for a local trial).
+# GitHub's own source archives hold LFS pointers or stale binaries; this one holds the
+# real files, so it is the release's deliverable.
 # It is `git archive` of HEAD (only the addon and script templates, per .gitattributes)
 # with the binaries swapped in, then checked: all three present and none an LFS pointer.
 # Usage: scripts/package-addon.sh X.Y.Z [OUT_DIR]   (default OUT_DIR: .)
@@ -22,7 +23,7 @@ name="GdPlanningAI-$ver"
 git archive --format=tar --prefix="$name/" HEAD | tar -x -C "$tmp"
 for f in $binaries; do
 	if head -c 64 "$f" | grep -q '^version https://git-lfs'; then
-		echo "$f is an LFS pointer: run git lfs pull first" >&2
+		echo "$f is an LFS pointer: build or download the binary first" >&2
 		exit 1
 	fi
 	cp "$f" "$tmp/$name/$f"

@@ -15,7 +15,7 @@ export RUSTFLAGS := $(strip $(filter-out $(REMAP_FLAGS),$(RUSTFLAGS)) $(REMAP_FL
 
 ##@ Build
 
-# Each OS builds its own binary natively (CI does all three; see scripts/binaries.sh).
+# Each OS builds its own binary natively (CI does all three; the release workflow packages them).
 # macOS ships one universal dylib: aarch64 and x86_64 slices joined with lipo.
 MAC_TARGETS := aarch64-apple-darwin x86_64-apple-darwin
 MAC_DYLIB := libgdplanningai_rust.dylib

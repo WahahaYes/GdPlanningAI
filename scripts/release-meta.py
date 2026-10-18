@@ -17,8 +17,8 @@
                                 CHANGELOG.md is written into addon source or
                                 docs, where a bump would leave it behind
 
-plugin.cfg is the one release version. The Rust crate's version stays 0.0.0 so
-a release never changes the rust/ tree the binaries are stamped with.
+plugin.cfg is the one release version. The Rust crate's version stays 0.0.0:
+it is not a release version, so a release never touches Cargo.toml.
 """
 
 import os

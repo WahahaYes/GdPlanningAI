@@ -166,7 +166,7 @@ jobs:
           "$HOME/.dotnet/tools/godotenv" addons install
       - name: Build the Rust binary over the LFS pointer
         run: make -C addons/GdPlanningAI/rust build-release
-      # Kept for the release: scripts/binaries.sh fetch downloads them to refresh the committed ones.
+      # The release workflow packages these.
       - name: Upload the binary
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

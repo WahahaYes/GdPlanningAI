@@ -1,16 +1,15 @@
 # Publish a GitHub release when a vX.Y.Z tag is pushed. scripts/release.sh
 # pushes it on the merge commit of the release PR (only repository admins
 # may create v* tags). Checks that the tag is on main, that plugin.cfg and
-# CHANGELOG are at X.Y.Z and that the stamped binaries match the Rust
-# sources, runs build.yml, then attaches GdPlanningAI-X.Y.Z.zip (the addon
-# with its LFS binaries; GitHub's source archives hold pointers instead) and
-# publishes the release with the CHANGELOG section as its notes. A failed run
+# CHANGELOG are at X.Y.Z, runs build.yml, then attaches GdPlanningAI-X.Y.Z.zip
+# (the addon with the binaries that build just made for all three OSes;
+# GitHub's source archives hold LFS pointers or stale binaries) and publishes the release with the CHANGELOG section as its notes. A failed run
 # can be rerun from the Actions tab; a leftover draft for the version is
 # published in place.
 #
 # Pull requests that touch the release machinery run the same checks and
 # build the archive as a dry run: nothing is published, the tag-only checks
-# and the binaries check are skipped and CHANGELOG is exercised with stub notes.
+# are skipped and CHANGELOG is exercised with stub notes.
 name: release
 run-name: release ${{ github.ref_name }}
 
@@ -23,7 +22,6 @@ on:
       - 'scripts/release.sh'
       - 'scripts/release-meta.py'
       - 'scripts/package-addon.sh'
-      - 'scripts/binaries.sh'
       - 'CHANGELOG.md'
 
 permissions:
@@ -85,14 +83,9 @@ jobs:
           python3 scripts/release-meta.py notes 9.9.9
       - name: No hardcoded versions
         run: python3 scripts/release-meta.py stale
-      # Binaries are not gated on PRs; a release needs them current.
-      - name: Binaries match the Rust sources
-        if: github.event_name == 'push'
-        run: scripts/binaries.sh check
 
   build:
     needs: check
-    if: github.event_name == 'push'
     uses: ./.github/workflows/build.yml
     # A called workflow gets no more than this. build.yml's purge_caches asks
     # for actions: write, and GitHub rejects the whole run if it is not
@@ -103,16 +96,23 @@ jobs:
 
   package:
     needs: [check, build]
-    # A skipped build (dry run) does not block; a failed one does.
-    if: ${{ !cancelled() && needs.check.result == 'success' && needs.build.result != 'failure' }}
+    if: ${{ !cancelled() && needs.check.result == 'success' && needs.build.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          lfs: true
+          pattern: binaries-*
+          path: ${{ runner.temp }}/binaries
+      - name: Put the built binaries in place
+        run: |
+          for os in linux macos windows; do
+            mkdir -p "addons/GdPlanningAI/bin/$os"
+            cp "$RUNNER_TEMP/binaries/binaries-$os/"* "addons/GdPlanningAI/bin/$os/"
+          done
       - name: Archive
         run: scripts/package-addon.sh "${{ needs.check.outputs.version }}" dist
       - name: Keep the archive (dry run)
