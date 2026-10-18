@@ -231,7 +231,9 @@ ______________________________________________________________________
 
 ```
 function begin_verification(branch, goal):
-    // A later insertion can undo a need an earlier action satisfied: re-check the goal at the end
+    // A later insertion can undo a need an earlier action satisfied: re-check custom action
+    // preconditions before their action (builtin ones are re-checked below) and the goal at the end
+    for (pos, action) in action_chain: for pre in action.custom_preconditions: open_preconditions.push((pos, pre))
     for pre in goal.desired_state: branch.open_preconditions.push((action_chain.len, pre))
     state = Verifying; simulation_index = 0; reset to initial state
 
@@ -386,7 +388,7 @@ ______________________________________________________________________
 1. Cost = sum(action_costs) always (recalculated, not accumulated).
 1. Discovery caches per planning run (shared across branches).
 1. Insertion position = earliest consumer (predecessor before first consumer; the goal is the last consumer).
-1. A verified plan satisfies the goal in its final simulated state.
+1. A verified plan satisfies the goal in its final simulated state, and every action's preconditions in the state before it.
 1. Goal handling: satisfied goals are dropped and the rest searched by reward (section 1, `submit_plan`).
 1. Bindings injected into agent only.
 1. Greedy requirement clearing: one action clears ALL identical open requirements.

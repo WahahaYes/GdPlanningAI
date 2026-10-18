@@ -21,7 +21,7 @@ use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
 
 use super::{SearchHeuristic, TerminationStrategy};
 use crate::planner::expander::find_candidates;
-use std::collections::{BinaryHeap, HashMap, HashSet};
+use std::collections::{BinaryHeap, HashMap};
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::mpsc::{Receiver, Sender};
@@ -653,10 +653,20 @@ impl PlannerEngine {
         }
     }
 
-    /// Restarts a symbolically complete branch from the initial state to verify it forward. The
-    /// goal is re-checked after the last action, since a later insertion can undo a need an
-    /// earlier one satisfied.
+    /// Restarts a symbolically complete branch from the initial state to verify it forward. A
+    /// later insertion can undo a need an earlier one satisfied, so needs are re-opened where
+    /// they are checked against the simulated state: each action's custom preconditions before it
+    /// (builtin ones are re-checked by the action validator) and the goal after the last action.
     fn begin_verification(&self, branch: &mut PlanBranch, goal: &GoalSpec) {
+        for (pos, &action_idx) in branch.action_chain.iter().enumerate() {
+            let customs = self.ctx.actions[action_idx]
+                .preconditions
+                .iter()
+                .filter(|pre| matches!(pre, PreconditionSpec::Custom { .. }));
+            branch
+                .open_preconditions
+                .extend(customs.map(|pre| (pos, pre.clone())));
+        }
         let end = branch.action_chain.len();
         branch
             .open_preconditions
@@ -740,7 +750,8 @@ impl PlannerEngine {
     }
 
     /// Rejects the branch if an action's built-in preconditions do not hold in the simulated state
-    /// before it runs. Open and custom preconditions are left to the open-precondition step.
+    /// before it runs. Custom ones are left to the open-precondition step, which
+    /// [`Self::begin_verification`] re-opened them for.
     pub fn validate_action_against_current_state(
         &self,
         branch: &PlanBranch,
@@ -748,16 +759,8 @@ impl PlannerEngine {
         current_bindings: &[(String, Vec<VariantSnapshot>)],
         callback_response: Option<&CallbackResponse>,
     ) -> Option<StepResult<()>> {
-        let open_pre_for_current: HashSet<PreconditionSpec> = branch
-            .open_preconditions
-            .iter()
-            .filter(|(pos, _)| *pos == branch.simulation_index)
-            .map(|(_, pre)| pre.clone())
-            .collect();
-
         for pre in &action.preconditions {
-            if open_pre_for_current.contains(pre) || matches!(pre, PreconditionSpec::Custom { .. })
-            {
+            if matches!(pre, PreconditionSpec::Custom { .. }) {
                 continue;
             }
             match eval_precondition(

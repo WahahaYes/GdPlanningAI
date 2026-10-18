@@ -255,10 +255,8 @@ fn validate_action_returns_none_for_satisfied_builtin() {
 }
 
 #[test]
-fn validate_action_skips_open_preconditions_and_custom() {
-    // The action has a built-in precondition that is already listed in
-    // open_preconditions for the current position, plus a custom precondition.
-    // Both should be skipped during re-evaluation.
+fn validate_action_skips_custom_preconditions() {
+    // Custom preconditions are evaluated by the open-precondition step, not the validator.
     let agent = create_test_agent(vec![("health", VariantSnapshot::Int(50))]);
     let world = create_test_world(vec![], vec![]);
     let engine = create_test_engine(vec![], agent, world, vec![]);
@@ -269,32 +267,15 @@ fn validate_action_skips_open_preconditions_and_custom() {
     );
     branch.state = BranchState::Verifying;
     branch.simulation_index = 0;
-    branch.open_preconditions = vec![(
-        0,
-        PreconditionSpec::Builtin {
-            target: PreconditionTarget::Agent,
-            operation: PreconditionOp::GreaterThan,
-            property_name: "health".to_string(),
-            value: Some(VariantSnapshot::Int(100)),
-        },
-    )];
 
     let action = ActionSpec {
         name: "needs_health".to_string(),
         cost_callable_id: None,
         effect_callable_id: None,
-        preconditions: vec![
-            PreconditionSpec::Builtin {
-                target: PreconditionTarget::Agent,
-                operation: PreconditionOp::GreaterThan,
-                property_name: "health".to_string(),
-                value: Some(VariantSnapshot::Int(100)),
-            },
-            PreconditionSpec::Custom {
-                callable_id: 1,
-                dependent_object_ids: vec![],
-            },
-        ],
+        preconditions: vec![PreconditionSpec::Custom {
+            callable_id: 1,
+            dependent_object_ids: vec![],
+        }],
         validity_checks: vec![],
         requirements: vec![],
         provisions: vec![],
@@ -302,10 +283,7 @@ fn validate_action_skips_open_preconditions_and_custom() {
     };
 
     let result = engine.validate_action_against_current_state(&branch, &action, &[], None);
-    assert!(
-        result.is_none(),
-        "open-preconditions and custom preconditions should be skipped"
-    );
+    assert!(result.is_none(), "custom preconditions should be skipped");
 }
 
 #[test]
