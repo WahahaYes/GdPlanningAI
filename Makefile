@@ -78,6 +78,10 @@ format-godot: ## Format GDScript files, untracked ones included (gdtoolkit); fai
 lint-style: ## Check GDScript and Rust files for style-guide violations
 	uv run scripts/lint_style.py
 
+.PHONY: lint-godot
+lint-godot: ## Lint GDScript files with gdlint (gdtoolkit defaults)
+	@git ls-files -co --exclude-standard '*.gd' | xargs uv run gdlint
+
 ##@ Documentation
 
 .PHONY: check-docs

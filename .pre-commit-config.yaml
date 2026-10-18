@@ -81,6 +81,14 @@ repos:
         require_serial: true
         pass_filenames: false
 
+      - id: gdlint
+        name: GDScript lint (via make)
+        entry: make lint-godot
+        language: system
+        types: [gdscript]
+        require_serial: true
+        pass_filenames: false
+
       - id: gdlint-style
         name: GDScript/Rust style check (via make)
         entry: make lint-style
