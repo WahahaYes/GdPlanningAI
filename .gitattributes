@@ -1,6 +1,22 @@
 # Normalize EOL for all files that Git considers text files.
 * text=auto eol=lf
 
+# Ignore most files when exporting.
+/**                        export-ignore
+
+# Include this addon's folder when downloading from the Asset Library.
+/addons                   !export-ignore
+/addons/GdPlanningAI      !export-ignore
+/addons/GdPlanningAI/**   !export-ignore
+
+# Users need the built binaries in bin/, not the Rust source.
+/addons/GdPlanningAI/rust     export-ignore
+/addons/GdPlanningAI/rust/**  export-ignore
+
+# Also include script templates.
+/script_templates         !export-ignore
+/script_templates/**      !export-ignore
+
 # Track Rust binary files with Git LFS
 addons/GdPlanningAI/bin/**/*.dll filter=lfs diff=lfs merge=lfs -text
 addons/GdPlanningAI/bin/**/*.so filter=lfs diff=lfs merge=lfs -text
