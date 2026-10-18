@@ -1,0 +1,96 @@
+# Publish a GitHub release when a vX.Y.Z tag is pushed. scripts/release.sh
+# pushes it on the merge commit of the release PR (only repository admins
+# may create v* tags). Checks that the tag is on main and that plugin.cfg and
+# CHANGELOG are at X.Y.Z, builds every platform via build.yml, then attaches
+# GdPlanningAI-X.Y.Z.zip (the addon with the binaries that build just made;
+# GitHub's source archives hold LFS pointers or stale binaries) and publishes
+# the release with the CHANGELOG section as its notes. A failed run can be
+# rerun from the Actions tab; a leftover draft for the version is published
+# in place.
+name: release
+run-name: release ${{ github.ref_name }}
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+env:
+  GIT_LFS_SKIP_SMUDGE: '1'
+
+concurrency:
+  group: release-${{ github.ref_name }}
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - name: Tag, main, plugin.cfg and CHANGELOG
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VER="${GITHUB_REF_NAME#v}"
+          case "$VER" in (*[!0-9.]*|""|.*|*.|*..*) echo "::error::bad version tag $GITHUB_REF_NAME"; exit 1;; esac
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_REF_NAME ($GITHUB_SHA) is not on main"
+            exit 1
+          fi
+          uv run --no-project scripts/release-meta.py check "$VER"
+          uv run --no-project scripts/release-meta.py notes "$VER" >/dev/null
+          uv run --no-project scripts/release-meta.py stale
+          if gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft 2>/dev/null | grep -qx false; then
+            echo "::error::release $GITHUB_REF_NAME is already published"
+            exit 1
+          fi
+
+  build:
+    needs: check
+    uses: ./.github/workflows/build.yml
+    # A called workflow gets no more than this. build.yml's purge_caches asks
+    # for actions: write, and GitHub rejects the whole run if it is not
+    # granted here, even though that job only runs on pushes to main.
+    permissions:
+      actions: write
+      contents: read
+
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: binaries-*
+          path: ${{ runner.temp }}/binaries
+      - name: Put the built binaries in place
+        run: |
+          for os in linux macos windows; do
+            mkdir -p "addons/GdPlanningAI/bin/$os"
+            cp "$RUNNER_TEMP/binaries/binaries-$os/"* "addons/GdPlanningAI/bin/$os/"
+          done
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VER="${GITHUB_REF_NAME#v}"
+          scripts/package-addon.sh "$VER" dist
+          uv run --no-project scripts/release-meta.py notes "$VER" > notes.md
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" --clobber "dist/GdPlanningAI-$VER.zip"
+            gh release edit "$GITHUB_REF_NAME" --draft=false --title "$GITHUB_REF_NAME" --notes-file notes.md
+          else
+            gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --notes-file notes.md "dist/GdPlanningAI-$VER.zip"
+          fi

@@ -206,8 +206,10 @@ def lint_gdscript(path: Path) -> list[tuple]:
                         path,
                         block_lineno,
                         "gd-spacing",
-                        f"only {blank_run} blank line(s) before func block "
-                        f"(expected 2, previous block at line {prev_block_lineno})",
+                        (
+                            f"only {blank_run} blank line(s) before func block "
+                            f"(expected 2, previous block at line {prev_block_lineno})"
+                        ),
                     )
                 )
             prev_block_lineno = block_lineno

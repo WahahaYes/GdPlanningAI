@@ -1,6 +1,8 @@
 [package]
 name = "gdplanningai-rust"
-version = "0.1.0"
+# Not the release version (that is addons/GdPlanningAI/plugin.cfg). Fixed on purpose: a release
+# bump here would change the rust/ tree id and stale the binaries stamp (scripts/binaries.sh).
+version = "0.0.0"
 edition = "2024"
 
 [lib]
@@ -14,3 +16,6 @@ rayon = "1.8"
 
 [build-dependencies]
 godot-bindings = "0.4.5"
+
+[profile.release]
+strip = true

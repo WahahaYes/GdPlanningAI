@@ -3,11 +3,12 @@
 repos:
   # General file checks
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
       - id: check-yaml
+      - id: check-json
       - id: check-toml
       - id: check-added-large-files
         args: ['--maxkb=512']
@@ -15,6 +16,8 @@ repos:
         exclude: '(?i)^examples/source_[23]d/assets/vendored/|\.(png|jpe?g|webp|avif|svg|gif|html|glb|gltf)$'
       - id: check-merge-conflict
       - id: fix-byte-order-marker
+      - id: mixed-line-ending
+        args: ['--fix=lf']
 
   # Rust formatting and linting via Makefile targets
   - repo: local
@@ -28,15 +31,7 @@ repos:
         pass_filenames: false
 
       - id: cargo-clippy
-        name: Cargo clippy auto-fix (via make)
-        entry: make -C addons/GdPlanningAI/rust lint-fix
-        language: system
-        types: [rust]
-        require_serial: true
-        pass_filenames: false
-
-      - id: cargo-clippy-check
-        name: Cargo clippy check (errors block, warnings pass)
+        name: Cargo clippy (warnings fail, via make)
         entry: make -C addons/GdPlanningAI/rust lint
         language: system
         types: [rust]
@@ -45,27 +40,34 @@ repos:
 
   # Secret detection
   - repo: https://github.com/gitleaks/gitleaks
-    rev: v8.24.0
+    rev: v8.30.1
     hooks:
       - id: gitleaks
         args: ["--config", ".gitleaks.toml"]
         verbose: true
 
+  # Shell scripts
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1
+    hooks:
+      - id: shellcheck
+        args: ["--severity=warning"]
+
   # Markdown formatting
   - repo: https://github.com/executablebooks/mdformat
-    rev: 0.7.19
+    rev: 1.0.0
     hooks:
       - id: mdformat
         args: ["--wrap=no"]
         types: [markdown]
         # Without the GFM plugin mdformat collapses tables onto one line.
-        additional_dependencies: [mdformat-gfm==0.3.6]
+        additional_dependencies: [mdformat-gfm==1.0.0]
 
   # Python formatting/linting for scripts
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.6.0
+    rev: v0.17.1
     hooks:
-      - id: ruff
+      - id: ruff-check
         args: ["--fix"]
         types: [python]
       - id: ruff-format
@@ -109,7 +111,17 @@ repos:
         require_serial: true
         pass_filenames: false
 
+  # The hub rule holds in any clone, not only ones with the hub's leak guard.
+  - repo: local
+    hooks:
+      - id: no-ai-attribution
+        name: no co-author or ai attribution in commit messages
+        entry: '(co-authored-by:|noreply@anthropic\.com|generated with .*claude|claude code)'
+        language: pygrep
+        args: [-i]
+        stages: [commit-msg]
+
 # Configuration: checks run at commit only; tests stay manual.
-default_install_hook_types: [pre-commit]
+default_install_hook_types: [pre-commit, commit-msg]
 default_stages: [pre-commit]
 fail_fast: false

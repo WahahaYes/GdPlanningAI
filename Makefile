@@ -56,6 +56,12 @@ test-godot: ## Run Godot integration tests (GUT headless); concise output, exits
 	fi; \
 	exit 0
 
+.PHONY: test-godot-ci
+test-godot-ci: ## Run the GUT suite like test-godot but exit nonzero unless GUT-SUITE-OK (CI)
+	@LOG=$$(mktemp /tmp/gut-ci.XXXXXX); \
+	"$(MAKE)" test-godot | tee $$LOG; \
+	grep -q "^GUT-SUITE-OK" $$LOG
+
 .PHONY: test-godot-pipe-output
 test-godot-pipe-output: ## Run Godot integration tests with full output to file
 	@echo "Running tests with full output to test_output.log..."
@@ -66,6 +72,10 @@ test-godot-pipe-output: ## Run Godot integration tests with full output to file
 
 .PHONY: format
 format: format-rust format-godot ## Format all source files (Rust + GDScript)
+
+.PHONY: format-check
+format-check: ## Check Rust formatting without rewriting (CI)
+	"$(MAKE)" -C addons/GdPlanningAI/rust format-check
 
 .PHONY: format-rust
 format-rust: ## Format Rust source files with rustfmt
@@ -131,6 +141,10 @@ godot-pin-version: ## Pin specific Godot version (usage: make godot-pin-version 
 	@if [ -z "$(VERSION)" ]; then echo "Usage: make godot-pin-version VERSION=4.6-stable"; exit 1; fi
 	godotenv godot use $(VERSION) --no-dotnet
 	godotenv godot pin
+
+.PHONY: godot-version
+godot-version: ## Print the pinned Godot version (global.json, the one source CI and godotenv read)
+	@uv run --no-project python -c "import json; print(json.load(open('global.json'))['msbuild-sdks']['Godot.NET.Sdk'])"
 
 .PHONY: godot-install-pinned
 godot-install-pinned: ## Install the pinned Godot version (uses godotenv)

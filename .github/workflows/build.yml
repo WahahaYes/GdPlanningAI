@@ -1,0 +1,219 @@
+# CI for the addon. Every job step is one local command (see Makefile):
+#   uv run pre-commit run --all-files       hooks (formatters, lints, secrets)
+#   make format-check; make -C addons/GdPlanningAI/rust lint; make test-rust   Rust checks
+#   make godot-version                      the Godot pin (global.json)
+#   make test-godot-ci                      the GUT suite, nonzero on failure
+# Toolchains are pinned in the repo: addons/GdPlanningAI/rust/rust-toolchain.toml
+# and global.json. Checkouts skip LFS: binaries are built in the job, never pulled.
+# Runs on pull requests and pushes to main; release.yml calls it.
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  GIT_LFS_SKIP_SMUDGE: '1'
+
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  changes:
+    runs-on: ubuntu-24.04
+    outputs:
+      rust: ${{ github.event_name != 'pull_request' && 'true' || steps.filter.outputs.rust }}
+      godot: ${{ github.event_name != 'pull_request' && 'true' || steps.filter.outputs.godot }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: filter
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            rust:
+              - 'addons/GdPlanningAI/rust/**'
+              - 'Makefile'
+              - '.github/workflows/**'
+            godot:
+              - 'addons/**'
+              - 'examples/**'
+              - 'test/**'
+              - 'script_templates/**'
+              - 'project.godot'
+              - 'global.json'
+              - 'addons.jsonc'
+              - '.gutconfig.json'
+              - 'Makefile'
+              - 'scripts/**'
+              - '.github/workflows/**'
+
+  # Every pre-commit hook except clippy (the rust job runs it), as the first
+  # and cheapest gate: the other jobs wait for it. Formatters rewrite files,
+  # so a hook that changes anything fails here.
+  precommit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GITLEAKS_VERSION: 8.30.1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - name: Rust toolchain (rustfmt, from rust-toolchain.toml)
+        working-directory: addons/GdPlanningAI/rust
+        run: rustup toolchain install
+      - name: Pre-commit environments cache
+        id: pc-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
+      - name: Hooks (all files)
+        # gitleaks scans staged changes, which CI has none of; it runs below
+        # over the pushed commits instead.
+        env:
+          SKIP: gitleaks,cargo-clippy
+        run: uv run pre-commit run --all-files --show-diff-on-failure
+      - name: Pre-commit environments cache save
+        if: github.ref == 'refs/heads/main' && steps.pc-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
+      - name: Secrets (gitleaks, pushed commits)
+        env:
+          RANGE: ${{ github.event_name == 'pull_request' && format('{0}..{1}', github.event.pull_request.base.sha, github.event.pull_request.head.sha) || format('{0}..{1}', github.event.before, github.sha) }}
+        run: |
+          cd "$RUNNER_TEMP"
+          base="https://github.com/gitleaks/gitleaks/releases/download/v$GITLEAKS_VERSION"
+          curl -fsSLO "$base/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -fsSLO "$base/gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+          grep " gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz\$" "gitleaks_${GITLEAKS_VERSION}_checksums.txt" | sha256sum -c -
+          tar -xzf "gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" gitleaks
+          cd "$GITHUB_WORKSPACE"
+          case "$RANGE" in
+            0000000*|..*) RANGE="HEAD~1..HEAD" ;;
+          esac
+          "$RUNNER_TEMP/gitleaks" git --config .gitleaks.toml --redact -v --log-opts "$RANGE"
+      - name: Commit messages (no ai attribution)
+        if: github.event_name == 'pull_request'
+        run: |
+          for sha in $(git rev-list --no-merges "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"); do
+            git log -1 --format=%B "$sha" > "$RUNNER_TEMP/msg"
+            uv run pre-commit run no-ai-attribution --hook-stage commit-msg --commit-msg-filename "$RUNNER_TEMP/msg" || { echo "bad message in $sha"; exit 1; }
+          done
+
+  # Rust checks run once, on Linux. Debug tests: one test fails under
+  # --release by design (see make test-rust).
+  rust:
+    needs: [changes, precommit]
+    if: needs.changes.outputs.rust == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Rust toolchain (rust-toolchain.toml)
+        working-directory: addons/GdPlanningAI/rust
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: addons/GdPlanningAI/rust
+          # Main seeds caches every PR reads; PR runs never write their own.
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - run: make format-check
+      - run: make -C addons/GdPlanningAI/rust lint
+      - run: make test-rust
+
+  # The GUT suite on each OS against a binary built here for that OS.
+  godot:
+    needs: [changes, precommit]
+    if: needs.changes.outputs.godot == 'true'
+    name: godot-${{ matrix.artifact }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: ubuntu-24.04, artifact: linux }
+          - { runner: windows-2025, artifact: windows }
+          - { runner: macos-15, artifact: macos }
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Rust toolchain (rust-toolchain.toml)
+        working-directory: addons/GdPlanningAI/rust
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: addons/GdPlanningAI/rust
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - name: Godot (version from global.json)
+        run: scripts/install-godot.sh >> "$GITHUB_PATH"
+      # GodotEnv is a .NET 8 tool; macOS runners ship only a newer runtime.
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 8.0.x
+      - name: Addons (gut, GdTimeMachine)
+        run: |
+          dotnet tool install --global Chickensoft.GodotEnv --version 2.17.0
+          echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+          "$HOME/.dotnet/tools/godotenv" addons install
+      - name: Build the Rust binary over the LFS pointer
+        run: make -C addons/GdPlanningAI/rust build-release
+      # The release workflow packages these.
+      - name: Upload the binary
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: binaries-${{ matrix.artifact }}
+          path: addons/GdPlanningAI/bin/${{ matrix.artifact }}/*
+          if-no-files-found: error
+          retention-days: 14
+      - name: Import
+        run: godot --headless --import
+      - name: GUT
+        run: make test-godot-ci
+
+  # The only required check. A skipped job counts as pass.
+  ci:
+    runs-on: ubuntu-24.04
+    needs: [changes, precommit, rust, godot]
+    if: always()
+    steps:
+      - name: Gate
+        run: |
+          fail=0
+          for r in "${{ needs.precommit.result }}" "${{ needs.rust.result }}" "${{ needs.godot.result }}" "${{ needs.changes.result }}"; do
+            echo "result: $r"
+            case "$r" in success|skipped) ;; *) fail=1 ;; esac
+          done
+          # precommit never skips: skipped there means a broken workflow.
+          [ "${{ needs.precommit.result }}" = success ] || fail=1
+          exit $fail
+
+  # Main seeds the caches PRs read; drop everything else once main is built.
+  purge_caches:
+    runs-on: ubuntu-24.04
+    needs: [rust, godot]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Prune non-main caches
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh cache list --json id,ref --limit 100 --jq '.[] | select(.ref != "refs/heads/main") | .id' | while read -r id; do
+            [ -n "$id" ] && gh cache delete "$id" || true
+          done

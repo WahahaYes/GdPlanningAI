@@ -1,0 +1,24 @@
+# Delete a pull request's caches when it closes. build.yml saves caches only
+# from main, so this is a backstop for anything a PR run still wrote.
+name: pr-cache-cleanup
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Delete this PR's caches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF: refs/pull/${{ github.event.pull_request.number }}/merge
+        run: |
+          gh cache list --ref "$REF" --json id --jq '.[].id' --limit 100 | while read -r id; do
+            [ -n "$id" ] && gh cache delete "$id" || true
+          done
