@@ -307,5 +307,5 @@ class LeakyAction:
 		set_state(agent, "scratch", 1)
 		return Action.Status.SUCCESS
 
-	func perform_action(agent: GdPAIAgent, _delta: float) -> Action.Status:
+	func perform_action(_agent: GdPAIAgent, _delta: float) -> Action.Status:
 		return Action.Status.SUCCESS

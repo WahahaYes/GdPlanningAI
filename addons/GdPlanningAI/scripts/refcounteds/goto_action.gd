@@ -3,7 +3,8 @@ extends Action
 ## Walks the agent's entity to a [GdPAILocationData] with its [NavigationAgent2D] or
 ## [NavigationAgent3D].[br]
 ## Provides the wildcard fact [code]at_target[/code]: any action requiring
-## [code]RequirementSpec.fact("at_target", [location])[/code] gets a GoTo step planned before it.[br]
+## [code]RequirementSpec.fact("at_target", [location])[/code] gets a GoTo step planned before
+## it.[br]
 ## Succeeds when navigation finishes, or when the agent is stuck (moved less than the arrival
 ## threshold over [constant STUCK_WINDOW]) within [constant STUCK_ARRIVAL_FACTOR] x
 ## [code]target_desired_distance[/code] of its path end. Stuck further away, it fails and the agent
@@ -18,6 +19,9 @@ const STUCK_WINDOW: float = 1.0
 ## How many [code]target_desired_distance[/code]s from the path end still count as arrived.
 const STUCK_ARRIVAL_FACTOR: float = 2.0
 
+## Where to go. Set by [method inject_binding], or fixed through [code]_init[/code].
+var target_location: GdPAILocationData
+
 
 ## Returns the navigation agent below [param entity], or [code]null[/code].
 static func find_nav_agent(entity: Node) -> Node:
@@ -30,10 +34,6 @@ static func find_nav_agent(entity: Node) -> Node:
 	if nav_2d != null:
 		return nav_2d
 	return nav_3d
-
-
-## Where to go. Set by [method inject_binding], or fixed through [code]_init[/code].
-var target_location: GdPAILocationData
 
 
 ## Creates the action, optionally with a fixed target.
