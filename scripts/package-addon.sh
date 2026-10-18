@@ -32,7 +32,7 @@ for f in $binaries; do
 	[ "$(wc -c <"$tmp/$name/$f")" -gt 100000 ] || { echo "$f is suspiciously small" >&2; exit 1; }
 done
 
-(cd "$tmp" && python3 -c 'import sys, zipfile
+(cd "$tmp" && uv run --no-project python -c 'import sys, zipfile
 src, dest = sys.argv[1:]
 import os
 with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED) as z:

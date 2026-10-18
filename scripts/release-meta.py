@@ -46,14 +46,14 @@ STALE_PATHS = [
 
 
 def plugin_version():
-    m = re.search(r'^version="([^"]*)"', PLUGIN_CFG.read_text(), re.M)
+    m = re.search(r'^version="([^"]*)"', PLUGIN_CFG.read_text(), re.MULTILINE)
     return m.group(1) if m else ""
 
 
 def check(ver):
     if plugin_version() != ver:
         print(
-            "release-meta: addons/GdPlanningAI/plugin.cfg is not at %s" % ver,
+            f"release-meta: addons/GdPlanningAI/plugin.cfg is not at {ver}",
             file=sys.stderr,
         )
         return 1
@@ -63,7 +63,9 @@ def check(ver):
 def section(text, heading):
     """(start, end, body) of the "## <heading>" section, or None."""
     m = re.search(
-        r"^## %s(?: [^\n]*)?\n(.*?)(?=^## |\Z)" % re.escape(heading), text, re.S | re.M
+        rf"^## {re.escape(heading)}(?: [^\n]*)?\n(.*?)(?=^## |\Z)",
+        text,
+        re.DOTALL | re.MULTILINE,
     )
     return (m.start(), m.end(), m.group(1).strip()) if m else None
 
@@ -71,7 +73,7 @@ def section(text, heading):
 def notes(ver):
     found = section(CHANGELOG.read_text(), ver)
     if not found or not found[2]:
-        print("release-meta: no CHANGELOG section for %s" % ver, file=sys.stderr)
+        print(f"release-meta: no CHANGELOG section for {ver}", file=sys.stderr)
         return 1
     print(found[2])
     return 0
@@ -79,16 +81,16 @@ def notes(ver):
 
 def changelog(ver, date, notes_file=None):
     text = CHANGELOG.read_text()
-    head = "## %s - %s" % (ver, date)
+    head = f"## {ver} - {date}"
     mine, unreleased = section(text, ver), section(text, "Unreleased")
     if notes_file:
         body = Path(notes_file).read_text().strip()
         if not body:
-            print("release-meta: %s is empty" % notes_file, file=sys.stderr)
+            print(f"release-meta: {notes_file} is empty", file=sys.stderr)
             return 1
     elif mine and mine[2]:
         print(
-            "release-meta: keeping the existing CHANGELOG section for %s" % ver,
+            f"release-meta: keeping the existing CHANGELOG section for {ver}",
             file=sys.stderr,
         )
         return 0
@@ -96,25 +98,24 @@ def changelog(ver, date, notes_file=None):
         body = unreleased[2]
     else:
         print(
-            "release-meta: no notes for %s: write them under ## Unreleased or pass a notes file"
-            % ver,
+            f"release-meta: no notes for {ver}: write them under ## Unreleased or pass a notes file",
             file=sys.stderr,
         )
         return 1
-    new = "%s\n\n%s\n\n" % (head, body)
+    new = f"{head}\n\n{body}\n\n"
     # The released section takes the place of this version's old section,
     # else of Unreleased, else goes above the newest release.
     target = mine or unreleased
     if target:
         text = text[: target[0]] + new + text[target[1] :]
     else:
-        first = re.search(r"^## ", text, re.M)
+        first = re.search(r"^## ", text, re.MULTILINE)
         at = first.start() if first else len(text)
         text = text[:at] + new + text[at:]
     # Keep an Unreleased heading on top, so PRs add their notes under it
     # instead of each adding the heading (which conflicts between PRs).
     if not section(text, "Unreleased"):
-        first = re.search(r"^## ", text, re.M)
+        first = re.search(r"^## ", text, re.MULTILINE)
         at = first.start() if first else len(text)
         text = text[:at] + "## Unreleased\n\n" + text[at:]
     CHANGELOG.write_text(text)
@@ -122,7 +123,7 @@ def changelog(ver, date, notes_file=None):
 
 
 def stale():
-    versions = re.findall(r"^## (\d+\.\d+\.\d+)\b", CHANGELOG.read_text(), re.M)
+    versions = re.findall(r"^## (\d+\.\d+\.\d+)\b", CHANGELOG.read_text(), re.MULTILINE)
     if not versions:
         return 0
     pattern = []
@@ -135,9 +136,10 @@ def stale():
         + STALE_PATHS,
         capture_output=True,
         text=True,
+        check=False,
     ).stdout
     for line in out.splitlines():
-        print("release-meta: version hardcoded here: %s" % line, file=sys.stderr)
+        print(f"release-meta: version hardcoded here: {line}", file=sys.stderr)
     return 1 if out.strip() else 0
 
 

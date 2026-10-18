@@ -20,7 +20,7 @@
 # RELEASE_BASE=<ref> cuts the release commit from that ref instead of origin/main, for a
 # --no-push dry run of a branch that is not merged yet.
 #
-# POSIX sh. Needs git, python3 and gh.
+# POSIX sh. Needs git, uv and gh.
 set -eu
 unset CDPATH
 ROOT=$(cd -- "$(dirname -- "$0")/.." && pwd -P)
@@ -86,7 +86,7 @@ open_pr() {
         git -C "$ROOT" worktree add --quiet --detach "$WT" "$BASE"
     fi
     # This script's own release-meta.py, run against the worktree.
-    meta() { RELEASE_ROOT="$WT" python3 "$ROOT/scripts/release-meta.py" "$@"; }
+    meta() { RELEASE_ROOT="$WT" uv run --no-project "$ROOT/scripts/release-meta.py" "$@"; }
 
     sed -i.bak 's/^version="[^"]*"/version="'"$VER"'"/' "$WT/$CFG"
     rm -f "${WT:?}/$CFG.bak"
@@ -128,14 +128,14 @@ merge_pr() {
     while :; do
         checks=$(gh pr checks "$PR" --json name,bucket,link 2>/dev/null || true)
         [ -n "$checks" ] || checks='[]'
-        failed=$(printf '%s' "$checks" | python3 -c 'import json,sys; print(next((c["link"] for c in json.load(sys.stdin) if c["bucket"] in ("fail", "cancel")), ""))')
+        failed=$(printf '%s' "$checks" | uv run --no-project python -c 'import json,sys; print(next((c["link"] for c in json.load(sys.stdin) if c["bucket"] in ("fail", "cancel")), ""))')
         if [ -n "$failed" ]; then
             run=$(printf '%s\n' "$failed" | sed -n 's|.*/runs/\([0-9]*\)/.*|\1|p')
             [ -n "$run" ] || die "a check failed on $PR: $failed"
             explain_failed "$run" "fix it on branch release-$VER"
         fi
         [ "$(gh pr checks "$PR" --required --json name --jq length 2>/dev/null || echo 0)" -gt 0 ] && break
-        state=$(printf '%s' "$checks" | python3 -c 'import json,sys; c=json.load(sys.stdin); print("none" if not c else "pending" if any(x["bucket"] == "pending" for x in c) else "done")')
+        state=$(printf '%s' "$checks" | uv run --no-project python -c 'import json,sys; c=json.load(sys.stdin); print("none" if not c else "pending" if any(x["bucket"] == "pending" for x in c) else "done")')
         i=$((i + 1))
         if [ "$state" = pending ]; then idle=0; else idle=$((idle + 1)); fi
         case "$state" in
@@ -191,7 +191,7 @@ while [ $# -gt 0 ]; do
         *) usage ;;
     esac
 done
-need git; need python3; need gh
+need git; need uv; need gh
 git -C "$ROOT" fetch --quiet origin main
 # Resume from wherever an earlier run stopped.
 if tag_exists "$VER"; then

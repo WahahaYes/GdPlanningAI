@@ -54,19 +54,19 @@ repos:
 
   # Markdown formatting
   - repo: https://github.com/executablebooks/mdformat
-    rev: 0.7.19
+    rev: 1.0.0
     hooks:
       - id: mdformat
         args: ["--wrap=no"]
         types: [markdown]
         # Without the GFM plugin mdformat collapses tables onto one line.
-        additional_dependencies: [mdformat-gfm==0.3.6]
+        additional_dependencies: [mdformat-gfm==1.0.0]
 
   # Python formatting/linting for scripts
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.6.0
+    rev: v0.17.1
     hooks:
-      - id: ruff
+      - id: ruff-check
         args: ["--fix"]
         types: [python]
       - id: ruff-format

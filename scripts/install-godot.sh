@@ -25,7 +25,7 @@ curl -fsSL --retry 3 -o "$tmp/$asset" "$base/$asset"
 curl -fsSL --retry 3 -o "$tmp/SHA512-SUMS.txt" "$base/SHA512-SUMS.txt"
 (cd "$tmp" && grep " $asset\$" SHA512-SUMS.txt | sed 's/  */  /' | shasum -a 512 -c - >&2)
 
-python3 -m zipfile -e "$tmp/$asset" "$dir/pkg"
+uv run --no-project python -m zipfile -e "$tmp/$asset" "$dir/pkg"
 chmod +x "$dir/pkg/$exe"
 case "$(uname -s)" in
 Darwin) ln -sf "$dir/pkg/$exe" "$dir/godot" ;;
