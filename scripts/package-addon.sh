@@ -26,6 +26,7 @@ for f in $binaries; do
 		echo "$f is an LFS pointer: build or download the binary first" >&2
 		exit 1
 	fi
+	mkdir -p "$(dirname "$tmp/$name/$f")"
 	cp "$f" "$tmp/$name/$f"
 done
 for f in $binaries; do

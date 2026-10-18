@@ -160,12 +160,6 @@ jobs:
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
       - name: Godot (version from global.json)
         run: scripts/install-godot.sh >> "$GITHUB_PATH"
-      - name: Godot smoke (debug, non-fatal)
-        if: runner.os == 'Windows'
-        continue-on-error: true
-        run: |
-          ls -l "$(dirname "$(command -v godot)")"
-          godot --headless --version > "$RUNNER_TEMP/v.log" 2>&1; echo "exit $?"; cat "$RUNNER_TEMP/v.log"
       # GodotEnv is a .NET 8 tool; macOS runners ship only a newer runtime.
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
