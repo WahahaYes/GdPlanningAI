@@ -23,7 +23,17 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 curl -fsSL --retry 3 -o "$tmp/$asset" "$base/$asset"
 curl -fsSL --retry 3 -o "$tmp/SHA512-SUMS.txt" "$base/SHA512-SUMS.txt"
-(cd "$tmp" && grep " $asset\$" SHA512-SUMS.txt | sed 's/  */  /' | shasum -a 512 -c - >&2)
+uv run --no-project python - "$tmp/$asset" "$tmp/SHA512-SUMS.txt" <<'PY'
+import hashlib, sys
+
+asset, sums = sys.argv[1:]
+name = asset.replace("\\", "/").rsplit("/", 1)[-1]
+want = next(l.split()[0] for l in open(sums) if l.split()[-1].lstrip("*") == name)
+got = hashlib.sha512(open(asset, "rb").read()).hexdigest()
+if got != want:
+    sys.exit(f"{name}: sha512 mismatch")
+print(f"{name}: OK", file=sys.stderr)
+PY
 
 uv run --no-project python -m zipfile -e "$tmp/$asset" "$dir/pkg"
 chmod +x "$dir/pkg/$exe"
