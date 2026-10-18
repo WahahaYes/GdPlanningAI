@@ -45,7 +45,7 @@ A branch in the `Searching` state has a list of *open needs*: `open_requirements
 
 Each candidate is filtered against the **initial** state first: `validity_checks` must pass (builtin checks synchronous, custom checks async through the callback channel). Wildcard actions are explored once per requirement x provision pair; non-wildcard actions once with empty bindings. A candidate must satisfy at least one requirement or precondition to be emitted.
 
-For each ready candidate the planner computes an insertion position (the earliest consumer, so the action is placed *before* its first consumer; a candidate that only serves needs at the very end of the chain, such as the goal itself, is placed at the front), inserts it into the chain, greedily clears every open requirement with a spec identical to the one satisfied, filters the new action's own needs (dropping anything already open or satisfied by the initial state), and re-enqueues the branch.
+For each ready candidate the planner computes an insertion position (the earliest consumer, so the action is placed *before* its first consumer; a candidate that only serves the goal, which sits at the very end of the chain, is placed last), inserts it into the chain, greedily clears every open requirement with a spec identical to the one satisfied, filters the new action's own needs (dropping anything already open or satisfied by the initial state), and re-enqueues the branch.
 
 When the chain has no open needs left, the branch flips to `Verifying`, resets its simulation index to 0, restores the initial snapshots, and is re-enqueued.
 
@@ -53,6 +53,7 @@ When the chain has no open needs left, the branch flips to `Verifying`, resets i
 
 A branch in the `Verifying` state is run through `process_simulation`. This executes the chain from first to last action against simulated snapshots, one careful step at a time:
 
+1. On entering `Verifying`, every goal precondition is re-opened at the end of the chain, so the goal is checked against the final simulated state: a later insertion can undo a need an earlier action satisfied.
 1. On the first step, requirements at position 0 (already satisfied by initial provisions) are cleared.
 1. The current action's own builtin preconditions are re-checked against the *current simulated* state. In Verifying, a failure here is fatal: `Invalid`.
 1. Open preconditions at this position are evaluated one at a time. Each satisfied precondition is removed and the node is re-queued, so callbacks for custom preconditions can be serviced atomically between steps.
@@ -132,7 +133,7 @@ The symbolic layer decides *which* chains to try; the simulation layer decides w
 
 `Precondition` comes in two forms. **Builtin** preconditions describe a simple comparison over the agent or world blackboards, e.g. `agent_property_less_than("hunger", 15)`, and evaluate synchronously inside the engine. **Custom** preconditions wrap a GDScript callable that must run on the main thread; they are fired through the callback channel during discovery (against the state an action would produce from the initial state) and again during verification (against the simulated state). Discovery results are cached per `(action, precondition, bindings)` so repeated branches do not re-run them; verification re-evaluates, since the state differs per branch.
 
-The goal's desired state is itself a list of preconditions. Unmet ones become open preconditions at position 0.
+The goal's desired state is itself a list of preconditions. Unmet ones become open preconditions at position 0; verification checks all of them again after the last action.
 
 ### Cost callables
 
