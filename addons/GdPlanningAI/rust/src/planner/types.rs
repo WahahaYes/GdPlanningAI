@@ -254,18 +254,16 @@ impl PlanBranch {
         }
     }
 
-    /// Hashes the goal, open needs, state and binding values for pruning. The chain is not hashed,
-    /// so two chains leaving the same needs open are interchangeable and only the cheaper is kept.
+    /// Hashes the goal, open needs with their positions, state and binding values for pruning. The
+    /// chain is not hashed, so two chains leaving the same needs open at the same positions are
+    /// interchangeable and only the cheaper is kept. Positions matter: verification can reject
+    /// one ordering of the same actions and accept another.
     pub fn fingerprint(&self) -> SearchFingerprint {
         let mut hasher = DefaultHasher::new();
         self.goal_index.hash(&mut hasher);
         self.state.hash(&mut hasher);
-        for (_, pre) in &self.open_preconditions {
-            pre.hash(&mut hasher);
-        }
-        for (_, req) in &self.open_requirements {
-            req.hash(&mut hasher);
-        }
+        self.open_preconditions.hash(&mut hasher);
+        self.open_requirements.hash(&mut hasher);
         for (pos, name, values) in &self.action_bindings {
             pos.hash(&mut hasher);
             name.hash(&mut hasher);
