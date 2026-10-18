@@ -82,6 +82,10 @@ test: ## Run unit tests (full log capture; CARGO-TEST-OK/FAILED verdict; propaga
 	fi; \
 	exit $$STATUS
 
+.PHONY: test-verbose
+test-verbose: ## Run unit tests with cargo's full output; propagates the exit code (CI)
+	cargo test
+
 .PHONY: format
 format: ## Format code using rustfmt
 	@rustup component add rustfmt 2>&1 | grep -E "(error|Error)" || true
