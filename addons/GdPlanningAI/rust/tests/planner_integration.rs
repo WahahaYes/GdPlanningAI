@@ -384,3 +384,75 @@ fn goal_priority_respected() {
     assert_eq!(plan.goal_index, 1);
     assert!(plan.action_chain.is_empty());
 }
+
+fn agent_int_equal(property: &str, value: i64) -> PreconditionSpec {
+    PreconditionSpec::Builtin {
+        target: PreconditionTarget::Agent,
+        operation: PreconditionOp::Equal,
+        property_name: property.to_string(),
+        value: Some(VariantSnapshot::Int(value)),
+    }
+}
+
+fn int_effect_action(name: &str, effect_id: usize, pre: Vec<PreconditionSpec>) -> ActionSpec {
+    ActionSpec {
+        name: name.to_string(),
+        cost_callable_id: Some(0),
+        effect_callable_id: Some(effect_id),
+        preconditions: pre,
+        validity_checks: vec![],
+        requirements: vec![],
+        provisions: vec![],
+        dependent_object_ids: vec![],
+    }
+}
+
+#[test]
+fn goal_level_action_runs_after_the_chain() {
+    // Goal: fed and at the fire. Eating needs the agent at the food, so walking to the fire
+    // must come last: [goto_food, eat, goto_fire]. Effects set one agent int each.
+    let effects: [(&str, i64); 3] = [("pos", 1), ("fed", 1), ("pos", 2)];
+    let (req_tx, req_rx) = mpsc::channel::<CallbackRequest>();
+    let handle = thread::spawn(move || {
+        for req in req_rx {
+            let response = match req.kind {
+                CallbackKind::GetCost { .. } => CallbackResponse::Float(1.0),
+                CallbackKind::ApplyEffect { mut agent, world } => {
+                    let (prop, value) = effects[req.callable_id];
+                    agent
+                        .properties
+                        .insert(prop.to_string(), VariantSnapshot::Int(value));
+                    CallbackResponse::UpdatedSnapshots(agent, world)
+                }
+                CallbackKind::EvalCustomPrecond { .. } => CallbackResponse::Bool(true),
+            };
+            let _ = req.response_tx.send(PlannerCallback {
+                request_id: req.request_id,
+                response,
+            });
+        }
+    });
+
+    let mut agent = make_agent(0);
+    agent
+        .properties
+        .insert("pos".to_string(), VariantSnapshot::Int(0));
+    let actions = vec![
+        int_effect_action("goto_food", 0, vec![]),
+        int_effect_action("eat", 1, vec![agent_int_equal("pos", 1)]),
+        int_effect_action("goto_fire", 2, vec![]),
+    ];
+    let goals = vec![GoalSpec {
+        name: "fed_by_fire".to_string(),
+        reward: 10.0,
+        desired_state: vec![agent_int_equal("fed", 1), agent_int_equal("pos", 2)],
+        original_index: 0,
+    }];
+
+    let result = run_planner(agent, make_world(), actions, goals, 10, req_tx);
+    drop(handle);
+
+    let plan = result.expect("should produce a plan");
+    assert!(plan.success);
+    assert_eq!(plan.action_chain, vec![0, 1, 2]);
+}

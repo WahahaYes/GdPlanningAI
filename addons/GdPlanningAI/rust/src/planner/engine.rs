@@ -431,15 +431,11 @@ impl PlannerEngine {
                     }
                 }
                 BranchState::Searching => {
-                    // No open needs left: the chain is symbolically complete. Restart from the
-                    // initial state to verify it forward.
+                    // No open needs left: the chain is symbolically complete.
                     if node.branch.open_preconditions.is_empty()
                         && node.branch.open_requirements.is_empty()
                     {
-                        node.branch.state = BranchState::Verifying;
-                        node.branch.simulation_index = 0;
-                        node.branch.current_agent = Arc::clone(&self.ctx.initial_agent);
-                        node.branch.current_world = Arc::clone(&self.ctx.initial_world);
+                        self.begin_verification(&mut node.branch, &goals[self.current_goal_index]);
                         self.enqueue(node);
                         continue;
                     }
@@ -566,10 +562,10 @@ impl PlannerEngine {
                         if new_branch.open_preconditions.is_empty()
                             && new_branch.open_requirements.is_empty()
                         {
-                            new_branch.state = BranchState::Verifying;
-                            new_branch.simulation_index = 0;
-                            new_branch.current_agent = Arc::clone(&self.ctx.initial_agent);
-                            new_branch.current_world = Arc::clone(&self.ctx.initial_world);
+                            self.begin_verification(
+                                &mut new_branch,
+                                &goals[self.current_goal_index],
+                            );
                         }
 
                         // Guard against runaway requirement accumulation (cycle detection).
@@ -655,6 +651,20 @@ impl PlannerEngine {
             }
             PlannerRunResult::Complete(Some(final_plan))
         }
+    }
+
+    /// Restarts a symbolically complete branch from the initial state to verify it forward. The
+    /// goal is re-checked after the last action, since a later insertion can undo a need an
+    /// earlier one satisfied.
+    fn begin_verification(&self, branch: &mut PlanBranch, goal: &GoalSpec) {
+        let end = branch.action_chain.len();
+        branch
+            .open_preconditions
+            .extend(goal.desired_state.iter().map(|pre| (end, pre.clone())));
+        branch.state = BranchState::Verifying;
+        branch.simulation_index = 0;
+        branch.current_agent = Arc::clone(&self.ctx.initial_agent);
+        branch.current_world = Arc::clone(&self.ctx.initial_world);
     }
 
     /// Advances forward verification of a branch by one unit of work, so callbacks and other nodes
