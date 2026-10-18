@@ -1,6 +1,6 @@
 """Fix function-block spacing in GDScript files.
 
-Enforces two rules across all .gd files git knows of (tracked or untracked, not ignored):
+Enforces two rules across all git-tracked .gd files:
 
 1. Exactly two blank lines must precede every top-level function block.
    A "function block" begins at the first ``##`` / ``#`` comment or
@@ -64,10 +64,10 @@ def _build_depth_map(lines: list[str]) -> list[int]:
     return depths
 
 
-def git_gd_files() -> list[Path]:
+def git_tracked_gd_files() -> list[Path]:
     try:
         result = subprocess.run(
-            ["git", "ls-files", "--cached", "--others", "--exclude-standard"],
+            ["git", "ls-files"],
             capture_output=True,
             text=True,
             check=True,
@@ -234,7 +234,7 @@ def process_file(path: Path) -> bool:
 
 
 def main() -> int:
-    files = git_gd_files()
+    files = git_tracked_gd_files()
     modified: list[Path] = []
 
     for path in files:

@@ -72,9 +72,9 @@ format-rust: ## Format Rust source files with rustfmt
 	"$(MAKE)" -C addons/GdPlanningAI/rust format
 
 .PHONY: format-godot
-format-godot: ## Format GDScript files, untracked ones included (gdtoolkit); fails on parse errors
+format-godot: ## Format tracked GDScript files with gdformat (requires gdtoolkit); fails on parse errors
 	@out=$$(uv run scripts/fix_gd_spacing.py 2>&1) || { echo "$$out"; exit 1; }
-	@out=$$(git ls-files -co --exclude-standard '*.gd' | xargs uv run gdformat 2>&1) || { echo "$$out"; exit 1; }
+	@out=$$(git ls-files -z '*.gd' | xargs -0 -r uv run gdformat 2>&1) || { echo "$$out"; exit 1; }
 
 ##@ Linting
 
@@ -83,8 +83,8 @@ lint-style: ## Check GDScript and Rust files for style-guide violations
 	uv run scripts/lint_style.py
 
 .PHONY: lint-godot
-lint-godot: ## Lint GDScript files with gdlint (gdtoolkit defaults)
-	@git ls-files -co --exclude-standard '*.gd' | xargs uv run gdlint
+lint-godot: ## Lint tracked GDScript files with gdlint (gdtoolkit defaults)
+	@out=$$(git ls-files -z '*.gd' | xargs -0 -r uv run gdlint 2>&1) || { echo "$$out"; exit 1; }
 
 ##@ Documentation
 
