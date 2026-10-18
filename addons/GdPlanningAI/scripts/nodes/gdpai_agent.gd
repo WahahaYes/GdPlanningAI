@@ -1,119 +1,127 @@
 class_name GdPAIAgent
 extends Node
-## GdPlanningAI Agent.  The agent has their own record of the world state and a
-## personal blackboard of attributes.  Agents form plans given their available goals and actions.
+## The AI brain of one entity: plans with its goals and actions, then executes the plan.
+## Assign [member entity] and [member config]; needs a [GdPAIWorldNode] in the scene.[br]
+## Each frame: run [PropertyUpdater]s, submit a plan request if the planning strategy asks for one,
+## then step the current plan. Planning runs in the background; a finished plan replaces the
+## current one. See [Action] for the hook order.
 
-## The top-level node of the agent.
+## Top-level node of the controlled entity. Object data below it joins the agent's own state.
 @export var entity: Node
-## Configuration resource for agent setup.
+## Planning settings, starting blackboard and behaviors. Read once in [code]_ready[/code].
 @export var config: GdPAIAgentConfig = GdPAIAgentConfig.new()
 
-## Agent has ownership over one thread during its lifespan.
-var thread: Thread = null
-## Reference to this agent's own blackboard.
+## The agent's own state, created from [member GdPAIAgentConfig.blackboard_plan].
 var blackboard: GdPAIBlackboard
-## Reference to the world node.
+## The scene's [GdPAIWorldNode]; the agent cannot plan without one.
 var world_node: GdPAIWorldNode = null
-## List of this agent's goals.
+## Goals from the behavior configs. The agent is idle while empty.
 var goals: Array[Goal]
-## List of this agent's available actions.
+## Actions from the behavior configs; world objects offer more at each plan request.
 var self_actions: Array[Action]
+## Updaters from the behavior configs, run every frame.
+var property_updaters: Array[PropertyUpdater]
 ## The currently selected goal.
 var _current_goal: Goal = null
-## The current plan being followed.
-var _current_plan: Plan = null
+## The Rust planning bridge.
+var _bridge: GdPAIRustBridge
+## The current action chain being executed.
+var _current_action_chain: Array[Action] = []
+## Bindings for each chain position, keyed by position.
+var _current_bindings_by_position: Dictionary = {}
 ## The current step within a plan.  Also used to control flow for pre/post actions.
 var _current_plan_step: int = -1
-## An array for tracking the runtime status of each node in the plan.
-var _runtime_status: Dictionary = { }
 ## Planning strategy for this agent.
-var _planning_strategy: GdPAIAgentConfig.PlanningStrategy = \
-GdPAIAgentConfig.PlanningStrategy.CONTINUOUS
+var _planning_strategy: GdPAIAgentConfig.PlanningStrategy = (
+	GdPAIAgentConfig.PlanningStrategy.CONTINUOUS
+)
 ## Timer for interval-based planning.
 var _planning_timer: Timer = null
+## True while a background plan is in flight.
+var _waiting_for_plan: bool = false
+## Actions submitted with the last async plan request (needed for deserialization).
+var _last_submitted_actions: Array[Action] = []
+## Incremented on each async submit; checked in _on_plan_ready to discard stale results.
+var _plan_generation: int = 0
+## The generation that the in-flight plan was submitted under.
+var _inflight_generation: int = 0
+## Seconds left before the strategy may plan again after a failure.
+var _failure_backoff_left: float = 0.0
 
 
 func _ready() -> void:
 	# Set planning strategy.
 	set_planning_strategy(config.planning_strategy, config.planning_interval)
 
-	if config.use_multithreading:
-		thread = Thread.new()
 	blackboard = config.blackboard_plan.generate_blackboard()
 	# Initial blackboard setup common for all agents.
 	blackboard.set_property("entity", entity)
 	# Collect any GdPAI nodes under this agent's entity.
-	var gdpai_objects: Array[GdPAIObjectData] = []
-	for obj: GdPAIObjectData in GdPAIUTILS.get_children_of_type(entity, GdPAIObjectData):
-		gdpai_objects.append(obj)
-	blackboard.set_property(GdPAIBlackboard.GDPAI_OBJECTS, gdpai_objects)
+	if entity != null:
+		var agent_objects: Array = GdPAIUTILS.get_children_in_group(entity, "GdPAIObjectData")
+		blackboard.set_property("GDPAI_OBJECTS", agent_objects)
 	# Apply behavior configurations.
 	for behavior_config in config.behavior_configs:
 		behavior_config.apply_to_agent(self)
 	# Try to find a world node.
 	world_node = GdPAIUTILS.get_child_of_type(get_tree().root, GdPAIWorldNode)
-	# Notify debugger of agent creation.
-	EngineDebugger.send_message(
-		"gdplanningai:register_agent",
-		[get_instance_id(), "%s (%s)" % [name, get_instance_id()]],
-	)
+	_bridge = GdPAIRustBridge.new()
 
 
 func _process(delta: float) -> void:
-	# Update behavior configurations (property updaters).
-	for behavior_config in config.behavior_configs:
-		behavior_config.update_properties(self, delta)
+	for updater in property_updaters:
+		updater.update_properties(self, delta)
 
+	_failure_backoff_left = maxf(0.0, _failure_backoff_left - delta)
 	# Until some goals and actions have been provided, this agent is effectively turned off.
 	if goals.size() == 0:
 		return
 
-	match _planning_strategy:
-		GdPAIAgentConfig.PlanningStrategy.CONTINUOUS:
-			# Check if a new plan is needed.
-			if _current_plan == null or _current_plan_step > _current_plan.get_plan().size():
-				await _query_world_state_and_plan()
-		GdPAIAgentConfig.PlanningStrategy.ON_INTERVAL:
-			# Timer will handle planning only if current plan is finished.
-			pass
-		GdPAIAgentConfig.PlanningStrategy.ON_DEMAND:
-			# Only plan when explicitly requested.
-			pass
-		GdPAIAgentConfig.PlanningStrategy.ON_INTERVAL_FORCED:
-			# Timer will handle planning regardless of current plan status.
-			pass
+	if (
+		_planning_strategy == GdPAIAgentConfig.PlanningStrategy.CONTINUOUS
+		and _failure_backoff_left == 0.0
+	):
+		# Check if a new plan is needed.
+		var plan_done: bool = (
+			_current_action_chain.is_empty() or _current_plan_step > _current_action_chain.size()
+		)
+		if plan_done and not _waiting_for_plan:
+			_start_plan_async()
 
 	_execute_plan(delta)
 
 
-## Returns the currently selected goal.
+## Returns the goal the current plan serves, or [code]null[/code] if there is no plan.
 func get_current_goal() -> Goal:
 	return _current_goal
 
 
-## Returns the current plan being followed.
-func get_current_plan() -> Plan:
-	return _current_plan
+## Returns the executing action chain, or an empty array.
+func get_current_plan() -> Array[Action]:
+	return _current_action_chain
 
 
-## Returns the current step within the plan.
+## Returns the executing step; [code]-1[/code] before the pre-perform phase.
 func get_current_plan_step() -> int:
 	return _current_plan_step
 
 
-## Set the planning strategy for this agent.
+## Changes the planning strategy. [param interval] is used by the interval strategies.
 func set_planning_strategy(
-		strategy: GdPAIAgentConfig.PlanningStrategy,
-		interval: float = 0.5,
+	strategy: GdPAIAgentConfig.PlanningStrategy,
+	interval: float = 0.5,
 ) -> void:
 	_planning_strategy = strategy
 
 	if _planning_timer:
+		# Stop first: a queue_freed timer lives until the end of the frame and could still fire.
+		_planning_timer.stop()
 		_planning_timer.queue_free()
 		_planning_timer = null
 
 	if (
-		strategy in [
+		strategy
+		in [
 			GdPAIAgentConfig.PlanningStrategy.ON_INTERVAL,
 			GdPAIAgentConfig.PlanningStrategy.ON_INTERVAL_FORCED,
 		]
@@ -128,125 +136,164 @@ func set_planning_strategy(
 		_planning_timer.wait_time = interval
 
 
-## Trigger planning on demand.
+## Requests a plan now. The result retires any running plan through its
+## [method Action.post_perform_action] cleanup before replacing it.
 func manually_start_plan() -> void:
 	if goals.size() == 0:
 		return
 
-	_query_world_state_and_plan()
+	_start_plan_async()
+
+
+## Submit a planning job to the background scheduler.
+func _start_plan_async() -> void:
+	if entity == null:
+		push_warning("GdPAIAgent: entity is not assigned; skipping plan submission")
+		return
+
+	var agent_objects: Array = GdPAIUTILS.get_children_in_group(entity, "GdPAIObjectData")
+	blackboard.set_property("GDPAI_OBJECTS", agent_objects)
+
+	var all_actions: Array[Action] = []
+	all_actions.append_array(self_actions)
+	all_actions.append_array(_collect_worldly_actions())
+
+	_last_submitted_actions = all_actions
+	_plan_generation += 1
+	_inflight_generation = _plan_generation
+	_waiting_for_plan = true
+
+	var scheduler: GdPAIPlanScheduler = GdPAIAutoload.get_scheduler()
+	if scheduler == null:
+		_waiting_for_plan = false
+		push_error("GdPAIAgent: scheduler not available; async planning is required")
+		return
+
+	if world_node == null:
+		_waiting_for_plan = false
+		push_warning("GdPAIAgent: no GdPAIWorldNode found in scene")
+		return
+
+	(
+		scheduler
+		. submit_plan(
+			self,
+			blackboard,
+			world_node.get_world_state(),
+			_bridge.serialize_actions(all_actions),
+			_bridge.serialize_goals(goals, self),
+			config.max_recursion,
+			config.iteration_budget,
+			config.time_slice_ms,
+		)
+	)
+
+
+## Installs a finished plan, or clears the current one if the search failed.
+func _on_plan_ready(result: Dictionary) -> void:
+	_waiting_for_plan = false
+	# Discard stale results if goals changed since submission.
+	if _inflight_generation != _plan_generation:
+		return
+	_retire_current_chain()
+	_current_plan_step = -1
+	if result.get("success", false):
+		_failure_backoff_left = 0.0
+		var deserialized: Dictionary = _bridge.deserialize_plan_result(
+			result, _last_submitted_actions
+		)
+		_current_action_chain = deserialized.get("action_chain", [] as Array[Action])
+		_current_bindings_by_position = deserialized.get("bindings_by_position", {})
+		var goal_index: int = result.get("goal_index", 0)
+		if goal_index >= 0 and goal_index < goals.size():
+			_current_goal = goals[goal_index]
+		else:
+			push_error(
+				(
+					"GdPAIAgent: goal_index %d out of bounds (goals.size()=%d)"
+					% [goal_index, goals.size()]
+				)
+			)
+			_current_goal = null
+	else:
+		_current_action_chain = []
+		_current_bindings_by_position = {}
+		_current_goal = null
+		_failure_backoff_left = config.failure_backoff
+
+
+## Runs the guaranteed cleanup phase for the outgoing chain before it is replaced. Posts run
+## first so navigation targets stop, then scoped keys are cleared even if a post forgot them.
+func _retire_current_chain() -> void:
+	for i in range(_current_action_chain.size()):
+		var action: Action = _current_action_chain[i]
+		if is_instance_valid(action):
+			action.chain_position = i
+			_inject_bindings_for_position(i, action)
+			action.post_perform_action(self)
+			action.chain_position = -1
+	for action: Action in _current_action_chain:
+		if is_instance_valid(action):
+			action.erase_all_state(self)
 
 
 ## Timer callback for interval planning.
 func _on_planning_timer_timeout() -> void:
-	if goals.size() == 0:
+	# A timer replaced by set_planning_strategy can still deliver a timeout; ignore it.
+	if _planning_timer == null:
+		return
+	if goals.size() == 0 or _failure_backoff_left > 0.0:
 		return
 	if _planning_strategy == GdPAIAgentConfig.PlanningStrategy.ON_INTERVAL_FORCED:
-		_query_world_state_and_plan()
+		_start_plan_async()
 	elif _planning_strategy == GdPAIAgentConfig.PlanningStrategy.ON_INTERVAL:
-		if _current_plan == null or _current_plan_step > _current_plan.get_plan().size():
-			_query_world_state_and_plan()
+		var plan_done: bool = (
+			_current_action_chain.is_empty() or _current_plan_step > _current_action_chain.size()
+		)
+		if plan_done and not _waiting_for_plan:
+			_start_plan_async()
 	_planning_timer.start()
 
 
-## Query world state and initiate planning.
-func _query_world_state_and_plan() -> void:
-	# Query the world state at the start of planning.
-	var worldly_actions: Array[Action] = await _compute_worldly_actions()
-	var self_actions: Array[Action] = await _compute_valid_self_actions()
-	if config.use_multithreading:
-		# Spin up a thread to call the planning logic.  Variable assignment happens at the
-		# end of planning.
-		if not thread.is_started():
-			# Spin up a new thread to handle planning.
-			_current_plan = null
-			_current_plan_step = -1
-			thread.start(
-				_select_highest_reward_goal.bind(self_actions, worldly_actions),
-				config.thread_priority,
-			)
-	else:
-		var goal_and_plan: Dictionary = await _select_highest_reward_goal(
-			self_actions,
-			worldly_actions,
-		)
-		_current_plan_step = -1
-		_current_goal = goal_and_plan["goal"]
-		_current_plan = goal_and_plan["plan"]
-		if _current_plan != null:
-			_reset_runtime_status(_current_plan.get_plan())
-			_update_debugger_info()
-
-
-## Iterates over all goals in order of reward until a valid plan is found.
-func _select_highest_reward_goal(
-		self_actions: Array[Action],
-		worldly_actions: Array[Action],
-) -> Dictionary:
-	if config.use_multithreading:
-		# Removing safety checks usually isn't a good idea.  In our processing we will read from
-		# the scene tree or will await information, but we don't write.  With some checks to
-		# ensure that data exists, and knowing that this thread's processing is constrained to
-		# planning, this is maybe okay to do.
-		thread.set_thread_safety_checks_enabled(false)
-
-	var return_dict: Dictionary = { }
-	var rewards: Array[float] = []
-
-	# Poll the world state for valid actions.
-	var actions_with_worldly: Array[Action] = []
-	actions_with_worldly.append_array(self_actions)
-	actions_with_worldly.append_array(worldly_actions)
-
-	# Deterimine the rewards from each possible goal.
-	var highest_reward_goal: Goal = goals[0]
-	for goal in goals:
-		rewards.append(goal.compute_reward(self))
-	# Continually check for the most rewarding goal.
-	while rewards.max() > -1:
-		var max_reward: float = rewards.max()
-		var idx: int = rewards.find(max_reward)
-		var test_plan: Plan = Plan.new()
-		test_plan.initialize(self, goals[idx], actions_with_worldly, config.max_recursion)
-
-		if test_plan.get_plan().size() > 0: # This means a plan was created.
-			return_dict["goal"] = goals[idx]
-			return_dict["plan"] = test_plan
-			# For multithreading, we need to sync to main thread before exiting.
-			if config.use_multithreading:
-				call_deferred("_sync_multithreaded_plan")
-			return return_dict
-		rewards[idx] = -1
-		break
-
-	# For multithreading, we need to sync to main thread before exiting.
-	if config.use_multithreading:
-		call_deferred("_sync_multithreaded_plan")
-	return { "goal": null, "plan": null }
-
-
-## Waits for thread to finish then assigns return values.
-func _sync_multithreaded_plan() -> void:
-	var goal_and_plan: Dictionary = thread.wait_to_finish()
-	_current_goal = goal_and_plan["goal"]
-	_current_plan = goal_and_plan["plan"]
-	if _current_plan != null:
-		_reset_runtime_status(_current_plan.get_plan())
-		_update_debugger_info()
+## Injects the planner bindings for a specific chain position into the action instance.
+func _inject_bindings_for_position(chain_position: int, action: Action) -> void:
+	if not _current_bindings_by_position.has(chain_position):
+		return
+	for binding in _current_bindings_by_position[chain_position]:
+		var fact_name: String = binding[1]
+		var values: Array = binding[2]
+		var object_refs = []
+		for val in values:
+			if val is int:
+				var obj = instance_from_id(val)
+				if obj != null:
+					object_refs.append(obj)
+			elif val != null:
+				# Already an object or other variant
+				object_refs.append(val)
+		if action.has_method("inject_binding"):
+			action.inject_binding(fact_name, object_refs)
 
 
 ## Executes the currently selected plan based on the current step.
 func _execute_plan(delta: float) -> void:
-	if _current_plan == null: # No plan formed yet.
+	if _current_action_chain.is_empty():
 		return
-	var action_chain: Array[Action] = _current_plan.get_plan()
+	var action_chain: Array[Action] = _current_action_chain
 	# Pre actions.
 	if _current_plan_step == -1:
-		for action: Action in action_chain:
-			var action_status: Action.Status = action.pre_perform_action(self)
-			_runtime_status[action.uid]["pre_status"] = action_status
-			if action_status == Action.Status.FAILURE:
-				# Abort the plan.
+		for i in range(action_chain.size()):
+			var action: Action = action_chain[i]
+			if not is_instance_valid(action):
 				_current_plan_step = action_chain.size()
+				break
+			action.chain_position = i
+			_inject_bindings_for_position(i, action)
+			var action_status: Action.Status = action.pre_perform_action(self)
+			if action_status == Action.Status.FAILURE:
+				# Abort the plan; post_perform_action will still be called for cleanup.
+				_current_plan_step = action_chain.size()
+				break
 		# Progress to actions if we passed through the preaction stage.
 		if _current_plan_step == -1:
 			_current_plan_step += 1
@@ -254,103 +301,50 @@ func _execute_plan(delta: float) -> void:
 	# Actions.
 	if _current_plan_step < action_chain.size():
 		var current_action: Action = action_chain[_current_plan_step]
-		var action_status: Action.Status = current_action.perform_action(self, delta)
-		_runtime_status[current_action.uid]["runtime_status"] = action_status
-		if action_status == Action.Status.FAILURE:
-			# Abort the plan.
+		if not is_instance_valid(current_action):
 			_current_plan_step = action_chain.size()
-		elif action_status == Action.Status.RUNNING:
-			# Continue performing this action.
-			pass
-		elif action_status == Action.Status.SUCCESS:
-			# Progress to the next action.
-			_current_plan_step += 1
+		else:
+			current_action.chain_position = _current_plan_step
+			_inject_bindings_for_position(_current_plan_step, current_action)
+			var action_status: Action.Status = current_action.perform_action(self, delta)
+			if action_status == Action.Status.FAILURE:
+				# Abort the plan; post_perform_action will still be called for cleanup.
+				_current_plan_step = action_chain.size()
+			elif action_status == Action.Status.RUNNING:
+				# Continue performing this action.
+				pass
+			elif action_status == Action.Status.SUCCESS:
+				# Progress to the next action.
+				_current_plan_step += 1
 
 	# Post actions.
-	if _current_plan_step == action_chain.size(): # We just finished, do post actions.
-		for action: Action in action_chain:
-			var action_status: Action.Status = action.post_perform_action(self)
-			_runtime_status[action.uid]["post_status"] = action_status
+	# This is a guaranteed cleanup phase: post_perform_action is called for every action
+	# in the chain, regardless of whether the plan completed or was aborted. Implementations
+	# must be safe to call even if pre_perform_action or perform_action returned FAILURE.
+	# The framework then clears each step's scoped keys, so per-action erases are hygiene.
+	if _current_plan_step == action_chain.size():
+		for i in range(action_chain.size()):
+			var action: Action = action_chain[i]
+			if is_instance_valid(action):
+				action.chain_position = i
+				_inject_bindings_for_position(i, action)
+				action.post_perform_action(self)
+				action.erase_position_state(self, i)
+				action.chain_position = -1
 		_current_plan_step += 1
-	# Update debugger info.
-	_update_debugger_info()
+		_current_bindings_by_position = {}
 
 
-func _compute_valid_self_actions() -> Array[Action]:
-	var ws_checkpoint: GdPAIBlackboard = world_node.get_world_state()
-	var valid_actions: Array[Action] = []
-	for action in self_actions:
-		var validity_checks: Array[Precondition] = action.get_validity_checks()
-		var is_satisfied: bool = true
-		for check: Precondition in validity_checks:
-			var status: bool = await check.evaluate(blackboard, ws_checkpoint)
-			if not status:
-				is_satisfied = false
-				break
-		if is_satisfied:
-			valid_actions.append(action)
-	return valid_actions
-
-
-## Polls all GdPAI objects to get their relevant actions on request.
-func _compute_worldly_actions() -> Array[Action]:
-	# Refresh the world state.
-	var ws_checkpoint: GdPAIBlackboard = world_node.get_world_state()
-	var gdpai_objects: Array[GdPAIObjectData] = ws_checkpoint.get_property(
-		GdPAIBlackboard.GDPAI_OBJECTS,
-	)
+## Collects actions provided by world objects. Validity filtering is handled
+## by the Rust engine during planning search.
+func _collect_worldly_actions() -> Array[Action]:
+	if world_node == null:
+		return [] as Array[Action]
+	var ws: GdPAIBlackboard = world_node.get_world_state()
 	var actions: Array[Action] = []
-	for gdpai_object: GdPAIObjectData in gdpai_objects:
-		var obj_actions: Array[Action] = gdpai_object.get_provided_actions()
-		for obj_act: Action in obj_actions:
-			# Every action has a set of validity checks which must pass.
-			var validity_checks: Array[Precondition] = obj_act.get_validity_checks()
-			var is_satisfied: bool = true
-			for check: Precondition in validity_checks:
-				var status: bool = await check.evaluate(blackboard, ws_checkpoint)
-				if not status:
-					is_satisfied = false
-					break
-			if is_satisfied:
-				actions.append(obj_act)
+	var raw_objects = ws.get_property("GDPAI_OBJECTS")
+	if raw_objects == null:
+		return actions
+	for gdpai_object: GdPAIObjectData in raw_objects:
+		actions.append_array(gdpai_object.get_provided_actions())
 	return actions
-
-
-func _reset_runtime_status(plan_actions: Array[Action]) -> void:
-	_runtime_status.clear()
-	for action in plan_actions:
-		_runtime_status[action.uid] = {
-			"uid": action.uid,
-			"pre_status": "...",
-			"runtime_status": "...",
-			"post_status": "...",
-		}
-
-
-func _inject_runtime_status(node: Dictionary) -> Dictionary:
-	var uid: String = node.get("id", "")
-	if uid not in _runtime_status:
-		return node
-	node["pre_status"] = _runtime_status[uid]["pre_status"]
-	node["runtime_status"] = _runtime_status[uid]["runtime_status"]
-	node["post_status"] = _runtime_status[uid]["post_status"]
-
-	if node.has("children"):
-		var updated_children: Array[Dictionary] = []
-		for child in node.get("children", []):
-			updated_children.append(_inject_runtime_status(child))
-		node["children"] = updated_children
-	return node
-
-
-func _update_debugger_info() -> void:
-	var agent_info: Dictionary = { }
-	# Setup the plan tree if we have a valid plan.
-	if _current_plan != null and is_instance_valid(_current_plan):
-		agent_info["plan_tree"] = _inject_runtime_status(_current_plan.get_plan_tree_debug_data())
-	# Setup the current goal if we have one.
-	if _current_goal != null and is_instance_valid(_current_goal):
-		agent_info["current_goal"] = _current_goal.get_title()
-		agent_info["current_goal_description"] = _current_goal.get_description()
-
-	EngineDebugger.send_message("gdplanningai:update_agent_info", [get_instance_id(), agent_info])

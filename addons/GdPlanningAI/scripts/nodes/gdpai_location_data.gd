@@ -1,43 +1,40 @@
 class_name GdPAILocationData
 extends GdPAIObjectData
-## Node to track a relevant object's position in the world and in the agent's simulation.
+## Position of an object, live and simulated. Set one of [member location_node_2d] or
+## [member location_node_3d]. The agent's entity needs one to navigate, and each
+## [code]at_target[/code] destination needs one.
 
 @export_group("Location: only set one!")
-## Location for 2D objects.
+## Node whose global transform gives the position of a 2D object.
 @export var location_node_2d: Node2D
-## Location for 3D objects.
+## Node whose global transform gives the position of a 3D object.
 @export var location_node_3d: Node3D
 
-## Shorthand way to access the entity's position, which can be altered in simulation.  Returns as
-## either Vector2 or Vector3.
+## The entity's current position as [Vector2] (2D) or [Vector3] (3D).
 var position:
 	get:
 		assert(
 			location_node_2d == null or location_node_3d == null,
-			"Only one backend location node should be set!",
+			"GdPAILocationData: both location nodes are set, only set one!"
 		)
 		if location_node_2d != null:
 			return location_node_2d.global_position
 		if location_node_3d != null:
 			return location_node_3d.global_position
-		return position
-	set(val):
-		position = val
-## Shorthand way to access the entity's rotation (in degrees), which can be altered in simulation.
-## Returns as either float (2D case) or Vector3.
+		assert(false, "GdPAILocationData: no location node set")
+
+## The entity's current rotation in degrees as [float] (2D) or [Vector3] (3D).
 var rotation:
 	get:
 		assert(
 			location_node_2d == null or location_node_3d == null,
-			"Only one backend location node should be set!",
+			"GdPAILocationData: both location nodes are set, only set one!"
 		)
 		if location_node_2d != null:
 			return location_node_2d.global_rotation_degrees
 		if location_node_3d != null:
 			return location_node_3d.global_rotation_degrees
-		return rotation
-	set(val):
-		rotation = val
+		assert(false, "GdPAILocationData: no location node set")
 
 
 # Override
@@ -46,11 +43,6 @@ func get_group_labels() -> Array[String]:
 
 
 # Override
-func copy_for_simulation() -> GdPAIObjectData:
-	var new_data: GdPAIObjectData = GdPAILocationData.new()
-	assign_uid_and_entity(new_data)
-	# NOTE: Location node is not being copied over.  At simulation time, we are essentially taking
-	# 		a snapshot of position and rotation that can then be changed safely during simulation.
-	new_data.position = position
-	new_data.rotation = rotation
-	return new_data
+## Snapshots [code]position[/code] and [code]rotation[/code].
+func get_sim_properties() -> Dictionary:
+	return {"position": position, "rotation": rotation}

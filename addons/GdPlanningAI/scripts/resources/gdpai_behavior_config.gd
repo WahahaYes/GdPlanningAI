@@ -1,45 +1,27 @@
 class_name GdPAIBehaviorConfig
 extends Resource
-## Base class for agent behavior configurations.
-## Extend this class to create specific behavior configurations.
-
-## Goals that this agent should pursue.
-var goals: Array[Goal] = []
-## Actions that are always available to this agent.
-var self_actions: Array[Action] = []
-## Property updaters that modify blackboard properties over time.
-var property_updaters: Array[PropertyUpdater] = []
-## Whether or not this Resource has initialized its own
-## goals, self_actions, and property_updaters.
-var _is_initialized: bool = false
+## A reusable bundle of goals, actions and property updaters (e.g. "hunger", "wander").
+## Override [method _populate] and add the resource to [member GdPAIAgentConfig.behavior_configs].
+## One resource can be shared by several agents.
 
 
-## Apply this behavior configuration to an agent.
+## Adds fresh instances from [method _populate] to [param agent] and initializes its updaters.
 func apply_to_agent(agent: GdPAIAgent) -> void:
-	# Ensure self_init has completed before applying
-	if not _is_initialized:
-		_self_init()
-
-	for goal in goals:
-		agent.goals.append(goal)
-
-	for action in self_actions:
-		agent.self_actions.append(action)
-
-	for updater in property_updaters:
+	var local_goals: Array[Goal] = []
+	var local_actions: Array[Action] = []
+	var local_updaters: Array[PropertyUpdater] = []
+	_populate(local_goals, local_actions, local_updaters)
+	agent.goals.append_array(local_goals)
+	agent.self_actions.append_array(local_actions)
+	for updater in local_updaters:
 		updater.initialize(agent)
+	agent.property_updaters.append_array(local_updaters)
 
 
-## Update all property updaters for this behavior.
-func update_properties(
-		agent: GdPAIAgent,
-		delta: float,
+## Override: append new goals, actions and updaters. Called once per agent.
+func _populate(
+	_goals: Array[Goal],
+	_actions: Array[Action],
+	_updaters: Array[PropertyUpdater],
 ) -> void:
-	for updater in property_updaters:
-		updater.update_properties(agent, delta)
-
-
-## Called after @export values are applied.
-## Override this method to set up goals, actions, and property updaters.
-func _self_init() -> void:
-	_is_initialized = true
+	pass

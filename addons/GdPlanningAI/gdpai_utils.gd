@@ -1,12 +1,16 @@
 class_name GdPAIUTILS
 extends Object
-## Static utility classes for the GdPlanningAI addon.
+## Static scene-tree helpers used throughout the addon. Safe to use from your own scripts, but
+## only from the main thread and never from planning-time hooks.
 
 
-## Searches a node's tree to find the first instance of _class.
+## Returns the first node that is [param node] itself or a descendant of it and is an instance of
+## [param _class] (depth-first, checking each node's children before recursing), or
+## [code]null[/code] if there is none. [param _class] is a class or script, as accepted by
+## [code]is_instance_of[/code].
 static func get_child_of_type(
-		node: Node,
-		_class: Variant,
+	node: Node,
+	_class: Variant,
 ) -> Variant:
 	if is_instance_of(node, _class):
 		return node
@@ -19,66 +23,11 @@ static func get_child_of_type(
 	return null
 
 
-## Searches a node's tree to find all children of type _class.
-static func get_children_of_type(
-		node: Node,
-		_class: Variant,
-) -> Array[Variant]:
-	var children: Array = []
-	return _get_children_of_type(children, node, _class)
-
-
-static func _get_children_of_type(
-		children: Array,
-		node: Node,
-		_class: Variant,
-) -> Array[Variant]:
-	if is_instance_of(node, _class):
-		children.append(node)
-	for child in node.get_children():
-		_get_children_of_type(children, child, _class)
-	return children
-
-
-## Waits for a deferred call to the main thread to return information.
-static func await_callv(
-		obj: Object,
-		method: String,
-		args: Array = [],
-) -> Variant:
-	return await callv_deferred(obj, method, args).finished
-
-
-## Makes a deferred call with the option to listen for a finished signal.
-static func callv_deferred(
-		obj: Object,
-		method: String,
-		args: Array = [],
-) -> AwaitableCallDeferred:
-	return AwaitableCallDeferred.new(obj, method, args)
-
-
-## Internal class that structures a call_deferred() call and a returning signal to query info from
-## the main thread (somewhat) safely.
-##[br]
-##[br]
-## NOTE: Using this class too extensively could overload the main thread and lead to stutters.
-class AwaitableCallDeferred:
-	signal finished(result)
-
-
-	func _init(
-			obj: Object,
-			method: String,
-			args: Array = [],
-	) -> void:
-		call_deferred("_call_and_signal", obj, method, args)
-
-
-	func _call_and_signal(
-			obj: Object,
-			method: String,
-			args: Array = [],
-	) -> void:
-		var result = obj.callv(method, args)
-		emit_signal("finished", result)
+## Returns all nodes in the scene tree belonging to [param group] that are [param node] itself or
+## a descendant of it. [param node] must be inside the tree.
+static func get_children_in_group(node: Node, group: String) -> Array:
+	var result: Array = []
+	for child in node.get_tree().get_nodes_in_group(group):
+		if child == node or node.is_ancestor_of(child):
+			result.append(child)
+	return result

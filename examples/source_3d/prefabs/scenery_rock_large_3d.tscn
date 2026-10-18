@@ -1,0 +1,14 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" uid="uid://bb62ne44t2k0n" path="res://examples/source_3d/assets/vendored/KayKit_ResourceBits/Assets/gltf/Stone_Chunks_Large.gltf" id="1_visual"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_body"]
+size = Vector3(1.5, 1.1, 1.35)
+
+[node name="SceneryRockLarge" type="StaticBody3D"]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.55, 0)
+shape = SubResource("BoxShape3D_body")
+
+[node name="Visual" parent="." instance=ExtResource("1_visual")]

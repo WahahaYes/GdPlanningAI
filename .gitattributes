@@ -9,6 +9,19 @@
 /addons/GdPlanningAI      !export-ignore
 /addons/GdPlanningAI/**   !export-ignore
 
+# Users need the built binaries in bin/, not the Rust source.
+/addons/GdPlanningAI/rust     export-ignore
+/addons/GdPlanningAI/rust/**  export-ignore
+
 # Also include script templates.
 /script_templates         !export-ignore
 /script_templates/**      !export-ignore
+
+# Track Rust binary files with Git LFS
+addons/GdPlanningAI/bin/**/*.dll filter=lfs diff=lfs merge=lfs -text
+addons/GdPlanningAI/bin/**/*.so filter=lfs diff=lfs merge=lfs -text
+addons/GdPlanningAI/bin/**/*.dylib filter=lfs diff=lfs merge=lfs -text
+addons/GdPlanningAI/bin/.gitignore !text !filter !merge !diff
+
+# Keep third-party example assets out of GitHub language stats.
+examples/**/vendored/** linguist-vendored

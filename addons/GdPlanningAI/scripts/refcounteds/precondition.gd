@@ -1,271 +1,300 @@
 class_name Precondition
 extends RefCounted
-## Preconditions for planning chains of actions.  This class allows for custom preconditions
-## to be defined and evaluation at simulation-time.  Stores a check ("is_satisfied") to keep
-## track if this precondition has been satisfied at some other point in the chain of actions.
-## For multithreaded planning, it is possible to await information with GdPAIUTILS.await_callv(..).
-##[br]
-##[br]
-## There are static methods, like Precondition.agent_property_greater_than(<prop>, <value>),
-## which will instantiate common preconditions in a single line of code.  Alterantively, custom
-## preconditions can be defined like so:
-##[br]
-##[br]
-## var precondition = Precondition.new()[br]
-## precondition.eval_func = func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard):[br]
-##     if blackboard.get_property(<prop>) and world_state.get_property(<prop>):[br]
-##         return true[br]
-##     return false[br]
-##[br]
-##[br]
-## (The above example would check that a property exists / is true for both the agent and world
-## states.)
-
-## Enum for specifying which blackboard to target for property checks.
-enum Target {
-	AGENT,
-	WORLD_STATE,
-}
-## Enum for specifying the type of comparison operation.
-enum Operation {
-	HAS_PROPERTY,
-	EQUAL,
-	NOT_EQUAL,
-	GREATER_THAN,
-	GREATER_THAN_OR_EQUAL,
-	LESS_THAN,
-	LESS_THAN_OR_EQUAL,
-}
-
-## Variable to keep track of whether earlier evaluations of this precondition were successful.
-var is_satisfied: bool = false
-## The evaluation function is dynamic and can be set by instantiating the precondition using one
-## of the static methods, or by defining a custom check.
-var eval_func: Callable
+## A condition on agent, world or object state, checked against simulated state during
+## planning. Create one with the static constructors.[br]
+## Prefer built-in constructors: the engine evaluates them natively and can search for actions
+## that change the tested property. [method custom] callables are opaque to the search, run on the
+## main thread, and must not use the scene tree or [code]await[/code].
 
 
-## Instanciating a Precondition with a custom check. Must match function signature:
-## [param func(blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard)->bool]
-func _init(p_eval_func: Callable = Callable()) -> void:
-	
-	# WARNING currently can't achieve type-safety on the passed _eval_func
-	# If such a feature gets added, need to assert a signature of:
-	# func(a: GdPAIBlackboard, b: GdPAIBlackboard) -> bool
-	# See issue https://github.com/godotengine/godot-proposals/issues/10807
-	
-	eval_func = p_eval_func
+## Returns the engine's view of this precondition. Implemented by subclasses; internal.
+func to_bridge_dict() -> Dictionary:
+	push_error("Precondition.to_bridge_dict must be overridden")
+	return {}
 
 
-## Generic function to create property comparison preconditions, eliminating code duplication.
+## Creates a precondition from [param fn]:
+## [code]func(agent_bb: GdPAIBlackboard, world: GdPAIBlackboard) -> bool[/code].
+static func custom(fn: Callable) -> Precondition:
+	return PreconditionCustom.new(fn)
+
+
+## Like [method custom], but [code]false[/code] without calling [param fn] once any of
+## [param deps] is freed.
+static func custom_with_deps(fn: Callable, deps: Array[Object]) -> Precondition:
+	return PreconditionCustomWithDeps.new(fn, deps)
+
+
+## Shared factory behind the built-in constructors.
 static func _create_property_precondition(
-		target: Target,
-		prop: String,
-		operation: Operation,
-		value: Variant = null,
+	target: PreconditionBuiltin.Target,
+	prop: String,
+	operation: PreconditionBuiltin.Op,
+	value: Variant = null,
+	grp: String = "",
 ) -> Precondition:
-	return Precondition.new(
-		func(
-			blackboard: GdPAIBlackboard, 
-			world_state: GdPAIBlackboard
-		):
-		var source: GdPAIBlackboard
-		match target:
-			Target.AGENT:
-				source = blackboard
-			Target.WORLD_STATE:
-				source = world_state
-			_:
-				push_error("Unknown target: %s" % target)
-				return null
-		
-		match operation:
-			Operation.HAS_PROPERTY:
-				return prop in source.get_dict()
-			Operation.EQUAL:
-				return source.get_property(prop) == value
-			Operation.NOT_EQUAL:
-				return source.get_property(prop) != value
-			Operation.GREATER_THAN:
-				return source.get_property(prop) > value
-			Operation.GREATER_THAN_OR_EQUAL:
-				return source.get_property(prop) >= value
-			Operation.LESS_THAN:
-				return source.get_property(prop) < value
-			Operation.LESS_THAN_OR_EQUAL:
-				return source.get_property(prop) <= value
-			_:
-				push_error("Unknown operation: %s" % operation)
-				return null
-	)
+	return PreconditionBuiltin.new(target, operation, prop, value, grp)
 
 
 ## Instantiate a precondition that checks whether a property in the agent blackboard exists.
 static func agent_has_property(prop: String) -> Precondition:
-	return _create_property_precondition(Target.AGENT, prop, Operation.HAS_PROPERTY)
+	return _create_property_precondition(
+		PreconditionBuiltin.Target.AGENT, prop, PreconditionBuiltin.Op.HAS_PROPERTY
+	)
 
 
 ## Instantiate a precondition that checks whether a property in the agent blackboard is not
 ## equal to a specified value.
 static func agent_property_not_equal_to(
-		prop: String,
-		value: Variant,
+	prop: String,
+	value: Variant,
 ) -> Precondition:
-	return _create_property_precondition(Target.AGENT, prop, Operation.NOT_EQUAL, value)
+	return _create_property_precondition(
+		PreconditionBuiltin.Target.AGENT, prop, PreconditionBuiltin.Op.NOT_EQUAL, value
+	)
 
 
 ## Instantiate a precondition that checks whether a property in the agent blackboard is greater
 ## than a specified value.
 static func agent_property_greater_than(
-		prop: String,
-		value: Variant,
+	prop: String,
+	value: Variant,
 ) -> Precondition:
-	return _create_property_precondition(Target.AGENT, prop, Operation.GREATER_THAN, value)
+	return _create_property_precondition(
+		PreconditionBuiltin.Target.AGENT, prop, PreconditionBuiltin.Op.GT, value
+	)
 
 
 ## Instantiate a precondition that checks whether a property in the agent blackboard is greater
 ## or equal than a specified value.
 static func agent_property_geq_than(
-		prop: String,
-		value: Variant,
+	prop: String,
+	value: Variant,
 ) -> Precondition:
-	return _create_property_precondition(Target.AGENT, prop, Operation.GREATER_THAN_OR_EQUAL, value)
+	return _create_property_precondition(
+		PreconditionBuiltin.Target.AGENT, prop, PreconditionBuiltin.Op.GTE, value
+	)
 
 
 ## Instantiate a precondition that checks whether a property in the agent blackboard is less
 ## than a specified value.
 static func agent_property_less_than(
-		prop: String,
-		value: Variant,
+	prop: String,
+	value: Variant,
 ) -> Precondition:
-	return _create_property_precondition(Target.AGENT, prop, Operation.LESS_THAN, value)
+	return _create_property_precondition(
+		PreconditionBuiltin.Target.AGENT, prop, PreconditionBuiltin.Op.LT, value
+	)
 
 
 ## Instantiate a precondition that checks whether a property in the agent blackboard is less
 ## than or equal to a specified value.
 static func agent_property_leq_than(
-		prop: String,
-		value: Variant,
+	prop: String,
+	value: Variant,
 ) -> Precondition:
-	return _create_property_precondition(Target.AGENT, prop, Operation.LESS_THAN_OR_EQUAL, value)
+	return _create_property_precondition(
+		PreconditionBuiltin.Target.AGENT, prop, PreconditionBuiltin.Op.LTE, value
+	)
 
 
 ## Instantiate a precondition that checks whether a property in the agent blackboard is equal to
 ## a specified value.
 static func agent_property_equal_to(
-		prop: String,
-		value: Variant,
+	prop: String,
+	value: Variant,
 ) -> Precondition:
-	return _create_property_precondition(Target.AGENT, prop, Operation.EQUAL, value)
+	return _create_property_precondition(
+		PreconditionBuiltin.Target.AGENT, prop, PreconditionBuiltin.Op.EQUAL, value
+	)
 
 
-## Instantiate a precondition that checks whether a property in the agent blackboard exists.
+## Instantiate a precondition that checks whether a property in the world blackboard exists.
 static func world_state_has_property(prop: String) -> Precondition:
-	return _create_property_precondition(Target.WORLD_STATE, prop, Operation.HAS_PROPERTY)
+	return _create_property_precondition(
+		PreconditionBuiltin.Target.WORLD_STATE, prop, PreconditionBuiltin.Op.HAS_PROPERTY
+	)
 
 
 ## Instantiate a precondition that checks whether a property in the world state is greater
 ## than a specified value.
 static func world_state_property_greater_than(
-		prop: String,
-		value: Variant,
+	prop: String,
+	value: Variant,
 ) -> Precondition:
-	return _create_property_precondition(Target.WORLD_STATE, prop, Operation.GREATER_THAN, value)
+	return _create_property_precondition(
+		PreconditionBuiltin.Target.WORLD_STATE, prop, PreconditionBuiltin.Op.GT, value
+	)
 
 
 ## Instantiate a precondition that checks whether a property in the world state is greater
 ## or equal than a specified value.
 static func world_state_property_geq_than(
-		prop: String,
-		value: Variant,
+	prop: String,
+	value: Variant,
 ) -> Precondition:
 	return _create_property_precondition(
-		Target.WORLD_STATE,
-		prop,
-		Operation.GREATER_THAN_OR_EQUAL,
-		value,
+		PreconditionBuiltin.Target.WORLD_STATE, prop, PreconditionBuiltin.Op.GTE, value
 	)
 
 
 ## Instantiate a precondition that checks whether a property in the world state is less
 ## than a specified value.
 static func world_state_property_less_than(
-		prop: String,
-		value: Variant,
+	prop: String,
+	value: Variant,
 ) -> Precondition:
-	return _create_property_precondition(Target.WORLD_STATE, prop, Operation.LESS_THAN, value)
+	return _create_property_precondition(
+		PreconditionBuiltin.Target.WORLD_STATE, prop, PreconditionBuiltin.Op.LT, value
+	)
 
 
 ## Instantiate a precondition that checks whether a property in the world state is less
 ## than or equal to a specified value.
 static func world_state_property_leq_than(
-		prop: String,
-		value: Variant,
+	prop: String,
+	value: Variant,
 ) -> Precondition:
 	return _create_property_precondition(
-		Target.WORLD_STATE,
-		prop,
-		Operation.LESS_THAN_OR_EQUAL,
-		value,
+		PreconditionBuiltin.Target.WORLD_STATE, prop, PreconditionBuiltin.Op.LTE, value
 	)
 
 
 ## Instantiate a precondition that checks whether a property in the world state is equal to
 ## a specified value.
 static func world_state_property_equal_to(
-		prop: String,
-		value: Variant,
+	prop: String,
+	value: Variant,
 ) -> Precondition:
-	return _create_property_precondition(Target.WORLD_STATE, prop, Operation.EQUAL, value)
+	return _create_property_precondition(
+		PreconditionBuiltin.Target.WORLD_STATE, prop, PreconditionBuiltin.Op.EQUAL, value
+	)
 
 
-## Check if any of the agent's object data matches a requested group.
+## Check if any object in a group in the world state has a property equal to the given value.
+static func world_object_property_equal_to(
+	group: String,
+	property: String,
+	value: Variant,
+) -> Precondition:
+	return _create_property_precondition(
+		PreconditionBuiltin.Target.WORLD_OBJECT_PROXY,
+		property,
+		PreconditionBuiltin.Op.EQUAL,
+		value,
+		group
+	)
+
+
+## Check if any object in a group in the world state has a property not equal to the given value.
+static func world_object_property_not_equal_to(
+	group: String,
+	property: String,
+	value: Variant,
+) -> Precondition:
+	return _create_property_precondition(
+		PreconditionBuiltin.Target.WORLD_OBJECT_PROXY,
+		property,
+		PreconditionBuiltin.Op.NOT_EQUAL,
+		value,
+		group
+	)
+
+
+## Check if any object in a group in the world state has a property greater than the given value.
+static func world_object_property_greater_than(
+	group: String,
+	property: String,
+	value: Variant,
+) -> Precondition:
+	return _create_property_precondition(
+		PreconditionBuiltin.Target.WORLD_OBJECT_PROXY,
+		property,
+		PreconditionBuiltin.Op.GT,
+		value,
+		group
+	)
+
+
+## Check if any object in a group in the world state has a property greater than or equal to
+## the given value.
+static func world_object_property_geq_than(
+	group: String,
+	property: String,
+	value: Variant,
+) -> Precondition:
+	return _create_property_precondition(
+		PreconditionBuiltin.Target.WORLD_OBJECT_PROXY,
+		property,
+		PreconditionBuiltin.Op.GTE,
+		value,
+		group
+	)
+
+
+## Check if any object in a group in the world state has a property less than the given value.
+static func world_object_property_less_than(
+	group: String,
+	property: String,
+	value: Variant,
+) -> Precondition:
+	return _create_property_precondition(
+		PreconditionBuiltin.Target.WORLD_OBJECT_PROXY,
+		property,
+		PreconditionBuiltin.Op.LT,
+		value,
+		group
+	)
+
+
+## Check if any object in a group in the world state has a property less than or equal to the
+## given value.
+static func world_object_property_leq_than(
+	group: String,
+	property: String,
+	value: Variant,
+) -> Precondition:
+	return _create_property_precondition(
+		PreconditionBuiltin.Target.WORLD_OBJECT_PROXY,
+		property,
+		PreconditionBuiltin.Op.LTE,
+		value,
+		group
+	)
+
+
+## Check if any object in a group in the world state has the specified property.
+static func world_object_has_property(group: String, property: String) -> Precondition:
+	return _create_property_precondition(
+		PreconditionBuiltin.Target.WORLD_OBJECT_PROXY,
+		property,
+		PreconditionBuiltin.Op.HAS_PROPERTY,
+		null,
+		group
+	)
+
+
+## True if the agent owns at least one object data node (such as a [GdPAILocationData]) in
+## [param group], i.e. a simulated proxy for it exists on the agent blackboard.
 static func agent_has_object_data_of_group(group: String) -> Precondition:
-	return Precondition.new(
-		func(
-			blackboard: GdPAIBlackboard,
-			_world_state: GdPAIBlackboard
-		):
-		var objs: Array[GdPAIObjectData] = blackboard.get_objects_in_group(group)
-		return objs.size() > 0
-	)
+	var check: Callable = func(bb: GdPAIBlackboard, _w: GdPAIBlackboard):
+		return bb.get_proxies_in_group(group).size() > 0
+	return PreconditionCustom.new(check)
 
 
-## Check if any of the world state's object data matches a requested group.
+## True if the world state contains at least one object data node in [param group].
 static func world_state_has_object_data_of_group(group: String) -> Precondition:
-	return Precondition.new(
-		func(
-			_blackboard: GdPAIBlackboard,
-			world_state: GdPAIBlackboard
-		):
-		var objs: Array[GdPAIObjectData] = world_state.get_objects_in_group(group)
-		return objs.size() > 0
-	)
+	var check: Callable = func(_b: GdPAIBlackboard, ws: GdPAIBlackboard):
+		return ws.get_proxies_in_group(group).size() > 0
+	return PreconditionCustom.new(check)
 
 
-## Check if a given object is valid.
+## True while [param object] has not been freed. Typical in [method Action.get_validity_checks].
 static func check_is_object_valid(object: Variant) -> Precondition:
-	return Precondition.new(
-		func(
-			_blackboard: GdPAIBlackboard,
-			_world_state: GdPAIBlackboard
-		):
+	var deps: Array[Object] = []
+	if is_instance_valid(object) and object is Object:
+		deps.append(object)
+
+	var check: Callable = func(_b: GdPAIBlackboard, _w: GdPAIBlackboard) -> bool:
 		return is_instance_valid(object)
-	)
-
-
-## Evaluates whether this precondition is satisfied by the given blackboard and world state.
-func evaluate(
-		blackboard: GdPAIBlackboard,
-		world_state: GdPAIBlackboard,
-) -> bool:
-	if is_satisfied:
-		return true
-	is_satisfied = eval_func.call(blackboard, world_state)
-	return is_satisfied
-
-
-## Duplicate this object by creating a new instance and copying over all underlying data.
-func copy_for_simulation() -> Precondition:
-	var duplicate: Precondition = Precondition.new(eval_func)
-	duplicate.is_satisfied = is_satisfied
-	return duplicate
+	return PreconditionCustomWithDeps.new(check, deps)

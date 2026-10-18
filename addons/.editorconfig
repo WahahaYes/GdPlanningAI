@@ -1,0 +1,12 @@
+# Editor configs in nested directories override those in parent directories
+# for the directory in which they are placed.
+#
+# This editor config prevents the code editor from analyzing C# files which
+# belong to addons.
+#
+# Ignoring C# addon scripts is generally preferable, since C# can be coded
+# in a variety of ways that may or may not trigger warnings based on your
+# own editorconfig or IDE settings.
+
+[*.cs]
+generated_code = true

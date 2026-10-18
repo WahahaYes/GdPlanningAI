@@ -1,19 +1,19 @@
 class_name PropertyUpdater
 extends RefCounted
-## Base class for updating agent blackboard properties over time.
-## Extend this class to create custom property update logic.
+## Changes an agent's blackboard over time, outside planning (hunger rising, stamina
+## regenerating). Register it from [method GdPAIBehaviorConfig._populate].
 
 
-## Called every frame to update agent properties.
-## Override this method to implement custom property update logic.
+# Override
+## Called every frame before the agent plans or acts.
 func update_properties(
-		_agent: GdPAIAgent,
-		_delta: float,
+	_agent: GdPAIAgent,
+	_delta: float,
 ) -> void:
 	pass
 
 
-## Called when the property updater is first initialized.
-## Override this method to set up initial property values.
+# Override
+## Sets initial values. Called once when the behavior config is applied.
 func initialize(_agent: GdPAIAgent) -> void:
 	pass

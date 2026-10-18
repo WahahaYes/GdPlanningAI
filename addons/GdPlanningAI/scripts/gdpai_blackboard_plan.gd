@@ -1,15 +1,17 @@
 class_name GdPAIBlackboardPlan
 extends Resource
-## Blackboard Plan allows for defining the start point for an agent blackboard or world state.
+## Starting contents of a blackboard, for an agent ([member GdPAIAgentConfig.blackboard_plan]) or
+## the world ([member GdPAIWorldNode.blackboard_plan]).
 
-## The initial blackboard contents to define.
+## Initial property names and values copied into each generated blackboard.
+## The key [code]GDPAI_OBJECTS[/code] is reserved for the addon.
 @export var blackboard_backend: Dictionary
 
 
-## Generates a Blackboard instance using the dictionary specified by the BlackboardPlan
+## Returns a new [GdPAIBlackboard] holding a deep copy of [member blackboard_backend].
 func generate_blackboard() -> GdPAIBlackboard:
 	var gen_blackboard = GdPAIBlackboard.new()
 	gen_blackboard.set_dict(blackboard_backend.duplicate(true))
-	if GdPAIBlackboard.GDPAI_OBJECTS not in gen_blackboard.get_dict():
-		gen_blackboard._blackboard[GdPAIBlackboard.GDPAI_OBJECTS] = []
+	if not gen_blackboard.has_property("GDPAI_OBJECTS"):
+		gen_blackboard.set_property("GDPAI_OBJECTS", [])
 	return gen_blackboard

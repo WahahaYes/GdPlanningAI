@@ -2,15 +2,17 @@
 # meta-default: true
 extends GdPAIBehaviorConfig
 
-# Add your configurable properties here with @export for serialization.
+## Example configurable parameter.
 @export var example_parameter: float = 1.0
 
 
-# Override _self_init to set up goals and actions after @export values are applied.
-func _self_init() -> void:
-	super()
-	# Configure goals, self_actions, and property_updaters here.
-	# You can pass @export properties to your custom classes.
+# Override
+func _populate(
+	goals: Array[Goal],
+	actions: Array[Action],
+	updaters: Array[PropertyUpdater],
+) -> void:
+	# Append new instances; this runs once per agent, so never reuse objects across calls.
 	goals.append(Goal.new())
-	self_actions.append(Action.new())
-	property_updaters.append(TemplatePropertyUpdater.new(example_parameter))
+	actions.append(Action.new())
+	updaters.append(PropertyUpdater.new())

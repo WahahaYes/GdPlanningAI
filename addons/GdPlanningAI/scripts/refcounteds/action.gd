@@ -1,130 +1,153 @@
 class_name Action
 extends RefCounted
-## This is a base class to extend with actual AI actions.  During planning, actions are simulated
-## instantaneously.  After planning, actions are carried out by the agent in real time.
+## Base class for everything an agent can do. Extend it to write a new action.[br]
+## [b]Declarative hooks[/b] ([code]get_*[/code]) describe the action to the planner; they are read
+## once per plan request.[br]
+## [b]Planning hooks[/b] ([method get_action_cost], [method simulate_effect]) run on simulated
+## blackboards: no scene tree access, no [code]await[/code].[br]
+## [b]Execution hooks[/b] ([code]*_perform_action[/code]) run the chosen plan on the main
+## thread.[br]
+## See [code]docs/AUTHORING_GUIDE.md[/code] for timing rules and [code]examples/objects/[/code]
+## for real actions.
 
-## Return states for actions during true simulation.
-enum Status { FAILURE, RUNNING, SUCCESS }
+## Result of [method pre_perform_action], [method perform_action] and
+## [method post_perform_action].
+enum Status {
+	FAILURE,  ## Abort the plan; the agent replans.
+	RUNNING,  ## Not finished; called again next frame.
+	SUCCESS,  ## Done; the next action starts.
+}
 
-## Counter for allocating new uids.
-static var _uid_counter: int = 0
-
-## A uid is automatically allocated for actions so that they can put unique properties into the
-## blackboards as needed without risk of collisions with other actions.
-var uid: String = _next_uid()
-
-
-## Generates the next available uid
-func _next_uid() -> String:
-		uid = str(_uid_counter)
-		_uid_counter += 1
-		return uid
+## Index of this action in the executing plan, or [code]-1[/code] outside execution. Set by
+## the agent before every execution hook; keys [method set_state] data. The [code]-1[/code]
+## namespace is literal, so unpositioned access never collides with position [code]0[/code].
+var chain_position: int = -1
 
 
-
-## List of static preconditions needed for the action to be considered.  This is
-## evaluated at the time of assigning wordly actions (so, there is no need to grab sim data).
-##[br]
-##[br]
-## For multithreaded planning, it is possible to await information with GdPAIUTILS.await_callv(..).
+## Returns hard gates checked once against the initial state. A failing check drops the action
+## from the search; unlike [method get_preconditions], the planner never tries to satisfy them.
 func get_validity_checks() -> Array[Precondition]:
 	return []
 
 
-## Computes the cost to complete this action.  This is done at simulation time, so if
-## referencing any object tied to the action make sure to first get the simulated version
-## with world_state.get_object_by_uid(<object>.uid).
-##[br]
-##[br]
-## Can assume that validity checks are true at this point, EXCEPT continued references existing in
-## the scene tree.  If a reference is invalid, returning INF tells the planner to skip this action.
-## For multithreaded planning, it is possible to await information with GdPAIUTILS.await_callv(..).
+# Override
+## Returns the cost of this action in the simulated state; [code]INF[/code] rules it out.
 func get_action_cost(
-		_agent_blackboard: GdPAIBlackboard,
-		_world_state: GdPAIBlackboard,
+	_agent_blackboard: GdPAIBlackboard,
+	_world_state: GdPAIBlackboard,
 ) -> float:
 	return 0
 
 
-## Lists the preconditions necessary for this action to be carried out.  This is evaluated
-## during the simulation, so if referencing an object tied to the action make sure to first
-## get the simulated version with world_state.get_object_by_uid(<object>.uid).
-##[br]
-##[br]
-## Can assume that validity checks are true at this point, EXCEPT continued references existing in
-## the scene tree.  If a reference is invalid, returning INF tells the planner to skip this action.
-## For multithreaded planning, it is possible to await information with GdPAIUTILS.await_callv(..).
+## Returns conditions the planner satisfies by chaining earlier actions whose
+## [method simulate_effect] makes them true.
 func get_preconditions() -> Array[Precondition]:
 	return []
 
 
-## Simulates onto the agent's blackboards the change that would occur if this action is taken out.
-## Does not return a value; this modifies the blackboards in-place.  If referencing an object
-## make sure to first get the simulated version with world_state.get_object_by_uid(<object>.uid).
-## This method SHOULD NOT make any changes inside the scene tree.
-##[br]
-##[br]
-## Can assume that any validity checks are already true.
+## Returns symbolic needs matched by name against earlier actions' [method get_provisions],
+## e.g. [code]RequirementSpec.fact("at_target", [location])[/code] pulls in a [GoToAction].
+func get_requirements() -> Array[RequirementSpec]:
+	return []
+
+
+## Returns the facts and bindings this action offers to later actions' requirements.
+func get_provisions() -> Array[ProvisionSpec]:
+	return []
+
+
+# Override
+## Applies this action's effect to the simulated blackboards in place. Must match what
+## [method perform_action] really does: the planner trusts it.
 func simulate_effect(
-		_agent_blackboard: GdPAIBlackboard,
-		_world_state: GdPAIBlackboard,
+	_agent_blackboard: GdPAIBlackboard,
+	_world_state: GdPAIBlackboard,
 ) -> void:
 	pass
 
 
-## In case any attribute is reliant on an earlier step (like knowing WHAT an agent picks up, for
-## example), this function is called on earlier traversals.  This can be useful because the
-## action plan is being decided in reverse order, so at times it is impossible to know exactly
-## what is going to occur from a later action until we simulate earlier actions.  A prime example
-## being <pickup> -> <eat>.  When <eat> is simulated, the agent isn't holding anything so we don't
-## know what would've been eaten.  But after <pickup> is simulated, we can refer back to the agent
-## to figure out the object then determine how many hunger points that food is going to restore.
-func reverse_simulate_effect(
-		_agent_blackboard: GdPAIBlackboard,
-		_world_state: GdPAIBlackboard,
-) -> void:
-	pass
-
-
-## Perform any pre computations for the action.  All actions' pre_perform methods are called at
-## the start of an action chain, regardless of if the plan succeeds or not.  Can return
-## Status.FAILURE to indicate the plan should be aborted.
-##[br]
-##[br]
-## At this point, validity checks true during planning could be false in the real world.
+# Override
+## Called once on every action in a new plan, in order, before the first action runs. Validate
+## the live scene and initialise [method set_state] data; [constant Status.FAILURE] aborts the plan.
 func pre_perform_action(_agent: GdPAIAgent) -> Status:
 	return Status.SUCCESS
 
 
-## Perform the action in the actual simulation.  Can return RUNNING for actions that have a
-## duration.
-##[br]
-##[br]
-## Need to monitor any validity checks that could become false after some time.
+# Override
+## Called every frame while this action is current. Return [constant Status.RUNNING] to continue.
+## Stop anything this action started before returning: [method post_perform_action] only runs when
+## the whole plan ends.
 func perform_action(
-		_agent: GdPAIAgent,
-		_delta: float,
+	_agent: GdPAIAgent,
+	_delta: float,
 ) -> Status:
 	return Status.SUCCESS
 
 
-## Perform any post computations for the action.  Status currently doesn't matter because the plan
-## is already done.  All actions' post_perform methods are called, regardless of if the plan
-## succeeded.  These methods should make sure to safely de-allocate anything created for the action.
+# Override
+## Called on every action in the chain when the plan completes, fails, or is replaced by a
+## newer plan, even ones that never ran. Erase [method set_state] data here; the agent also
+## clears leftover scoped keys afterwards.
 func post_perform_action(_agent: GdPAIAgent) -> Status:
 	return Status.SUCCESS
 
 
-## Generates a String that appends this action's uid to allow for easier blackboard referencing.
-func uid_property(prop: String) -> String:
-	return "%s_%s" % [uid, prop]
+## Stores a per-run value, keyed by this instance and its [member chain_position].
+## Unpositioned ([code]-1[/code]) keys live under [code]"-1"[/code], never position [code]0[/code].
+func set_state(agent: GdPAIAgent, key: String, value: Variant) -> void:
+	agent.blackboard.set_property(_scoped_key(key), value)
 
 
-## Returns a short title for the action.
+## Returns the value stored by [method set_state], or [code]null[/code].
+func get_state(agent: GdPAIAgent, key: String) -> Variant:
+	return agent.blackboard.get_property(_scoped_key(key))
+
+
+## Removes a value stored by [method set_state].
+func erase_state(agent: GdPAIAgent, key: String) -> void:
+	agent.blackboard.erase_property(_scoped_key(key))
+
+
+## Returns [code]true[/code] if [method set_state] stored a value for [param key].
+func has_state(agent: GdPAIAgent, key: String) -> bool:
+	return agent.blackboard.has_property(_scoped_key(key))
+
+
+## Returns the blackboard key for [param key] at the current [member chain_position].
+func _scoped_key(key: String) -> String:
+	return str(get_instance_id()) + "_" + str(chain_position) + "_" + key
+
+
+## Erases every scoped key for this instance at [param pos], regardless of
+## [member chain_position]. Position-scoped, so repeated occurrences of one instance survive.
+func erase_position_state(agent: GdPAIAgent, pos: int) -> void:
+	var prefix: String = str(get_instance_id()) + "_" + str(pos) + "_"
+	for key in agent.blackboard.get_dict().keys():
+		var key_string: String = str(key)
+		if key_string.begins_with(prefix):
+			agent.blackboard.erase_property(key_string)
+
+
+## Erases every scoped key for this instance at all positions, including unpositioned ones.
+func erase_all_state(agent: GdPAIAgent) -> void:
+	var prefix: String = str(get_instance_id()) + "_"
+	for key in agent.blackboard.get_dict().keys():
+		var key_string: String = str(key)
+		if key_string.begins_with(prefix):
+			agent.blackboard.erase_property(key_string)
+
+
+## Returns the instance used for one plan step. Override to return a copy when the action keeps
+## mutable members (as [GoToAction] does); the default shares [code]self[/code].
+func clone_for_plan() -> Action:
+	return self
+
+
+## Returns a short, stable name used in logs and sent to the engine.
 func get_title() -> String:
 	return ""
 
 
-## Returns a description of the action.
+## Returns a longer description for debug output.
 func get_description() -> String:
 	return "Root action."

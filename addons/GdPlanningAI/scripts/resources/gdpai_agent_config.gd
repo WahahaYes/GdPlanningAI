@@ -1,28 +1,31 @@
 class_name GdPAIAgentConfig
 extends Resource
-## Serializable configuration resource for GdPAI agents.
+## Per-agent settings: when it plans, how much search effort it may spend, its starting
+## blackboard and its behaviors. Assign to [member GdPAIAgent.config].
 
-## Planning strategy determines when and how often the agent replans.
 enum PlanningStrategy {
-	CONTINUOUS, ## Plan every frame (current behavior).
-	ON_INTERVAL, ## Plan at fixed time intervals.
-	ON_DEMAND, ## Plan only when explicitly requested.
-	ON_INTERVAL_FORCED, ## Force planning at intervals, even if plan is active.
+	CONTINUOUS,  ## Plan whenever there is no plan.
+	ON_INTERVAL,  ## Every [member planning_interval] seconds, if there is no plan.
+	ON_DEMAND,  ## Only on [method GdPAIAgent.manually_start_plan].
+	ON_INTERVAL_FORCED,  ## Every [member planning_interval] seconds, replacing any plan.
 }
 
-## How the agent should approach planning.
+## When the agent plans.
 @export var planning_strategy: PlanningStrategy = PlanningStrategy.CONTINUOUS
-## @experimental: To support multithreading, your simulation must not directly change the scene
-## tree!
-## Whether this agent should do planning on a separate thread.
-@export var use_multithreading: bool = false
-## Thread priority when using multithreading.
-@export var thread_priority: Thread.Priority = Thread.PRIORITY_LOW
-## Maximum recursion depth for planning.
-@export var max_recursion: int = 4
-## Planning interval in seconds (only used for ON_INTERVAL strategy).
+## Seconds between planning checks for the interval strategies. Each agent starts at a random
+## offset.
 @export var planning_interval: float = 0.5
-## Blackboard plan for the agent.
+## Seconds to wait after a failed plan before planning again on its own; [code]0[/code] retries
+## at once. Idle (empty) plans do not count as failures, and
+## [method GdPAIAgent.manually_start_plan] ignores the wait.
+@export var failure_backoff: float = 0.0
+## Maximum search depth; deeper branches are pruned.
+@export var max_recursion: int = 100
+## Search iterations per step before yielding to a later frame.
+@export var iteration_budget: int = 20000
+## Milliseconds per planning step before yielding; [code]0[/code] disables time-slicing.
+@export var time_slice_ms: int = 10
+## Starting contents of the agent's blackboard.
 @export var blackboard_plan: GdPAIBlackboardPlan = GdPAIBlackboardPlan.new()
-## Behavior configurations that provide goals, actions, and property updaters.
+## Behaviors supplying the agent's goals, actions and updaters.
 @export var behavior_configs: Array[GdPAIBehaviorConfig] = []
