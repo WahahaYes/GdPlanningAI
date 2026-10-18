@@ -17,7 +17,6 @@ mono_crash.*.json
 
 # General ignores
 .DS_Store
-.omo/
 
 # IDE ignores
 .vscode/
@@ -25,16 +24,10 @@ mono_crash.*.json
 # Ignore third-party addons managed by godot-env
 addons/gut/
 addons/GdTimeMachine
-addons/godot_ai/
 .addons/
 
 # GdTimeMachine captures
 media/captures/
-
-# OpenCode MCP settings
-opencode.json
-opencode.jsonc
-.opencode/
 
 # Logs and generated output
 *.log
