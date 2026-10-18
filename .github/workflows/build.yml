@@ -194,7 +194,6 @@ jobs:
           done
           # precommit never skips: skipped there means a broken workflow.
           [ "${{ needs.precommit.result }}" = success ] || fail=1
-          [ = success ] || fail=1
           exit $fail
 
   # Main seeds the caches PRs read; drop everything else once main is built.
