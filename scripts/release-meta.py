@@ -2,7 +2,9 @@
 """Release metadata shared by scripts/release.sh and the release workflow.
 
   release-meta.py version       print the version in addons/GdPlanningAI/plugin.cfg
-  release-meta.py check X.Y.Z   exit 1 unless plugin.cfg carries X.Y.Z
+  release-meta.py check X.Y.Z   exit 1 unless plugin.cfg, the Rust crate's Cargo.toml and
+                                its Cargo.lock entry all carry X.Y.Z
+  release-meta.py bump X.Y.Z    set X.Y.Z in those three files
   release-meta.py notes X.Y.Z   print the CHANGELOG.md section for X.Y.Z;
                                 exit 1 when there is none
   release-meta.py changelog X.Y.Z DATE [NOTES_FILE]
@@ -17,8 +19,9 @@
                                 CHANGELOG.md is written into addon source or
                                 docs, where a bump would leave it behind
 
-plugin.cfg is the one release version. The Rust crate's version stays 0.0.0:
-it is not a release version, so a release never touches Cargo.toml.
+One version, three files: plugin.cfg is the source, and the Rust crate carries the same
+version so the built library can report it (GdPAIPlanScheduler.get_engine_version) and the
+autoload can warn about a stale binary.
 """
 
 import os
@@ -50,13 +53,41 @@ def plugin_version():
     return m.group(1) if m else ""
 
 
+CARGO_TOML = ROOT / "addons/GdPlanningAI/rust/Cargo.toml"
+CARGO_LOCK = ROOT / "addons/GdPlanningAI/rust/Cargo.lock"
+# (path, pattern whose group 1 is the text before the version, group 2 the version)
+VERSION_FILES = [
+    (PLUGIN_CFG, r'(^version=")([^"]*)(")'),
+    (CARGO_TOML, r'(^version = ")([^"]*)(")'),
+    (CARGO_LOCK, r'(name = "gdplanningai-rust"\nversion = ")([^"]*)(")'),
+]
+
+
 def check(ver):
-    if plugin_version() != ver:
+    bad = []
+    for path, pattern in VERSION_FILES:
+        m = re.search(pattern, path.read_text(), re.MULTILINE)
+        if not m or m.group(2) != ver:
+            bad.append(path)
+    for path in bad:
         print(
-            f"release-meta: addons/GdPlanningAI/plugin.cfg is not at {ver}",
-            file=sys.stderr,
+            f"release-meta: {path.relative_to(ROOT)} is not at {ver}", file=sys.stderr
         )
-        return 1
+    return 1 if bad else 0
+
+
+def bump(ver):
+    for path, pattern in VERSION_FILES:
+        text, n = re.subn(
+            pattern, rf"\g<1>{ver}\g<3>", path.read_text(), count=1, flags=re.MULTILINE
+        )
+        if n != 1:
+            print(
+                f"release-meta: no version found in {path.relative_to(ROOT)}",
+                file=sys.stderr,
+            )
+            return 1
+        path.write_text(text)
     return 0
 
 
@@ -147,6 +178,7 @@ if __name__ == "__main__":
     cmds = {
         "version": (lambda: print(plugin_version()) or 0, 0, 0),
         "check": (check, 1, 1),
+        "bump": (bump, 1, 1),
         "notes": (notes, 1, 1),
         "changelog": (changelog, 2, 3),
         "stale": (stale, 0, 0),

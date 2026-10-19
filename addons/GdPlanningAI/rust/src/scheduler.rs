@@ -532,6 +532,13 @@ impl GdPAIPlanScheduler {
 
     /// Sets log verbosity: 0 errors, 1 warnings, 2 info (default), 3 debug. Debug also records
     /// search trees for jobs started afterwards.
+    /// Version of this Rust library, the same as the addon's `plugin.cfg` version in a matching
+    /// build. The autoload warns when they differ (a stale or foreign binary).
+    #[func]
+    fn get_engine_version(&self) -> String {
+        env!("CARGO_PKG_VERSION").to_string()
+    }
+
     #[func]
     fn set_log_level(&self, level: i64) {
         let log_level = crate::logger::LogLevel::from_u8(level.clamp(0, 3) as u8);

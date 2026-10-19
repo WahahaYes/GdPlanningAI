@@ -4,7 +4,8 @@
 #
 #   release.sh X.Y.Z [--notes-file FILE] [--no-push]
 #       1. Cut (or update) branch release-X.Y.Z from origin/main in a scratch
-#          worktree: set plugin.cfg's version to X.Y.Z, turn CHANGELOG.md's
+#          worktree: set the version in plugin.cfg and the Rust crate
+#          (Cargo.toml, Cargo.lock) to X.Y.Z, turn CHANGELOG.md's
 #          Unreleased section into X.Y.Z (FILE replaces it instead), commit
 #          "release X.Y.Z", push, open the release PR.
 #       2. Wait for the PR's required checks, then merge it.
@@ -27,7 +28,7 @@ ROOT=$(cd -- "$(dirname -- "$0")/.." && pwd -P)
 CFG=addons/GdPlanningAI/plugin.cfg
 BASE=${RELEASE_BASE:-origin/main}
 
-usage() { sed -n '2,23p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+usage() { sed -n "2,24p" "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 die() { printf 'release: %s\n' "$1" >&2; exit 1; }
 say() { printf 'release: %s\n' "$1"; }
 need() { command -v "$1" >/dev/null 2>&1 || die "missing required tool: $1"; }
@@ -88,15 +89,14 @@ open_pr() {
     # This script's own release-meta.py, run against the worktree.
     meta() { RELEASE_ROOT="$WT" uv run --no-project "$ROOT/scripts/release-meta.py" "$@"; }
 
-    sed -i.bak 's/^version="[^"]*"/version="'"$VER"'"/' "$WT/$CFG"
-    rm -f "${WT:?}/$CFG.bak"
-    meta check "$VER" || die "$CFG not bumped to $VER"
+    meta bump "$VER" || die "could not bump the version files to $VER"
+    meta check "$VER" || die "version files not at $VER"
     meta changelog "$VER" "$(date +%Y-%m-%d)" ${NOTES_FILE:+"$NOTES_FILE"} \
         || die "no CHANGELOG notes for $VER"
     meta stale \
         || die "a version is hardcoded outside plugin.cfg; read it from the build instead"
 
-    git -C "$WT" add "$CFG" CHANGELOG.md
+    git -C "$WT" add "$CFG" addons/GdPlanningAI/rust/Cargo.toml addons/GdPlanningAI/rust/Cargo.lock CHANGELOG.md
     git -C "$WT" diff --cached --quiet || git -C "$WT" commit --quiet -m "release $VER"
     HEAD_SHA=$(git -C "$WT" rev-parse HEAD)
     if [ "$PUSH" = 0 ]; then
