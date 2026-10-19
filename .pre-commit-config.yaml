@@ -100,6 +100,15 @@ repos:
         require_serial: true
         pass_filenames: false
 
+  # Built libraries stay out of git: devs build them, releases ship them in the zip.
+  - repo: local
+    hooks:
+      - id: no-built-binaries
+        name: no built Rust libraries in git
+        entry: built libraries are not committed; build them locally (make -C addons/GdPlanningAI/rust build-release)
+        language: fail
+        files: ^addons/GdPlanningAI/bin/.*\.(so|dll|dylib)$
+
   # Documentation drift check (README/LICENSE between root and addon)
   - repo: local
     hooks:
