@@ -196,7 +196,7 @@ Every target sets `RUSTFLAGS` with `--remap-path-prefix`, so the committed binar
 
 Release binaries are built by CI (`build.yml`): Linux and macOS (universal, `lipo` of aarch64 and x86_64) on their runners, Windows natively with MSVC. The release workflow packages those fresh builds into `GdPlanningAI-X.Y.Z.zip`; the binaries committed under `bin/` are not checked or refreshed, and can lag the Rust sources.
 
-**Local development:** after any Rust change, or when your platform's committed binary is out of date, rebuild it with `make -C addons/GdPlanningAI/rust build-release` before running the GDScript tests or the editor. Do not commit the result; CI builds the committed binaries.
+**Local development:** the binaries committed under `bin/` are stale, and there is no macOS one. Build the library for your platform with `make -C addons/GdPlanningAI/rust build-release` before running the editor or the GDScript tests, and again after any Rust change or pull. A mismatched library shows up as a startup warning and as a failing `test_engine_version`. Do not commit the result; CI builds the release binaries.
 
 ______________________________________________________________________
 

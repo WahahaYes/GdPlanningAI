@@ -2,6 +2,7 @@
 
 ## Running
 
+1. From the GitHub source, build the Rust library for your platform once: `make -C addons/GdPlanningAI/rust build-release` (see the main README). A release zip already has it.
 1. Open this project in Godot 4.x and enable the addon (Project → Project Settings → Plugins → "GdPlanningAI").
 1. Open any `.tscn` at the `examples/` root and press **Play Scene** (F6). The project has no main scene, so F5 does nothing.
 
