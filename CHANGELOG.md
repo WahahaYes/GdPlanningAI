@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Built libraries are no longer in the repository.** The Linux and Windows libraries that used to sit under `addons/GdPlanningAI/bin` are gone, and a pre-commit hook and CI reject new ones. Releases carry working binaries in `GdPlanningAI-X.Y.Z.zip`; anyone using the GitHub source builds the library for their platform with `make -C addons/GdPlanningAI/rust build-release`.
+
 ## 0.3.0 - 2026-10-18
 
 - **The planner is written in Rust.** Searches run on background threads, off the main thread; agents, goals and actions are still written in GDScript. The addon now needs its native library, so a release ships `GdPlanningAI-X.Y.Z.zip` with Linux, Windows and macOS (universal) binaries in `addons/GdPlanningAI/bin`. GitHub's own source archives hold Git LFS pointers instead of binaries, so install from the zip. [docs/ALGORITHM.md](docs/ALGORITHM.md) explains how a plan is found.
