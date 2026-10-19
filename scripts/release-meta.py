@@ -149,7 +149,8 @@ def changelog(ver, date, notes_file=None):
         first = re.search(r"^## ", text, re.MULTILINE)
         at = first.start() if first else len(text)
         text = text[:at] + "## Unreleased\n\n" + text[at:]
-    CHANGELOG.write_text(text)
+    # One trailing newline, which the end-of-file hook wants.
+    CHANGELOG.write_text(text.rstrip("\n") + "\n")
     return 0
 
 
