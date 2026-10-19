@@ -33,7 +33,7 @@ Release versions are available on the Godot asset library at [https://godotengin
 
 **Release zip.** Each release attaches `GdPlanningAI-X.Y.Z.zip` on the [releases page](https://github.com/WahahaYes/GdPlanningAI/releases): the addon with its Rust library built for Linux, Windows and macOS. GitHub's own source archives do not hold working binaries, so install from the zip.
 
-**From the GitHub source.** The Rust library in `addons/GdPlanningAI/bin` is not kept current and has no macOS build, so build it for your platform first: install Rust (the version is pinned in `addons/GdPlanningAI/rust/rust-toolchain.toml`) and run `make -C addons/GdPlanningAI/rust build-release`. Rebuild after pulling Rust changes; the addon warns at startup when the library's version differs from `plugin.cfg`.
+**From the GitHub source.** The Rust library is not in the repository (built libraries are never committed), so build it for your platform first: install Rust (the version is pinned in `addons/GdPlanningAI/rust/rust-toolchain.toml`) and run `make -C addons/GdPlanningAI/rust build-release`. Rebuild after pulling Rust changes; the addon warns at startup when the library's version differs from `plugin.cfg`.
 
 **Script Templates**
 

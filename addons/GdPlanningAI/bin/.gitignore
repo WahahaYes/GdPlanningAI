@@ -1,2 +1,8 @@
 # Ignore temporary files starting with ~
 **/~*
+
+# Built libraries are never committed: build them (make -C addons/GdPlanningAI/rust
+# build-release) or take them from a release zip.
+*.so
+*.dll
+*.dylib

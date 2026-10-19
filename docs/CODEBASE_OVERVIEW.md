@@ -188,15 +188,15 @@ Prefer `make` targets over ad hoc commands. Two Makefiles exist.
 | `format`, `format-check`, `lint` | rustfmt (rewrite, check), clippy with warnings denied.                                                                                        |
 | `clean`, `doc`                   | Cargo clean and `cargo doc`.                                                                                                                  |
 
-Every target sets `RUSTFLAGS` with `--remap-path-prefix`, so the committed binaries carry no local paths and are identical from any checkout. Build through these targets; a plain `cargo` call without the flags rebuilds everything.
+Every target sets `RUSTFLAGS` with `--remap-path-prefix`, so the built binaries carry no local paths. Build through these targets; a plain `cargo` call without the flags rebuilds everything.
 
 ### Build artifact flow
 
-`make build-release` produces the shared library for the current OS and copies it into `addons/GdPlanningAI/bin/<platform>/`. `gdplanningai.gdextension` loads the platform-appropriate file at runtime (`.so` on Linux, `.dll` on Windows, `.dylib` on macOS). Binaries under `bin/` are tracked with Git LFS.
+`make build-release` produces the shared library for the current OS and copies it into `addons/GdPlanningAI/bin/<platform>/`. `gdplanningai.gdextension` loads the platform-appropriate file at runtime (`.so` on Linux, `.dll` on Windows, `.dylib` on macOS). Built libraries are never committed: `bin/` ignores them, a pre-commit hook rejects them, and CI runs that hook over every file.
 
 Release binaries are built by CI (`build.yml`): Linux and macOS (universal, `lipo` of aarch64 and x86_64) on their runners, Windows natively with MSVC. The release workflow packages those fresh builds into `GdPlanningAI-X.Y.Z.zip`; the binaries committed under `bin/` are not checked or refreshed, and can lag the Rust sources.
 
-**Local development:** the binaries committed under `bin/` are stale, and there is no macOS one. Build the library for your platform with `make -C addons/GdPlanningAI/rust build-release` before running the editor or the GDScript tests, and again after any Rust change or pull. A mismatched library shows up as a startup warning and as a failing `test_engine_version`. Do not commit the result; CI builds the release binaries.
+**Local development:** there is no committed library, so build it for your platform with `make -C addons/GdPlanningAI/rust build-release` before running the editor or the GDScript tests, and again after any Rust change or pull. A mismatched library shows up as a startup warning and as a failing `test_engine_version`. Do not commit the result; CI builds the release binaries.
 
 ______________________________________________________________________
 
