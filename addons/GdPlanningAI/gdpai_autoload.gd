@@ -17,6 +17,7 @@ func _ready() -> void:
 	_scheduler.name = "GdPAIPlanScheduler"
 	add_child(_scheduler)
 	_apply_log_level()
+	_check_engine_version()
 	if EngineDebugger.is_active():
 		EngineDebugger.send_message("gdplanningai:clear_state", [])
 
@@ -44,3 +45,24 @@ func _apply_log_level() -> void:
 	var level: int = config.get_value("configuration", "log_level", 2)
 	_scheduler.set_log_level(level)
 	print("GdPlanningAI: log level set to %d" % level)
+
+
+## Warns when the Rust library's version differs from the addon's [code]plugin.cfg[/code] version,
+## which means a stale or mismatched binary: rebuild it with
+## [code]make -C addons/GdPlanningAI/rust build-release[/code] or reinstall the addon.
+func _check_engine_version() -> void:
+	var config: ConfigFile = ConfigFile.new()
+	if config.load("res://addons/GdPlanningAI/plugin.cfg") != OK:
+		return
+	var addon_version: String = config.get_value("plugin", "version", "")
+	var engine_version: String = _scheduler.get_engine_version()
+	if addon_version != "" and engine_version != addon_version:
+		push_warning(
+			(
+				(
+					"GdPlanningAI: the Rust library is version %s but plugin.cfg says %s; "
+					+ "rebuild it or reinstall the addon."
+				)
+				% [engine_version, addon_version]
+			)
+		)
