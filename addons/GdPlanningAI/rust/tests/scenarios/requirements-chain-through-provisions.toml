@@ -39,3 +39,31 @@ actions = [
 ]
 goals = [{ name = "satisfy_hunger", reward = 10.0, want = [{ agent = "hunger", op = "<", value = 30 }] }]
 expect = { plan = ["pickup_food", "eat"] }
+
+# The agent already holds an item, so eating needs no pickup. The scheduler derives initial
+# provisions from agent properties, so the fixture states both.
+[[case]]
+name = "initial_provision_satisfies_requirement"
+agent = { hunger = 80, held_item = { object = 101 } }
+provisions = [{ binding = "held_item", value = { object = 101 } }]
+actions = [
+  { name = "pickup", cost = 5.0, provides = [{ binding = "held_item", value = { object = 101 } }] },
+  { name = "eat", cost = 5.0, effect = { add = { hunger = -60 } }, requires = [{ binding_exists = "held_item" }] },
+]
+goals = [{ name = "satisfy_hunger", reward = 10.0, want = [{ agent = "hunger", op = "<", value = 30 }] }]
+expect = { plan = ["eat"], cost = 5.0 }
+
+# A concrete fact provision meets an identical fact requirement and binds its args; here the
+# pickup also tags the item as food, as the Inventory to Consumption pattern does.
+[[case]]
+name = "fact_provision_satisfies_identical_requirement"
+agent = { hunger = 80 }
+actions = [
+  { name = "pickup", cost = 5.0, provides = [{ fact = "is_food", args = [{ object = 101 }] }] },
+  { name = "eat", cost = 5.0, effect = { add = { hunger = -60 } }, requires = [{ fact = "is_food", args = [{ object = 101 }] }] },
+]
+goals = [{ name = "satisfy_hunger", reward = 10.0, want = [{ agent = "hunger", op = "<", value = 30 }] }]
+
+[case.expect]
+plan = ["pickup", "eat"]
+bindings = [{ at = 0, name = "is_food", values = [{ object = 101 }] }]

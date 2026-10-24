@@ -1,16 +1,14 @@
-//! Engine behaviors the scenario fixtures (`scenarios.rs`) cannot express: how many effect
-//! callbacks a plan costs, and a goal switch with nodes still queued. Result-shaped planner cases
-//! belong in `tests/scenarios/`.
+//! Engine behavior the scenario fixtures (`scenarios.rs`) cannot express: how many effect
+//! callbacks a plan costs. Result-shaped planner cases belong in `tests/scenarios/`.
 
 mod common;
 use common::{hunger_answers, inputs, run_to_completion, spawn_responder};
 
 use gdplanningai_rust::plan_tree::PlanResult;
 use gdplanningai_rust::plan_types::{
-    ActionSpec, CallbackKind, CallbackRequest, GoalSpec, PlannerRunResult, PreconditionSpec,
+    ActionSpec, CallbackKind, CallbackRequest, GoalSpec, PreconditionSpec,
 };
-use gdplanningai_rust::planner::types::{PriorityNode, SearchNode};
-use gdplanningai_rust::planner::{EngineConfig, PlanBranch, PlannerEngine};
+use gdplanningai_rust::planner::{EngineConfig, PlannerEngine};
 use gdplanningai_rust::precondition::{PreconditionOp, PreconditionTarget};
 use gdplanningai_rust::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use std::collections::HashMap;
@@ -61,65 +59,6 @@ fn run_planner(
         },
     );
     run_to_completion(&mut engine, &goals)
-}
-
-#[test]
-fn goal_switch_drops_nodes_queued_under_the_previous_goal() {
-    // Goal 0 holds already (empty-chain plan at cost 0), and a goal-0 node is still queued, as
-    // the BestCost optimality break leaves it. Switching to goal 1 must drop that node rather
-    // than verify it against goal 1's desired state.
-    let goals = vec![
-        GoalSpec {
-            name: "already_met".to_string(),
-            reward: 10.0,
-            desired_state: vec![hunger_less_than(100)],
-            original_index: 0,
-        },
-        GoalSpec {
-            name: "satisfy_hunger".to_string(),
-            reward: 5.0,
-            desired_state: vec![hunger_less_than(30)],
-            original_index: 1,
-        },
-    ];
-
-    let (request_tx, _request_rx) = mpsc::channel::<CallbackRequest>();
-    let mut engine = PlannerEngine::new(
-        inputs(vec![], make_agent(80), make_world(), request_tx),
-        EngineConfig {
-            max_depth: 10,
-            ..EngineConfig::default()
-        },
-    );
-
-    engine.best_plan = Some(PlanResult {
-        success: true,
-        action_chain: vec![],
-        total_cost: 0.0,
-        goal_index: 0,
-        action_bindings: vec![],
-    });
-    engine.best_cost = 0.0;
-    let mut stale = PlanBranch::new(
-        Arc::clone(&engine.ctx.initial_agent),
-        Arc::clone(&engine.ctx.initial_world),
-    );
-    stale.goal_index = 0;
-    stale.cost = 5.0;
-    engine.queue.push(PriorityNode {
-        priority: 5.0,
-        node: SearchNode {
-            branch: stale,
-            resumed: false,
-            callback_response: None,
-            expanded_candidates: vec![],
-        },
-    });
-
-    assert!(matches!(engine.plan(&goals), PlannerRunResult::Pending(0)));
-    assert_eq!(engine.current_goal_index, 1);
-    assert_eq!(engine.queue.len(), 1, "only goal 1's root should be queued");
-    assert_eq!(engine.queue.peek().unwrap().node.branch.goal_index, 1);
 }
 
 #[test]

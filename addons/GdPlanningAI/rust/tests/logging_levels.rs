@@ -3,18 +3,20 @@
 //! the full `PLANNER SEARCH TREE` dump.
 
 mod common;
-use common::{hunger_answers, inputs, run_to_completion, spawn_responder};
+use common::{
+    create_sim_object, create_test_world, hunger_answers, inputs, run_to_completion,
+    spawn_responder,
+};
 
 use gdplanningai_rust::debug_tree::TreeDump;
 use gdplanningai_rust::logger::{LogLevel, get_log_level, init_log_channel, set_log_level};
 use gdplanningai_rust::plan_tree::PlanResult;
-use gdplanningai_rust::plan_types::{ActionSpec, CallbackRequest, GoalSpec, PreconditionSpec};
+use gdplanningai_rust::plan_types::{ActionSpec, GoalSpec, PreconditionSpec};
 use gdplanningai_rust::planner::{EngineConfig, PlannerEngine};
 use gdplanningai_rust::precondition::{PreconditionOp, PreconditionTarget};
-use gdplanningai_rust::scheduler::StallNoticeThrottle;
+use gdplanningai_rust::requirement::{ProvisionSpec, RequirementSpec};
 use gdplanningai_rust::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use std::collections::HashMap;
-use std::sync::mpsc;
 
 /// Serializes tests that mutate the process-global log level, since cargo
 /// runs tests in one binary on multiple threads sharing that state.
@@ -142,73 +144,82 @@ fn debug_reenables_full_tree_detail() {
     assert!(outcome.summary.contains("Branches: "));
 }
 
+/// A plan rejected in verification names the failed requirement on its tree node.
 #[test]
 fn verification_requirement_failure_is_recorded_on_tree() {
-    use gdplanningai_rust::planner::simulation::StepResult;
-    use gdplanningai_rust::planner::types::{BranchState, PlanBranch};
-    use gdplanningai_rust::requirement::RequirementSpec;
-
     let _guard = LEVEL_LOCK.lock().unwrap();
     init_log_channel();
     let previous = get_log_level();
     set_log_level(LogLevel::Debug);
 
-    let agent = make_agent(80);
-    let world = BlackboardSnapshot {
-        properties: HashMap::new(),
-        objects: HashMap::new(),
-    };
-    let action = ActionSpec {
-        name: "carry".to_string(),
+    // Go To provides at_target for any object while planning, but its effect never moves the
+    // agent, so replaying the plan finds the agent away from the target.
+    let mut agent = make_agent(80);
+    agent.objects.insert(
+        "agent_location".to_string(),
+        create_sim_object(
+            "agent_location",
+            vec!["GdPAILocationData"],
+            vec![("position", VariantSnapshot::Int(0))],
+        ),
+    );
+    let world = create_test_world(
+        vec![],
+        vec![(
+            "100",
+            create_sim_object("100", vec![], vec![("position", VariantSnapshot::Int(5))]),
+        )],
+    );
+    let action = |name: &str| ActionSpec {
+        name: name.to_string(),
         cost_callable_id: None,
         effect_callable_id: None,
         preconditions: vec![],
         validity_checks: vec![],
-        requirements: vec![RequirementSpec::BindingExists {
-            binding_name: "held_item".to_string(),
-        }],
+        requirements: vec![],
         provisions: vec![],
         dependent_object_ids: vec![],
     };
-    let (req_tx, _) = mpsc::channel::<CallbackRequest>();
+    let mut go_to = action("go_to");
+    go_to.provisions = vec![ProvisionSpec::FactWildcard {
+        fact_name: "at_target".to_string(),
+    }];
+    let mut eat = action("eat");
+    eat.effect_callable_id = Some(0);
+    eat.requirements = vec![RequirementSpec::Fact {
+        fact_name: "at_target".to_string(),
+        args: vec![VariantSnapshot::ObjectRef(100)],
+    }];
+    let goals = vec![GoalSpec {
+        name: "satisfy_hunger".to_string(),
+        reward: 10.0,
+        desired_state: vec![PreconditionSpec::Builtin {
+            target: PreconditionTarget::Agent,
+            operation: PreconditionOp::LessThan,
+            property_name: "hunger".to_string(),
+            value: Some(VariantSnapshot::Int(30)),
+        }],
+        original_index: 0,
+    }];
     let mut engine = PlannerEngine::new(
-        inputs(vec![action], agent.clone(), world.clone(), req_tx),
-        EngineConfig {
-            max_depth: 10,
-            ..EngineConfig::default()
-        },
+        inputs(
+            vec![go_to, eat],
+            agent,
+            world,
+            spawn_responder(hunger_answers(5.0, 60)),
+        ),
+        EngineConfig::default(),
     );
-    engine.tree.begin_goal("carry_goal", 1.0, &[]);
-    let root = engine.tree.add_root(&[], &[]);
-
-    let mut branch = PlanBranch::new(agent.clone().into(), world.clone().into());
-    branch.action_chain = vec![0];
-    branch.state = BranchState::Verifying;
-    branch.tree_node_id = root;
-    let result = engine.simulate_and_advance(&mut branch, 0, &[], None);
-
-    assert!(
-        matches!(result, StepResult::Invalid),
-        "unbound requirement must fail verification"
-    );
+    let plan = run_to_completion(&mut engine, &goals).expect("search completes");
     let dump = engine.debug_tree().format();
+    set_log_level(previous);
+
+    assert!(!plan.success, "the agent never reaches the target");
     assert!(
-        dump.contains("FWD [FAIL]") && dump.contains("held_item"),
+        dump.contains("FWD [FAIL]") && dump.contains("at_target"),
         "failed requirement must be attributed on the tree node, got:\n{}",
         dump
     );
-
-    set_log_level(previous);
-}
-
-#[test]
-fn stall_notice_logs_once_per_pending_id() {
-    let mut throttle = StallNoticeThrottle::default();
-    assert!(throttle.should_log(3));
-    assert!(!throttle.should_log(3));
-    assert!(throttle.should_log(4));
-    throttle.reset();
-    assert!(throttle.should_log(4));
 }
 
 #[test]

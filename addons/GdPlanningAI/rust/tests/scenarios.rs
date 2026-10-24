@@ -35,6 +35,8 @@ struct Case {
     #[serde(default)]
     agent: toml::Table,
     #[serde(default)]
+    agent_objects: Vec<Object>,
+    #[serde(default)]
     world: toml::Table,
     #[serde(default)]
     objects: Vec<Object>,
@@ -459,7 +461,7 @@ fn run(case: &Case) -> Result<(), String> {
     let mut engine = PlannerEngine::new(
         EngineInputs {
             actions,
-            agent: snapshot(&case.agent, &[])?,
+            agent: snapshot(&case.agent, &case.agent_objects)?,
             world: snapshot(&case.world, &case.objects)?,
             initial_provisions: case
                 .provisions

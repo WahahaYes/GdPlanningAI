@@ -61,7 +61,7 @@ struct ActiveJobHandle {
 
 /// Logs the "NOT resuming" stall notice once per pending id instead of every frame.
 #[derive(Default)]
-pub struct StallNoticeThrottle {
+pub(crate) struct StallNoticeThrottle {
     last_logged_id: Option<usize>,
 }
 
@@ -537,7 +537,9 @@ impl GdPAIPlanScheduler {
 /// world snapshot, so dropping a large one takes up to ~1.5 s. Doing that inline
 /// in `process_callbacks` stalled the game frame. A plain thread keeps the cost off
 /// both the main thread and the planning pool.
-pub fn drop_in_background<T: Send + 'static>(items: Vec<T>) -> Option<std::thread::JoinHandle<()>> {
+pub(crate) fn drop_in_background<T: Send + 'static>(
+    items: Vec<T>,
+) -> Option<std::thread::JoinHandle<()>> {
     if items.is_empty() {
         return None;
     }
@@ -902,9 +904,11 @@ fn result_to_dict(result: &PlanResult) -> VarDictionary {
     dict
 }
 
+// The scheduler is a Godot class: these test the helpers behind it, which Rust tests cannot
+// reach through Godot.
 #[cfg(test)]
 mod tests {
-    use super::StallNoticeThrottle;
+    use super::{StallNoticeThrottle, drop_in_background};
     use crate::plan_types::PreconditionSpec;
     use crate::precondition::{PreconditionOp, PreconditionTarget};
     use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
@@ -990,5 +994,35 @@ mod tests {
             dependent_object_ids: vec![],
         };
         assert_eq!(custom.evaluate_builtin(&agent, &world), None);
+    }
+
+    /// Reports the thread it is dropped on.
+    struct DropProbe(std::sync::mpsc::Sender<std::thread::ThreadId>);
+
+    impl Drop for DropProbe {
+        fn drop(&mut self) {
+            let _ = self.0.send(std::thread::current().id());
+        }
+    }
+
+    /// Finished engines are freed off the calling (main) thread.
+    #[test]
+    fn drops_items_on_another_thread() {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let handle = drop_in_background(vec![DropProbe(tx.clone()), DropProbe(tx)])
+            .expect("non-empty input spawns a thread");
+        handle.join().unwrap();
+        let caller = std::thread::current().id();
+        let dropped_on: Vec<std::thread::ThreadId> = rx.try_iter().collect();
+        assert_eq!(dropped_on.len(), 2, "every item is dropped");
+        assert!(
+            dropped_on.iter().all(|id| *id != caller),
+            "never on the caller's thread"
+        );
+    }
+
+    #[test]
+    fn empty_input_spawns_nothing() {
+        assert!(drop_in_background(Vec::<u8>::new()).is_none());
     }
 }
