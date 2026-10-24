@@ -28,6 +28,10 @@ test-rust: ## Run Rust tests only (propagates cargo test exit code)
 test-rust-verbose: ## Run Rust tests with cargo's full output and exit code (CI)
 	"$(MAKE)" -C addons/GdPlanningAI/rust test-verbose
 
+.PHONY: coverage
+coverage: ## Rust test coverage report (install the pinned tool with make -C addons/GdPlanningAI/rust coverage-tools)
+	"$(MAKE)" -C addons/GdPlanningAI/rust coverage
+
 .PHONY: test-verbose
 test-verbose: test-rust-verbose test-godot-verbose ## Run both suites with full output (CI); stops at the first failing suite
 

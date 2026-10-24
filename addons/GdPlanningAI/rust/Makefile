@@ -86,6 +86,29 @@ test: ## Run unit tests (full log capture; CARGO-TEST-OK/FAILED verdict; propaga
 test-verbose: ## Run unit tests with cargo's full output; propagates the exit code (CI)
 	cargo test
 
+CARGO_LLVM_COV_VERSION := 0.9.1
+COVERAGE_DIR := $(TARGET_DIR)/llvm-cov
+# Coverage builds live in their own target dir, so dropping the remap flags rebuilds nothing
+# else; the report needs real paths to find the sources. Test files are not counted.
+coverage coverage-tools: RUSTFLAGS :=
+COVERAGE_IGNORE := --ignore-filename-regex '/tests/'
+
+.PHONY: coverage-tools
+coverage-tools: ## Install the pinned cargo-llvm-cov and llvm-tools-preview
+	@rustup component add llvm-tools-preview
+	@cargo install cargo-llvm-cov --version $(CARGO_LLVM_COV_VERSION) --locked
+
+.PHONY: coverage
+coverage: ## Rust test coverage: per-file summary, HTML in target/llvm-cov/html, LCOV in target/llvm-cov/lcov.info
+	@cargo llvm-cov --version 2>/dev/null | grep -qx "cargo-llvm-cov $(CARGO_LLVM_COV_VERSION)" || \
+		{ echo "cargo-llvm-cov $(CARGO_LLVM_COV_VERSION) not installed: run make coverage-tools"; exit 1; }
+	@cargo llvm-cov clean --workspace
+	@cargo llvm-cov --no-report --quiet
+	@cargo llvm-cov report --html --output-dir $(COVERAGE_DIR) $(COVERAGE_IGNORE)
+	@cargo llvm-cov report --lcov --output-path $(COVERAGE_DIR)/lcov.info $(COVERAGE_IGNORE)
+	@cargo llvm-cov report --summary-only $(COVERAGE_IGNORE)
+	@echo "HTML report: $(COVERAGE_DIR)/html/index.html"
+
 .PHONY: format
 format: ## Format code using rustfmt
 	@rustup component add rustfmt 2>&1 | grep -E "(error|Error)" || true
