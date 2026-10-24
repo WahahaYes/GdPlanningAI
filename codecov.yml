@@ -1,5 +1,6 @@
-# Coverage is a signal, never a gate: no status blocks a merge. Flags come from build.yml's
-# coverage job (rust-tests, behavioral); carryforward keeps a flag when a PR skips the job.
+# Coverage is a signal, never a gate: no status blocks a merge. Flags come from build.yml:
+# rust-tests from the rust job, behavioral from the godot Linux leg. Carryforward keeps a flag
+# when a PR skips that job (only docs or only Rust changed).
 coverage:
   status:
     project:

@@ -26,8 +26,10 @@ MAC_DYLIB := libgdplanningai_rust.dylib
 CARGO_LLVM_COV_VERSION := 0.9.1
 COVERAGE_DIR := $(TARGET_DIR)/llvm-cov
 COVERAGE_IGNORE := --ignore-filename-regex '/tests/'
-coverage: RUSTFLAGS :=
-coverage-behavioral: RUSTFLAGS :=
+# An instrumented Godot run writes default_*.profraw into its working directory, the project root.
+COVERAGE_TOOL_CHECK = cargo llvm-cov --version 2>/dev/null | grep -qx "cargo-llvm-cov $(CARGO_LLVM_COV_VERSION)" || \
+	{ echo "cargo-llvm-cov $(CARGO_LLVM_COV_VERSION) not installed: run make setup"; exit 1; }
+coverage build-instrumented coverage-behavioral-report: RUSTFLAGS :=
 
 ##@ Setup
 
@@ -105,55 +107,41 @@ test-verbose: ## Run unit tests with cargo's full output; propagates the exit co
 	cargo test
 
 .PHONY: coverage
-coverage: ## Rust test coverage: per-file summary, HTML in target/llvm-cov/html, LCOV in target/llvm-cov/lcov.info
-	@cargo llvm-cov --version 2>/dev/null | grep -qx "cargo-llvm-cov $(CARGO_LLVM_COV_VERSION)" || \
-		{ echo "cargo-llvm-cov $(CARGO_LLVM_COV_VERSION) not installed: run make setup"; exit 1; }
+coverage: ## Run the Rust tests instrumented (CI's Rust test step): summary, HTML and LCOV in target/llvm-cov
+	@$(COVERAGE_TOOL_CHECK)
 	@cargo llvm-cov clean --workspace
-	@cargo llvm-cov --no-report --quiet
+	@cargo llvm-cov --no-report
 	@cargo llvm-cov report --html --output-dir $(COVERAGE_DIR) $(COVERAGE_IGNORE)
 	@cargo llvm-cov report --lcov --output-path $(COVERAGE_DIR)/lcov.info $(COVERAGE_IGNORE)
 	@cargo llvm-cov report --summary-only $(COVERAGE_IGNORE)
 	@echo "HTML report: $(COVERAGE_DIR)/html/index.html"
 
-# cargo-llvm-cov's environment makes the plain release build instrumented, so it replaces
-# target/release and the library in ../bin; build-release puts the normal one back.
-.PHONY: coverage-behavioral
-coverage-behavioral: ## Rust coverage of the GUT and e2e suites (Linux): LCOV in target/llvm-cov/lcov-behavioral.info
-	@cargo llvm-cov --version 2>/dev/null | grep -qx "cargo-llvm-cov $(CARGO_LLVM_COV_VERSION)" || \
-		{ echo "cargo-llvm-cov $(CARGO_LLVM_COV_VERSION) not installed: run make setup"; exit 1; }
-	@[ "$$(uname -s)" = Linux ] || { echo "coverage-behavioral runs on Linux only"; exit 1; }
-	@rm -f $(TARGET_DIR)/*.profraw $(TARGET_DIR)/*.profdata $(TARGET_DIR)/rust-profraw-list
+# The behavioral flag: the GUT and e2e suites against an instrumented library (Linux). CI runs
+# build-instrumented, the suites, then coverage-behavioral-report; coverage-behavioral does all of
+# it locally. cargo-llvm-cov's environment makes the plain release build instrumented, so it
+# replaces target/release and the library in ../bin until the next build-release.
+.PHONY: build-instrumented
+build-instrumented: ## Build the instrumented library into ../bin/linux (for coverage-behavioral-report)
+	@$(COVERAGE_TOOL_CHECK)
+	@[ "$$(uname -s)" = Linux ] || { echo "behavioral coverage runs on Linux only"; exit 1; }
+	@rm -f $(TARGET_DIR)/*.profraw $(TARGET_DIR)/*.profdata $(TARGET_DIR)/rust-profraw-list \
+		$(ROOT_DIR)/default_*.profraw
 	@eval "$$(cargo llvm-cov show-env --sh)" && \
 		cargo build --release --lib --quiet --message-format=short && \
-		mkdir -p $(BIN_DIR)/linux && cp $(TARGET_DIR)/release/*.so $(BIN_DIR)/linux/ && \
-		(cd $(ROOT_DIR) && godot --headless --import > /dev/null && $(MAKE) test-godot && $(MAKE) test-e2e) && \
-		mkdir -p $(COVERAGE_DIR) && \
+		mkdir -p $(BIN_DIR)/linux && cp $(TARGET_DIR)/release/*.so $(BIN_DIR)/linux/
+	@echo "Instrumented library in $(BIN_DIR)/linux: make build-release puts the normal one back"
+
+.PHONY: coverage-behavioral-report
+coverage-behavioral-report: ## Report what the Godot runs since build-instrumented covered: LCOV in target/llvm-cov/lcov-behavioral.info
+	@$(COVERAGE_TOOL_CHECK)
+	@ls $(ROOT_DIR)/default_*.profraw > /dev/null 2>&1 || { echo "no Godot profiles: run the suites after build-instrumented"; exit 1; }
+	@mv $(ROOT_DIR)/default_*.profraw $(TARGET_DIR)/
+	@mkdir -p $(COVERAGE_DIR)
+	@eval "$$(cargo llvm-cov show-env --sh)" && \
 		cargo llvm-cov report --release --lcov --output-path $(COVERAGE_DIR)/lcov-behavioral.info $(COVERAGE_IGNORE) && \
 		cargo llvm-cov report --release --summary-only $(COVERAGE_IGNORE)
-	@echo "Instrumented library left in $(BIN_DIR)/linux: run make build-release before playing or testing"
 
-.PHONY: format
-format: ## Format code using rustfmt
-	@cargo fmt
-
-.PHONY: format-check
-format-check: ## Check formatting with rustfmt (no rewrite)
-	@cargo fmt --check
-
-.PHONY: lint
-lint: ## Run clippy; warnings fail
-	@cargo clippy --all-targets --message-format=short -- -D warnings
-
-.PHONY: clean
-clean: ## Clean build artifacts
-	@cargo clean 2>&1 | grep -E "(error|Error)" || true
-
-.PHONY: doc
-doc: ## Generate documentation
-	cargo doc --open
-
-##@ Help
-
-.PHONY: help
-help: ## Show this help message
-	@awk 'BEGIN {FS = ":.*?## "}; /^##@ / {printf "\n\033[1m%s\033[0m\n", substr($$0, 5)}; /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+.PHONY: coverage-behavioral
+coverage-behavioral: build-instrumented ## Behavioral coverage in one go: instrumented build, GUT, e2e, report
+	@cd $(ROOT_DIR) && godot --headless --import > /dev/null && $(MAKE) test-godot && $(MAKE) test-e2e
+	@$(MAKE) coverage-behavioral-report

@@ -35,3 +35,6 @@ media/captures/
 # Python
 __pycache__/
 .godot-bin/
+
+# Profiles from an instrumented Godot run (make -C addons/GdPlanningAI/rust coverage-behavioral)
+default_*.profraw
