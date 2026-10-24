@@ -3,6 +3,7 @@ SHELL := /bin/bash
 # Directory paths
 RUST_DIR = .
 BIN_DIR = ../bin
+ROOT_DIR = ../../..
 TARGET_DIR = $(RUST_DIR)/target
 
 # Keep local paths out of the committed binaries, so builds match across checkouts. Every
@@ -26,6 +27,7 @@ CARGO_LLVM_COV_VERSION := 0.9.1
 COVERAGE_DIR := $(TARGET_DIR)/llvm-cov
 COVERAGE_IGNORE := --ignore-filename-regex '/tests/'
 coverage: RUSTFLAGS :=
+coverage-behavioral: RUSTFLAGS :=
 
 ##@ Setup
 
@@ -112,6 +114,23 @@ coverage: ## Rust test coverage: per-file summary, HTML in target/llvm-cov/html,
 	@cargo llvm-cov report --lcov --output-path $(COVERAGE_DIR)/lcov.info $(COVERAGE_IGNORE)
 	@cargo llvm-cov report --summary-only $(COVERAGE_IGNORE)
 	@echo "HTML report: $(COVERAGE_DIR)/html/index.html"
+
+# cargo-llvm-cov's environment makes the plain release build instrumented, so it replaces
+# target/release and the library in ../bin; build-release puts the normal one back.
+.PHONY: coverage-behavioral
+coverage-behavioral: ## Rust coverage of the GUT and e2e suites (Linux): LCOV in target/llvm-cov/lcov-behavioral.info
+	@cargo llvm-cov --version 2>/dev/null | grep -qx "cargo-llvm-cov $(CARGO_LLVM_COV_VERSION)" || \
+		{ echo "cargo-llvm-cov $(CARGO_LLVM_COV_VERSION) not installed: run make setup"; exit 1; }
+	@[ "$$(uname -s)" = Linux ] || { echo "coverage-behavioral runs on Linux only"; exit 1; }
+	@rm -f $(TARGET_DIR)/*.profraw $(TARGET_DIR)/*.profdata $(TARGET_DIR)/rust-profraw-list
+	@eval "$$(cargo llvm-cov show-env --sh)" && \
+		cargo build --release --lib --quiet --message-format=short && \
+		mkdir -p $(BIN_DIR)/linux && cp $(TARGET_DIR)/release/*.so $(BIN_DIR)/linux/ && \
+		(cd $(ROOT_DIR) && godot --headless --import > /dev/null && $(MAKE) test-godot && $(MAKE) test-e2e) && \
+		mkdir -p $(COVERAGE_DIR) && \
+		cargo llvm-cov report --release --lcov --output-path $(COVERAGE_DIR)/lcov-behavioral.info $(COVERAGE_IGNORE) && \
+		cargo llvm-cov report --release --summary-only $(COVERAGE_IGNORE)
+	@echo "Instrumented library left in $(BIN_DIR)/linux: run make build-release before playing or testing"
 
 .PHONY: format
 format: ## Format code using rustfmt
