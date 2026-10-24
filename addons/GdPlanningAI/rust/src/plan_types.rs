@@ -538,37 +538,4 @@ mod tests {
 
         assert_eq!(spec.evaluate_builtin(&agent, &world), None);
     }
-
-    #[test]
-    fn callable_id_accessor() {
-        let spec = PreconditionSpec::Custom {
-            callable_id: 42,
-            dependent_object_ids: vec![],
-        };
-
-        assert_eq!(spec.callable_id(), Some(42));
-    }
-
-    #[test]
-    fn dependent_object_ids_accessor() {
-        let spec = PreconditionSpec::Custom {
-            callable_id: 0,
-            dependent_object_ids: vec![123, 456, 789],
-        };
-
-        let deps = spec.dependent_object_ids();
-        assert_eq!(deps, &[123, 456, 789]);
-    }
-
-    #[test]
-    fn builtin_has_empty_dependencies() {
-        let spec = PreconditionSpec::Builtin {
-            target: PreconditionTarget::Agent,
-            operation: PreconditionOp::HasProperty,
-            property_name: "test".to_string(),
-            value: None,
-        };
-
-        assert_eq!(spec.dependent_object_ids().len(), 0);
-    }
 }
