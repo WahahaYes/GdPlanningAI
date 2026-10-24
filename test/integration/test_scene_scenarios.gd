@@ -1,7 +1,7 @@
 extends "res://test/shared/scene_smoke_base.gd"
 ## Example scenes as data: one parameterized test runs every case in [constant CASES_PATH]
-## (format in its header) and reports it as [code]<slug>::<scene>.<case>[/code]. Long cases run
-## only when [code]GDPAI_LONG_SCENES=1[/code] ([code]make test-scenes-long[/code]).
+## (format in its header) and reports it as [code]<slug>::<scene>.<case>[/code]. End-to-end
+## cases run only when [code]GDPAI_E2E=1[/code] ([code]make test-e2e[/code]).
 
 const CASES_PATH: String = "res://test/scenarios/scenes.cfg"
 
@@ -25,13 +25,13 @@ func test_scene_scenario(case_id: String = use_parameters(_case_names())) -> voi
 			fail_test("%s: unknown mode %s" % [case_id, mode])
 
 
-## Case names to run: the long ones only when asked for.
+## Case names to run: the end-to-end ones only when asked for.
 func _case_names() -> Array:
 	var cases: ConfigFile = _cases()
-	var long: bool = OS.get_environment("GDPAI_LONG_SCENES") == "1"
+	var e2e: bool = OS.get_environment("GDPAI_E2E") == "1"
 	var names: Array = []
 	for section in cases.get_sections():
-		if cases.get_value(section, "long", false) == long:
+		if cases.get_value(section, "e2e", false) == e2e:
 			names.append("%s::%s" % [cases.get_value(section, "slug"), section])
 	return names
 
