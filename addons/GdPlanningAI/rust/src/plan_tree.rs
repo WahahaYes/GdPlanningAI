@@ -1,4 +1,4 @@
-//! The plan result type shared between the planner and the scheduler.
+//! The plan result type shared by the planner and the scheduler.
 //!
 //! [`PlanResult`] is produced on a planner thread by
 //! [`crate::planner::PlannerEngine`] and converted to a GDScript dictionary by the scheduler
