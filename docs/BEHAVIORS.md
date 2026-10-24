@@ -1,6 +1,6 @@
 # Behaviors
 
-What GdPlanningAI users rely on, one entry per behavior. Each entry has a slug, a scenario, and the tests that prove it; planner cases are fixtures in `addons/GdPlanningAI/rust/tests/scenarios/<slug>.toml`. Every test proves one entry. A unit test that names none must test an algorithmic kernel and say why.
+What GdPlanningAI users rely on, one entry per behavior. Each entry has a slug, a scenario, and the tests that prove it; planner cases are fixtures in `addons/GdPlanningAI/rust/tests/scenarios/<slug>.toml`, example scenes are cases in `test/scenarios/scenes.cfg`. Every test proves one entry. A unit test that names none must test an algorithmic kernel and say why.
 
 A bug fix adds a case to the test of the behavior it broke. If no entry fits, add the entry first.
 
@@ -114,9 +114,9 @@ Unit tier: the built-in precondition evaluator is an algorithmic kernel.
 
 ### `example-agents-live`
 
-**Scenario:** Given an example scene, when it runs headless, then it loads and settles, the hunger agent eats, the campfire agent fuels its fire and eats a cooked potato, and agents in the large scene pair up on their home fires.
+**Scenario:** Given an example scene, when it runs headless, then it loads and settles, the hunger agent eats, the campfire agent fuels its fire and eats a cooked potato, agents in the large scene pair up on their home fires, and in the long runs every agent finishes plans, nobody starves and every fire keeps burning.
 
-**Proved by:** `test/integration/test_example_loops_live.gd`, `test/integration/test_hunger_example_smoke.gd`, `test/integration/test_campfire_example_smoke.gd`, `test/integration/test_campfire_3d_scene.gd`, `test/integration/test_campfire_large_3d.gd`
+**Proved by:** `test/scenarios/scenes.cfg`, `test/integration/test_example_scenes.gd`
 
 ### `example-goals-step-up`
 
@@ -128,7 +128,7 @@ Unit tier: the built-in precondition evaluator is an algorithmic kernel.
 
 **Scenario:** Given a 3D example scene, when it runs, then the camera rig cycles agents and shows its controls, single-agent scenes omit switching, and a burnt-out flame is hidden.
 
-**Proved by:** `test/integration/test_campfire_3d_scene.gd`, `test/integration/test_campfire_large_3d.gd`, `test/integration/test_campfire_flame_3d.gd`, `test/integration/test_agent_showcase_3d.gd`
+**Proved by:** `test/integration/test_example_scenes.gd`, `test/integration/test_campfire_flame_3d.gd`, `test/scenarios/scenes.cfg`
 
 ## Tooling
 

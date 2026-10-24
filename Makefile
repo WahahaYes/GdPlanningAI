@@ -91,6 +91,16 @@ test-godot-verbose: ## Run the GUT suite with its full output and a real exit co
 	[ $$OK -eq 1 ] && echo "GUT-SUITE-OK ($$PASS passing)"; \
 	[ $$OK -eq 1 ]
 
+.PHONY: test-scenes-long
+test-scenes-long: ## Run the long example-scene cases (long=true in test/scenarios/scenes.cfg), one after another; minutes each
+	@LOG=$$(mktemp /tmp/gut-scenes-long.XXXXXX); \
+	GDPAI_LONG_SCENES=1 godot --headless -s --path . addons/gut/gut_cmdln.gd -gselect=test_scene_scenarios -gexit 2>&1 | tee $$LOG; \
+	STATUS=$${PIPESTATUS[0]}; \
+	if [ $$STATUS -ne 0 ] || grep -qE "SCRIPT ERROR|^Failing Tests" $$LOG; then \
+		echo "SCENES-LONG-FAILED: see $$LOG"; exit 1; \
+	fi; \
+	echo "SCENES-LONG-OK"
+
 .PHONY: test-godot-pipe-output
 test-godot-pipe-output: ## Run Godot integration tests with full output to file
 	@echo "Running tests with full output to test_output.log..."

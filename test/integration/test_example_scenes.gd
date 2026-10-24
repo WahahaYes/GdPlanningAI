@@ -1,22 +1,20 @@
 extends "res://test/shared/scene_smoke_base.gd"
-## Large campfire variant loads and settles without errors.
+## Example scene checks that need a look inside the scene; the data-driven cases live in
+## res://test/scenarios/scenes.cfg.
 
+const CAMPFIRE_3D_SCENE: PackedScene = preload("res://examples/campfire_3d.tscn")
 const LARGE_SCENE: PackedScene = preload("res://examples/campfire_large_3d.tscn")
+const SHOWCASE_SCENE: PackedScene = preload("res://examples/agent_showcase_3d.tscn")
 
 
-## The scene instantiates with its world, fires, and scattered agents present.
-func test_large_campfire_loads_and_settles() -> void:
-	var scene: Node3D = LARGE_SCENE.instantiate() as Node3D
+## With a single agent the guide leaves out the agent-switching line.
+func test_single_agent_guide_omits_switching() -> void:
+	var scene: Node3D = CAMPFIRE_3D_SCENE.instantiate() as Node3D
 	await _settle_example(scene)
-	assert_not_null(scene.get_node_or_null("GdPAIWorldNode"), "Scene should keep its world node")
-	assert_gt(
-		scene.find_children("*", "CampfireObject", true, false).size(),
-		0,
-		"Scene should keep its campfires"
-	)
-	assert_gt(
-		scene.find_children("*", "GdPAIAgent", true, false).size(), 0, "Scene should keep agents"
-	)
+	var rig: Node3D = scene.find_child("CameraRig", true, false) as Node3D
+	var guide: Label = rig.get_node("ControlsGuide").get_child(0) as Label
+	assert_string_contains(guide.text, "R: reset view")
+	assert_false(guide.text.contains("Tab"), "One agent: no switching controls")
 
 
 ## Tab cycling walks every agent in order and wraps; the guide names the followed agent.
@@ -64,3 +62,12 @@ func test_agents_pair_up_on_home_campfires() -> void:
 			if campfire.is_in_group(group):
 				homes += 1
 		assert_eq(homes, 1, "%s should hold exactly one campfire" % group)
+
+
+## The showcase's rig camera stays the active camera.
+func test_showcase_camera_stays_active() -> void:
+	var scene: Node3D = SHOWCASE_SCENE.instantiate() as Node3D
+	await _settle_example(scene)
+	var camera: Camera3D = scene.get_node_or_null("CameraRig/SpringArm3D/Camera3D") as Camera3D
+	assert_not_null(camera, "Scene should keep its rig camera")
+	assert_true(camera.current, "Rig camera should stay active")
