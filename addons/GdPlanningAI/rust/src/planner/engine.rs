@@ -996,14 +996,8 @@ impl PlannerEngine {
     fn record_verified_plan(&mut self, branch: &PlanBranch) {
         debug_assert!(branch.open_preconditions.is_empty() && branch.open_requirements.is_empty());
         if branch.cost < self.best_cost {
-            self.tree.set_outcome(
-                branch.tree_node_id,
-                NodeOutcome::Complete {
-                    chain_len: branch.action_chain.len(),
-                    total_cost: branch.cost,
-                    fwd_ok: true,
-                },
-            );
+            self.tree
+                .set_outcome(branch.tree_node_id, NodeOutcome::Complete);
             self.best_cost = branch.cost;
             self.best_plan = Some(PlanResult {
                 success: true,

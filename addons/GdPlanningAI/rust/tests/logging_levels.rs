@@ -1,5 +1,5 @@
-//! Log-level behavior: at [`LogLevel::Info`] plans complete and [`TreeDump::summary`] reports
-//! branch counts without recording a tree; at [`LogLevel::Debug`] [`TreeDump::format`] produces
+//! `search-is-debuggable`: at [`LogLevel::Info`] plans complete and `TreeDump::summary` reports
+//! branch counts without recording a tree; at [`LogLevel::Debug`] `TreeDump::format` produces
 //! the full `PLANNER SEARCH TREE` dump.
 
 mod common;
@@ -8,7 +8,6 @@ use common::{
     spawn_responder,
 };
 
-use gdplanningai_rust::debug_tree::TreeDump;
 use gdplanningai_rust::logger::{LogLevel, get_log_level, init_log_channel, set_log_level};
 use gdplanningai_rust::plan_tree::PlanResult;
 use gdplanningai_rust::plan_types::{ActionSpec, GoalSpec, PreconditionSpec};
@@ -38,9 +37,11 @@ struct PlanOutcome {
     tree_dump: String,
 }
 
-/// Runs the single-action eat plan at `level` and captures tree state.
+/// Runs the eat plan at `level` and captures tree state. The higher-reward goal, hunger below 0,
+/// is out of reach (one eat leaves 20), so the search tries it and falls back to the second, for
+/// which eat and snack are equal alternatives.
 /// The level is set immediately before engine construction (which is when
-/// [`TreeDump`] reads it), and restored to the previous value afterwards.
+/// `TreeDump` reads it), and restored to the previous value afterwards.
 fn run_eat_plan_at_level(level: LogLevel) -> PlanOutcome {
     init_log_channel();
     let previous = get_log_level();
@@ -58,8 +59,8 @@ fn run_eat_plan() -> PlanOutcome {
         properties: HashMap::new(),
         objects: HashMap::new(),
     };
-    let actions = vec![ActionSpec {
-        name: "eat".to_string(),
+    let food = |name: &str| ActionSpec {
+        name: name.to_string(),
         cost_callable_id: Some(0),
         effect_callable_id: Some(0),
         preconditions: vec![],
@@ -67,18 +68,30 @@ fn run_eat_plan() -> PlanOutcome {
         requirements: vec![],
         provisions: vec![],
         dependent_object_ids: vec![],
-    }];
-    let goals = vec![GoalSpec {
-        name: "satisfy_hunger".to_string(),
-        reward: 10.0,
-        desired_state: vec![PreconditionSpec::Builtin {
+    };
+    let actions = vec![food("eat"), food("snack")];
+    let hunger_below = |threshold: i64| {
+        vec![PreconditionSpec::Builtin {
             target: PreconditionTarget::Agent,
             operation: PreconditionOp::LessThan,
             property_name: "hunger".to_string(),
-            value: Some(VariantSnapshot::Int(30)),
-        }],
-        original_index: 0,
-    }];
+            value: Some(VariantSnapshot::Int(threshold)),
+        }]
+    };
+    let goals = vec![
+        GoalSpec {
+            name: "never_hungry".to_string(),
+            reward: 20.0,
+            desired_state: hunger_below(0),
+            original_index: 0,
+        },
+        GoalSpec {
+            name: "satisfy_hunger".to_string(),
+            reward: 10.0,
+            desired_state: hunger_below(30),
+            original_index: 1,
+        },
+    ];
 
     let mut engine = PlannerEngine::new(
         inputs(
@@ -128,19 +141,31 @@ fn info_completes_plan_with_summary_but_no_tree() {
     );
 }
 
+/// The Debug tree shows each goal tried, its result and the actions tried for it.
 #[test]
-fn debug_reenables_full_tree_detail() {
+fn debug_records_each_goal_and_the_actions_tried() {
     let _guard = LEVEL_LOCK.lock().unwrap();
     let outcome = run_eat_plan_at_level(LogLevel::Debug);
 
     let plan = outcome.plan.expect("plan should complete at Debug");
     assert!(plan.success);
+    assert_eq!(plan.goal_index, 1);
 
     assert!(outcome.tree_enabled, "tree recording must resume at Debug");
+    let dump = &outcome.tree_dump;
+    let failed = dump.find("never_hungry").expect("first goal in the tree");
+    let succeeded = dump
+        .find("satisfy_hunger")
+        .expect("second goal in the tree");
+    assert!(failed < succeeded, "goals in the order tried:\n{dump}");
     assert!(
-        outcome.tree_dump.contains("PLANNER SEARCH TREE"),
-        "Debug must re-enable the full tree dump"
+        dump[failed..succeeded].contains("FAILURE — no plan found"),
+        "{dump}"
     );
+    assert!(dump[succeeded..].contains("SUCCESS"), "{dump}");
+    assert!(dump[succeeded..].contains("Try 'eat'"), "{dump}");
+    assert!(dump[succeeded..].contains("Try 'snack'"), "{dump}");
+    assert!(dump.contains("PLANNER SEARCH TREE"));
     assert!(outcome.summary.contains("Branches: "));
 }
 
@@ -216,41 +241,8 @@ fn verification_requirement_failure_is_recorded_on_tree() {
 
     assert!(!plan.success, "the agent never reaches the target");
     assert!(
-        dump.contains("FWD [FAIL]") && dump.contains("at_target"),
+        dump.contains("FWD [FAIL]") && dump.contains("at_target") && dump.contains("PRUNED"),
         "failed requirement must be attributed on the tree node, got:\n{}",
         dump
     );
-}
-
-#[test]
-fn disabled_tree_still_counts_branches_for_summary() {
-    let _guard = LEVEL_LOCK.lock().unwrap();
-    init_log_channel();
-    let previous = get_log_level();
-    set_log_level(LogLevel::Info);
-
-    let mut dump = TreeDump::new();
-    assert!(!dump.is_enabled());
-    dump.begin_goal("g", 1.0, &[]);
-    let root = dump.add_root(&[], &[]);
-    dump.add_child(
-        root,
-        gdplanningai_rust::debug_tree::ChildNodeConfig {
-            action_name: "a",
-            estimated_cost: 1.0,
-            accumulated_cost: 1.0,
-            open_pre: &[],
-            open_req: &[],
-            satisfied_pre: &[],
-            satisfied_req: &[],
-        },
-    );
-    assert!(dump.format().is_empty());
-    assert!(
-        dump.summary().contains("Branches: 2"),
-        "got: {}",
-        dump.summary()
-    );
-
-    set_log_level(previous);
 }

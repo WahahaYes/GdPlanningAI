@@ -136,7 +136,7 @@ Unit tier: the built-in precondition evaluator is an algorithmic kernel.
 
 **Scenario:** Given the default log level (Info), when a plan completes, then one `RESULT` line summarizes it; at Debug the full search tree is recorded for `get_debug_tree`, with the failing need on each rejected node, and a stalled search is noted once per callback.
 
-**Proved by:** `addons/GdPlanningAI/rust/tests/logging_levels.rs`, `addons/GdPlanningAI/rust/tests/debug_tree_test.rs`, `test/unit/test_log_level_config.gd`
+**Proved by:** `addons/GdPlanningAI/rust/tests/logging_levels.rs`, `addons/GdPlanningAI/rust/src/scheduler.rs` (stall notice), `test/unit/test_log_level_config.gd`
 
 ### `engine-matches-addon`
 
