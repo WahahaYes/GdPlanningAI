@@ -97,22 +97,6 @@ impl PreconditionSpec {
         }
     }
 
-    /// Returns the callable ID if this is a `Custom` variant.
-    pub fn callable_id(&self) -> Option<usize> {
-        match self {
-            Self::Custom { callable_id, .. } => Some(*callable_id),
-            _ => None,
-        }
-    }
-
-    /// Returns the property name if this is a `Builtin` variant.
-    pub fn property_name(&self) -> Option<&str> {
-        match self {
-            Self::Builtin { property_name, .. } => Some(property_name.as_str()),
-            _ => None,
-        }
-    }
-
     /// Returns the dependent object IDs if this is a `Custom` variant.
     pub fn dependent_object_ids(&self) -> &[i64] {
         match self {

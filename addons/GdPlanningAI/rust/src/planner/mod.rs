@@ -28,9 +28,6 @@ pub trait SearchHeuristic: Send + Sync {
     /// Returns true if a node with `node_priority` cannot beat `best_cost`. Under
     /// [`TerminationStrategy::BestCost`] the first such pop ends the search.
     fn prune_threshold_met(&self, node_priority: f64, best_cost: f64) -> bool;
-
-    /// Human-readable name for debugging.
-    fn name(&self) -> &'static str;
 }
 
 /// Dijkstra / uniform-cost heuristic: priority is exact path cost (g).
@@ -44,33 +41,6 @@ impl SearchHeuristic for DijkstraHeuristic {
 
     fn prune_threshold_met(&self, node_priority: f64, best_cost: f64) -> bool {
         node_priority >= best_cost
-    }
-
-    fn name(&self) -> &'static str {
-        "Dijkstra"
-    }
-}
-
-/// A* heuristic placeholder.
-///
-/// Currently falls back to Dijkstra behaviour (h = 0) until an admissible
-/// heuristic for open-precondition / open-requirement estimation is
-/// implemented.
-pub struct AStarHeuristic;
-
-impl SearchHeuristic for AStarHeuristic {
-    fn compute_priority(&self, node: &SearchNode) -> f64 {
-        // TODO: add admissible heuristic estimate of remaining cost.
-        // For now, h = 0 so this behaves identically to Dijkstra.
-        node.branch.cost
-    }
-
-    fn prune_threshold_met(&self, node_priority: f64, best_cost: f64) -> bool {
-        node_priority >= best_cost
-    }
-
-    fn name(&self) -> &'static str {
-        "A* (h=0 placeholder)"
     }
 }
 
