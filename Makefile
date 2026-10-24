@@ -142,6 +142,10 @@ lint-godot: ## Lint tracked GDScript files with gdlint (gdtoolkit defaults)
 
 ##@ Documentation
 
+.PHONY: check-behaviors
+check-behaviors: ## Check that docs/BEHAVIORS.md and the test files point at each other
+	@uv run scripts/check_behaviors.py
+
 .PHONY: check-docs
 check-docs: ## Check consistency of README and LICENSE between root and addon directory
 	@echo "Checking documentation consistency..."
