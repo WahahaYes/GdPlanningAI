@@ -21,3 +21,15 @@ actions = [
 ]
 goals = [{ name = "finish", reward = 10.0, want = [{ agent = "goal_met", op = "==", value = true }] }]
 expect = { plan = ["quick"], cost = 1.0 }
+
+# The cheaper plan is the longer one: direct meets the goal for 10, get_food then light_fire for 2.
+[[case]]
+name = "cheaper_longer_chain_beats_an_expensive_direct_action"
+agent = { has_food = false, has_fire = false }
+actions = [
+  { name = "direct", cost = 10.0, effect = { set = { has_food = true, has_fire = true } } },
+  { name = "get_food", cost = 1.0, effect = { set = { has_food = true } } },
+  { name = "light_fire", cost = 1.0, effect = { set = { has_fire = true } } },
+]
+goals = [{ name = "meal", reward = 100.0, want = [{ agent = "has_food", op = "==", value = true }, { agent = "has_fire", op = "==", value = true }] }]
+expect = { cost = 2.0 }

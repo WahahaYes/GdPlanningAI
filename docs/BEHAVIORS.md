@@ -28,7 +28,7 @@ A bug fix adds a case to the test of the behavior it broke. If no entry fits, ad
 
 **Scenario:** Given several chains that meet a goal, when the agent plans, then it gets the one with the lowest total cost, even if it is longer.
 
-**Proved by:** `addons/GdPlanningAI/rust/tests/scenarios/cheapest-plan-wins.toml`, `test/integration/test_async_planner.gd`, `test/integration/test_requirements_provisions.gd`
+**Proved by:** `addons/GdPlanningAI/rust/tests/scenarios/cheapest-plan-wins.toml`
 
 ### `goals-by-priority`
 
@@ -48,7 +48,7 @@ A bug fix adds a case to the test of the behavior it broke. If no entry fits, ad
 
 **Scenario:** Given a candidate chain, when the planner replays it from the starting state, then the chain is rejected if any action's preconditions or requirements fail in the state just before it, including a need an earlier step met and a later step undid.
 
-**Proved by:** `addons/GdPlanningAI/rust/tests/scenarios/plans-verified-forward.toml`, `test/integration/test_requirements_provisions.gd`
+**Proved by:** `addons/GdPlanningAI/rust/tests/scenarios/plans-verified-forward.toml`
 
 ### `custom-preconditions-decide`
 
@@ -70,7 +70,7 @@ Unit tier: the built-in precondition evaluator is an algorithmic kernel.
 
 **Scenario:** Given agents submitting plans, when the scheduler runs, then each search runs on a worker thread in slices bounded by `iteration_budget` and `time_slice_ms`, a cancelled or superseded search stops without delivering a result, and finished engines are freed off the main thread.
 
-**Proved by:** `addons/GdPlanningAI/rust/tests/time_slice.rs`, `addons/GdPlanningAI/rust/tests/cancellation.rs`, `addons/GdPlanningAI/rust/tests/drop_in_background.rs`, `test/integration/test_async_planner.gd`
+**Proved by:** `addons/GdPlanningAI/rust/tests/time_slice.rs`, `addons/GdPlanningAI/rust/tests/cancellation.rs`, `addons/GdPlanningAI/rust/src/scheduler.rs`, `test/integration/test_async_planner.gd`
 
 ### `simulations-run-once`
 

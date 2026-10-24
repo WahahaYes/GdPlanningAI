@@ -67,3 +67,20 @@ goals = [{ name = "satisfy_hunger", reward = 10.0, want = [{ agent = "hunger", o
 [case.expect]
 plan = ["pickup", "eat"]
 bindings = [{ at = 0, name = "is_food", values = [{ object = 101 }] }]
+
+# One wildcard go_to serves two different at_target needs. Each copy goes right before the action
+# that needs it, not at the front of the chain.
+[[case]]
+name = "each_go_to_runs_right_before_its_consumer"
+agent = { held_item = "", dropped = false }
+objects = [{ uid = "100", properties = { position = 1 } }, { uid = "200", properties = { position = 2 } }]
+actions = [
+  { name = "use", cost = 1.0, effect = { set = { dropped = true, held_item = "" } }, requires = [{ binding_equals = "held_item", value = "wood" }, { fact = "at_target", args = [{ object = 200 }] }] },
+  { name = "pickup", cost = 1.0, effect = { set = { held_item = "wood" } }, requires = [{ fact = "at_target", args = [{ object = 100 }] }], provides = [{ binding = "held_item", value = "wood" }] },
+  { name = "go_to", cost = 5.0, effect = { set = { at_location = true } }, provides = [{ fact_wildcard = "at_target" }] },
+]
+goals = [{ name = "dropped", reward = 100.0, want = [{ agent = "dropped", op = "==", value = true }] }]
+
+[case.expect]
+plan = ["go_to", "pickup", "go_to", "use"]
+bindings = [{ at = 0, name = "at_target", values = [{ object = 100 }] }, { at = 2, name = "at_target", values = [{ object = 200 }] }]
