@@ -70,7 +70,7 @@ Module map of `rust/src/`:
 | Module                  | Role                                                                                                                                   |
 | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `lib.rs`                | Crate root, module declarations, GDExtension entry.                                                                                    |
-| `planner/mod.rs`        | `SearchHeuristic` trait, Dijkstra/A\* heuristics, `TerminationStrategy`.                                                               |
+| `planner/mod.rs`        | Public surface (`PlannerEngine`, `EngineInputs`, `EngineConfig`, `TerminationStrategy`); the Dijkstra priority.                        |
 | `planner/engine.rs`     | `PlannerEngine`, the search state machine (`step_search`, `process_simulation`).                                                       |
 | `planner/expander.rs`   | Candidate discovery (`find_candidates`, `lookup_or_start_discovery`).                                                                  |
 | `planner/simulation.rs` | `StepResult`/`SimResult`, `eval_precondition`, `simulate_action`.                                                                      |
@@ -213,7 +213,7 @@ Configured by `.gutconfig.json` (`dirs ["res://test"]`, `include_subdirs true`).
 
 ### Rust suite
 
-In `addons/GdPlanningAI/rust/tests/` (plus `common/mod.rs` helpers). Run with `make test-rust` (`cargo test`). Integration tests build engines through `PlannerEngine::new`, as the scheduler does, and answer callbacks with `common`'s responder thread, so no Godot runtime is needed. `make coverage` prints per-file coverage of `src/` and writes HTML and LCOV under `addons/GdPlanningAI/rust/target/llvm-cov/` (never committed); `make setup` installs the pinned toolchain and `cargo-llvm-cov`. Planner cases are data: `tests/scenarios/<slug>.toml` fixtures, one file per behavior in BEHAVIORS.md, run by `tests/scenarios.rs` (format in `tests/scenarios/README.md`). The remaining test files cover what fixtures cannot express: time slices, budgets, cancellation, callback counts, logging and the debug tree.
+In `addons/GdPlanningAI/rust/tests/` (plus `common/mod.rs` helpers). Run with `make test-rust` (`cargo test`). Integration tests build engines through `PlannerEngine::new`, as the scheduler does, and answer callbacks with `common`'s responder thread, so no Godot runtime is needed. `make coverage` prints per-file coverage of `src/` and writes HTML and LCOV under `addons/GdPlanningAI/rust/target/llvm-cov/` (never committed); `make setup` installs the pinned toolchain and `cargo-llvm-cov`. Planner cases are data: `tests/scenarios/<slug>.toml` fixtures, one file per behavior in BEHAVIORS.md, run by `tests/scenarios.rs` (format in `tests/scenarios/README.md`). The remaining test files cover what fixtures cannot express: time slices, budgets, cancellation, callback counts, logging and the debug tree. Tests outside `src/` reach the planner only through `PlannerEngine::new` and `plan`; the few states that entry point cannot produce (shared effect requests, a goal switch with stale nodes queued, partial discovery passes) are white-box `#[cfg(test)]` modules beside the code, each saying why.
 
 ______________________________________________________________________
 

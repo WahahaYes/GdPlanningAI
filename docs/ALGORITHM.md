@@ -54,12 +54,11 @@ When the chain has no open needs left, the branch flips to `Verifying`, resets i
 A branch in the `Verifying` state is run through `process_simulation`. This executes the chain from first to last action against simulated snapshots, one step at a time:
 
 1. On entering `Verifying`, each action's custom preconditions are re-opened at its position and every goal precondition at the end of the chain, so they are checked against the simulated state: a later insertion can undo a need an earlier action satisfied. Builtin action preconditions are re-checked in the next step.
-1. On the first step, requirements at position 0 (already satisfied by initial provisions) are cleared.
-1. The current action's own builtin preconditions are re-checked against the *current simulated* state. In Verifying, a failure here is fatal: `Invalid`.
+1. The current action's own builtin preconditions are re-checked against the *current simulated* state. A failure here is fatal: `Invalid`.
 1. Open preconditions at this position are evaluated one at a time. Each satisfied precondition is removed and the node is re-queued, so callbacks for custom preconditions can be serviced atomically between steps.
 1. The action's requirements are validated against the current state through `requirement_holds_in_state`, which resolves them against the recorded bindings and the simulated agent and world.
-1. The action is simulated: cost comes from a three-tier cache (the recorded branch cost, a callback response, or a fresh `GetCost` call; in practice the branch already holds the cost fetched during discovery, so verification rarely asks again), and the effect comes from an `ApplyEffect` callback or the identity function if the action declares no effect. Branches share their snapshots, and effects are deterministic, so a step already simulated from the same state with the same action and bindings is reused instead of asked again; branches reaching the same step together wait on one request. Snapshots advance, wildcards are concretized via `clear_requirements_from_provisions`, and `simulation_index` increments.
-1. At the end of the chain, any remaining open needs make the branch `Invalid`. Otherwise the branch cost is compared against the best cost seen so far and recorded as `best_plan` if cheaper.
+1. The action is simulated: cost comes from a three-tier cache (the recorded branch cost, a callback response, or a fresh `GetCost` call; in practice the branch already holds the cost fetched during discovery, so verification rarely asks again), and the effect comes from an `ApplyEffect` callback or the identity function if the action declares no effect. Branches share their snapshots, and effects are deterministic, so a step already simulated from the same state with the same action and bindings is reused instead of asked again; branches reaching the same step together wait on one request. Snapshots advance and `simulation_index` increments.
+1. At the end of the chain every need has been checked, the goal's preconditions last, so the branch cost is compared against the best cost seen so far and recorded as `best_plan` if cheaper.
 
 A sketch of the whole flow:
 
@@ -67,13 +66,13 @@ A sketch of the whole flow:
    Searching (backward)              Verifying (forward)
    --------------------              --------------------
    open needs remain?   -- no -->    process_simulation(), one step per loop:
-        |  yes                          - clear pos-0 requirements (step 0)
-        v                               - re-check own builtin preconditions
-   find_candidates()                    - satisfy one open precondition
-        |  builtin: sync                - validate requirements with bindings
-        |  custom: CallbackRequest      - cost (3-tier) + effect (ApplyEffect)
-        |           -> Pending(id)      - advance snapshots, simulation_index++
-        v                               - end of chain: best cost -> best_plan
+        |  yes                          - re-check own builtin preconditions
+        v                               - satisfy one open precondition
+   find_candidates()                    - validate requirements with bindings
+        |  builtin: sync                - cost (3-tier) + effect (ApplyEffect)
+        |  custom: CallbackRequest      - advance snapshots, simulation_index++
+        |           -> Pending(id)      - end of chain: best cost -> best_plan
+        v
    insert action, clear needs
    filter own new needs; cycle guard
         |
