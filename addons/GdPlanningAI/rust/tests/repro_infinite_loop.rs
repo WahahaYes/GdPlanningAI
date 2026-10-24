@@ -1,19 +1,15 @@
 //! Regression test for a potential infinite loop in the planner's Verifying state.
 
+mod common;
+use common::{inputs, run_to_completion, spawn_responder};
+
 use gdplanningai_rust::plan_types::{
-    ActionSpec, CallbackKind, CallbackRequest, CallbackResponse, GoalSpec, PlannerCallback,
-    PlannerRunResult, PreconditionSpec,
+    ActionSpec, CallbackKind, CallbackResponse, GoalSpec, PreconditionSpec,
 };
-use gdplanningai_rust::planner::{
-    DijkstraHeuristic, PlannerEngine, SearchContext, TerminationStrategy,
-};
+use gdplanningai_rust::planner::{EngineConfig, PlannerEngine, TerminationStrategy};
 use gdplanningai_rust::precondition::{PreconditionOp, PreconditionTarget};
 use gdplanningai_rust::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use std::collections::HashMap;
-use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
-use std::sync::mpsc;
-use std::time::{Duration, Instant};
 
 #[test]
 fn test_verifying_terminal_state() {
@@ -53,75 +49,24 @@ fn test_verifying_terminal_state() {
     }];
 
     // Mock responder that makes the action satisfy the goal
-    let (req_tx, req_rx) = mpsc::channel::<CallbackRequest>();
-    std::thread::spawn(move || {
-        for req in req_rx {
-            let response = match req.kind {
-                CallbackKind::ApplyEffect {
-                    mut agent, world, ..
-                } => {
-                    agent
-                        .properties
-                        .insert("goal_met".to_string(), VariantSnapshot::Bool(true));
-                    CallbackResponse::UpdatedSnapshots(agent, world)
-                }
-                _ => CallbackResponse::Float(1.0),
-            };
-            let _ = req.response_tx.send(PlannerCallback {
-                request_id: req.request_id,
-                response,
-            });
+    let req_tx = spawn_responder(|req| match req.kind {
+        CallbackKind::ApplyEffect { mut agent, world } => {
+            agent
+                .properties
+                .insert("goal_met".to_string(), VariantSnapshot::Bool(true));
+            CallbackResponse::UpdatedSnapshots(agent, world)
         }
+        _ => CallbackResponse::Float(1.0),
     });
 
-    let (engine_tx, engine_rx) = mpsc::channel::<PlannerCallback>();
-    let cancel_flag = Arc::new(AtomicBool::new(false));
-    let non_wildcard_actions: Vec<usize> = (0..actions.len()).collect();
-    let ctx = Arc::new(SearchContext {
-        actions,
-        initial_agent: agent.into(),
-        initial_world: world.into(),
-        initial_provisions: vec![],
-        request_tx: req_tx,
-        engine_response_tx: engine_tx.clone(),
-        discovery_results: std::sync::Mutex::new(HashMap::new()),
-        discovery_costs: std::sync::Mutex::new(HashMap::new()),
-        discovery_pending: std::sync::Mutex::new(HashMap::new()),
-        discovery_request_map: std::sync::Mutex::new(HashMap::new()),
-        discovery_precond_results: std::sync::Mutex::new(HashMap::new()),
-        discovery_precond_pending: std::sync::Mutex::new(HashMap::new()),
-        provision_index: HashMap::new(),
-        non_wildcard_actions,
-    });
-
-    let mut engine = PlannerEngine::new(ctx, 10, cancel_flag)
-        .with_heuristic(Box::new(DijkstraHeuristic))
-        .with_termination_strategy(TerminationStrategy::FirstComplete);
-    engine.response_rx = engine_rx;
-    engine.response_tx = engine_tx;
-
-    let start_time = Instant::now();
-    let timeout = Duration::from_secs(2);
-    let mut total_iterations = 0;
-
-    loop {
-        if start_time.elapsed() > timeout {
-            panic!(
-                "Test timed out! Likely infinite loop in Verifying state. Total iterations: {}",
-                total_iterations
-            );
-        }
-
-        match engine.plan(&goals) {
-            PlannerRunResult::Complete(res) => {
-                assert!(res.is_some(), "Should have found a plan");
-                assert!(res.unwrap().success, "Plan should be successful");
-                break;
-            }
-            PlannerRunResult::Pending(_) => {
-                total_iterations += 1;
-                std::thread::sleep(Duration::from_millis(1));
-            }
-        }
-    }
+    let mut engine = PlannerEngine::new(
+        inputs(actions, agent, world, req_tx),
+        EngineConfig {
+            max_depth: 10,
+            termination: TerminationStrategy::FirstComplete,
+            ..EngineConfig::default()
+        },
+    );
+    let plan = run_to_completion(&mut engine, &goals).expect("Should have found a plan");
+    assert!(plan.success, "Plan should be successful");
 }

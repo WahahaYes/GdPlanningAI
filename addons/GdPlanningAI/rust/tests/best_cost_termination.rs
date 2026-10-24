@@ -1,21 +1,16 @@
 //! Integration tests for TerminationStrategy::BestCost vs FirstComplete.
 
+mod common;
+use common::{inputs, run_to_completion, spawn_responder};
+
 use gdplanningai_rust::plan_tree::PlanResult;
 use gdplanningai_rust::plan_types::{
-    ActionSpec, CallbackKind, CallbackRequest, CallbackResponse, GoalSpec, PlannerCallback,
-    PlannerRunResult, PreconditionSpec,
+    ActionSpec, CallbackKind, CallbackRequest, CallbackResponse, GoalSpec, PreconditionSpec,
 };
-use gdplanningai_rust::planner::{
-    DijkstraHeuristic, PlannerEngine, SearchContext, TerminationStrategy,
-};
+use gdplanningai_rust::planner::{EngineConfig, PlannerEngine, TerminationStrategy};
 use gdplanningai_rust::precondition::{PreconditionOp, PreconditionTarget};
 use gdplanningai_rust::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use std::collections::HashMap;
-use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
-use std::sync::mpsc;
-use std::thread;
-use std::time::{Duration, Instant};
 
 /// Run the planner with the given termination strategy and return the plan result.
 fn run_with_strategy(
@@ -24,50 +19,52 @@ fn run_with_strategy(
     actions: Vec<ActionSpec>,
     goals: Vec<GoalSpec>,
     strategy: TerminationStrategy,
-    request_tx: mpsc::Sender<CallbackRequest>,
 ) -> Option<PlanResult> {
-    let cancel_flag = Arc::new(AtomicBool::new(false));
-    let (engine_tx, engine_rx) = mpsc::channel::<PlannerCallback>();
-    let non_wildcard_actions: Vec<usize> = (0..actions.len()).collect();
+    let mut engine = PlannerEngine::new(
+        inputs(actions, agent, world, spawn_responder(answer)),
+        EngineConfig {
+            max_depth: 10,
+            termination: strategy,
+            ..EngineConfig::default()
+        },
+    );
+    run_to_completion(&mut engine, &goals)
+}
 
-    let ctx = Arc::new(SearchContext {
-        actions,
-        initial_agent: agent.into(),
-        initial_world: world.into(),
-        initial_provisions: vec![],
-        request_tx,
-        engine_response_tx: engine_tx.clone(),
-        discovery_results: std::sync::Mutex::new(HashMap::new()),
-        discovery_costs: std::sync::Mutex::new(HashMap::new()),
-        discovery_pending: std::sync::Mutex::new(HashMap::new()),
-        discovery_request_map: std::sync::Mutex::new(HashMap::new()),
-        discovery_precond_results: std::sync::Mutex::new(HashMap::new()),
-        discovery_precond_pending: std::sync::Mutex::new(HashMap::new()),
-        provision_index: HashMap::new(),
-        non_wildcard_actions,
-    });
-
-    let mut engine = PlannerEngine::new(ctx, 10, cancel_flag)
-        .with_heuristic(Box::new(DijkstraHeuristic))
-        .with_termination_strategy(strategy);
-
-    engine.response_rx = engine_rx;
-    engine.response_tx = engine_tx;
-
-    let start_time = Instant::now();
-    let timeout = Duration::from_secs(5);
-
-    loop {
-        if start_time.elapsed() > timeout {
-            panic!("run_with_strategy: Timed out waiting for plan completion");
+/// Costs: quick 1, slow1 2, slow2 3. quick and slow2 meet the goal; slow1 enables slow2.
+fn answer(req: CallbackRequest) -> CallbackResponse {
+    match req.kind {
+        CallbackKind::GetCost { .. } => {
+            let cost = match req.callable_id {
+                10 => 1.0,
+                20 => 2.0,
+                30 => 3.0,
+                _ => 1.0,
+            };
+            CallbackResponse::Float(cost)
         }
-
-        match engine.plan(&goals) {
-            PlannerRunResult::Complete(res) => return res,
-            PlannerRunResult::Pending(_) => {
-                thread::sleep(Duration::from_millis(1));
+        CallbackKind::ApplyEffect { mut agent, world } => {
+            match req.callable_id {
+                100 => {
+                    agent
+                        .properties
+                        .insert("goal_met".to_string(), VariantSnapshot::Bool(true));
+                }
+                101 => {
+                    agent
+                        .properties
+                        .insert("can_finish".to_string(), VariantSnapshot::Bool(true));
+                }
+                102 => {
+                    agent
+                        .properties
+                        .insert("goal_met".to_string(), VariantSnapshot::Bool(true));
+                }
+                _ => {}
             }
+            CallbackResponse::UpdatedSnapshots(agent, world)
         }
+        _ => CallbackResponse::Float(1.0),
     }
 }
 
@@ -136,59 +133,7 @@ fn best_cost_returns_lowest_cost_plan() {
         original_index: 0,
     }];
 
-    let (req_tx, req_rx) = mpsc::channel::<CallbackRequest>();
-    thread::spawn(move || {
-        for req in req_rx {
-            let response = match req.kind {
-                CallbackKind::GetCost { .. } => {
-                    let cost = match req.callable_id {
-                        10 => 1.0,
-                        20 => 2.0,
-                        30 => 3.0,
-                        _ => 1.0,
-                    };
-                    CallbackResponse::Float(cost)
-                }
-                CallbackKind::ApplyEffect {
-                    mut agent, world, ..
-                } => {
-                    match req.callable_id {
-                        100 => {
-                            agent
-                                .properties
-                                .insert("goal_met".to_string(), VariantSnapshot::Bool(true));
-                        }
-                        101 => {
-                            agent
-                                .properties
-                                .insert("can_finish".to_string(), VariantSnapshot::Bool(true));
-                        }
-                        102 => {
-                            agent
-                                .properties
-                                .insert("goal_met".to_string(), VariantSnapshot::Bool(true));
-                        }
-                        _ => {}
-                    }
-                    CallbackResponse::UpdatedSnapshots(agent, world)
-                }
-                _ => CallbackResponse::Float(1.0),
-            };
-            let _ = req.response_tx.send(PlannerCallback {
-                request_id: req.request_id,
-                response,
-            });
-        }
-    });
-
-    let result = run_with_strategy(
-        agent,
-        world,
-        actions,
-        goals,
-        TerminationStrategy::BestCost,
-        req_tx,
-    );
+    let result = run_with_strategy(agent, world, actions, goals, TerminationStrategy::BestCost);
 
     let plan = result.expect("should produce a plan");
     assert!(plan.success);
@@ -264,58 +209,12 @@ fn first_complete_returns_first_found_plan() {
         original_index: 0,
     }];
 
-    let (req_tx, req_rx) = mpsc::channel::<CallbackRequest>();
-    thread::spawn(move || {
-        for req in req_rx {
-            let response = match req.kind {
-                CallbackKind::GetCost { .. } => {
-                    let cost = match req.callable_id {
-                        10 => 1.0,
-                        20 => 2.0,
-                        30 => 3.0,
-                        _ => 1.0,
-                    };
-                    CallbackResponse::Float(cost)
-                }
-                CallbackKind::ApplyEffect {
-                    mut agent, world, ..
-                } => {
-                    match req.callable_id {
-                        100 => {
-                            agent
-                                .properties
-                                .insert("goal_met".to_string(), VariantSnapshot::Bool(true));
-                        }
-                        101 => {
-                            agent
-                                .properties
-                                .insert("can_finish".to_string(), VariantSnapshot::Bool(true));
-                        }
-                        102 => {
-                            agent
-                                .properties
-                                .insert("goal_met".to_string(), VariantSnapshot::Bool(true));
-                        }
-                        _ => {}
-                    }
-                    CallbackResponse::UpdatedSnapshots(agent, world)
-                }
-                _ => CallbackResponse::Float(1.0),
-            };
-            let _ = req.response_tx.send(PlannerCallback {
-                request_id: req.request_id,
-                response,
-            });
-        }
-    });
-
     let result = run_with_strategy(
         agent,
         world,
         actions,
         goals,
         TerminationStrategy::FirstComplete,
-        req_tx,
     );
 
     let plan = result.expect("should produce a plan");

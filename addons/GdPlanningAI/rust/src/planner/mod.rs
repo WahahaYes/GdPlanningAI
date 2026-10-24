@@ -13,7 +13,7 @@ pub mod expander;
 pub mod simulation;
 pub mod types;
 
-pub use engine::PlannerEngine;
+pub use engine::{EngineConfig, EngineInputs, PlannerEngine};
 pub use types::{PlanBranch, ProvisionKind, SearchContext};
 
 use types::SearchNode;

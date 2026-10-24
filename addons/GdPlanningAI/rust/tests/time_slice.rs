@@ -5,14 +5,15 @@
 //! [`fake_clock`], which advances 1ms per read, so a slice expires at the
 //! first check however fast the build runs the search.
 
+mod common;
+use common::{inputs, reduce_hunger, run_counting_yields, spawn_responder};
+
 use gdplanningai_rust::plan_tree::PlanResult;
 use gdplanningai_rust::plan_types::{
-    ActionSpec, CallbackKind, CallbackRequest, CallbackResponse, GoalSpec, PlannerCallback,
-    PlannerRunResult, PreconditionSpec,
+    ActionSpec, CallbackKind, CallbackRequest, CallbackResponse, GoalSpec, PlannerRunResult,
+    PreconditionSpec,
 };
-use gdplanningai_rust::planner::{
-    DijkstraHeuristic, PlannerEngine, SearchContext, TerminationStrategy,
-};
+use gdplanningai_rust::planner::{EngineConfig, EngineInputs, PlannerEngine};
 use gdplanningai_rust::precondition::{PreconditionOp, PreconditionTarget};
 use gdplanningai_rust::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use std::collections::HashMap;
@@ -20,7 +21,6 @@ use std::sync::Arc;
 use std::sync::LazyLock;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc;
-use std::thread;
 use std::time::{Duration, Instant};
 
 static CLOCK_BASE: LazyLock<Instant> = LazyLock::new(Instant::now);
@@ -99,95 +99,38 @@ fn make_goals() -> Vec<GoalSpec> {
 }
 
 fn spawn_callback_responder() -> mpsc::Sender<CallbackRequest> {
-    let (req_tx, req_rx) = mpsc::channel::<CallbackRequest>();
-    thread::spawn(move || {
-        for req in req_rx {
-            let response = match req.kind {
-                CallbackKind::GetCost { .. } => CallbackResponse::Float(5.0),
-                CallbackKind::ApplyEffect {
-                    mut agent, world, ..
-                } => {
-                    if req.callable_id == GET_FOOD_EFFECT {
-                        agent
-                            .properties
-                            .insert("has_food".to_string(), VariantSnapshot::Bool(true));
-                    } else if let Some(VariantSnapshot::Int(current)) =
-                        agent.properties.get("hunger").cloned()
-                    {
-                        let new_hunger = (current - 60).max(0);
-                        agent
-                            .properties
-                            .insert("hunger".to_string(), VariantSnapshot::Int(new_hunger));
-                    }
-                    CallbackResponse::UpdatedSnapshots(agent, world)
-                }
-                _ => CallbackResponse::Float(1.0),
-            };
-            let _ = req.response_tx.send(PlannerCallback {
-                request_id: req.request_id,
-                response,
-            });
+    spawn_responder(|req| match req.kind {
+        CallbackKind::GetCost { .. } => CallbackResponse::Float(5.0),
+        CallbackKind::ApplyEffect { mut agent, world } => {
+            if req.callable_id == GET_FOOD_EFFECT {
+                agent
+                    .properties
+                    .insert("has_food".to_string(), VariantSnapshot::Bool(true));
+            } else {
+                reduce_hunger(&mut agent, 60);
+            }
+            CallbackResponse::UpdatedSnapshots(agent, world)
         }
-    });
-    req_tx
+        _ => CallbackResponse::Float(1.0),
+    })
 }
 
 fn run_to_completion(time_slice_ms: u64, action_count: usize) -> (Option<PlanResult>, usize) {
-    let agent = make_agent();
-    let world = make_world();
-    let actions = make_actions_with_count(action_count);
-    let goals = make_goals();
-    let request_tx = spawn_callback_responder();
-
-    let cancel_flag = Arc::new(AtomicBool::new(false));
-    let (engine_tx, engine_rx) = mpsc::channel::<PlannerCallback>();
-    let non_wildcard_actions: Vec<usize> = (0..actions.len()).collect();
-
-    let ctx = Arc::new(SearchContext {
-        actions,
-        initial_agent: agent.into(),
-        initial_world: world.into(),
-        initial_provisions: vec![],
-        request_tx,
-        engine_response_tx: engine_tx.clone(),
-        discovery_results: std::sync::Mutex::new(HashMap::new()),
-        discovery_costs: std::sync::Mutex::new(HashMap::new()),
-        discovery_pending: std::sync::Mutex::new(HashMap::new()),
-        discovery_request_map: std::sync::Mutex::new(HashMap::new()),
-        discovery_precond_results: std::sync::Mutex::new(HashMap::new()),
-        discovery_precond_pending: std::sync::Mutex::new(HashMap::new()),
-        provision_index: HashMap::new(),
-        non_wildcard_actions,
-    });
-
-    let mut engine = PlannerEngine::new(ctx, 10, cancel_flag)
-        .with_heuristic(Box::new(DijkstraHeuristic))
-        .with_termination_strategy(TerminationStrategy::BestCost)
-        .with_time_slice_ms(time_slice_ms)
-        .with_clock(fake_clock);
-
-    engine.response_rx = engine_rx;
-    engine.response_tx = engine_tx;
-
-    let start = Instant::now();
-    let timeout = Duration::from_secs(15);
-    let mut pending_zero_count = 0usize;
-    loop {
-        if start.elapsed() > timeout {
-            panic!(
-                "run_to_completion({}): timed out waiting for plan completion",
-                time_slice_ms
-            );
-        }
-        match engine.plan(&goals) {
-            PlannerRunResult::Complete(res) => return (res, pending_zero_count),
-            PlannerRunResult::Pending(0) => {
-                pending_zero_count += 1;
-                thread::sleep(Duration::from_millis(1))
-            }
-            PlannerRunResult::Pending(_) => thread::sleep(Duration::from_millis(1)),
-        }
-    }
+    let mut engine = PlannerEngine::new(
+        inputs(
+            make_actions_with_count(action_count),
+            make_agent(),
+            make_world(),
+            spawn_callback_responder(),
+        ),
+        EngineConfig {
+            max_depth: 10,
+            time_slice_ms,
+            clock: fake_clock,
+            ..EngineConfig::default()
+        },
+    );
+    run_counting_yields(&mut engine, &make_goals())
 }
 
 #[test]
@@ -241,40 +184,23 @@ fn small_pop_never_yields_to_timer() {
 fn cancel_returns_complete_immediately() {
     // Cancel flag set before planning must win over time-slice yield:
     // plan() should return Complete(None), never Pending(0).
-    let agent = make_agent();
-    let world = make_world();
-    let actions = make_actions_with_count(300);
     let goals = make_goals();
-    let request_tx = spawn_callback_responder();
-
-    let cancel_flag = Arc::new(AtomicBool::new(true));
-    let (engine_tx, engine_rx) = mpsc::channel::<PlannerCallback>();
-    let non_wildcard_actions: Vec<usize> = (0..actions.len()).collect();
-
-    let ctx = Arc::new(SearchContext {
-        actions,
-        initial_agent: agent.into(),
-        initial_world: world.into(),
-        initial_provisions: vec![],
-        request_tx,
-        engine_response_tx: engine_tx.clone(),
-        discovery_results: std::sync::Mutex::new(HashMap::new()),
-        discovery_costs: std::sync::Mutex::new(HashMap::new()),
-        discovery_pending: std::sync::Mutex::new(HashMap::new()),
-        discovery_request_map: std::sync::Mutex::new(HashMap::new()),
-        discovery_precond_results: std::sync::Mutex::new(HashMap::new()),
-        discovery_precond_pending: std::sync::Mutex::new(HashMap::new()),
-        provision_index: HashMap::new(),
-        non_wildcard_actions,
-    });
-
-    let mut engine = PlannerEngine::new(ctx, 10, cancel_flag)
-        .with_heuristic(Box::new(DijkstraHeuristic))
-        .with_termination_strategy(TerminationStrategy::BestCost)
-        .with_time_slice_ms(1);
-
-    engine.response_rx = engine_rx;
-    engine.response_tx = engine_tx;
+    let mut engine = PlannerEngine::new(
+        EngineInputs {
+            cancel_flag: Arc::new(AtomicBool::new(true)),
+            ..inputs(
+                make_actions_with_count(300),
+                make_agent(),
+                make_world(),
+                spawn_callback_responder(),
+            )
+        },
+        EngineConfig {
+            max_depth: 10,
+            time_slice_ms: 1,
+            ..EngineConfig::default()
+        },
+    );
 
     match engine.plan(&goals) {
         PlannerRunResult::Complete(None) => {}

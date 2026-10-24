@@ -2,25 +2,19 @@
 //! branch counts without recording a tree; at [`LogLevel::Debug`] [`TreeDump::format`] produces
 //! the full `PLANNER SEARCH TREE` dump.
 
+mod common;
+use common::{hunger_answers, inputs, run_to_completion, spawn_responder};
+
 use gdplanningai_rust::debug_tree::TreeDump;
 use gdplanningai_rust::logger::{LogLevel, get_log_level, init_log_channel, set_log_level};
 use gdplanningai_rust::plan_tree::PlanResult;
-use gdplanningai_rust::plan_types::{
-    ActionSpec, CallbackKind, CallbackRequest, CallbackResponse, GoalSpec, PlannerCallback,
-    PlannerRunResult, PreconditionSpec,
-};
-use gdplanningai_rust::planner::{
-    DijkstraHeuristic, PlannerEngine, SearchContext, TerminationStrategy,
-};
+use gdplanningai_rust::plan_types::{ActionSpec, CallbackRequest, GoalSpec, PreconditionSpec};
+use gdplanningai_rust::planner::{EngineConfig, PlannerEngine};
 use gdplanningai_rust::precondition::{PreconditionOp, PreconditionTarget};
 use gdplanningai_rust::scheduler::StallNoticeThrottle;
 use gdplanningai_rust::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use std::collections::HashMap;
-use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
 use std::sync::mpsc;
-use std::thread;
-use std::time::{Duration, Instant};
 
 /// Serializes tests that mutate the process-global log level, since cargo
 /// runs tests in one binary on multiple threads sharing that state.
@@ -33,39 +27,6 @@ fn make_agent(hunger: i64) -> BlackboardSnapshot {
         properties: props,
         objects: HashMap::new(),
     }
-}
-
-fn spawn_callback_responder(
-    cost_value: f64,
-    hunger_reduction: i64,
-) -> (mpsc::Sender<CallbackRequest>, thread::JoinHandle<()>) {
-    let (req_tx, req_rx) = mpsc::channel::<CallbackRequest>();
-    let handle = thread::spawn(move || {
-        for req in req_rx {
-            let response = match req.kind {
-                CallbackKind::GetCost { .. } => CallbackResponse::Float(cost_value),
-                CallbackKind::ApplyEffect {
-                    mut agent, world, ..
-                } => {
-                    if let Some(VariantSnapshot::Int(current)) =
-                        agent.properties.get("hunger").cloned()
-                    {
-                        let new_hunger = (current - hunger_reduction).max(0);
-                        agent
-                            .properties
-                            .insert("hunger".to_string(), VariantSnapshot::Int(new_hunger));
-                    }
-                    CallbackResponse::UpdatedSnapshots(agent, world)
-                }
-                CallbackKind::EvalCustomPrecond { .. } => CallbackResponse::Bool(true),
-            };
-            let _ = req.response_tx.send(PlannerCallback {
-                request_id: req.request_id,
-                response,
-            });
-        }
-    });
-    (req_tx, handle)
 }
 
 struct PlanOutcome {
@@ -117,49 +78,25 @@ fn run_eat_plan() -> PlanOutcome {
         original_index: 0,
     }];
 
-    let (req_tx, handle) = spawn_callback_responder(5.0, 60);
-    let (engine_tx, engine_rx) = mpsc::channel::<PlannerCallback>();
-    let non_wildcard_actions: Vec<usize> = (0..actions.len()).collect();
-    let ctx = Arc::new(SearchContext {
-        actions,
-        initial_agent: agent.into(),
-        initial_world: world.into(),
-        initial_provisions: vec![],
-        request_tx: req_tx,
-        engine_response_tx: engine_tx.clone(),
-        discovery_results: std::sync::Mutex::new(HashMap::new()),
-        discovery_costs: std::sync::Mutex::new(HashMap::new()),
-        discovery_pending: std::sync::Mutex::new(HashMap::new()),
-        discovery_request_map: std::sync::Mutex::new(HashMap::new()),
-        discovery_precond_results: std::sync::Mutex::new(HashMap::new()),
-        discovery_precond_pending: std::sync::Mutex::new(HashMap::new()),
-        provision_index: HashMap::new(),
-        non_wildcard_actions,
-    });
-    let cancel_flag = Arc::new(AtomicBool::new(false));
-    let mut engine = PlannerEngine::new(ctx, 10, cancel_flag)
-        .with_heuristic(Box::new(DijkstraHeuristic))
-        .with_termination_strategy(TerminationStrategy::BestCost);
-    engine.response_rx = engine_rx;
-    engine.response_tx = engine_tx;
-
-    let start = Instant::now();
-    let plan = loop {
-        if start.elapsed() > Duration::from_secs(5) {
-            panic!("run_eat_plan: timed out waiting for plan completion");
-        }
-        match engine.plan(&goals) {
-            PlannerRunResult::Complete(res) => break res,
-            PlannerRunResult::Pending(_) => thread::sleep(Duration::from_millis(1)),
-        }
-    };
-    drop(handle);
+    let mut engine = PlannerEngine::new(
+        inputs(
+            actions,
+            agent,
+            world,
+            spawn_responder(hunger_answers(5.0, 60)),
+        ),
+        EngineConfig {
+            max_depth: 10,
+            ..EngineConfig::default()
+        },
+    );
+    let plan = run_to_completion(&mut engine, &goals);
 
     PlanOutcome {
         plan,
-        tree_enabled: engine.tree.is_enabled(),
-        summary: engine.tree.summary(),
-        tree_dump: engine.tree.format(),
+        tree_enabled: engine.debug_tree().is_enabled(),
+        summary: engine.debug_tree().summary(),
+        tree_dump: engine.debug_tree().format(),
     }
 }
 
@@ -207,7 +144,6 @@ fn debug_reenables_full_tree_detail() {
 
 #[test]
 fn verification_requirement_failure_is_recorded_on_tree() {
-    use gdplanningai_rust::planner::engine::PlannerEngine;
     use gdplanningai_rust::planner::simulation::StepResult;
     use gdplanningai_rust::planner::types::{BranchState, PlanBranch};
     use gdplanningai_rust::requirement::RequirementSpec;
@@ -235,24 +171,13 @@ fn verification_requirement_failure_is_recorded_on_tree() {
         dependent_object_ids: vec![],
     };
     let (req_tx, _) = mpsc::channel::<CallbackRequest>();
-    let (engine_tx, _) = mpsc::channel::<PlannerCallback>();
-    let ctx = Arc::new(SearchContext {
-        actions: vec![action.clone()],
-        initial_agent: agent.clone().into(),
-        initial_world: world.clone().into(),
-        initial_provisions: vec![],
-        request_tx: req_tx,
-        engine_response_tx: engine_tx.clone(),
-        discovery_results: std::sync::Mutex::new(HashMap::new()),
-        discovery_costs: std::sync::Mutex::new(HashMap::new()),
-        discovery_pending: std::sync::Mutex::new(HashMap::new()),
-        discovery_request_map: std::sync::Mutex::new(HashMap::new()),
-        discovery_precond_results: std::sync::Mutex::new(HashMap::new()),
-        discovery_precond_pending: std::sync::Mutex::new(HashMap::new()),
-        provision_index: HashMap::new(),
-        non_wildcard_actions: vec![0],
-    });
-    let mut engine = PlannerEngine::new(ctx, 10, Arc::new(AtomicBool::new(false)));
+    let mut engine = PlannerEngine::new(
+        inputs(vec![action], agent.clone(), world.clone(), req_tx),
+        EngineConfig {
+            max_depth: 10,
+            ..EngineConfig::default()
+        },
+    );
     engine.tree.begin_goal("carry_goal", 1.0, &[]);
     let root = engine.tree.add_root(&[], &[]);
 
@@ -266,7 +191,7 @@ fn verification_requirement_failure_is_recorded_on_tree() {
         matches!(result, StepResult::Invalid),
         "unbound requirement must fail verification"
     );
-    let dump = engine.tree.format();
+    let dump = engine.debug_tree().format();
     assert!(
         dump.contains("FWD [FAIL]") && dump.contains("held_item"),
         "failed requirement must be attributed on the tree node, got:\n{}",

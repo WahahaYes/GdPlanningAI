@@ -4,23 +4,21 @@
 //! mock callback responder thread standing in for the Godot main thread, verifying that the
 //! planner correctly chains actions to satisfy goals.
 
+mod common;
+use common::{hunger_answers, inputs, run_to_completion, spawn_responder};
+
 use gdplanningai_rust::plan_tree::PlanResult;
 use gdplanningai_rust::plan_types::{
-    ActionSpec, CallbackKind, CallbackRequest, CallbackResponse, GoalSpec, PlannerCallback,
-    PlannerRunResult, PreconditionSpec,
+    ActionSpec, CallbackKind, CallbackRequest, CallbackResponse, GoalSpec, PlannerRunResult,
+    PreconditionSpec,
 };
 use gdplanningai_rust::planner::types::{PriorityNode, SearchNode};
-use gdplanningai_rust::planner::{
-    DijkstraHeuristic, PlanBranch, PlannerEngine, SearchContext, TerminationStrategy,
-};
+use gdplanningai_rust::planner::{EngineConfig, PlanBranch, PlannerEngine};
 use gdplanningai_rust::precondition::{PreconditionOp, PreconditionTarget};
 use gdplanningai_rust::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
 use std::sync::mpsc;
-use std::thread;
-use std::time::{Duration, Instant};
 
 fn make_agent(hunger: i64) -> BlackboardSnapshot {
     let mut props = HashMap::new();
@@ -47,45 +45,6 @@ fn hunger_less_than(threshold: i64) -> PreconditionSpec {
     }
 }
 
-/// Spawn a thread that responds to callback requests from the planner.
-/// Returns the sender to give to the planner and a join handle.
-fn spawn_callback_responder(
-    cost_value: f64,
-    hunger_reduction: i64,
-) -> (mpsc::Sender<CallbackRequest>, thread::JoinHandle<()>) {
-    let (req_tx, req_rx) = mpsc::channel::<CallbackRequest>();
-
-    let handle = thread::spawn(move || {
-        for req in req_rx {
-            let response = match req.kind {
-                CallbackKind::GetCost { .. } => CallbackResponse::Float(cost_value),
-                CallbackKind::ApplyEffect {
-                    mut agent, world, ..
-                } => {
-                    if let Some(VariantSnapshot::Int(current)) =
-                        agent.properties.get("hunger").cloned()
-                    {
-                        let new_hunger = (current - hunger_reduction).max(0);
-                        agent
-                            .properties
-                            .insert("hunger".to_string(), VariantSnapshot::Int(new_hunger));
-                    }
-                    CallbackResponse::UpdatedSnapshots(agent, world)
-                }
-                CallbackKind::EvalCustomPrecond { .. } => CallbackResponse::Bool(true),
-            };
-            let _ = req
-                .response_tx
-                .send(gdplanningai_rust::plan_types::PlannerCallback {
-                    request_id: req.request_id,
-                    response,
-                });
-        }
-    });
-
-    (req_tx, handle)
-}
-
 fn run_planner(
     agent: BlackboardSnapshot,
     world: BlackboardSnapshot,
@@ -94,57 +53,17 @@ fn run_planner(
     max_depth: usize,
     request_tx: mpsc::Sender<CallbackRequest>,
 ) -> Option<PlanResult> {
-    let cancel_flag = Arc::new(AtomicBool::new(false));
-
-    // Initialize logging for tests
     gdplanningai_rust::logger::init_log_channel();
     gdplanningai_rust::logger::set_log_level(gdplanningai_rust::logger::LogLevel::Debug);
 
-    let (engine_tx, engine_rx) = mpsc::channel::<PlannerCallback>();
-    let non_wildcard_actions: Vec<usize> = (0..actions.len()).collect();
-
-    let ctx = Arc::new(SearchContext {
-        actions,
-        initial_agent: agent.into(),
-        initial_world: world.into(),
-        initial_provisions: vec![],
-        request_tx,
-        engine_response_tx: engine_tx.clone(),
-        discovery_results: std::sync::Mutex::new(HashMap::new()),
-        discovery_costs: std::sync::Mutex::new(HashMap::new()),
-        discovery_pending: std::sync::Mutex::new(HashMap::new()),
-        discovery_request_map: std::sync::Mutex::new(HashMap::new()),
-        discovery_precond_results: std::sync::Mutex::new(HashMap::new()),
-        discovery_precond_pending: std::sync::Mutex::new(HashMap::new()),
-        provision_index: HashMap::new(),
-        non_wildcard_actions,
-    });
-
-    let mut engine = PlannerEngine::new(ctx, max_depth, cancel_flag)
-        .with_heuristic(Box::new(DijkstraHeuristic))
-        .with_termination_strategy(TerminationStrategy::BestCost);
-
-    engine.response_rx = engine_rx;
-    engine.response_tx = engine_tx;
-
-    let start_time = Instant::now();
-    let timeout = Duration::from_secs(5);
-
-    loop {
-        if start_time.elapsed() > timeout {
-            panic!("run_planner: Timed out waiting for plan completion");
-        }
-
-        match engine.plan(&goals) {
-            PlannerRunResult::Complete(res) => return res,
-            PlannerRunResult::Pending(_) => {
-                // In this test setup, the responder thread is already running
-                // and should be sending responses to engine.response_rx.
-                // We just need to give it a tiny bit of time to breathe.
-                thread::sleep(Duration::from_millis(1));
-            }
-        }
-    }
+    let mut engine = PlannerEngine::new(
+        inputs(actions, agent, world, request_tx),
+        EngineConfig {
+            max_depth,
+            ..EngineConfig::default()
+        },
+    );
+    run_to_completion(&mut engine, &goals)
 }
 
 #[test]
@@ -173,10 +92,8 @@ fn single_action_satisfies_goal() {
         original_index: 0,
     }];
 
-    let (req_tx, handle) = spawn_callback_responder(5.0, 60);
+    let req_tx = spawn_responder(hunger_answers(5.0, 60));
     let result = run_planner(agent, world, actions, goals, 10, req_tx);
-    // Drop the sender so the responder thread exits
-    drop(handle);
 
     let plan = result.expect("should produce a plan");
     assert!(plan.success);
@@ -210,9 +127,8 @@ fn goal_already_satisfied_returns_empty_plan() {
         original_index: 0,
     }];
 
-    let (req_tx, handle) = spawn_callback_responder(5.0, 60);
+    let req_tx = spawn_responder(hunger_answers(5.0, 60));
     let result = run_planner(agent, world, actions, goals, 10, req_tx);
-    drop(handle);
 
     let plan = result.expect("should produce a plan");
     assert!(plan.success);
@@ -234,9 +150,8 @@ fn no_valid_plan_returns_failure() {
         original_index: 0,
     }];
 
-    let (req_tx, handle) = spawn_callback_responder(5.0, 60);
+    let req_tx = spawn_responder(hunger_answers(5.0, 60));
     let result = run_planner(agent, world, actions, goals, 10, req_tx);
-    drop(handle);
 
     let plan = result.expect("should produce a result");
     assert!(!plan.success);
@@ -273,9 +188,8 @@ fn action_with_unmet_precondition_fails() {
         original_index: 0,
     }];
 
-    let (req_tx, handle) = spawn_callback_responder(5.0, 60);
+    let req_tx = spawn_responder(hunger_answers(5.0, 60));
     let result = run_planner(agent, world, actions, goals, 10, req_tx);
-    drop(handle);
 
     let plan = result.expect("should produce a result");
     assert!(!plan.success);
@@ -325,10 +239,9 @@ fn respects_max_depth() {
         original_index: 0,
     }];
 
-    let (req_tx, handle) = spawn_callback_responder(5.0, 60);
+    let req_tx = spawn_responder(hunger_answers(5.0, 60));
     // max_depth=0: no actions allowed in the chain
     let result = run_planner(agent, world, actions, goals, 0, req_tx);
-    drop(handle);
 
     let plan = result.expect("should produce a result");
     assert!(!plan.success);
@@ -375,9 +288,8 @@ fn goal_priority_respected() {
         },
     ];
 
-    let (req_tx, handle) = spawn_callback_responder(5.0, 60);
+    let req_tx = spawn_responder(hunger_answers(5.0, 60));
     let result = run_planner(agent, world, actions, goals, 10, req_tx);
-    drop(handle);
 
     let plan = result.expect("should produce a plan");
     assert!(plan.success);
@@ -414,41 +326,29 @@ fn int_effect_action(name: &str, effect_id: usize, pre: Vec<PreconditionSpec>) -
 fn spawn_int_responder(
     effects: Vec<Vec<(&'static str, i64)>>,
     customs: HashMap<usize, (&'static str, i64)>,
-) -> (mpsc::Sender<CallbackRequest>, thread::JoinHandle<()>) {
-    let (req_tx, req_rx) = mpsc::channel::<CallbackRequest>();
-    let handle = thread::spawn(move || {
-        for req in req_rx {
-            let response = match req.kind {
-                CallbackKind::GetCost { .. } => CallbackResponse::Float(1.0),
-                CallbackKind::ApplyEffect { mut agent, world } => {
-                    for &(prop, value) in &effects[req.callable_id] {
-                        agent
-                            .properties
-                            .insert(prop.to_string(), VariantSnapshot::Int(value));
-                    }
-                    CallbackResponse::UpdatedSnapshots(agent, world)
-                }
-                CallbackKind::EvalCustomPrecond { agent, .. } => {
-                    let (prop, value) = customs[&req.callable_id];
-                    CallbackResponse::Bool(
-                        agent.properties.get(prop) == Some(&VariantSnapshot::Int(value)),
-                    )
-                }
-            };
-            let _ = req.response_tx.send(PlannerCallback {
-                request_id: req.request_id,
-                response,
-            });
+) -> mpsc::Sender<CallbackRequest> {
+    spawn_responder(move |req| match req.kind {
+        CallbackKind::GetCost { .. } => CallbackResponse::Float(1.0),
+        CallbackKind::ApplyEffect { mut agent, world } => {
+            for &(prop, value) in &effects[req.callable_id] {
+                agent
+                    .properties
+                    .insert(prop.to_string(), VariantSnapshot::Int(value));
+            }
+            CallbackResponse::UpdatedSnapshots(agent, world)
         }
-    });
-    (req_tx, handle)
+        CallbackKind::EvalCustomPrecond { agent, .. } => {
+            let (prop, value) = customs[&req.callable_id];
+            CallbackResponse::Bool(agent.properties.get(prop) == Some(&VariantSnapshot::Int(value)))
+        }
+    })
 }
 
 #[test]
 fn goal_level_action_runs_after_the_chain() {
     // Goal: fed and at the fire. Eating needs the agent at the food, so walking to the fire
     // must come last: [goto_food, eat, goto_fire]. Effects set one agent int each.
-    let (req_tx, handle) = spawn_int_responder(
+    let req_tx = spawn_int_responder(
         vec![vec![("pos", 1)], vec![("fed", 1)], vec![("pos", 2)]],
         HashMap::new(),
     );
@@ -470,7 +370,6 @@ fn goal_level_action_runs_after_the_chain() {
     }];
 
     let result = run_planner(agent, make_world(), actions, goals, 10, req_tx);
-    drop(handle);
 
     let plan = result.expect("should produce a plan");
     assert!(plan.success);
@@ -502,7 +401,7 @@ fn custom_precondition_is_rechecked_before_its_action() {
         desired_state: vec![agent_int_equal("fed", 1)],
         original_index: 0,
     }];
-    let (req_tx, handle) = spawn_int_responder(
+    let req_tx = spawn_int_responder(
         vec![
             vec![("pos", 1), ("held", 0)],
             vec![("held", 1)],
@@ -512,7 +411,6 @@ fn custom_precondition_is_rechecked_before_its_action() {
     );
 
     let result = run_planner(agent, make_world(), actions, goals, 10, req_tx);
-    drop(handle);
 
     let plan = result.expect("should produce a plan");
     assert!(plan.success);
@@ -545,7 +443,7 @@ fn plan_breaking_a_custom_precondition_is_rejected() {
         desired_state: vec![agent_int_equal("fed", 1)],
         original_index: 0,
     }];
-    let (req_tx, handle) = spawn_int_responder(
+    let req_tx = spawn_int_responder(
         vec![
             vec![("pos", 1), ("held", 0)],
             vec![("pos", 0), ("held", 1)],
@@ -555,7 +453,6 @@ fn plan_breaking_a_custom_precondition_is_rejected() {
     );
 
     let result = run_planner(agent, make_world(), actions, goals, 10, req_tx);
-    drop(handle);
 
     let plan = result.expect("should produce a result");
     assert!(!plan.success, "got {:?}", plan.action_chain);
@@ -566,8 +463,6 @@ fn goal_switch_drops_nodes_queued_under_the_previous_goal() {
     // Goal 0 holds already (empty-chain plan at cost 0), and a goal-0 node is still queued, as
     // the BestCost optimality break leaves it. Switching to goal 1 must drop that node rather
     // than verify it against goal 1's desired state.
-    let agent: Arc<BlackboardSnapshot> = make_agent(80).into();
-    let world: Arc<BlackboardSnapshot> = make_world().into();
     let goals = vec![
         GoalSpec {
             name: "already_met".to_string(),
@@ -584,28 +479,13 @@ fn goal_switch_drops_nodes_queued_under_the_previous_goal() {
     ];
 
     let (request_tx, _request_rx) = mpsc::channel::<CallbackRequest>();
-    let (engine_tx, engine_rx) = mpsc::channel::<PlannerCallback>();
-    let ctx = Arc::new(SearchContext {
-        actions: vec![],
-        initial_agent: Arc::clone(&agent),
-        initial_world: Arc::clone(&world),
-        initial_provisions: vec![],
-        request_tx,
-        engine_response_tx: engine_tx.clone(),
-        discovery_results: std::sync::Mutex::new(HashMap::new()),
-        discovery_costs: std::sync::Mutex::new(HashMap::new()),
-        discovery_pending: std::sync::Mutex::new(HashMap::new()),
-        discovery_request_map: std::sync::Mutex::new(HashMap::new()),
-        discovery_precond_results: std::sync::Mutex::new(HashMap::new()),
-        discovery_precond_pending: std::sync::Mutex::new(HashMap::new()),
-        provision_index: HashMap::new(),
-        non_wildcard_actions: vec![],
-    });
-    let mut engine = PlannerEngine::new(ctx, 10, Arc::new(AtomicBool::new(false)))
-        .with_heuristic(Box::new(DijkstraHeuristic))
-        .with_termination_strategy(TerminationStrategy::BestCost);
-    engine.response_rx = engine_rx;
-    engine.response_tx = engine_tx;
+    let mut engine = PlannerEngine::new(
+        inputs(vec![], make_agent(80), make_world(), request_tx),
+        EngineConfig {
+            max_depth: 10,
+            ..EngineConfig::default()
+        },
+    );
 
     engine.best_plan = Some(PlanResult {
         success: true,
@@ -615,7 +495,10 @@ fn goal_switch_drops_nodes_queued_under_the_previous_goal() {
         action_bindings: vec![],
     });
     engine.best_cost = 0.0;
-    let mut stale = PlanBranch::new(agent, world);
+    let mut stale = PlanBranch::new(
+        Arc::clone(&engine.ctx.initial_agent),
+        Arc::clone(&engine.ctx.initial_world),
+    );
     stale.goal_index = 0;
     stale.cost = 5.0;
     engine.queue.push(PriorityNode {
@@ -655,17 +538,14 @@ fn verification_reuses_the_discovered_first_step() {
         original_index: 0,
     }];
 
-    let (responder_tx, _handle) = spawn_callback_responder(5.0, 60);
     let effect_calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
-    let (req_tx, req_rx) = mpsc::channel::<CallbackRequest>();
     let counter = Arc::clone(&effect_calls);
-    thread::spawn(move || {
-        for req in req_rx {
-            if matches!(req.kind, CallbackKind::ApplyEffect { .. }) {
-                counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            }
-            let _ = responder_tx.send(req);
+    let mut answer = hunger_answers(5.0, 60);
+    let req_tx = spawn_responder(move |req| {
+        if matches!(req.kind, CallbackKind::ApplyEffect { .. }) {
+            counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         }
+        answer(req)
     });
 
     let plan = run_planner(make_agent(80), make_world(), actions, goals, 10, req_tx)

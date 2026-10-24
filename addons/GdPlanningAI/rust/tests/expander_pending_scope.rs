@@ -8,11 +8,13 @@
 //! partial `satisfied_preconditions` list. Once the callbacks resolve, the
 //! second action expands with its full precondition set.
 
-use gdplanningai_rust::plan_types::{
-    ActionSpec, CallbackKind, CallbackRequest, PlannerCallback, PreconditionSpec,
-};
+mod common;
+use common::inputs;
+
+use gdplanningai_rust::plan_types::{ActionSpec, CallbackKind, CallbackRequest, PreconditionSpec};
 use gdplanningai_rust::planner::expander::find_candidates;
 use gdplanningai_rust::planner::types::{DiscoveryRequest, PlanBranch, SearchContext};
+use gdplanningai_rust::planner::{EngineConfig, PlannerEngine};
 use gdplanningai_rust::requirement::{ProvisionSpec, RequirementSpec};
 use gdplanningai_rust::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use std::collections::HashMap;
@@ -57,30 +59,11 @@ fn setup() -> (Arc<SearchContext>, Receiver<CallbackRequest>) {
     ];
 
     let (req_tx, req_rx) = mpsc::channel::<CallbackRequest>();
-    let (engine_tx, _engine_rx) = mpsc::channel::<PlannerCallback>();
-
-    let ctx = Arc::new(SearchContext {
-        actions,
-        initial_agent: agent.into(),
-        initial_world: world.into(),
-        initial_provisions: vec![],
-        request_tx: req_tx,
-        engine_response_tx: engine_tx,
-        discovery_results: std::sync::Mutex::new(HashMap::new()),
-        discovery_costs: std::sync::Mutex::new(HashMap::new()),
-        discovery_pending: std::sync::Mutex::new(HashMap::new()),
-        discovery_request_map: std::sync::Mutex::new(HashMap::new()),
-        discovery_precond_results: std::sync::Mutex::new(HashMap::new()),
-        discovery_precond_pending: std::sync::Mutex::new(HashMap::new()),
-        provision_index: HashMap::from([(
-            (
-                gdplanningai_rust::planner::ProvisionKind::Binding,
-                "kit".to_string(),
-            ),
-            vec![1usize],
-        )]),
-        non_wildcard_actions: vec![0, 1],
-    });
+    let engine = PlannerEngine::new(
+        inputs(actions, agent, world, req_tx),
+        EngineConfig::default(),
+    );
+    let ctx = Arc::clone(&engine.ctx);
 
     (ctx, req_rx)
 }

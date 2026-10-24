@@ -35,11 +35,9 @@ pub struct PlannerEngine {
     pub max_depth: usize,
     /// Set from the main thread to abort the search; checked at several points per step.
     pub cancel_flag: Arc<AtomicBool>,
-    /// Receiving end for the main thread's callback answers. The scheduler replaces this (and
-    /// `response_tx`) with the channel whose sender it gave to [`SearchContext`].
+    /// Receiving end for the main thread's callback answers; its sender is
+    /// [`SearchContext::engine_response_tx`], which every callback request carries.
     pub response_rx: Receiver<PlannerCallback>,
-    /// Sending end matching `response_rx`.
-    pub response_tx: Sender<PlannerCallback>,
 
     /// Orders the queue and decides when the search can stop early.
     pub heuristic: Box<dyn SearchHeuristic + Send + Sync>,
@@ -105,23 +103,75 @@ impl std::hash::Hash for StateRef {
     }
 }
 
-impl PlannerEngine {
-    /// Creates an engine (Dijkstra, [`TerminationStrategy::BestCost`], 20000 iterations, 10 ms).
-    /// It owns a fresh response channel: replace `response_rx` if `ctx.engine_response_tx` was
-    /// handed to the main thread.
-    pub fn new(ctx: Arc<SearchContext>, max_depth: usize, cancel_flag: Arc<AtomicBool>) -> Self {
-        let (tx, rx) = std::sync::mpsc::channel();
+/// What one planning job searches over.
+pub struct EngineInputs {
+    /// Candidate actions; plans refer to them by index.
+    pub actions: Vec<ActionSpec>,
+    /// Agent state at submission time.
+    pub agent: BlackboardSnapshot,
+    /// World state at submission time.
+    pub world: BlackboardSnapshot,
+    /// Bindings and facts that already hold before any action runs.
+    pub initial_provisions: Vec<ProvisionSpec>,
+    /// Where the engine asks the main thread to run GDScript callables. Each request carries the
+    /// sender to answer on.
+    pub request_tx: Sender<CallbackRequest>,
+    /// Set from another thread to abort the search.
+    pub cancel_flag: Arc<AtomicBool>,
+}
+
+/// How the search runs. [`Default`] matches the scheduler's defaults.
+pub struct EngineConfig {
+    /// Maximum chain length. Also bounds the number of open requirements as a cycle guard.
+    pub max_depth: usize,
+    /// When the search stops: first verified plan or best cost.
+    pub termination: TerminationStrategy,
+    /// Orders the queue and decides when the search can stop early.
+    pub heuristic: Box<dyn SearchHeuristic + Send + Sync>,
+    /// Maximum node pops per [`PlannerEngine::plan`] call before yielding `Pending(0)`.
+    pub iteration_budget: usize,
+    /// Wall-clock budget per [`PlannerEngine::plan`] call (checked every 128 pops); 0 disables it.
+    pub time_slice_ms: u64,
+    /// Clock read by the time-slice check, so tests can make slices expire on demand.
+    pub clock: fn() -> std::time::Instant,
+}
+
+impl Default for EngineConfig {
+    fn default() -> Self {
         Self {
-            ctx,
-            max_depth,
-            cancel_flag,
-            response_rx: rx,
-            response_tx: tx,
-            heuristic: Box::new(super::DijkstraHeuristic),
+            max_depth: 100,
             termination: TerminationStrategy::BestCost,
+            heuristic: Box::new(super::DijkstraHeuristic),
             iteration_budget: 20000,
             time_slice_ms: 10,
             clock: std::time::Instant::now,
+        }
+    }
+}
+
+impl PlannerEngine {
+    /// Creates an engine for one job: builds the shared context (discovery caches, provision
+    /// index) and the channel the main thread answers on.
+    pub fn new(inputs: EngineInputs, config: EngineConfig) -> Self {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let ctx = Arc::new(SearchContext::new(
+            inputs.actions,
+            inputs.agent,
+            inputs.world,
+            inputs.initial_provisions,
+            inputs.request_tx,
+            tx,
+        ));
+        Self {
+            ctx,
+            max_depth: config.max_depth,
+            cancel_flag: inputs.cancel_flag,
+            response_rx: rx,
+            heuristic: config.heuristic,
+            termination: config.termination,
+            iteration_budget: config.iteration_budget,
+            time_slice_ms: config.time_slice_ms,
+            clock: config.clock,
             queue: BinaryHeap::new(),
             parked_nodes: HashMap::new(),
             visited: HashMap::new(),
@@ -135,36 +185,15 @@ impl PlannerEngine {
         }
     }
 
-    /// Sets the search heuristic to use (e.g., Dijkstra, A*).
-    pub fn with_heuristic(mut self, heuristic: Box<dyn SearchHeuristic + Send + Sync>) -> Self {
-        self.heuristic = heuristic;
-        self
+    /// The debug record of the search; empty unless the log level was Debug at creation.
+    pub fn debug_tree(&self) -> &TreeDump {
+        &self.tree
     }
 
     /// Queues `node` with its priority computed once; its cost must not change afterwards.
     fn enqueue(&mut self, node: SearchNode) {
         let priority = self.heuristic.compute_priority(&node);
         self.queue.push(PriorityNode { priority, node });
-    }
-    /// Sets the termination strategy (e.g., FirstComplete, BestCost).
-    pub fn with_termination_strategy(mut self, strat: TerminationStrategy) -> Self {
-        self.termination = strat;
-        self
-    }
-    /// Sets how many node pops a step may take before yielding `Pending(0)`.
-    pub fn with_iteration_budget(mut self, budget: usize) -> Self {
-        self.iteration_budget = budget;
-        self
-    }
-    /// Sets the wall-clock budget per step (checked every 128 pops); 0 disables it.
-    pub fn with_time_slice_ms(mut self, ms: u64) -> Self {
-        self.time_slice_ms = ms;
-        self
-    }
-    /// Sets the clock the time-slice check reads, so tests can make slices expire on demand.
-    pub fn with_clock(mut self, clock: fn() -> std::time::Instant) -> Self {
-        self.clock = clock;
-        self
     }
 
     /// Runs one non-blocking slice of the search. Call again with the same `goals` until it returns

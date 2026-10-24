@@ -3,18 +3,16 @@
 //! Verifies that when the iteration budget is exhausted before a complete plan can be
 //! found, the planner returns `PlannerRunResult::Pending` rather than `Complete`.
 
+mod common;
+use common::{inputs, reduce_hunger, run_to_completion, spawn_responder};
+
 use gdplanningai_rust::plan_types::{
-    ActionSpec, CallbackKind, CallbackRequest, CallbackResponse, GoalSpec, PlannerCallback,
-    PlannerRunResult, PreconditionSpec,
+    ActionSpec, CallbackKind, CallbackResponse, GoalSpec, PlannerRunResult, PreconditionSpec,
 };
-use gdplanningai_rust::planner::{
-    DijkstraHeuristic, PlannerEngine, SearchContext, TerminationStrategy,
-};
+use gdplanningai_rust::planner::{EngineConfig, PlannerEngine};
 use gdplanningai_rust::precondition::{PreconditionOp, PreconditionTarget};
 use gdplanningai_rust::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use std::collections::HashMap;
-use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
 use std::sync::mpsc;
 
 fn make_agent() -> BlackboardSnapshot {
@@ -65,34 +63,15 @@ fn iteration_budget_exhaustion_returns_pending() {
         original_index: 0,
     }];
 
-    let cancel_flag = Arc::new(AtomicBool::new(false));
-    let (engine_tx, engine_rx) = mpsc::channel::<PlannerCallback>();
-    let non_wildcard_actions: Vec<usize> = (0..actions.len()).collect();
-
-    let ctx = Arc::new(SearchContext {
-        actions,
-        initial_agent: agent.into(),
-        initial_world: world.into(),
-        initial_provisions: vec![],
-        request_tx: mpsc::channel().0, // dummy sender; not used in this test
-        engine_response_tx: engine_tx.clone(),
-        discovery_results: std::sync::Mutex::new(HashMap::new()),
-        discovery_costs: std::sync::Mutex::new(HashMap::new()),
-        discovery_pending: std::sync::Mutex::new(HashMap::new()),
-        discovery_request_map: std::sync::Mutex::new(HashMap::new()),
-        discovery_precond_results: std::sync::Mutex::new(HashMap::new()),
-        discovery_precond_pending: std::sync::Mutex::new(HashMap::new()),
-        provision_index: HashMap::new(),
-        non_wildcard_actions,
-    });
-
-    let mut engine = PlannerEngine::new(ctx, 10, cancel_flag)
-        .with_heuristic(Box::new(DijkstraHeuristic))
-        .with_termination_strategy(TerminationStrategy::BestCost)
-        .with_iteration_budget(0);
-
-    engine.response_rx = engine_rx;
-    engine.response_tx = engine_tx;
+    // The request receiver is dropped: the budget runs out before any callback.
+    let mut engine = PlannerEngine::new(
+        inputs(actions, agent, world, mpsc::channel().0),
+        EngineConfig {
+            max_depth: 10,
+            iteration_budget: 0,
+            ..EngineConfig::default()
+        },
+    );
 
     let result = engine.plan(&goals);
     assert!(
@@ -153,87 +132,33 @@ fn max_depth_prevents_plan_completion() {
         original_index: 0,
     }];
 
-    let (req_tx, req_rx) = mpsc::channel::<CallbackRequest>();
-    let handle = std::thread::spawn(move || {
-        for req in req_rx {
-            let response = match req.kind {
-                CallbackKind::GetCost { .. } => CallbackResponse::Float(1.0),
-                CallbackKind::ApplyEffect {
-                    mut agent, world, ..
-                } => {
-                    match req.callable_id {
-                        0 => {
-                            // eat effect
-                            if let Some(VariantSnapshot::Int(current)) =
-                                agent.properties.get("hunger").cloned()
-                            {
-                                let new_hunger = (current - 60).max(0);
-                                agent
-                                    .properties
-                                    .insert("hunger".to_string(), VariantSnapshot::Int(new_hunger));
-                            }
-                        }
-                        1 => {
-                            // get_food effect
-                            agent
-                                .properties
-                                .insert("has_food".to_string(), VariantSnapshot::Bool(true));
-                        }
-                        _ => {}
-                    }
-                    CallbackResponse::UpdatedSnapshots(agent, world)
+    let req_tx = spawn_responder(|req| match req.kind {
+        CallbackKind::GetCost { .. } => CallbackResponse::Float(1.0),
+        CallbackKind::ApplyEffect { mut agent, world } => {
+            match req.callable_id {
+                // eat effect
+                0 => reduce_hunger(&mut agent, 60),
+                // get_food effect
+                1 => {
+                    agent
+                        .properties
+                        .insert("has_food".to_string(), VariantSnapshot::Bool(true));
                 }
-                _ => CallbackResponse::Float(1.0),
-            };
-            let _ = req.response_tx.send(PlannerCallback {
-                request_id: req.request_id,
-                response,
-            });
+                _ => {}
+            }
+            CallbackResponse::UpdatedSnapshots(agent, world)
         }
+        _ => CallbackResponse::Float(1.0),
     });
 
-    let cancel_flag = Arc::new(AtomicBool::new(false));
-    let (engine_tx, engine_rx) = mpsc::channel::<PlannerCallback>();
-    let non_wildcard_actions: Vec<usize> = (0..actions.len()).collect();
-
-    let ctx = Arc::new(SearchContext {
-        actions,
-        initial_agent: agent.into(),
-        initial_world: world.into(),
-        initial_provisions: vec![],
-        request_tx: req_tx,
-        engine_response_tx: engine_tx.clone(),
-        discovery_results: std::sync::Mutex::new(HashMap::new()),
-        discovery_costs: std::sync::Mutex::new(HashMap::new()),
-        discovery_pending: std::sync::Mutex::new(HashMap::new()),
-        discovery_request_map: std::sync::Mutex::new(HashMap::new()),
-        discovery_precond_results: std::sync::Mutex::new(HashMap::new()),
-        discovery_precond_pending: std::sync::Mutex::new(HashMap::new()),
-        provision_index: HashMap::new(),
-        non_wildcard_actions,
-    });
-
-    let mut engine = PlannerEngine::new(ctx, 1, cancel_flag)
-        .with_heuristic(Box::new(DijkstraHeuristic))
-        .with_termination_strategy(TerminationStrategy::BestCost);
-
-    engine.response_rx = engine_rx;
-    engine.response_tx = engine_tx;
-
-    let mut iterations = 0;
-    let result = loop {
-        iterations += 1;
-        assert!(
-            iterations < 1000,
-            "Planner looped too many times without converging"
-        );
-        match engine.plan(&goals) {
-            PlannerRunResult::Complete(res) => break res,
-            PlannerRunResult::Pending(_) => {}
-        }
-    };
-
-    drop(handle);
+    let mut engine = PlannerEngine::new(
+        inputs(actions, agent, world, req_tx),
+        EngineConfig {
+            max_depth: 1,
+            ..EngineConfig::default()
+        },
+    );
+    let result = run_to_completion(&mut engine, &goals);
 
     let plan = result.expect("should produce a result");
     assert!(
