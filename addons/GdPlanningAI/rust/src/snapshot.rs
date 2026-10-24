@@ -275,11 +275,11 @@ mod tests {
 
     #[test]
     fn variant_snapshot_float_preserves_value() {
-        let snap = VariantSnapshot::Float(3.14159f64.to_bits());
+        let snap = VariantSnapshot::Float(1.25f64.to_bits());
         match snap {
             VariantSnapshot::Float(v) => {
                 let f = f64::from_bits(v);
-                assert!((f - 3.14159).abs() < f64::EPSILON)
+                assert!((f - 1.25).abs() < f64::EPSILON)
             }
             _ => panic!("Expected Float variant"),
         }
@@ -320,7 +320,7 @@ mod tests {
     #[test]
     fn blackboard_snapshot_missing_property_returns_none() {
         let snapshot = make_test_snapshot();
-        assert!(snapshot.properties.get("nonexistent").is_none());
+        assert!(!snapshot.properties.contains_key("nonexistent"));
     }
 
     #[test]
@@ -334,7 +334,7 @@ mod tests {
             .insert("new_prop".to_string(), VariantSnapshot::Int(42));
 
         // Original should be unchanged
-        assert!(original.properties.get("new_prop").is_none());
-        assert!(cloned.properties.get("new_prop").is_some());
+        assert!(!original.properties.contains_key("new_prop"));
+        assert!(cloned.properties.contains_key("new_prop"));
     }
 }

@@ -139,9 +139,7 @@ mod tests {
     #[test]
     fn group_membership_check_with_matching_group() {
         // Test that is_in_group logic works with Vec::contains
-        let mut groups: Vec<String> = Vec::new();
-        groups.push("enemy".to_string());
-        groups.push("mobile".to_string());
+        let groups: Vec<String> = vec!["enemy".to_string(), "mobile".to_string()];
 
         assert!(groups.contains(&"enemy".to_string()));
         assert!(groups.contains(&"mobile".to_string()));
@@ -157,12 +155,12 @@ mod tests {
         properties.insert("health".to_string(), "100".to_string());
 
         // Simulate has_property behavior
-        assert!(properties.contains_key(&"health".to_string()));
-        assert!(!properties.contains_key(&"missing_key".to_string()));
+        assert!(properties.contains_key("health"));
+        assert!(!properties.contains_key("missing_key"));
 
         // Simulate get_property behavior
-        assert!(properties.get(&"health".to_string()).is_some());
-        assert!(properties.get(&"missing_key".to_string()).is_none());
+        assert_eq!(properties.get("health").map(String::as_str), Some("100"));
+        assert_eq!(properties.get("missing_key"), None);
     }
 
     #[test]
@@ -177,10 +175,11 @@ mod tests {
     #[test]
     fn groups_vec_supports_iteration_for_get_groups() {
         // Test that groups can be iterated (used in get_groups())
-        let mut groups: Vec<String> = Vec::new();
-        groups.push("group1".to_string());
-        groups.push("group2".to_string());
-        groups.push("group3".to_string());
+        let groups: Vec<String> = vec![
+            "group1".to_string(),
+            "group2".to_string(),
+            "group3".to_string(),
+        ];
 
         let mut count = 0;
         for g in &groups {
@@ -198,7 +197,7 @@ mod tests {
         properties.insert("key2".to_string(), "val2".to_string());
 
         let mut key_count = 0;
-        for (k, _v) in properties.iter() {
+        for k in properties.keys() {
             assert!(!k.is_empty());
             key_count += 1;
         }
