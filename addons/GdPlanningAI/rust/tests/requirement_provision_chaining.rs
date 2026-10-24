@@ -112,15 +112,14 @@ fn spawn_action_aware_responder(
                 CallbackKind::ApplyEffect {
                     mut agent, world, ..
                 } => {
-                    if req.callable_id == hunger_effect_callable_id {
-                        if let Some(VariantSnapshot::Int(current)) =
+                    if req.callable_id == hunger_effect_callable_id
+                        && let Some(VariantSnapshot::Int(current)) =
                             agent.properties.get("hunger").cloned()
-                        {
-                            let new_hunger = (current - hunger_reduction).max(0);
-                            agent
-                                .properties
-                                .insert("hunger".to_string(), VariantSnapshot::Int(new_hunger));
-                        }
+                    {
+                        let new_hunger = (current - hunger_reduction).max(0);
+                        agent
+                            .properties
+                            .insert("hunger".to_string(), VariantSnapshot::Int(new_hunger));
                     }
                     CallbackResponse::UpdatedSnapshots(agent, world)
                 }

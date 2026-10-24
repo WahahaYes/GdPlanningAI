@@ -362,7 +362,7 @@ mod tests {
 
         // The clone_for_simulation method iterates: for (uid, obj) in &self.objects
         let mut clone_count = 0;
-        for (_uid, _obj) in &objects {
+        for _obj in objects.values() {
             clone_count += 1;
         }
         assert_eq!(clone_count, 0); // Empty for this test

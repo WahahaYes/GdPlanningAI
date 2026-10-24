@@ -98,7 +98,7 @@ format-check: ## Check formatting with rustfmt (no rewrite)
 .PHONY: lint
 lint: ## Run clippy; warnings fail
 	@rustup component add clippy 2>&1 | grep -E "(error|Error)" || true
-	@cargo clippy --message-format=short -- -D warnings
+	@cargo clippy --all-targets --message-format=short -- -D warnings
 
 .PHONY: clean
 clean: ## Clean build artifacts
