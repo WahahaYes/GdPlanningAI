@@ -11,6 +11,8 @@ coverage:
         informational: true
 comment:
   layout: "condensed_header, diff, flags, files"
+  # Codecov's default comment shows patch coverage only; show the project and per-flag change too.
+  hide_project_coverage: false
   require_changes: false
 flag_management:
   default_rules:
