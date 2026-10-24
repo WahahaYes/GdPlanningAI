@@ -4,6 +4,8 @@ What GdPlanningAI users rely on, one entry per behavior. Each entry has a slug, 
 
 A bug fix adds a case to the test of the behavior it broke. If no entry fits, add the entry first.
 
+`make check-behaviors` (a pre-commit hook) fails when a listed path is gone, or a test file, fixture or scene case has no entry.
+
 ## Planning results
 
 ### `plan-reaches-goal`
@@ -28,13 +30,13 @@ A bug fix adds a case to the test of the behavior it broke. If no entry fits, ad
 
 **Scenario:** Given several chains that meet a goal, when the agent plans, then it gets the one with the lowest total cost, even if it is longer.
 
-**Proved by:** `addons/GdPlanningAI/rust/tests/scenarios/cheapest-plan-wins.toml`, `test/integration/test_async_planner.gd`, `test/integration/test_requirements_provisions.gd`
+**Proved by:** `addons/GdPlanningAI/rust/tests/scenarios/cheapest-plan-wins.toml`
 
 ### `goals-by-priority`
 
 **Scenario:** Given several goals, when the agent plans, then goals are tried from the highest reward down and the first one with a plan wins.
 
-**Proved by:** `addons/GdPlanningAI/rust/tests/scenarios/goals-by-priority.toml`, `addons/GdPlanningAI/rust/tests/planner_integration.rs`
+**Proved by:** `addons/GdPlanningAI/rust/tests/scenarios/goals-by-priority.toml`, `addons/GdPlanningAI/rust/src/planner/engine.rs` (goal switch with stale nodes queued)
 
 ## Chaining and verification
 
@@ -42,19 +44,19 @@ A bug fix adds a case to the test of the behavior it broke. If no entry fits, ad
 
 **Scenario:** Given an action that requires a binding or fact, when the agent plans, then an action providing it is placed before it: `binding` meets `binding_exists`, `binding_equals` and (for objects in the group) `binding_in_set`, and `fact_wildcard("at_target")` meets every `at_target` fact, so Go To is planned in for each interaction. Provisions that already hold need no action.
 
-**Proved by:** `addons/GdPlanningAI/rust/tests/scenarios/requirements-chain-through-provisions.toml`, `test/integration/test_requirements_provisions.gd`
+**Proved by:** `addons/GdPlanningAI/rust/tests/scenarios/requirements-chain-through-provisions.toml`, `addons/GdPlanningAI/rust/src/requirement.rs` (group membership), `test/integration/test_requirements_provisions.gd`
 
 ### `plans-verified-forward`
 
 **Scenario:** Given a candidate chain, when the planner replays it from the starting state, then the chain is rejected if any action's preconditions or requirements fail in the state just before it, including a need an earlier step met and a later step undid.
 
-**Proved by:** `addons/GdPlanningAI/rust/tests/scenarios/plans-verified-forward.toml`, `test/integration/test_requirements_provisions.gd`
+**Proved by:** `addons/GdPlanningAI/rust/tests/scenarios/plans-verified-forward.toml`
 
 ### `custom-preconditions-decide`
 
 **Scenario:** Given an action with a custom precondition, when the planner considers it, then the callable decides, with the planner's bindings injected: false prunes the branch, and the callable is asked again in the state just before the action when the plan is verified.
 
-**Proved by:** `addons/GdPlanningAI/rust/tests/scenarios/custom-preconditions-decide.toml`
+**Proved by:** `addons/GdPlanningAI/rust/tests/scenarios/custom-preconditions-decide.toml`, `addons/GdPlanningAI/rust/src/planner/expander.rs` (callbacks in flight per candidate)
 
 ### `precondition-semantics`
 
@@ -62,7 +64,7 @@ Unit tier: the built-in precondition evaluator is an algorithmic kernel.
 
 **Scenario:** Given a built-in precondition on the agent, the world state or a world-object group, when it is evaluated, then it matches the [quick reference](AUTHORING_GUIDE.md#quick-reference-built-in-preconditions): ints and floats compare across types, floats within a tolerance, a missing property equals `null` and `""`, and a group check holds if any object in the group matches.
 
-**Proved by:** `addons/GdPlanningAI/rust/tests/prefilter_agreement.rs`, `addons/GdPlanningAI/rust/src/plan_types.rs`, `addons/GdPlanningAI/rust/src/precondition.rs`
+**Proved by:** `addons/GdPlanningAI/rust/src/plan_types.rs` (one table shared by the planner and the goal pre-filter), `addons/GdPlanningAI/rust/src/precondition.rs` (operator names)
 
 ## Scheduling
 
@@ -70,13 +72,13 @@ Unit tier: the built-in precondition evaluator is an algorithmic kernel.
 
 **Scenario:** Given agents submitting plans, when the scheduler runs, then each search runs on a worker thread in slices bounded by `iteration_budget` and `time_slice_ms`, a cancelled or superseded search stops without delivering a result, and finished engines are freed off the main thread.
 
-**Proved by:** `addons/GdPlanningAI/rust/tests/time_slice.rs`, `addons/GdPlanningAI/rust/tests/cancellation.rs`, `addons/GdPlanningAI/rust/tests/drop_in_background.rs`, `test/integration/test_async_planner.gd`
+**Proved by:** `addons/GdPlanningAI/rust/tests/time_slice.rs`, `addons/GdPlanningAI/rust/tests/budget_exhaustion.rs`, `addons/GdPlanningAI/rust/tests/cancellation.rs`, `addons/GdPlanningAI/rust/src/scheduler.rs`, `test/integration/test_async_planner.gd`
 
 ### `simulations-run-once`
 
 **Scenario:** Given a search, when several branches need the same action simulated from the same state, then its cost and effect callables run once and the answer is shared, including between discovery and verification.
 
-**Proved by:** `addons/GdPlanningAI/rust/tests/planner_integration.rs`, `addons/GdPlanningAI/rust/tests/step_cache.rs`
+**Proved by:** `addons/GdPlanningAI/rust/tests/planner_integration.rs`, `addons/GdPlanningAI/rust/src/planner/engine.rs` (branches sharing a step)
 
 ### `planning-strategies`
 
@@ -136,7 +138,7 @@ Unit tier: the built-in precondition evaluator is an algorithmic kernel.
 
 **Scenario:** Given the default log level (Info), when a plan completes, then one `RESULT` line summarizes it; at Debug the full search tree is recorded for `get_debug_tree`, with the failing need on each rejected node, and a stalled search is noted once per callback.
 
-**Proved by:** `addons/GdPlanningAI/rust/tests/logging_levels.rs`, `addons/GdPlanningAI/rust/tests/debug_tree_test.rs`, `test/unit/test_log_level_config.gd`
+**Proved by:** `addons/GdPlanningAI/rust/tests/logging_levels.rs`, `addons/GdPlanningAI/rust/src/debug_tree.rs` (deep chains), `addons/GdPlanningAI/rust/src/logger.rs` (level values), `addons/GdPlanningAI/rust/src/scheduler.rs` (stall notice), `test/unit/test_log_level_config.gd`
 
 ### `engine-matches-addon`
 

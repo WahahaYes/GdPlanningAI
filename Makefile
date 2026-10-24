@@ -1,8 +1,13 @@
-##@ Testing
-
-# test-godot runs the GUT suite and reports failures concisely.
-# Exits 0 to preserve context; GUT-SUITE-OK/FAILED summary at end.
+# Recipes rely on bash (PIPESTATUS).
 SHELL := /bin/bash
+
+##@ Setup
+
+.PHONY: setup
+setup: ## Install the pinned Rust toolchain (rustfmt, clippy) and the coverage tools; safe to rerun
+	"$(MAKE)" -C addons/GdPlanningAI/rust setup
+
+##@ Testing
 
 .PHONY: test
 test: ## Run all tests (Rust + Godot); exits nonzero if any sub-suite fails
@@ -29,7 +34,7 @@ test-rust-verbose: ## Run Rust tests with cargo's full output and exit code (CI)
 	"$(MAKE)" -C addons/GdPlanningAI/rust test-verbose
 
 .PHONY: coverage
-coverage: ## Rust test coverage report (install the pinned tool with make -C addons/GdPlanningAI/rust coverage-tools)
+coverage: ## Rust test coverage report (make setup installs the tools)
 	"$(MAKE)" -C addons/GdPlanningAI/rust coverage
 
 .PHONY: test-verbose
@@ -136,6 +141,10 @@ lint-godot: ## Lint tracked GDScript files with gdlint (gdtoolkit defaults)
 	@out=$$(git ls-files -z '*.gd' | xargs -0 -r uv run gdlint 2>&1) || { echo "$$out"; exit 1; }
 
 ##@ Documentation
+
+.PHONY: check-behaviors
+check-behaviors: ## Check that docs/BEHAVIORS.md and the test files point at each other
+	@uv run scripts/check_behaviors.py
 
 .PHONY: check-docs
 check-docs: ## Check consistency of README and LICENSE between root and addon directory

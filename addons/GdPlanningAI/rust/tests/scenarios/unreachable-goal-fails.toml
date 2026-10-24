@@ -34,3 +34,11 @@ actions = [
 ]
 goals = [{ name = "satisfy_hunger", reward = 10.0, want = [{ agent = "hunger", op = "<", value = 30 }] }]
 expect = { fails = true }
+
+# eat needs a held item and no action provides one.
+[[case]]
+name = "requirement_without_provider_fails"
+agent = { hunger = 80 }
+actions = [{ name = "eat", cost = 1.5, effect = { add = { hunger = -60 } }, requires = [{ binding_exists = "held_item" }] }]
+goals = [{ name = "satisfy_hunger", reward = 10.0, want = [{ agent = "hunger", op = "<", value = 30 }] }]
+expect = { fails = true }

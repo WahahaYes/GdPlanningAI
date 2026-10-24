@@ -1,5 +1,7 @@
 ![GdPlanningAI banner](https://raw.githubusercontent.com/WahahaYes/GdPlanningAI/refs/heads/main/media/gdpai_banner.png)
 
+[![Coverage](https://codecov.io/gh/WahahaYes/GdPlanningAI/graph/badge.svg)](https://codecov.io/gh/WahahaYes/GdPlanningAI)
+
 # Table of Contents
 
 1. [Intro](#gdplanningai)

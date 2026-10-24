@@ -30,64 +30,64 @@ use std::sync::mpsc::{Receiver, Sender};
 /// goal with a plan wins.
 pub struct PlannerEngine {
     /// Shared per-run context: actions, initial state, channels and discovery caches.
-    pub ctx: Arc<SearchContext>,
+    pub(crate) ctx: Arc<SearchContext>,
     /// Maximum chain length. Also bounds the number of open requirements as a cycle guard.
-    pub max_depth: usize,
+    pub(crate) max_depth: usize,
     /// Set from the main thread to abort the search; checked at several points per step.
-    pub cancel_flag: Arc<AtomicBool>,
+    pub(crate) cancel_flag: Arc<AtomicBool>,
     /// Receiving end for the main thread's callback answers; its sender is
     /// [`SearchContext::engine_response_tx`], which every callback request carries.
-    pub response_rx: Receiver<PlannerCallback>,
+    pub(crate) response_rx: Receiver<PlannerCallback>,
 
     /// Orders the queue and decides when the search can stop early.
-    pub heuristic: Box<dyn SearchHeuristic + Send + Sync>,
+    pub(crate) heuristic: Box<dyn SearchHeuristic + Send + Sync>,
     /// When the search stops: first verified plan or best cost.
-    pub termination: TerminationStrategy,
+    pub(crate) termination: TerminationStrategy,
     /// Maximum node pops per [`PlannerEngine::plan`] call before yielding `Pending(0)`.
-    pub iteration_budget: usize,
+    pub(crate) iteration_budget: usize,
     /// Wall-clock budget per [`PlannerEngine::plan`] call before yielding `Pending(0)`;
     /// 0 disables the check.
-    pub time_slice_ms: u64,
+    pub(crate) time_slice_ms: u64,
     /// Clock read by the time-slice check; [`std::time::Instant::now`] unless a test swaps it.
-    pub clock: fn() -> std::time::Instant,
+    pub(crate) clock: fn() -> std::time::Instant,
 
     /// Open nodes ordered by heuristic priority (lowest first).
-    pub queue: BinaryHeap<PriorityNode>,
+    pub(crate) queue: BinaryHeap<PriorityNode>,
     /// Nodes waiting for a callback, keyed by the request id they wait on. Several nodes can
     /// wait on the same id (they share a discovery request).
-    pub parked_nodes: HashMap<usize, Vec<SearchNode>>,
+    pub(crate) parked_nodes: HashMap<usize, Vec<SearchNode>>,
     /// Cheapest cost at which each searching-branch fingerprint has been expanded; see
     /// [`PlanBranch::fingerprint`].
-    pub visited: HashMap<SearchFingerprint, f64>,
+    pub(crate) visited: HashMap<SearchFingerprint, f64>,
     /// Cheapest verified plan for the current goal so far.
-    pub best_plan: Option<PlanResult>,
+    pub(crate) best_plan: Option<PlanResult>,
     /// Cost of `best_plan`; infinity until a plan is found. Branches at or above it are pruned.
-    pub best_cost: f64,
+    pub(crate) best_cost: f64,
     /// Position in the `goals` slice of the goal currently being searched.
-    pub current_goal_index: usize,
+    pub(crate) current_goal_index: usize,
     /// Debug record of the search; only populated when the log level was Debug at creation.
-    pub tree: TreeDump,
+    pub(crate) tree: TreeDump,
     /// Post-states of verified steps, so branches sharing a chain prefix replay it without
     /// callbacks; see [`StepKey`]. Holds every distinct verified prefix until the job ends.
-    pub step_cache: HashMap<StepKey, SharedState>,
+    pub(crate) step_cache: HashMap<StepKey, SharedState>,
     /// In-flight effect requests: key -> request id, so other branches wait on the same one.
-    pub step_pending: HashMap<StepKey, usize>,
+    pub(crate) step_pending: HashMap<StepKey, usize>,
     /// Request id -> the step it simulates, so its answer fills `step_cache`.
-    pub step_requests: HashMap<usize, StepKey>,
+    pub(crate) step_requests: HashMap<usize, StepKey>,
 }
 
 /// Agent and world state shared between branches.
-pub type SharedState = (Arc<BlackboardSnapshot>, Arc<BlackboardSnapshot>);
+pub(crate) type SharedState = (Arc<BlackboardSnapshot>, Arc<BlackboardSnapshot>);
 
 /// One simulation step: the pre-state, the action and its bindings. Effects are deterministic, so
 /// equal keys give equal post-states, and a branch replaying a cached state keys its next step
 /// the same way.
-pub type StepKey = (StateRef, StateRef, usize, BindingMap);
+pub(crate) type StepKey = (StateRef, StateRef, usize, BindingMap);
 
 /// A shared snapshot compared and hashed by identity. Holding the `Arc` keeps the address
 /// from being reused while a key refers to it.
 #[derive(Clone, Debug)]
-pub struct StateRef(pub Arc<BlackboardSnapshot>);
+pub(crate) struct StateRef(pub(crate) Arc<BlackboardSnapshot>);
 
 impl PartialEq for StateRef {
     fn eq(&self, other: &Self) -> bool {
@@ -126,8 +126,6 @@ pub struct EngineConfig {
     pub max_depth: usize,
     /// When the search stops: first verified plan or best cost.
     pub termination: TerminationStrategy,
-    /// Orders the queue and decides when the search can stop early.
-    pub heuristic: Box<dyn SearchHeuristic + Send + Sync>,
     /// Maximum node pops per [`PlannerEngine::plan`] call before yielding `Pending(0)`.
     pub iteration_budget: usize,
     /// Wall-clock budget per [`PlannerEngine::plan`] call (checked every 128 pops); 0 disables it.
@@ -141,7 +139,6 @@ impl Default for EngineConfig {
         Self {
             max_depth: 100,
             termination: TerminationStrategy::BestCost,
-            heuristic: Box::new(super::DijkstraHeuristic),
             iteration_budget: 20000,
             time_slice_ms: 10,
             clock: std::time::Instant::now,
@@ -167,7 +164,7 @@ impl PlannerEngine {
             max_depth: config.max_depth,
             cancel_flag: inputs.cancel_flag,
             response_rx: rx,
-            heuristic: config.heuristic,
+            heuristic: Box::new(super::DijkstraHeuristic),
             termination: config.termination,
             iteration_budget: config.iteration_budget,
             time_slice_ms: config.time_slice_ms,
@@ -727,11 +724,6 @@ impl PlannerEngine {
     fn process_simulation(&mut self, node: &mut SearchNode) -> StepResult<()> {
         let branch = &mut node.branch;
 
-        // 0. Initial-state bookkeeping at the start of the chain.
-        if branch.simulation_index == 0 {
-            self.clear_initial_state_requirements(branch);
-        }
-
         let current_bindings = branch.collect_bindings_for_position(branch.simulation_index);
 
         // 1. Check open preconditions for current index
@@ -776,28 +768,14 @@ impl PlannerEngine {
             return result;
         }
 
-        let result = self.finalize_verified_branch(branch);
-        if matches!(result, StepResult::Ready(())) {
-            node.callback_response = None;
-        }
-        result
-    }
-
-    /// Removes position-0 requirements already satisfied by the initial state. Runs once at the
-    /// start of verification.
-    pub fn clear_initial_state_requirements(&self, branch: &mut PlanBranch) {
-        branch.open_requirements.retain(|(pos, req)| {
-            !(*pos == 0
-                && self.ctx.initial_provisions.iter().any(|prov| {
-                    provision_satisfies_requirement(prov, req, Some(&self.ctx.initial_world))
-                }))
-        });
+        self.record_verified_plan(branch);
+        StepResult::Complete
     }
 
     /// Rejects the branch if an action's built-in preconditions do not hold in the simulated state
     /// before it runs. Custom ones are left to the open-precondition step, which
     /// [`Self::begin_verification`] re-opened them for.
-    pub fn validate_action_against_current_state(
+    fn validate_action_against_current_state(
         &self,
         branch: &PlanBranch,
         action: &ActionSpec,
@@ -817,11 +795,7 @@ impl PlannerEngine {
                 current_bindings,
             ) {
                 StepResult::Ready(true) => {}
-                StepResult::Ready(false) => {
-                    if branch.state == BranchState::Verifying {
-                        return Some(StepResult::Invalid);
-                    }
-                }
+                StepResult::Ready(false) => return Some(StepResult::Invalid),
                 StepResult::Pending(id) => return Some(StepResult::Pending(id)),
                 StepResult::Invalid => return Some(StepResult::Invalid),
                 StepResult::Complete => unreachable!("eval_precondition cannot return Complete"),
@@ -832,7 +806,7 @@ impl PlannerEngine {
 
     /// Checks one open precondition at the current position per call (custom ones may need a
     /// callback). Returns `None` when none remain; a false one invalidates the branch.
-    pub fn evaluate_open_preconditions_for_position(
+    fn evaluate_open_preconditions_for_position(
         &mut self,
         branch: &mut PlanBranch,
         current_bindings: &[(String, Vec<VariantSnapshot>)],
@@ -854,21 +828,19 @@ impl PlannerEngine {
                         return Some(StepResult::Ready(()));
                     }
                     StepResult::Ready(false) => {
-                        if branch.state == BranchState::Verifying {
-                            let consumer = match branch.action_chain.get(branch.simulation_index) {
-                                Some(&idx) => self.ctx.actions[idx].name.clone(),
-                                None => "GOAL".to_string(),
-                            };
-                            let detail = format!("failed: {}", branch.open_preconditions[i].1);
-                            self.tree.add_fwd_step(
-                                branch.tree_node_id,
-                                &consumer,
-                                "precondition",
-                                &detail,
-                                false,
-                            );
-                            return Some(StepResult::Invalid);
-                        }
+                        let consumer = match branch.action_chain.get(branch.simulation_index) {
+                            Some(&idx) => self.ctx.actions[idx].name.clone(),
+                            None => "GOAL".to_string(),
+                        };
+                        let detail = format!("failed: {}", branch.open_preconditions[i].1);
+                        self.tree.add_fwd_step(
+                            branch.tree_node_id,
+                            &consumer,
+                            "precondition",
+                            &detail,
+                            false,
+                        );
+                        return Some(StepResult::Invalid);
                     }
                     StepResult::Pending(id) => return Some(StepResult::Pending(id)),
                     StepResult::Invalid => return Some(StepResult::Invalid),
@@ -882,43 +854,41 @@ impl PlannerEngine {
         None
     }
 
-    /// Checks the current action's requirements, simulates it, clears later requirements it
-    /// provides, and advances to the next action.
-    pub fn simulate_and_advance(
+    /// Checks the current action's requirements in the simulated state, simulates it, and advances
+    /// to the next action.
+    fn simulate_and_advance(
         &mut self,
         branch: &mut PlanBranch,
         action_idx: usize,
         current_bindings: &[(String, Vec<VariantSnapshot>)],
         callback_response: Option<&CallbackResponse>,
     ) -> StepResult<()> {
-        if branch.state == BranchState::Verifying {
-            // The immutable borrow of the action spec ends inside this block
-            // so the tree annotation below can borrow `self` mutably.
-            let failed: Option<(String, String)> = {
-                let action = &self.ctx.actions[action_idx];
-                action
-                    .requirements
-                    .iter()
-                    .find(|req| {
-                        !requirement_holds_in_state(
-                            req,
-                            &branch.current_agent,
-                            &branch.current_world,
-                            current_bindings,
-                        )
-                    })
-                    .map(|req| (action.name.clone(), format!("failed: {}", req)))
-            };
-            if let Some((action_name, detail)) = failed {
-                self.tree.add_fwd_step(
-                    branch.tree_node_id,
-                    &action_name,
-                    "requirement",
-                    &detail,
-                    false,
-                );
-                return StepResult::Invalid;
-            }
+        // The immutable borrow of the action spec ends inside this block
+        // so the tree annotation below can borrow `self` mutably.
+        let failed: Option<(String, String)> = {
+            let action = &self.ctx.actions[action_idx];
+            action
+                .requirements
+                .iter()
+                .find(|req| {
+                    !requirement_holds_in_state(
+                        req,
+                        &branch.current_agent,
+                        &branch.current_world,
+                        current_bindings,
+                    )
+                })
+                .map(|req| (action.name.clone(), format!("failed: {}", req)))
+        };
+        if let Some((action_name, detail)) = failed {
+            self.tree.add_fwd_step(
+                branch.tree_node_id,
+                &action_name,
+                "requirement",
+                &detail,
+                false,
+            );
+            return StepResult::Invalid;
         }
 
         let key: StepKey = (
@@ -995,8 +965,6 @@ impl PlannerEngine {
         branch.current_agent = agent;
         branch.current_world = world;
 
-        self.clear_requirements_from_provisions(branch, action_idx, current_bindings);
-
         branch.simulation_index += 1;
         branch.recalculate_cost();
         StepResult::Ready(())
@@ -1023,99 +991,202 @@ impl PlannerEngine {
         Some((Arc::new(res.agent.clone()), Arc::new(res.world.clone())))
     }
 
-    /// Clears requirements at or after the current position that this action's provisions satisfy.
-    /// Wildcards are first made concrete with this position's binding, so one GoTo only satisfies
-    /// `at_target` for its own target.
-    pub fn clear_requirements_from_provisions(
-        &self,
-        branch: &mut PlanBranch,
-        action_idx: usize,
-        current_bindings: &[(String, Vec<VariantSnapshot>)],
-    ) {
-        let action = &self.ctx.actions[action_idx];
-        let concrete_provisions: Vec<ProvisionSpec> = action
-            .provisions
-            .iter()
-            .map(|prov| concretize_wildcard_provision(prov, current_bindings))
-            .collect();
-
-        for prov in &concrete_provisions {
-            branch.open_requirements.retain(|(pos, req)| {
-                !(*pos >= branch.simulation_index
-                    && provision_satisfies_requirement(prov, req, Some(&branch.current_world)))
+    /// At the end of a verified chain: records it if it is the cheapest plan so far. Verification
+    /// checked every need on the way, so none are open here.
+    fn record_verified_plan(&mut self, branch: &PlanBranch) {
+        debug_assert!(branch.open_preconditions.is_empty() && branch.open_requirements.is_empty());
+        if branch.cost < self.best_cost {
+            self.tree
+                .set_outcome(branch.tree_node_id, NodeOutcome::Complete);
+            self.best_cost = branch.cost;
+            self.best_plan = Some(PlanResult {
+                success: true,
+                action_chain: branch.action_chain.iter().map(|&i| i as i64).collect(),
+                total_cost: branch.cost,
+                goal_index: branch.goal_index as i64,
+                action_bindings: branch
+                    .action_bindings
+                    .iter()
+                    .map(|(pos, name, vals)| (*pos as i64, name.clone(), vals.clone()))
+                    .collect(),
             });
-        }
-    }
-
-    /// At the end of the chain: `Complete` if no needs remain (recorded if cheapest), `Invalid`
-    /// otherwise. `Ready` outside verification.
-    pub fn finalize_verified_branch(&mut self, branch: &mut PlanBranch) -> StepResult<()> {
-        match branch.state {
-            BranchState::Verifying => {
-                if !branch.open_preconditions.is_empty() {
-                    self.tree.set_outcome(
-                        branch.tree_node_id,
-                        NodeOutcome::Pruned {
-                            reason: "Unsatisfied preconditions remain".to_string(),
-                        },
-                    );
-                    return StepResult::Invalid;
-                }
-
-                if !branch.open_requirements.is_empty() {
-                    self.tree.set_outcome(
-                        branch.tree_node_id,
-                        NodeOutcome::Pruned {
-                            reason: "Unsatisfied requirements remain".to_string(),
-                        },
-                    );
-                    return StepResult::Invalid;
-                }
-
-                if branch.cost < self.best_cost {
-                    self.tree.set_outcome(
-                        branch.tree_node_id,
-                        NodeOutcome::Complete {
-                            chain_len: branch.action_chain.len(),
-                            total_cost: branch.cost,
-                            fwd_ok: true,
-                        },
-                    );
-                    self.best_cost = branch.cost;
-                    self.best_plan = Some(PlanResult {
-                        success: true,
-                        action_chain: branch.action_chain.iter().map(|&i| i as i64).collect(),
-                        total_cost: branch.cost,
-                        goal_index: branch.goal_index as i64,
-                        action_bindings: branch
-                            .action_bindings
-                            .iter()
-                            .map(|(pos, name, vals)| (*pos as i64, name.clone(), vals.clone()))
-                            .collect(),
-                    });
-                }
-
-                StepResult::Complete
-            }
-            BranchState::Searching => StepResult::Ready(()),
         }
     }
 }
 
-/// Turns a `FactWildcard` into a concrete `Fact` using this position's binding; other
-/// provisions are returned unchanged.
-fn concretize_wildcard_provision(
-    prov: &ProvisionSpec,
-    current_bindings: &[(String, Vec<VariantSnapshot>)],
-) -> ProvisionSpec {
-    if let ProvisionSpec::FactWildcard { fact_name } = prov
-        && let Some((_, values)) = current_bindings.iter().find(|(name, _)| name == fact_name)
-        && !values.is_empty()
-    {
-        return ProvisionSpec::Fact {
-            fact_name: fact_name.clone(),
-            args: values.clone(),
-        };
+// White-box tests: the states below are not reachable through `new` and `plan`.
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::precondition::{PreconditionOp, PreconditionTarget};
+    use std::sync::mpsc;
+
+    fn snapshot(props: &[(&str, VariantSnapshot)]) -> BlackboardSnapshot {
+        BlackboardSnapshot {
+            properties: props
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.clone()))
+                .collect(),
+            objects: HashMap::new(),
+        }
     }
-    prov.clone()
+
+    fn engine(
+        actions: Vec<ActionSpec>,
+        agent: BlackboardSnapshot,
+        request_tx: mpsc::Sender<CallbackRequest>,
+    ) -> PlannerEngine {
+        PlannerEngine::new(
+            EngineInputs {
+                actions,
+                agent,
+                world: snapshot(&[]),
+                initial_provisions: vec![],
+                request_tx,
+                cancel_flag: Arc::default(),
+            },
+            EngineConfig::default(),
+        )
+    }
+
+    fn hunger_less_than(threshold: i64) -> PreconditionSpec {
+        PreconditionSpec::Builtin {
+            target: PreconditionTarget::Agent,
+            operation: PreconditionOp::LessThan,
+            property_name: "hunger".to_string(),
+            value: Some(VariantSnapshot::Int(threshold)),
+        }
+    }
+
+    /// Branches verifying the same step at once share one effect request and its post-state.
+    /// Through `plan` the sharing depends on how the queue interleaves branches, so it is driven
+    /// step by step here.
+    #[test]
+    fn branches_replaying_the_same_step_share_one_request_and_its_state() {
+        let (req_tx, requests) = mpsc::channel::<CallbackRequest>();
+        let eat = ActionSpec {
+            name: "eat".to_string(),
+            cost_callable_id: None,
+            effect_callable_id: Some(0),
+            preconditions: vec![],
+            validity_checks: vec![],
+            requirements: vec![],
+            provisions: vec![],
+            dependent_object_ids: vec![],
+        };
+        let mut engine = engine(
+            vec![eat],
+            snapshot(&[("hunger", VariantSnapshot::Int(80))]),
+            req_tx,
+        );
+        let verifying = |engine: &PlannerEngine| {
+            let mut branch = PlanBranch::new(
+                Arc::clone(&engine.ctx.initial_agent),
+                Arc::clone(&engine.ctx.initial_world),
+            );
+            branch.state = BranchState::Verifying;
+            branch.action_chain = vec![0];
+            branch.action_costs = vec![1.0];
+            branch
+        };
+        let mut a = verifying(&engine);
+        let mut b = verifying(&engine);
+
+        let StepResult::Pending(id_a) = engine.simulate_and_advance(&mut a, 0, &[], None) else {
+            panic!("first branch should request the effect");
+        };
+        let StepResult::Pending(id_b) = engine.simulate_and_advance(&mut b, 0, &[], None) else {
+            panic!("second branch should wait");
+        };
+        assert_eq!(
+            id_a, id_b,
+            "the second branch waits on the first one's request"
+        );
+        let request = requests.try_recv().expect("one effect request");
+        assert!(matches!(request.kind, CallbackKind::ApplyEffect { .. }));
+        assert!(requests.try_recv().is_err(), "no second request");
+
+        let mut agent = (*engine.ctx.initial_agent).clone();
+        agent
+            .properties
+            .insert("hunger".to_string(), VariantSnapshot::Int(20));
+        let answer = CallbackResponse::UpdatedSnapshots(agent, (*engine.ctx.initial_world).clone());
+        for branch in [&mut a, &mut b] {
+            assert!(matches!(
+                engine.simulate_and_advance(branch, 0, &[], Some(&answer)),
+                StepResult::Ready(())
+            ));
+        }
+        assert!(Arc::ptr_eq(&a.current_agent, &b.current_agent));
+        assert!(Arc::ptr_eq(&a.current_world, &b.current_world));
+        assert_eq!(
+            a.current_agent.properties.get("hunger"),
+            Some(&VariantSnapshot::Int(20))
+        );
+
+        // A branch reaching the step later reuses the post-state without a callback.
+        let mut c = verifying(&engine);
+        assert!(matches!(
+            engine.simulate_and_advance(&mut c, 0, &[], None),
+            StepResult::Ready(())
+        ));
+        assert!(Arc::ptr_eq(&a.current_agent, &c.current_agent));
+        assert!(requests.try_recv().is_err(), "no request for a cached step");
+    }
+
+    /// Goal 0 holds already (empty-chain plan at cost 0) while a goal-0 node is still queued, as
+    /// the BestCost optimality break leaves it. Switching to goal 1 must drop that node rather
+    /// than verify it against goal 1. The scheduler drops satisfied goals before planning, so
+    /// only a hand-set engine reaches this state.
+    #[test]
+    fn goal_switch_drops_nodes_queued_under_the_previous_goal() {
+        let goals = vec![
+            GoalSpec {
+                name: "already_met".to_string(),
+                reward: 10.0,
+                desired_state: vec![hunger_less_than(100)],
+                original_index: 0,
+            },
+            GoalSpec {
+                name: "satisfy_hunger".to_string(),
+                reward: 5.0,
+                desired_state: vec![hunger_less_than(30)],
+                original_index: 1,
+            },
+        ];
+        let (request_tx, _requests) = mpsc::channel::<CallbackRequest>();
+        let mut engine = engine(
+            vec![],
+            snapshot(&[("hunger", VariantSnapshot::Int(80))]),
+            request_tx,
+        );
+        engine.best_plan = Some(PlanResult {
+            success: true,
+            action_chain: vec![],
+            total_cost: 0.0,
+            goal_index: 0,
+            action_bindings: vec![],
+        });
+        engine.best_cost = 0.0;
+        let mut stale = PlanBranch::new(
+            Arc::clone(&engine.ctx.initial_agent),
+            Arc::clone(&engine.ctx.initial_world),
+        );
+        stale.goal_index = 0;
+        stale.cost = 5.0;
+        engine.queue.push(PriorityNode {
+            priority: 5.0,
+            node: SearchNode {
+                branch: stale,
+                resumed: false,
+                callback_response: None,
+                expanded_candidates: vec![],
+            },
+        });
+
+        assert!(matches!(engine.plan(&goals), PlannerRunResult::Pending(0)));
+        assert_eq!(engine.current_goal_index, 1);
+        assert_eq!(engine.queue.len(), 1, "only goal 1's root should be queued");
+        assert_eq!(engine.queue.peek().unwrap().node.branch.goal_index, 1);
+    }
 }

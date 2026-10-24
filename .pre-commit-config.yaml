@@ -120,6 +120,17 @@ repos:
         require_serial: true
         pass_filenames: false
 
+  # Catalog drift: every BEHAVIORS.md path exists, every test file and fixture has an entry.
+  - repo: local
+    hooks:
+      - id: check-behaviors
+        name: Check behavior catalog against tests (via make)
+        entry: make check-behaviors
+        language: system
+        files: ^(docs/BEHAVIORS\.md|addons/GdPlanningAI/rust/(src|tests)/.*|test/.*)$
+        require_serial: true
+        pass_filenames: false
+
   # The hub rule holds in any clone, not only ones with the hub's leak guard.
   - repo: local
     hooks:

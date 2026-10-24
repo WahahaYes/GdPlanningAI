@@ -6,21 +6,21 @@
 //! - [`simulation`]: GDScript effects, costs and preconditions.
 //! - [`types`]: search data structures.
 //!
-//! Also holds the [`SearchHeuristic`] and [`TerminationStrategy`] the engine is configured with.
+//! The public surface is [`PlannerEngine`], its [`EngineInputs`] and [`EngineConfig`], and
+//! [`TerminationStrategy`]; everything else is internal to the search.
 
-pub mod engine;
-pub mod expander;
-pub mod simulation;
-pub mod types;
+mod engine;
+pub(crate) mod expander;
+pub(crate) mod simulation;
+pub(crate) mod types;
 
 pub use engine::{EngineConfig, EngineInputs, PlannerEngine};
-pub use types::{PlanBranch, ProvisionKind, SearchContext};
 
 use types::SearchNode;
 
 /// Pluggable priority and pruning for the search. Priorities are computed once at enqueue, so
 /// they must be a pure function of the node.
-pub trait SearchHeuristic: Send + Sync {
+pub(crate) trait SearchHeuristic: Send + Sync {
     /// Compute the priority of a node for the open-queue ordering.
     /// Lower values are expanded first (min-heap semantics).
     fn compute_priority(&self, node: &SearchNode) -> f64;
@@ -28,14 +28,11 @@ pub trait SearchHeuristic: Send + Sync {
     /// Returns true if a node with `node_priority` cannot beat `best_cost`. Under
     /// [`TerminationStrategy::BestCost`] the first such pop ends the search.
     fn prune_threshold_met(&self, node_priority: f64, best_cost: f64) -> bool;
-
-    /// Human-readable name for debugging.
-    fn name(&self) -> &'static str;
 }
 
 /// Dijkstra / uniform-cost heuristic: priority is exact path cost (g).
 /// Guarantees optimality when paired with `TerminationStrategy::BestCost`.
-pub struct DijkstraHeuristic;
+pub(crate) struct DijkstraHeuristic;
 
 impl SearchHeuristic for DijkstraHeuristic {
     fn compute_priority(&self, node: &SearchNode) -> f64 {
@@ -44,33 +41,6 @@ impl SearchHeuristic for DijkstraHeuristic {
 
     fn prune_threshold_met(&self, node_priority: f64, best_cost: f64) -> bool {
         node_priority >= best_cost
-    }
-
-    fn name(&self) -> &'static str {
-        "Dijkstra"
-    }
-}
-
-/// A* heuristic placeholder.
-///
-/// Currently falls back to Dijkstra behaviour (h = 0) until an admissible
-/// heuristic for open-precondition / open-requirement estimation is
-/// implemented.
-pub struct AStarHeuristic;
-
-impl SearchHeuristic for AStarHeuristic {
-    fn compute_priority(&self, node: &SearchNode) -> f64 {
-        // TODO: add admissible heuristic estimate of remaining cost.
-        // For now, h = 0 so this behaves identically to Dijkstra.
-        node.branch.cost
-    }
-
-    fn prune_threshold_met(&self, node_priority: f64, best_cost: f64) -> bool {
-        node_priority >= best_cost
-    }
-
-    fn name(&self) -> &'static str {
-        "A* (h=0 placeholder)"
     }
 }
 

@@ -61,7 +61,7 @@ struct ActiveJobHandle {
 
 /// Logs the "NOT resuming" stall notice once per pending id instead of every frame.
 #[derive(Default)]
-pub struct StallNoticeThrottle {
+pub(crate) struct StallNoticeThrottle {
     last_logged_id: Option<usize>,
 }
 
@@ -537,7 +537,9 @@ impl GdPAIPlanScheduler {
 /// world snapshot, so dropping a large one takes up to ~1.5 s. Doing that inline
 /// in `process_callbacks` stalled the game frame. A plain thread keeps the cost off
 /// both the main thread and the planning pool.
-pub fn drop_in_background<T: Send + 'static>(items: Vec<T>) -> Option<std::thread::JoinHandle<()>> {
+pub(crate) fn drop_in_background<T: Send + 'static>(
+    items: Vec<T>,
+) -> Option<std::thread::JoinHandle<()>> {
     if items.is_empty() {
         return None;
     }
@@ -902,13 +904,11 @@ fn result_to_dict(result: &PlanResult) -> VarDictionary {
     dict
 }
 
+// The scheduler is a Godot class: these test the helpers behind it, which Rust tests cannot
+// reach through Godot.
 #[cfg(test)]
 mod tests {
-    use super::StallNoticeThrottle;
-    use crate::plan_types::PreconditionSpec;
-    use crate::precondition::{PreconditionOp, PreconditionTarget};
-    use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
-    use std::collections::HashMap;
+    use super::{StallNoticeThrottle, drop_in_background};
 
     #[test]
     fn first_sight_of_pending_id_logs() {
@@ -941,54 +941,33 @@ mod tests {
         assert!(throttle.should_log(7));
     }
 
-    #[test]
-    fn every_builtin_op_resolves_on_snapshots() {
-        // Routing contract for the `submit_plan` goal pre-filter: every builtin
-        // operation answers via `evaluate_builtin` (`Some`), so builtins never fall
-        // back to the live handler. Only `Custom` may return `None`.
-        let mut properties = HashMap::new();
-        properties.insert("health".to_string(), VariantSnapshot::Int(80));
-        let agent = BlackboardSnapshot {
-            properties,
-            objects: HashMap::new(),
-        };
-        let world = BlackboardSnapshot {
-            properties: HashMap::new(),
-            objects: HashMap::new(),
-        };
+    /// Reports the thread it is dropped on.
+    struct DropProbe(std::sync::mpsc::Sender<std::thread::ThreadId>);
 
-        let cases = [
-            (PreconditionOp::HasProperty, None),
-            (PreconditionOp::Equal, Some(VariantSnapshot::Int(80))),
-            (PreconditionOp::NotEqual, Some(VariantSnapshot::Int(10))),
-            (PreconditionOp::GreaterThan, Some(VariantSnapshot::Int(50))),
-            (
-                PreconditionOp::GreaterThanOrEqual,
-                Some(VariantSnapshot::Int(80)),
-            ),
-            (PreconditionOp::LessThan, Some(VariantSnapshot::Int(100))),
-            (
-                PreconditionOp::LessThanOrEqual,
-                Some(VariantSnapshot::Int(80)),
-            ),
-        ];
-        for (operation, value) in cases {
-            let spec = PreconditionSpec::Builtin {
-                target: PreconditionTarget::Agent,
-                operation,
-                property_name: "health".to_string(),
-                value,
-            };
-            assert!(
-                spec.evaluate_builtin(&agent, &world).is_some(),
-                "builtin must resolve on snapshots: {spec}"
-            );
+    impl Drop for DropProbe {
+        fn drop(&mut self) {
+            let _ = self.0.send(std::thread::current().id());
         }
+    }
 
-        let custom = PreconditionSpec::Custom {
-            callable_id: 0,
-            dependent_object_ids: vec![],
-        };
-        assert_eq!(custom.evaluate_builtin(&agent, &world), None);
+    /// Finished engines are freed off the calling (main) thread.
+    #[test]
+    fn drops_items_on_another_thread() {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let handle = drop_in_background(vec![DropProbe(tx.clone()), DropProbe(tx)])
+            .expect("non-empty input spawns a thread");
+        handle.join().unwrap();
+        let caller = std::thread::current().id();
+        let dropped_on: Vec<std::thread::ThreadId> = rx.try_iter().collect();
+        assert_eq!(dropped_on.len(), 2, "every item is dropped");
+        assert!(
+            dropped_on.iter().all(|id| *id != caller),
+            "never on the caller's thread"
+        );
+    }
+
+    #[test]
+    fn empty_input_spawns_nothing() {
+        assert!(drop_in_background(Vec::<u8>::new()).is_none());
     }
 }

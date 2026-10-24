@@ -10,6 +10,7 @@ first_complete = true                    # optional; default BestCost
 agent = { hunger = 80 }                  # initial agent properties
 world = { time = 12.5 }                  # initial world properties
 objects = [{ uid = "101", groups = ["food"], properties = { hunger_value = 30 } }]
+agent_objects = [{ uid = "me", groups = ["GdPAILocationData"], properties = { position = 0 } }]
 provisions = [{ binding = "held_item", value = { object = 101 } }]   # hold before any action
 
 [[case.actions]]

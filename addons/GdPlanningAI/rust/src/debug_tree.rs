@@ -8,7 +8,7 @@ use crate::logger::LogLevel;
 
 /// One goal the planner tried to satisfy.
 #[derive(Clone, Debug)]
-pub struct GoalAttempt {
+pub(crate) struct GoalAttempt {
     /// Goal display name.
     pub goal_name: String,
     /// Reward of the goal.
@@ -27,7 +27,7 @@ pub struct GoalAttempt {
 
 /// A single node in the search tree.
 #[derive(Clone, Debug)]
-pub struct TreeNode {
+pub(crate) struct TreeNode {
     /// `None` for the root node of a goal attempt.
     pub action_name: Option<String>,
     /// Cost this node's action added to the branch (its discovery cost).
@@ -52,7 +52,7 @@ pub struct TreeNode {
 
 /// What happened at this search node.
 #[derive(Clone, Debug)]
-pub enum NodeOutcome {
+pub(crate) enum NodeOutcome {
     /// Node was expanded — children contain the results. The default for new nodes.
     Expanded,
     /// Pruned (too many open requirements, or forward verification failed or left needs open).
@@ -60,20 +60,13 @@ pub enum NodeOutcome {
         /// Short explanation shown in the tree.
         reason: String,
     },
-    /// Branch completed — forward validation ran.
-    Complete {
-        /// Number of actions in the verified chain.
-        chain_len: usize,
-        /// Total cost of the chain.
-        total_cost: f64,
-        /// Whether forward validation succeeded.
-        fwd_ok: bool,
-    },
+    /// Verified, and the cheapest plan so far when recorded.
+    Complete,
 }
 
 /// One step in forward validation of a completed chain.
 #[derive(Clone, Debug)]
-pub struct FwdStep {
+pub(crate) struct FwdStep {
     /// The action being validated.
     pub action_name: String,
     /// Kind of check, e.g. `requirement`.
@@ -86,7 +79,7 @@ pub struct FwdStep {
 
 /// Configuration for creating a child node.
 #[derive(Debug, Default)]
-pub struct ChildNodeConfig<'a> {
+pub(crate) struct ChildNodeConfig<'a> {
     /// Name of the action the child inserts.
     pub action_name: &'a str,
     /// Cost the action adds.
@@ -120,13 +113,14 @@ pub struct TreeDump {
 impl TreeDump {
     /// Create a TreeDump that is enabled only when the log level is Debug or higher.
     /// The level is sampled once, here; changing it later does not affect this dump.
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         let enabled = crate::logger::get_log_level() >= LogLevel::Debug;
         Self::with_enabled(enabled)
     }
 
     /// Create a TreeDump that is always enabled, regardless of log level.
-    pub fn new_forced() -> Self {
+    #[cfg(test)]
+    fn new_forced() -> Self {
         Self::with_enabled(true)
     }
 
@@ -169,7 +163,12 @@ impl TreeDump {
     }
 
     /// Start a new goal attempt. Returns the goal index.
-    pub fn begin_goal(&mut self, name: &str, reward: f64, preconditions: &[String]) -> usize {
+    pub(crate) fn begin_goal(
+        &mut self,
+        name: &str,
+        reward: f64,
+        preconditions: &[String],
+    ) -> usize {
         if !self.enabled {
             return 0;
         }
@@ -188,7 +187,7 @@ impl TreeDump {
 
     /// Finalize the current goal attempt with its result: the plan's action names and cost on
     /// success, empty and 0 on failure.
-    pub fn end_goal(&mut self, success: bool, plan_actions: &[String], plan_cost: f64) {
+    pub(crate) fn end_goal(&mut self, success: bool, plan_actions: &[String], plan_cost: f64) {
         if !self.enabled {
             return;
         }
@@ -200,7 +199,7 @@ impl TreeDump {
     }
 
     /// Creates the root node for the current goal (after `begin_goal`) and returns its id.
-    pub fn add_root(&mut self, open_pre: &[String], open_req: &[String]) -> usize {
+    pub(crate) fn add_root(&mut self, open_pre: &[String], open_req: &[String]) -> usize {
         self.branch_count += 1;
         if !self.enabled {
             return 0;
@@ -226,7 +225,7 @@ impl TreeDump {
 
     /// Add a child node under `parent_id`. Returns the new node's ID. Counts towards the
     /// branch summary even when recording is disabled.
-    pub fn add_child(&mut self, parent_id: usize, config: ChildNodeConfig<'_>) -> usize {
+    pub(crate) fn add_child(&mut self, parent_id: usize, config: ChildNodeConfig<'_>) -> usize {
         self.branch_count += 1;
         if !self.enabled {
             return 0;
@@ -251,7 +250,7 @@ impl TreeDump {
     }
 
     /// Set the outcome of any node.
-    pub fn set_outcome(&mut self, node_id: usize, outcome: NodeOutcome) {
+    pub(crate) fn set_outcome(&mut self, node_id: usize, outcome: NodeOutcome) {
         if !self.enabled {
             return;
         }
@@ -261,7 +260,7 @@ impl TreeDump {
     }
 
     /// Append a forward-validation step to a node.
-    pub fn add_fwd_step(
+    pub(crate) fn add_fwd_step(
         &mut self,
         node_id: usize,
         action_name: &str,
@@ -347,7 +346,7 @@ fn format_node(
     let prefix = format!("{}{}", indent, branch);
 
     match &node.outcome {
-        NodeOutcome::Expanded | NodeOutcome::Complete { .. } => {
+        NodeOutcome::Expanded | NodeOutcome::Complete => {
             let label = if let Some(ref name) = node.action_name {
                 format!(
                     "Try '{}' (cost=+{:.2}, total={:.2})",
@@ -395,4 +394,32 @@ fn format_node(
         format_node(output, tree, child_id, depth + 1, has_more);
     }
     has_more.pop();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The formatter once stopped at a fixed depth; long chains must print every level.
+    #[test]
+    fn deep_chain_formats_without_depth_limit() {
+        let mut dump = TreeDump::new_forced();
+        dump.begin_goal("goal", 10.0, &["need".to_string()]);
+        let mut parent = dump.add_root(&["need".to_string()], &[]);
+        for i in 0..100 {
+            parent = dump.add_child(
+                parent,
+                ChildNodeConfig {
+                    action_name: &format!("step_{i}"),
+                    estimated_cost: 1.0,
+                    accumulated_cost: (i + 1) as f64,
+                    ..Default::default()
+                },
+            );
+        }
+        dump.end_goal(false, &[], 0.0);
+
+        let line = format!("\n{}└── Try 'step_99'", "    ".repeat(100));
+        assert!(dump.format().contains(&line));
+    }
 }

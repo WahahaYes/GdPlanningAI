@@ -1,9 +1,12 @@
 # CI for the addon. Every job step is one local command (see Makefile):
 #   uv run pre-commit run --all-files       hooks (formatters, lints, secrets)
-#   make format-check; make -C addons/GdPlanningAI/rust lint; make test-rust-verbose   Rust checks
+#   make format-check; make -C addons/GdPlanningAI/rust lint; make coverage   Rust checks; the tests run instrumented
 #   make godot-version                      the Godot pin (global.json)
 #   make test-godot-verbose                 the GUT suite, full log, nonzero on failure
 #   make test-e2e                           end-to-end example scenes (Linux leg only)
+#   make -C addons/GdPlanningAI/rust build-instrumented / coverage-behavioral-report   GUT and e2e coverage (Linux leg)
+# Coverage goes to Codecov (flags rust-tests, behavioral) as a signal: a failed upload is a
+# warning, never a failure, and codecov.yml keeps its statuses informational.
 # The quiet make test, test-rust and test-godot are for agents' context; CI reads the verbose ones.
 # Toolchains are pinned in the repo: addons/GdPlanningAI/rust/rust-toolchain.toml
 # and global.json. Checkouts skip LFS: binaries are built in the job, never pulled.
@@ -112,7 +115,8 @@ jobs:
             uv run pre-commit run no-ai-attribution --hook-stage commit-msg --commit-msg-filename "$RUNNER_TEMP/msg" || { echo "bad message in $sha"; exit 1; }
           done
 
-  # Rust checks run once, on Linux, in debug (the tests also pass under --release).
+  # Rust checks run once, on Linux, in debug (the tests also pass under --release). The tests run
+  # instrumented, so the same run gives the rust-tests coverage.
   rust:
     needs: [changes, precommit]
     if: needs.changes.outputs.rust == 'true'
@@ -128,11 +132,28 @@ jobs:
           workspaces: addons/GdPlanningAI/rust
           # Main seeds caches every PR reads; PR runs never write their own.
           save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Coverage tools (llvm-tools, pinned cargo-llvm-cov)
+        run: make -C addons/GdPlanningAI/rust setup
       - run: make format-check
       - run: make -C addons/GdPlanningAI/rust lint
-      - run: make test-rust-verbose
+      - run: make coverage
+      - name: Upload rust-tests coverage
+        id: upload
+        continue-on-error: true
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          files: addons/GdPlanningAI/rust/target/llvm-cov/lcov.info
+          flags: rust-tests
+          disable_search: true
+          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+      - name: Warn when coverage was not uploaded
+        if: steps.upload.outcome == 'failure'
+        run: echo "::warning title=Coverage not uploaded::rust-tests coverage did not reach Codecov (no CODECOV_TOKEN, or Codecov unavailable). Tests passed; coverage is informational."
 
-  # The GUT suite on each OS against a binary built here for that OS.
+  # The GUT suite on each OS against a binary built here for that OS. Outside releases the Linux leg
+  # builds an instrumented library instead, so its GUT and e2e runs give the behavioral coverage;
+  # release runs (release.yml calls this workflow) build the shipped binary there.
   godot:
     needs: [changes, precommit]
     if: needs.changes.outputs.godot == 'true'
@@ -146,6 +167,8 @@ jobs:
           - { runner: macos-15, artifact: macos }
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
+    env:
+      COVERAGE: ${{ matrix.artifact == 'linux' && github.workflow == 'build' }}
     defaults:
       run:
         shell: bash
@@ -171,9 +194,16 @@ jobs:
           echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
           "$HOME/.dotnet/tools/godotenv" addons install
       - name: Build the Rust binary over the LFS pointer
+        if: env.COVERAGE != 'true'
         run: make -C addons/GdPlanningAI/rust build-release
-      # The release workflow packages these.
+      - name: Build an instrumented binary over the LFS pointer
+        if: env.COVERAGE == 'true'
+        run: |
+          make -C addons/GdPlanningAI/rust setup
+          make -C addons/GdPlanningAI/rust build-instrumented
+      # The release workflow packages these; an instrumented build is never one of them.
       - name: Upload the binary
+        if: env.COVERAGE != 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: binaries-${{ matrix.artifact }}
@@ -188,6 +218,23 @@ jobs:
       - name: E2E scenes
         if: matrix.artifact == 'linux'
         run: make test-e2e
+      - name: Behavioral coverage report
+        if: env.COVERAGE == 'true'
+        run: make -C addons/GdPlanningAI/rust coverage-behavioral-report
+      - name: Upload behavioral coverage
+        if: env.COVERAGE == 'true'
+        id: upload
+        continue-on-error: true
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          files: addons/GdPlanningAI/rust/target/llvm-cov/lcov-behavioral.info
+          flags: behavioral
+          disable_search: true
+          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+      - name: Warn when coverage was not uploaded
+        if: steps.upload.outcome == 'failure'
+        run: echo "::warning title=Coverage not uploaded::behavioral coverage did not reach Codecov (no CODECOV_TOKEN, or Codecov unavailable). Tests passed; coverage is informational."
 
   # The only required check. A skipped job counts as pass.
   ci:

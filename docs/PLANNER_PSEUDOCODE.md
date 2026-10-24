@@ -10,7 +10,7 @@ ______________________________________________________________________
 | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Symbolic**   | Requirements ↔ Provisions (causal links, backward chaining)                                                                                                                                    |
 | **Simulation** | GDScript callbacks for costs, effects, custom preconditions                                                                                                                                    |
-| **Search**     | Dijkstra (uniform-cost) via `SearchHeuristic`; A\* placeholder                                                                                                                                 |
+| **Search**     | Dijkstra (uniform-cost): queue priority is branch cost                                                                                                                                         |
 | **Async**      | Every callback yields `Pending(id)`; node parked, resumed on response. Budget or time-slice exhaustion yields `Pending(0)`, resumed unconditionally                                            |
 | **Threading**  | Planner on Rayon pool; callbacks on Godot main thread. Godot values are converted to Send-safe snapshots on the main thread; the engine is moved (never shared) between worker and main thread |
 | **Multi-Goal** | Goals sorted by reward desc. Pre-filter: satisfied goals dropped. If ALL satisfied → empty plan for highest-reward. If ANY unsatisfied → search only unsatisfied.                              |
@@ -64,7 +64,7 @@ function step_search(goals):
     iterations = 0
     while node = queue.pop():
         iterations += 1
-        if BestCost and heuristic.prune(node.priority, best_cost): re-enqueue; break
+        if BestCost and node.priority >= best_cost: re-enqueue; break
         if iterations > budget: enqueue(node); return Pending(0)
         if cancel_flag: return Complete(None)
 
@@ -239,18 +239,15 @@ function begin_verification(branch, goal):
 
 function process_simulation(node) → StepResult:
     branch = node.branch
-    if simulation_index == 0: clear_initial_state_requirements(branch)  // pos-0 reqs satisfied by initial provisions
-
     bindings = branch.bindings_at(simulation_index)
 
     // 1. Action's own builtin preconditions (not in open_preconditions)
     if simulation_index < action_chain.len:
         for pre in action.preconditions:
-            if pre in open_preconditions at simulation_index: continue
             if pre is Custom: continue  // handled via open_preconditions
             match eval_precondition(pre, current_agent, current_world, ctx, callback_response, bindings):
                 Ready(true) → continue
-                Ready(false) → Invalid (if Verifying)
+                Ready(false) → Invalid
                 Pending(id) → Pending(id)
                 Invalid → Invalid
 
@@ -262,9 +259,8 @@ function process_simulation(node) → StepResult:
     // 3. Simulate action or finalize
     if simulation_index < action_chain.len:
         // Verify requirements against current state
-        if Verifying:
-            for req in action.requirements:
-                if not requirement_holds_in_state(req, current_agent, current_world, bindings): return Invalid
+        for req in action.requirements:
+            if not requirement_holds_in_state(req, current_agent, current_world, bindings): return Invalid
 
         key = (current_agent, current_world, action_idx, bindings)
         if cost known:
@@ -273,14 +269,13 @@ function process_simulation(node) → StepResult:
         match simulate_action(action_idx, {agent, world, ctx, response, branch_action_costs[simulation_index], bindings}):
             Ready(res):
                 current_agent, current_world = no effect ? unchanged : step_cache.get_or_insert(key, res)
-                clear_requirements_from_provisions(branch, action_idx, bindings)  // concretize wildcards
                 simulation_index++; recalculate_cost(); callback_response = None
                 return Ready(())
             Pending(id) → if cost known: step_pending[key] = id; Pending(id)
             Invalid → Invalid
 
-    // 4. End of chain
-    if open_preconditions not empty OR open_requirements not empty: return Invalid
+    // 4. End of chain: no needs remain (verification starts with no open requirements, and each
+    //    step removes the preconditions it checks, the goal's last)
     if branch.cost < best_cost: best_cost = branch.cost; best_plan = PlanResult from branch; mark Complete
     return Complete
 ```
@@ -355,7 +350,7 @@ submit_plan(agent, agent_bb, world_bb, actions, goals, max_depth, budget, time_s
     goal_specs.sort_by(reward desc)
 
     // new() builds SearchContext (caches, provision_index, non_wildcard_actions) and the
-    // channel the main thread answers on; config defaults: Dijkstra, BestCost
+    // channel the main thread answers on; termination defaults to BestCost
     engine = PlannerEngine::new(
         EngineInputs{action_specs, snap_agent, snap_world, initial_provisions, request_tx, cancel_flag},
         EngineConfig{max_depth, budget, time_slice_ms, ..default})
@@ -404,10 +399,10 @@ ______________________________________________________________________
 
 ## 10. Termination
 
-| Strategy        | Behavior                                                   |
-| --------------- | ---------------------------------------------------------- |
-| `FirstComplete` | Return first valid plan                                    |
-| `BestCost`      | Exhaust search (prune via `heuristic.prune_threshold_met`) |
+| Strategy        | Behavior                                                       |
+| --------------- | -------------------------------------------------------------- |
+| `FirstComplete` | Return first valid plan                                        |
+| `BestCost`      | Stop once the cheapest queued branch cannot beat the best plan |
 
 Default: **BestCost** + Dijkstra.
 
