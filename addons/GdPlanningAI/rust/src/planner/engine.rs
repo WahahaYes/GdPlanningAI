@@ -904,11 +904,14 @@ impl PlannerEngine {
                 .get(branch.simulation_index)
                 .is_some_and(|c| c.is_finite() && *c >= 0.0)
         };
-        // With the cost known, only the effect is left: reuse another branch's post-state, or
-        // wait on its request.
+        // With the cost known, only the effect is left: reuse another branch's post-state or
+        // discovery's (step 0 from the initial state is what discovery simulated), or wait on
+        // another branch's request.
         let cached = if cost_known(branch) {
             if let Some(state) = self.step_cache.get(&key) {
                 Some(state.clone())
+            } else if let Some(state) = self.discovered_step(branch, action_idx, current_bindings) {
+                Some(self.step_cache.entry(key.clone()).or_insert(state).clone())
             } else if callback_response.is_none()
                 && let Some(&id) = self.step_pending.get(&key)
             {
@@ -968,6 +971,27 @@ impl PlannerEngine {
         branch.simulation_index += 1;
         branch.recalculate_cost();
         StepResult::Ready(())
+    }
+
+    /// The post-state discovery recorded for `action_idx` with `bindings`, when `branch` is about
+    /// to simulate it as step 0 from the initial state. Actions without an effect are left to
+    /// [`Self::simulate_and_advance`], which keeps sharing the unchanged state.
+    fn discovered_step(
+        &self,
+        branch: &PlanBranch,
+        action_idx: usize,
+        bindings: &[(String, Vec<VariantSnapshot>)],
+    ) -> Option<(Arc<BlackboardSnapshot>, Arc<BlackboardSnapshot>)> {
+        if branch.simulation_index != 0
+            || self.ctx.actions[action_idx].effect_callable_id.is_none()
+            || !Arc::ptr_eq(&branch.current_agent, &self.ctx.initial_agent)
+            || !Arc::ptr_eq(&branch.current_world, &self.ctx.initial_world)
+        {
+            return None;
+        }
+        let cache = self.ctx.discovery_results.lock().unwrap();
+        let res = cache.get(&(action_idx, bindings.to_vec()))?;
+        Some((Arc::new(res.agent.clone()), Arc::new(res.world.clone())))
     }
 
     /// Clears requirements at or after the current position that this action's provisions satisfy.

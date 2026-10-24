@@ -633,3 +633,48 @@ fn goal_switch_drops_nodes_queued_under_the_previous_goal() {
     assert_eq!(engine.queue.len(), 1, "only goal 1's root should be queued");
     assert_eq!(engine.queue.peek().unwrap().node.branch.goal_index, 1);
 }
+
+#[test]
+fn verification_reuses_the_discovered_first_step() {
+    // Discovery already simulated eat from the initial state, so verifying the one-step plan
+    // reuses that post-state: the effect callback fires once, not twice.
+    let actions = vec![ActionSpec {
+        name: "eat".to_string(),
+        cost_callable_id: Some(0),
+        effect_callable_id: Some(0),
+        preconditions: vec![],
+        validity_checks: vec![],
+        requirements: vec![],
+        provisions: vec![],
+        dependent_object_ids: vec![],
+    }];
+    let goals = vec![GoalSpec {
+        name: "satisfy_hunger".to_string(),
+        reward: 10.0,
+        desired_state: vec![hunger_less_than(30)],
+        original_index: 0,
+    }];
+
+    let (responder_tx, _handle) = spawn_callback_responder(5.0, 60);
+    let effect_calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let (req_tx, req_rx) = mpsc::channel::<CallbackRequest>();
+    let counter = Arc::clone(&effect_calls);
+    thread::spawn(move || {
+        for req in req_rx {
+            if matches!(req.kind, CallbackKind::ApplyEffect { .. }) {
+                counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            }
+            let _ = responder_tx.send(req);
+        }
+    });
+
+    let plan = run_planner(make_agent(80), make_world(), actions, goals, 10, req_tx)
+        .expect("should produce a plan");
+    assert!(plan.success);
+    assert_eq!(plan.action_chain, vec![0]);
+    assert_eq!(
+        effect_calls.load(std::sync::atomic::Ordering::Relaxed),
+        1,
+        "verification should reuse discovery's simulation of step 0"
+    );
+}

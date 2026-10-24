@@ -47,22 +47,41 @@ fn make_world() -> BlackboardSnapshot {
     }
 }
 
+const EAT_EFFECT: usize = 0;
+const GET_FOOD_EFFECT: usize = 1;
+
 fn make_actions_with_count(count: usize) -> Vec<ActionSpec> {
-    // Identical candidates to force >128 queue pops so the
-    // wall-clock slice gate (checked every 128 pops) is exercised.
-    // Each clone has distinct name but same cost/effect behavior.
-    (0..count)
-        .map(|i| ActionSpec {
-            name: format!("eat_{}", i),
-            cost_callable_id: Some(0),
-            effect_callable_id: Some(0),
-            preconditions: vec![],
-            validity_checks: vec![],
-            requirements: vec![],
-            provisions: vec![],
-            dependent_object_ids: vec![],
-        })
-        .collect()
+    // One eat that needs food, plus `count` identical ways to get food, so
+    // every plan is get_food_i then eat. Verification of each branch waits on
+    // a callback for eat (discovery only covers step 0), which forces >128
+    // queue pops so the wall-clock slice gate (checked every 128 pops) is
+    // exercised.
+    let eat = ActionSpec {
+        name: "eat".to_string(),
+        cost_callable_id: Some(0),
+        effect_callable_id: Some(EAT_EFFECT),
+        preconditions: vec![PreconditionSpec::Builtin {
+            target: PreconditionTarget::Agent,
+            operation: PreconditionOp::Equal,
+            property_name: "has_food".to_string(),
+            value: Some(VariantSnapshot::Bool(true)),
+        }],
+        validity_checks: vec![],
+        requirements: vec![],
+        provisions: vec![],
+        dependent_object_ids: vec![],
+    };
+    let get_food = (0..count).map(|i| ActionSpec {
+        name: format!("get_food_{}", i),
+        cost_callable_id: Some(0),
+        effect_callable_id: Some(GET_FOOD_EFFECT),
+        preconditions: vec![],
+        validity_checks: vec![],
+        requirements: vec![],
+        provisions: vec![],
+        dependent_object_ids: vec![],
+    });
+    std::iter::once(eat).chain(get_food).collect()
 }
 
 fn make_goals() -> Vec<GoalSpec> {
@@ -88,7 +107,11 @@ fn spawn_callback_responder() -> mpsc::Sender<CallbackRequest> {
                 CallbackKind::ApplyEffect {
                     mut agent, world, ..
                 } => {
-                    if let Some(VariantSnapshot::Int(current)) =
+                    if req.callable_id == GET_FOOD_EFFECT {
+                        agent
+                            .properties
+                            .insert("has_food".to_string(), VariantSnapshot::Bool(true));
+                    } else if let Some(VariantSnapshot::Int(current)) =
                         agent.properties.get("hunger").cloned()
                     {
                         let new_hunger = (current - 60).max(0);
@@ -186,8 +209,8 @@ fn disabled_vs_enabled_yields_same_plan() {
         disabled.total_cost, enabled.total_cost,
         "time-slicing must not change the cost"
     );
-    assert_eq!(disabled.action_chain.len(), 1);
-    assert_eq!(disabled.total_cost, 5.0);
+    assert_eq!(disabled.action_chain.len(), 2);
+    assert_eq!(disabled.total_cost, 10.0);
     assert_eq!(
         disabled_pending, 0,
         "disabled slice should never yield Pending(0) via timer"
@@ -206,8 +229,8 @@ fn small_pop_never_yields_to_timer() {
 
     let plan = plan.expect("small fan-out should produce a plan");
     assert!(plan.success, "small fan-out should succeed");
-    assert_eq!(plan.action_chain.len(), 1);
-    assert_eq!(plan.total_cost, 5.0);
+    assert_eq!(plan.action_chain.len(), 2);
+    assert_eq!(plan.total_cost, 10.0);
     assert_eq!(
         pending_zero_count, 0,
         "fewer than 128 pops must never yield Pending(0) via timer"
