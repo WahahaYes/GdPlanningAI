@@ -145,3 +145,29 @@ coverage-behavioral-report: ## Report what the Godot runs since build-instrument
 coverage-behavioral: build-instrumented ## Behavioral coverage in one go: instrumented build, GUT, e2e, report
 	@cd $(ROOT_DIR) && godot --headless --import > /dev/null && $(MAKE) test-godot && $(MAKE) test-e2e
 	@$(MAKE) coverage-behavioral-report
+
+.PHONY: format
+format: ## Format code using rustfmt
+	@cargo fmt
+
+.PHONY: format-check
+format-check: ## Check formatting with rustfmt (no rewrite)
+	@cargo fmt --check
+
+.PHONY: lint
+lint: ## Run clippy; warnings fail
+	@cargo clippy --all-targets --message-format=short -- -D warnings
+
+.PHONY: clean
+clean: ## Clean build artifacts
+	@cargo clean 2>&1 | grep -E "(error|Error)" || true
+
+.PHONY: doc
+doc: ## Generate documentation
+	cargo doc --open
+
+##@ Help
+
+.PHONY: help
+help: ## Show this help message
+	@awk 'BEGIN {FS = ":.*?## "}; /^##@ / {printf "\n\033[1m%s\033[0m\n", substr($$0, 5)}; /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
