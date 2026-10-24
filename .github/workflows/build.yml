@@ -3,6 +3,7 @@
 #   make format-check; make -C addons/GdPlanningAI/rust lint; make test-rust-verbose   Rust checks
 #   make godot-version                      the Godot pin (global.json)
 #   make test-godot-verbose                 the GUT suite, full log, nonzero on failure
+#   make test-e2e                           end-to-end example scenes (Linux leg only)
 # The quiet make test, test-rust and test-godot are for agents' context; CI reads the verbose ones.
 # Toolchains are pinned in the repo: addons/GdPlanningAI/rust/rust-toolchain.toml
 # and global.json. Checkouts skip LFS: binaries are built in the job, never pulled.
@@ -111,8 +112,7 @@ jobs:
             uv run pre-commit run no-ai-attribution --hook-stage commit-msg --commit-msg-filename "$RUNNER_TEMP/msg" || { echo "bad message in $sha"; exit 1; }
           done
 
-  # Rust checks run once, on Linux. Debug tests: one test fails under
-  # --release by design (see make test-rust-verbose).
+  # Rust checks run once, on Linux, in debug (the tests also pass under --release).
   rust:
     needs: [changes, precommit]
     if: needs.changes.outputs.rust == 'true'
@@ -184,6 +184,10 @@ jobs:
         run: godot --headless --import
       - name: GUT
         run: make test-godot-verbose
+      # A minute per scene with agents planning live; scene logic is the same on every OS.
+      - name: E2E scenes
+        if: matrix.artifact == 'linux'
+        run: make test-e2e
 
   # The only required check. A skipped job counts as pass.
   ci:

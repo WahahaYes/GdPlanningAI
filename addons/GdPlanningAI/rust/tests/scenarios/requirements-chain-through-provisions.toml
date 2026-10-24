@@ -1,0 +1,41 @@
+[[case]]
+name = "requirement_provision_chains_pickup_then_eat"
+agent = { hunger = 80 }
+objects = [{ uid = "food_01", groups = ["food"] }]
+actions = [
+  { name = "pickup", cost = 5.0, provides = [{ binding = "held_item", value = { object = 101 } }] },
+  { name = "eat", cost = 5.0, effect = { add = { hunger = -60 } }, requires = [{ binding_exists = "held_item" }] },
+]
+goals = [{ name = "satisfy_hunger", reward = 10.0, want = [{ agent = "hunger", op = "<", value = 30 }] }]
+expect = { plan = ["pickup", "eat"] }
+
+# go_to's wildcard binds at_target to the object interact requires, for both of them.
+[[case]]
+name = "wildcard_fact_provision_binds_concrete_value"
+agent = { goal_met = false }
+objects = [{ uid = "obj_01" }]
+actions = [
+  { name = "go_to", effect = { set = { goal_met = true } }, provides = [{ fact_wildcard = "at_target" }] },
+  { name = "interact", effect = { set = { goal_met = true } }, requires = [{ fact = "at_target", args = [{ object = 100 }] }] },
+]
+goals = [{ name = "reach_and_use", reward = 10.0, want = [{ agent = "goal_met", op = "==", value = true }] }]
+
+[case.expect]
+plan = ["go_to", "interact"]
+bindings = [
+  { at = 0, name = "at_target", values = [{ object = 100 }] },
+  { at = 1, name = "at_target", values = [{ object = 100 }] },
+]
+
+# The agent holds a tool; eat needs a held item in the food group, so pickup_food comes first.
+# Object uids match the ObjectRef ids as strings.
+[[case]]
+name = "binding_in_set_respects_world_group"
+agent = { hunger = 80, held_item = { object = 102 } }
+objects = [{ uid = "101", groups = ["food"] }, { uid = "102", groups = ["tool"] }]
+actions = [
+  { name = "pickup_food", cost = 5.0, provides = [{ binding = "held_item", value = { object = 101 } }] },
+  { name = "eat", cost = 5.0, effect = { add = { hunger = -60 } }, requires = [{ binding_in_set = "held_item", set = "food" }] },
+]
+goals = [{ name = "satisfy_hunger", reward = 10.0, want = [{ agent = "hunger", op = "<", value = 30 }] }]
+expect = { plan = ["pickup_food", "eat"] }

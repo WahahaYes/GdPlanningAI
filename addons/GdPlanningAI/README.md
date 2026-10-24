@@ -77,6 +77,7 @@ The docs live in this repository; the asset library install copies only the addo
 | `docs/ALGORITHM.md`                | How the planner finds a plan.                                                                        |
 | `docs/PLANNER_PSEUDOCODE.md`       | Pseudocode of the planner, for working on the Rust engine.                                           |
 | `docs/CODEBASE_OVERVIEW.md`        | Where things live in the repo, how the Rust and GDScript code talk to each other, building, testing. |
+| `docs/BEHAVIORS.md`                | What the plugin promises, each behavior with the tests that prove it.                                |
 | `docs/DOCUMENTATION_GUIDELINES.md` | Comment and docstring style for contributors.                                                        |
 
 ### License

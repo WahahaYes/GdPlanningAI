@@ -12,6 +12,15 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 rayon = "1.8"
 
+[dev-dependencies]
+libtest-mimic = "0.8"
+toml = "1.1"
+
+# Planner scenarios from tests/scenarios/*.toml, one test per case.
+[[test]]
+name = "scenarios"
+harness = false
+
 [build-dependencies]
 godot-bindings = "0.4.5"
 

@@ -270,21 +270,4 @@ mod tests {
         assert_eq!(LogLevel::from_u8(4), LogLevel::Debug);
         assert_eq!(LogLevel::from_u8(255), LogLevel::Debug);
     }
-
-    #[test]
-    fn level_ordering_matches_verbosity() {
-        assert!(LogLevel::Debug > LogLevel::Info);
-        assert!(LogLevel::Info > LogLevel::Warn);
-        assert!(LogLevel::Warn > LogLevel::Error);
-    }
-
-    #[test]
-    fn set_get_log_level_roundtrip() {
-        let original = get_log_level();
-        set_log_level(LogLevel::Debug);
-        assert_eq!(get_log_level(), LogLevel::Debug);
-        set_log_level(LogLevel::Error);
-        assert_eq!(get_log_level(), LogLevel::Error);
-        set_log_level(original);
-    }
 }

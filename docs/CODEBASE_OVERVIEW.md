@@ -202,18 +202,18 @@ ______________________________________________________________________
 
 ## 7. Testing
 
-Two independent suites.
+Two independent suites. Each test proves a behavior listed in [BEHAVIORS.md](BEHAVIORS.md).
 
 ### GDScript suite (GUT)
 
 Configured by `.gutconfig.json` (`dirs ["res://test"]`, `include_subdirs true`). Run with `make test-godot` (headless GUT via `addons/gut/gut_cmdln.gd`).
 
 - `test/unit/`: blackboard and `SimObjectProxy` property operations; agent config (planning strategy switching, failure backoff, log level); and single example classes (`GoToAction`, pickup, hunger and fire goals).
-- `test/integration/`: blackboard clone isolation; async planner behavior (empty plans, satisfied goals, cheapest plan selection, cancellation of stale submissions); requirements/provisions chaining (Pickup to Eat, GoTo wildcard chaining, binding sets, cost comparisons); example scene tests, which check that every 2D and 3D scene loads and settles without errors (plus the 3D campfire flame going out with the fire); and live loop tests (`test_example_loops_live.gd`), which run `hunger_basic_2d` and `campfire_2d` sped up with agents planning normally until each loop action (pick up, eat, add fuel, dig, cook) has completed.
+- `test/integration/`: async planner behavior (empty plans, satisfied goals, cheapest plan selection, cancellation of stale submissions); requirements/provisions chaining (Pickup to Eat, GoTo wildcard chaining, binding sets, cost comparisons); and example scenes as data: `test_scene_scenarios.gd` runs each case in `test/scenarios/scenes.cfg` (every scene loads and settles; `hunger_basic_2d` and `campfire_2d` run sped up until each loop action has completed), and `test_example_scenes.gd` holds the checks that look inside a scene (camera rig, guide, home-fire pairs). End-to-end multi-agent cases (`e2e=true`) run only in `make test-e2e` (CI runs it on the Linux leg of the godot job): a minute each at 60 fps, then every agent must have finished plans, nobody starved and every fire kept burning.
 
 ### Rust suite
 
-In `addons/GdPlanningAI/rust/tests/` (plus `common/mod.rs` helpers). Run with `make test-rust` (`cargo test`). Integration tests build `PlannerEngine`/`SearchContext` directly with mock callback-responder threads, so no Godot runtime is needed. They cover the search state machine (goal priority, depth, budget, cancellation), BestCost vs FirstComplete termination, requirement/provision chaining, branch insertion, snapshot evaluation, debug tree rendering, and a regression test for the Verifying state.
+In `addons/GdPlanningAI/rust/tests/` (plus `common/mod.rs` helpers). Run with `make test-rust` (`cargo test`). Integration tests build engines through `PlannerEngine::new`, as the scheduler does, and answer callbacks with `common`'s responder thread, so no Godot runtime is needed. `make coverage` prints per-file coverage of `src/` and writes HTML and LCOV under `addons/GdPlanningAI/rust/target/llvm-cov/` (never committed); `make -C addons/GdPlanningAI/rust coverage-tools` installs the pinned `cargo-llvm-cov`. Planner cases are data: `tests/scenarios/<slug>.toml` fixtures, one file per behavior in BEHAVIORS.md, run by `tests/scenarios.rs` (format in `tests/scenarios/README.md`). The remaining test files cover what fixtures cannot express: time slices, budgets, cancellation, callback counts, logging and the debug tree.
 
 ______________________________________________________________________
 

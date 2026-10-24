@@ -28,6 +28,10 @@ test-rust: ## Run Rust tests only (propagates cargo test exit code)
 test-rust-verbose: ## Run Rust tests with cargo's full output and exit code (CI)
 	"$(MAKE)" -C addons/GdPlanningAI/rust test-verbose
 
+.PHONY: coverage
+coverage: ## Rust test coverage report (install the pinned tool with make -C addons/GdPlanningAI/rust coverage-tools)
+	"$(MAKE)" -C addons/GdPlanningAI/rust coverage
+
 .PHONY: test-verbose
 test-verbose: test-rust-verbose test-godot-verbose ## Run both suites with full output (CI); stops at the first failing suite
 
@@ -86,6 +90,16 @@ test-godot-verbose: ## Run the GUT suite with its full output and a real exit co
 	fi; \
 	[ $$OK -eq 1 ] && echo "GUT-SUITE-OK ($$PASS passing)"; \
 	[ $$OK -eq 1 ]
+
+.PHONY: test-e2e
+test-e2e: ## Run the end-to-end example-scene cases (e2e=true in test/scenarios/scenes.cfg), one after another; a minute each
+	@LOG=$$(mktemp /tmp/gut-e2e.XXXXXX); \
+	GDPAI_E2E=1 godot --headless -s --path . addons/gut/gut_cmdln.gd -gselect=test_scene_scenarios -gexit 2>&1 | tee $$LOG; \
+	STATUS=$${PIPESTATUS[0]}; \
+	if [ $$STATUS -ne 0 ] || grep -qE "SCRIPT ERROR|^Failing Tests" $$LOG; then \
+		echo "E2E-FAILED: see $$LOG"; exit 1; \
+	fi; \
+	echo "E2E-OK"
 
 .PHONY: test-godot-pipe-output
 test-godot-pipe-output: ## Run Godot integration tests with full output to file
@@ -179,4 +193,4 @@ godot-install-pinned: ## Install the pinned Godot version (uses godotenv)
 
 .PHONY: help
 help: ## Show this help message
-	@awk 'BEGIN {FS = ":.*?## "}; /^##@ / {printf "\n\033[1m%s\033[0m\n", substr($$0, 5)}; /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*?## "}; /^##@ / {printf "\n\033[1m%s\033[0m\n", substr($$0, 5)}; /^[a-zA-Z0-9_-]+:.*?## / {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)

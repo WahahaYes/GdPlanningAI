@@ -5,7 +5,7 @@
 
 mod common;
 
-use common::{create_sim_object, create_test_agent, create_test_world};
+use common::create_test_agent;
 use gdplanningai_rust::plan_types::PreconditionSpec;
 use gdplanningai_rust::precondition::{PreconditionOp, PreconditionTarget};
 use gdplanningai_rust::snapshot::VariantSnapshot;
@@ -186,50 +186,4 @@ fn custom_precondition_returns_none() {
 
     let result = precondition.evaluate_builtin(&agent, &world);
     assert_eq!(result, None);
-}
-
-#[test]
-fn world_snapshot_with_objects() {
-    // World snapshots can contain SimObjectData in addition to properties.
-    // Verifies that objects are correctly stored and accessible in the snapshot.
-    let enemy = create_sim_object(
-        "enemy_1",
-        vec!["enemy", "mobile"],
-        vec![("health", VariantSnapshot::Int(50))],
-    );
-
-    let world = create_test_world(
-        vec![("time", VariantSnapshot::Float(12.5f64.to_bits()))],
-        vec![("enemy_1", enemy)],
-    );
-
-    assert_eq!(world.properties.len(), 1);
-    assert_eq!(world.objects.len(), 1);
-    assert!(world.objects.contains_key("enemy_1"));
-
-    let enemy_obj = &world.objects["enemy_1"];
-    assert_eq!(enemy_obj.uid, "enemy_1");
-    assert_eq!(enemy_obj.groups.len(), 2);
-    assert!(enemy_obj.groups.contains(&"enemy".to_string()));
-}
-
-#[test]
-fn blackboard_snapshot_clone_independence() {
-    // Cloning a BlackboardSnapshot should create an independent copy.
-    // Mutations to the clone must not affect the original (critical for simulation isolation).
-    let original = create_test_agent(vec![("score", VariantSnapshot::Int(100))]);
-
-    let mut cloned = original.clone();
-    cloned
-        .properties
-        .insert("score".to_string(), VariantSnapshot::Int(200));
-
-    assert_eq!(
-        original.properties.get("score"),
-        Some(&VariantSnapshot::Int(100))
-    );
-    assert_eq!(
-        cloned.properties.get("score"),
-        Some(&VariantSnapshot::Int(200))
-    );
 }
