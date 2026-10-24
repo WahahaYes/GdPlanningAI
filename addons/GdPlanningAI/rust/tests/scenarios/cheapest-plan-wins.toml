@@ -9,7 +9,8 @@ actions = [
 goals = [{ name = "finish", reward = 10.0, want = [{ agent = "goal_met", op = "==", value = true }] }]
 expect = { plan = ["quick"], cost = 1.0 }
 
-# With Dijkstra the cheapest complete branch is also the first one found.
+# FirstComplete returns the first plan to finish verification, not the cheapest: a one-step plan
+# verifies without a callback, while a longer one waits on its effects. Here they coincide.
 [[case]]
 name = "first_complete_returns_first_found_plan"
 first_complete = true
