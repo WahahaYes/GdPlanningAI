@@ -1,3 +1,5 @@
+SHELL := /bin/bash
+
 # Directory paths
 RUST_DIR = .
 BIN_DIR = ../bin
@@ -13,12 +15,28 @@ REMAP_FLAGS := --remap-path-prefix=$(CURDIR)=/gdplanningai_rust \
 	--remap-path-prefix=$(shell rustc --print sysroot)=/rustc
 export RUSTFLAGS := $(strip $(filter-out $(REMAP_FLAGS),$(RUSTFLAGS)) $(REMAP_FLAGS))
 
-##@ Build
-
 # Each OS builds its own binary natively (CI does all three; the release workflow packages them).
 # macOS ships one universal dylib: aarch64 and x86_64 slices joined with lipo.
 MAC_TARGETS := aarch64-apple-darwin x86_64-apple-darwin
 MAC_DYLIB := libgdplanningai_rust.dylib
+
+# Coverage. Its builds live in their own target dir, so dropping the remap flags rebuilds nothing
+# else; the report needs real paths to find the sources. Test files are not counted.
+CARGO_LLVM_COV_VERSION := 0.9.1
+COVERAGE_DIR := $(TARGET_DIR)/llvm-cov
+COVERAGE_IGNORE := --ignore-filename-regex '/tests/'
+coverage: RUSTFLAGS :=
+
+##@ Setup
+
+.PHONY: setup
+setup: ## Install the pinned toolchain (rustfmt, clippy) and the coverage tools; safe to rerun
+	@rustup toolchain install
+	@rustup component add llvm-tools-preview
+	@cargo llvm-cov --version 2>/dev/null | grep -qx "cargo-llvm-cov $(CARGO_LLVM_COV_VERSION)" || \
+		cargo install cargo-llvm-cov --version $(CARGO_LLVM_COV_VERSION) --locked
+
+##@ Build
 
 .PHONY: build-release
 build-release: ## Build the release binary for this OS into ../bin (macOS: universal)
@@ -66,8 +84,6 @@ clean-binaries: ## Clean all binary directories
 
 ##@ Development
 
-SHELL := /bin/bash
-
 .PHONY: test
 test: ## Run unit tests (full log capture; CARGO-TEST-OK/FAILED verdict; propagates cargo exit code)
 	@echo "Running tests..."
@@ -86,22 +102,10 @@ test: ## Run unit tests (full log capture; CARGO-TEST-OK/FAILED verdict; propaga
 test-verbose: ## Run unit tests with cargo's full output; propagates the exit code (CI)
 	cargo test
 
-CARGO_LLVM_COV_VERSION := 0.9.1
-COVERAGE_DIR := $(TARGET_DIR)/llvm-cov
-# Coverage builds live in their own target dir, so dropping the remap flags rebuilds nothing
-# else; the report needs real paths to find the sources. Test files are not counted.
-coverage coverage-tools: RUSTFLAGS :=
-COVERAGE_IGNORE := --ignore-filename-regex '/tests/'
-
-.PHONY: coverage-tools
-coverage-tools: ## Install the pinned cargo-llvm-cov and llvm-tools-preview
-	@rustup component add llvm-tools-preview
-	@cargo install cargo-llvm-cov --version $(CARGO_LLVM_COV_VERSION) --locked
-
 .PHONY: coverage
 coverage: ## Rust test coverage: per-file summary, HTML in target/llvm-cov/html, LCOV in target/llvm-cov/lcov.info
 	@cargo llvm-cov --version 2>/dev/null | grep -qx "cargo-llvm-cov $(CARGO_LLVM_COV_VERSION)" || \
-		{ echo "cargo-llvm-cov $(CARGO_LLVM_COV_VERSION) not installed: run make coverage-tools"; exit 1; }
+		{ echo "cargo-llvm-cov $(CARGO_LLVM_COV_VERSION) not installed: run make setup"; exit 1; }
 	@cargo llvm-cov clean --workspace
 	@cargo llvm-cov --no-report --quiet
 	@cargo llvm-cov report --html --output-dir $(COVERAGE_DIR) $(COVERAGE_IGNORE)
@@ -111,7 +115,6 @@ coverage: ## Rust test coverage: per-file summary, HTML in target/llvm-cov/html,
 
 .PHONY: format
 format: ## Format code using rustfmt
-	@rustup component add rustfmt 2>&1 | grep -E "(error|Error)" || true
 	@cargo fmt
 
 .PHONY: format-check
@@ -120,7 +123,6 @@ format-check: ## Check formatting with rustfmt (no rewrite)
 
 .PHONY: lint
 lint: ## Run clippy; warnings fail
-	@rustup component add clippy 2>&1 | grep -E "(error|Error)" || true
 	@cargo clippy --all-targets --message-format=short -- -D warnings
 
 .PHONY: clean
