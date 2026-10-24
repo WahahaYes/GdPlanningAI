@@ -909,10 +909,6 @@ fn result_to_dict(result: &PlanResult) -> VarDictionary {
 #[cfg(test)]
 mod tests {
     use super::{StallNoticeThrottle, drop_in_background};
-    use crate::plan_types::PreconditionSpec;
-    use crate::precondition::{PreconditionOp, PreconditionTarget};
-    use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
-    use std::collections::HashMap;
 
     #[test]
     fn first_sight_of_pending_id_logs() {
@@ -943,57 +939,6 @@ mod tests {
         assert!(throttle.should_log(7));
         throttle.reset();
         assert!(throttle.should_log(7));
-    }
-
-    #[test]
-    fn every_builtin_op_resolves_on_snapshots() {
-        // Routing contract for the `submit_plan` goal pre-filter: every builtin
-        // operation answers via `evaluate_builtin` (`Some`), so builtins never fall
-        // back to the live handler. Only `Custom` may return `None`.
-        let mut properties = HashMap::new();
-        properties.insert("health".to_string(), VariantSnapshot::Int(80));
-        let agent = BlackboardSnapshot {
-            properties,
-            objects: HashMap::new(),
-        };
-        let world = BlackboardSnapshot {
-            properties: HashMap::new(),
-            objects: HashMap::new(),
-        };
-
-        let cases = [
-            (PreconditionOp::HasProperty, None),
-            (PreconditionOp::Equal, Some(VariantSnapshot::Int(80))),
-            (PreconditionOp::NotEqual, Some(VariantSnapshot::Int(10))),
-            (PreconditionOp::GreaterThan, Some(VariantSnapshot::Int(50))),
-            (
-                PreconditionOp::GreaterThanOrEqual,
-                Some(VariantSnapshot::Int(80)),
-            ),
-            (PreconditionOp::LessThan, Some(VariantSnapshot::Int(100))),
-            (
-                PreconditionOp::LessThanOrEqual,
-                Some(VariantSnapshot::Int(80)),
-            ),
-        ];
-        for (operation, value) in cases {
-            let spec = PreconditionSpec::Builtin {
-                target: PreconditionTarget::Agent,
-                operation,
-                property_name: "health".to_string(),
-                value,
-            };
-            assert!(
-                spec.evaluate_builtin(&agent, &world).is_some(),
-                "builtin must resolve on snapshots: {spec}"
-            );
-        }
-
-        let custom = PreconditionSpec::Custom {
-            callable_id: 0,
-            dependent_object_ids: vec![],
-        };
-        assert_eq!(custom.evaluate_builtin(&agent, &world), None);
     }
 
     /// Reports the thread it is dropped on.

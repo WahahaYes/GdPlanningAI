@@ -351,170 +351,157 @@ pub enum CallbackResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::precondition::{PreconditionOp, PreconditionTarget};
-    use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
+    use crate::precondition::{PreconditionOp as Op, PreconditionTarget};
+    use crate::snapshot::{BlackboardSnapshot, SimObjectData, VariantSnapshot as V};
     use std::collections::HashMap;
 
-    fn make_agent_snapshot() -> BlackboardSnapshot {
-        let mut properties = HashMap::new();
-        properties.insert("health".to_string(), VariantSnapshot::Int(80));
-        properties.insert(
-            "stamina".to_string(),
-            VariantSnapshot::Float(65.5f64.to_bits()),
-        );
-        properties.insert("name".to_string(), VariantSnapshot::Str("Hero".to_string()));
-        properties.insert("alive".to_string(), VariantSnapshot::Bool(true));
+    fn float(x: f64) -> V {
+        V::Float(x.to_bits())
+    }
 
+    fn snapshot(props: &[(&str, V)]) -> BlackboardSnapshot {
         BlackboardSnapshot {
-            properties,
+            properties: props
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.clone()))
+                .collect(),
             objects: HashMap::new(),
         }
     }
 
-    fn make_world_snapshot() -> BlackboardSnapshot {
-        let mut properties = HashMap::new();
-        properties.insert(
-            "time".to_string(),
-            VariantSnapshot::Float(123.45f64.to_bits()),
-        );
-        properties.insert("enemy_count".to_string(), VariantSnapshot::Int(5));
+    fn object(uid: &str, groups: &[&str], hunger_value: i64) -> (String, SimObjectData) {
+        let data = SimObjectData {
+            uid: uid.to_string(),
+            groups: groups.iter().map(|g| g.to_string()).collect(),
+            properties: HashMap::from([("hunger_value".to_string(), V::Int(hunger_value))]),
+        };
+        (uid.to_string(), data)
+    }
 
-        BlackboardSnapshot {
-            properties,
-            objects: HashMap::new(),
+    enum Target {
+        Agent,
+        World,
+        Group(&'static str),
+    }
+
+    /// `precondition-semantics`: the built-in evaluator, which the planner and the
+    /// `submit_plan` goal pre-filter share, against the quick reference in AUTHORING_GUIDE.md.
+    /// Tolerance rows sit exactly on the 1e-4 band edge (`zero` vs `tiny`).
+    #[test]
+    fn builtin_preconditions_follow_the_quick_reference() {
+        let agent = snapshot(&[
+            ("health", V::Int(80)),
+            ("level", float(1.0)),
+            ("zero", float(0.0)),
+            ("tiny", float(1e-4)),
+            ("above", float(50.00005)),
+            ("below", float(49.99995)),
+            ("nothing", V::Nil),
+            ("blank", V::Str(String::new())),
+            ("name", V::Str("a".to_string())),
+            ("alive", V::Bool(true)),
+            ("target", V::ObjectRef(7)),
+            ("shared", V::Int(1)),
+        ]);
+        let mut world = snapshot(&[("shared", V::Int(2))]);
+        world.objects = HashMap::from([
+            object("1", &["food"], 30),
+            object("2", &["food"], 60),
+            object("3", &["rock"], 90),
+        ]);
+
+        use Target::{Agent, Group, World};
+        #[rustfmt::skip]
+        let cases: Vec<(Target, &str, Op, Option<V>, bool)> = vec![
+            // HasProperty is presence of the key; the value is ignored.
+            (Agent, "health", Op::HasProperty, None, true),
+            (Agent, "health", Op::HasProperty, Some(V::Int(0)), true),
+            (Agent, "nothing", Op::HasProperty, None, true),
+            (Agent, "missing", Op::HasProperty, None, false),
+            // Numbers compare across int and float, within 1e-4.
+            (Agent, "health", Op::Equal, Some(V::Int(80)), true),
+            (Agent, "health", Op::Equal, Some(V::Int(81)), false),
+            (Agent, "health", Op::Equal, Some(float(80.0)), true),
+            (Agent, "level", Op::Equal, Some(float(1.00005)), true),
+            (Agent, "level", Op::Equal, Some(float(1.001)), false),
+            (Agent, "zero", Op::Equal, Some(float(1e-4)), false),
+            (Agent, "health", Op::NotEqual, Some(V::Int(10)), true),
+            (Agent, "health", Op::NotEqual, Some(V::Int(80)), false),
+            (Agent, "level", Op::NotEqual, Some(float(1.00005)), false),
+            (Agent, "zero", Op::NotEqual, Some(float(1e-4)), true),
+            (Agent, "health", Op::GreaterThan, Some(V::Int(50)), true),
+            (Agent, "health", Op::GreaterThan, Some(V::Int(80)), false),
+            (Agent, "health", Op::GreaterThan, Some(float(79.5)), true),
+            (Agent, "above", Op::GreaterThan, Some(V::Int(50)), false),
+            (Agent, "tiny", Op::GreaterThan, Some(float(0.0)), false),
+            (Agent, "health", Op::GreaterThanOrEqual, Some(V::Int(80)), true),
+            (Agent, "health", Op::GreaterThanOrEqual, Some(V::Int(81)), false),
+            (Agent, "below", Op::GreaterThanOrEqual, Some(V::Int(50)), true),
+            (Agent, "zero", Op::GreaterThanOrEqual, Some(float(1e-4)), true),
+            (Agent, "health", Op::LessThan, Some(V::Int(100)), true),
+            (Agent, "health", Op::LessThan, Some(V::Int(80)), false),
+            (Agent, "below", Op::LessThan, Some(V::Int(50)), false),
+            (Agent, "zero", Op::LessThan, Some(float(1e-4)), false),
+            (Agent, "health", Op::LessThanOrEqual, Some(V::Int(80)), true),
+            (Agent, "health", Op::LessThanOrEqual, Some(V::Int(79)), false),
+            (Agent, "above", Op::LessThanOrEqual, Some(V::Int(50)), true),
+            (Agent, "tiny", Op::LessThanOrEqual, Some(float(0.0)), true),
+            // A missing property and a missing value read as nil; nil equals "" both ways.
+            (Agent, "missing", Op::Equal, None, true),
+            (Agent, "missing", Op::Equal, Some(V::Nil), true),
+            (Agent, "missing", Op::NotEqual, None, false),
+            (Agent, "nothing", Op::Equal, Some(V::Str(String::new())), true),
+            (Agent, "blank", Op::Equal, Some(V::Nil), true),
+            (Agent, "nothing", Op::Equal, Some(V::Str("x".to_string())), false),
+            (Agent, "name", Op::Equal, Some(V::Nil), false),
+            // Other values are equal only within the same variant.
+            (Agent, "name", Op::Equal, Some(V::Str("a".to_string())), true),
+            (Agent, "name", Op::Equal, Some(V::Str("b".to_string())), false),
+            (Agent, "name", Op::NotEqual, Some(V::Str("b".to_string())), true),
+            (Agent, "alive", Op::Equal, Some(V::Bool(true)), true),
+            (Agent, "alive", Op::Equal, Some(V::Bool(false)), false),
+            (Agent, "target", Op::Equal, Some(V::ObjectRef(7)), true),
+            (Agent, "target", Op::Equal, Some(V::ObjectRef(8)), false),
+            (Agent, "health", Op::Equal, Some(V::Str("80".to_string())), false),
+            (Agent, "alive", Op::Equal, Some(V::Str("true".to_string())), false),
+            // Orderings hold only between numbers.
+            (Agent, "name", Op::GreaterThan, Some(V::Str("A".to_string())), false),
+            (Agent, "health", Op::CustomCallback, Some(V::Int(80)), false),
+            // Agent and world are separate blackboards.
+            (Agent, "shared", Op::Equal, Some(V::Int(1)), true),
+            (World, "shared", Op::Equal, Some(V::Int(2)), true),
+            (World, "health", Op::HasProperty, None, false),
+            // A group check holds if any object in the group matches.
+            (Group("food"), "", Op::Equal, Some(V::Int(60)), true),
+            (Group("food"), "", Op::GreaterThan, Some(V::Int(70)), false),
+            (Group("rock"), "", Op::GreaterThan, Some(V::Int(70)), true),
+            (Group("none"), "", Op::HasProperty, None, false),
+        ];
+
+        for (target, property, operation, value, want) in cases {
+            let target = match target {
+                Agent => PreconditionTarget::Agent,
+                World => PreconditionTarget::WorldState,
+                Group(group) => PreconditionTarget::WorldObjectProxy {
+                    group: group.to_string(),
+                    property: "hunger_value".to_string(),
+                },
+            };
+            let spec = PreconditionSpec::Builtin {
+                target,
+                operation,
+                property_name: property.to_string(),
+                value,
+            };
+            assert_eq!(spec.evaluate_builtin(&agent, &world), Some(want), "{spec}");
         }
-    }
 
-    #[test]
-    fn has_property_true_when_exists() {
-        let spec = PreconditionSpec::Builtin {
-            target: PreconditionTarget::Agent,
-            operation: PreconditionOp::HasProperty,
-            property_name: "health".to_string(),
-            value: None,
-        };
-
-        let agent = make_agent_snapshot();
-        let world = make_world_snapshot();
-
-        assert_eq!(spec.evaluate_builtin(&agent, &world), Some(true));
-    }
-
-    #[test]
-    fn has_property_false_when_missing() {
-        let spec = PreconditionSpec::Builtin {
-            target: PreconditionTarget::Agent,
-            operation: PreconditionOp::HasProperty,
-            property_name: "nonexistent".to_string(),
-            value: None,
-        };
-
-        let agent = make_agent_snapshot();
-        let world = make_world_snapshot();
-
-        assert_eq!(spec.evaluate_builtin(&agent, &world), Some(false));
-    }
-
-    #[test]
-    fn equal_integer_matches() {
-        let spec = PreconditionSpec::Builtin {
-            target: PreconditionTarget::Agent,
-            operation: PreconditionOp::Equal,
-            property_name: "health".to_string(),
-            value: Some(VariantSnapshot::Int(80)),
-        };
-
-        let agent = make_agent_snapshot();
-        let world = make_world_snapshot();
-
-        assert_eq!(spec.evaluate_builtin(&agent, &world), Some(true));
-    }
-
-    #[test]
-    fn equal_integer_fails_on_mismatch() {
-        let spec = PreconditionSpec::Builtin {
-            target: PreconditionTarget::Agent,
-            operation: PreconditionOp::Equal,
-            property_name: "health".to_string(),
-            value: Some(VariantSnapshot::Int(100)),
-        };
-
-        let agent = make_agent_snapshot();
-        let world = make_world_snapshot();
-
-        assert_eq!(spec.evaluate_builtin(&agent, &world), Some(false));
-    }
-
-    #[test]
-    fn greater_than_comparison_works() {
-        let spec = PreconditionSpec::Builtin {
-            target: PreconditionTarget::Agent,
-            operation: PreconditionOp::GreaterThan,
-            property_name: "health".to_string(),
-            value: Some(VariantSnapshot::Int(50)),
-        };
-
-        let agent = make_agent_snapshot();
-        let world = make_world_snapshot();
-
-        assert_eq!(spec.evaluate_builtin(&agent, &world), Some(true));
-    }
-
-    #[test]
-    fn less_than_comparison_works() {
-        let spec = PreconditionSpec::Builtin {
-            target: PreconditionTarget::Agent,
-            operation: PreconditionOp::LessThan,
-            property_name: "health".to_string(),
-            value: Some(VariantSnapshot::Int(100)),
-        };
-
-        let agent = make_agent_snapshot();
-        let world = make_world_snapshot();
-
-        assert_eq!(spec.evaluate_builtin(&agent, &world), Some(true));
-    }
-
-    #[test]
-    fn cross_type_int_float_comparison() {
-        let spec = PreconditionSpec::Builtin {
-            target: PreconditionTarget::Agent,
-            operation: PreconditionOp::GreaterThan,
-            property_name: "health".to_string(),
-            value: Some(VariantSnapshot::Float(79.5f64.to_bits())),
-        };
-
-        let agent = make_agent_snapshot();
-        let world = make_world_snapshot();
-
-        assert_eq!(spec.evaluate_builtin(&agent, &world), Some(true));
-    }
-
-    #[test]
-    fn targets_world_state_correctly() {
-        let spec = PreconditionSpec::Builtin {
-            target: PreconditionTarget::WorldState,
-            operation: PreconditionOp::Equal,
-            property_name: "enemy_count".to_string(),
-            value: Some(VariantSnapshot::Int(5)),
-        };
-
-        let agent = make_agent_snapshot();
-        let world = make_world_snapshot();
-
-        assert_eq!(spec.evaluate_builtin(&agent, &world), Some(true));
-    }
-
-    #[test]
-    fn custom_callback_returns_none() {
-        let spec = PreconditionSpec::Custom {
+        // Custom preconditions are not evaluated here: the planner asks a callback, the
+        // pre-filter the live handler.
+        let custom = PreconditionSpec::Custom {
             callable_id: 0,
             dependent_object_ids: vec![],
         };
-
-        let agent = make_agent_snapshot();
-        let world = make_world_snapshot();
-
-        assert_eq!(spec.evaluate_builtin(&agent, &world), None);
+        assert_eq!(custom.evaluate_builtin(&agent, &world), None);
     }
 }

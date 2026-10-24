@@ -62,7 +62,7 @@ Unit tier: the built-in precondition evaluator is an algorithmic kernel.
 
 **Scenario:** Given a built-in precondition on the agent, the world state or a world-object group, when it is evaluated, then it matches the [quick reference](AUTHORING_GUIDE.md#quick-reference-built-in-preconditions): ints and floats compare across types, floats within a tolerance, a missing property equals `null` and `""`, and a group check holds if any object in the group matches.
 
-**Proved by:** `addons/GdPlanningAI/rust/tests/prefilter_agreement.rs`, `addons/GdPlanningAI/rust/src/plan_types.rs`, `addons/GdPlanningAI/rust/src/precondition.rs`
+**Proved by:** `addons/GdPlanningAI/rust/src/plan_types.rs` (one table shared by the planner and the goal pre-filter), `addons/GdPlanningAI/rust/src/precondition.rs` (operator names)
 
 ## Scheduling
 
