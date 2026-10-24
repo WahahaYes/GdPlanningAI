@@ -87,6 +87,7 @@ func _check_run(case_id: String, cases: ConfigFile, section: String, scene: Node
 		if not observe and required.all(func(t: String) -> bool: return completed.has(t)):
 			break
 
+	_accept_warnings()
 	var missing: Array = required.filter(func(t: String) -> bool: return not completed.has(t))
 	assert_eq(missing, [], "%s: every listed action completes" % case_id)
 	if not observe:
@@ -137,6 +138,15 @@ func _track(agent: GdPAIAgent, stats: Dictionary, completed: Dictionary) -> void
 	var hunger: Variant = agent.blackboard.get_property("hunger")
 	if hunger != null:
 		s.max_hunger = maxf(s.max_hunger, float(hunger))
+
+
+## Marks engine warnings logged during a live run as expected; errors still fail the case. GUT
+## counts the addon's warnings (Rust [code]godot_warn![/code]) as engine errors, and live agents
+## warn by design, e.g. when another agent frees an item a search still refers to.
+func _accept_warnings() -> void:
+	for error in gut.error_tracker.get_errors_for_test():
+		if error.error_type == Logger.ERROR_TYPE_WARNING:
+			error.handled = true
 
 
 ## Prints per-agent results of an observed run, for calibrating its expectations.
