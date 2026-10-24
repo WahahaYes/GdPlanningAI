@@ -1,0 +1,10 @@
+# The high-reward goal has no plan (nothing provides has_food); the low-reward one already holds.
+[[case]]
+name = "goal_priority_respected"
+agent = { hunger = 50 }
+actions = [{ name = "eat", cost = 5.0, effect = { add = { hunger = -60 } }, preconditions = [{ agent = "has_food" }] }]
+goals = [
+  { name = "starving", reward = 100.0, want = [{ agent = "hunger", op = "<", value = 30 }] },
+  { name = "peckish", reward = 1.0, want = [{ agent = "hunger", op = "<", value = 80 }] },
+]
+expect = { plan = [], goal = "peckish" }

@@ -1,0 +1,55 @@
+# Eating needs the agent at the food (built-in) and holding food (custom). Walking to the food
+# drops the held item, so picking up must come after it.
+[[case]]
+name = "custom_precondition_is_rechecked_before_its_action"
+agent = { hunger = 0, pos = 0, held = 0 }
+actions = [
+  { name = "goto_food", cost = 1.0, effect = { set = { pos = 1, held = 0 } } },
+  { name = "pickup", cost = 1.0, effect = { set = { held = 1 } } },
+  { name = "eat", cost = 1.0, effect = { set = { fed = 1, held = 0 } }, preconditions = [
+    { agent = "pos", op = "==", value = 1 },
+    { custom = { agent = "held", op = "==", value = 1 } },
+  ] },
+]
+goals = [{ name = "fed", reward = 10.0, want = [{ agent = "fed", op = "==", value = 1 }] }]
+expect = { plan = ["goto_food", "pickup", "eat"] }
+
+# As above, but picking up also walks the agent home, so no order has it at the food and holding
+# food at once; only re-checking the custom precondition catches [pickup, goto_food, eat].
+[[case]]
+name = "plan_breaking_a_custom_precondition_is_rejected"
+agent = { hunger = 0, pos = 0, held = 0 }
+actions = [
+  { name = "goto_food", cost = 1.0, effect = { set = { pos = 1, held = 0 } } },
+  { name = "pickup", cost = 1.0, effect = { set = { pos = 0, held = 1 } } },
+  { name = "eat", cost = 1.0, effect = { set = { fed = 1, held = 0 } }, preconditions = [
+    { agent = "pos", op = "==", value = 1 },
+    { custom = { agent = "held", op = "==", value = 1 } },
+  ] },
+]
+goals = [{ name = "fed", reward = 10.0, want = [{ agent = "fed", op = "==", value = 1 }] }]
+expect = { fails = true }
+
+# use_object's custom precondition holds only if go_to's wildcard bound at_target to object 100.
+[[case]]
+name = "binding_injection_available_during_forward_validation"
+agent = { done = false }
+objects = [{ uid = "obj_01" }]
+actions = [
+  { name = "go_to", effect = { set = { done = true } }, provides = [{ fact_wildcard = "at_target" }] },
+  { name = "use_object", effect = { set = { done = true } }, preconditions = [
+    { custom = { binding = "at_target", value = { object = 100 } } },
+  ], requires = [{ fact = "at_target", args = [{ object = 100 }] }] },
+]
+goals = [{ name = "use", reward = 10.0, want = [{ agent = "done", op = "==", value = true }] }]
+expect = { plan = ["go_to", "use_object"] }
+
+[[case]]
+name = "custom_precondition_false_prunes_branch"
+agent = { hunger = 80 }
+actions = [
+  { name = "cursed_action", cost = 5.0, effect = { add = { hunger = -60 } }, preconditions = [{ custom = false }] },
+  { name = "safe_action", cost = 5.0, effect = { add = { hunger = -60 } } },
+]
+goals = [{ name = "satisfy_hunger", reward = 10.0, want = [{ agent = "hunger", op = "<", value = 30 }] }]
+expect = { plan = ["safe_action"] }

@@ -1,0 +1,36 @@
+[[case]]
+name = "no_valid_plan_returns_failure"
+agent = { hunger = 80 }
+goals = [{ name = "satisfy_hunger", reward = 10.0, want = [{ agent = "hunger", op = "<", value = 30 }] }]
+expect = { fails = true }
+
+[[case]]
+name = "action_with_unmet_precondition_fails"
+agent = { hunger = 80 }
+actions = [{ name = "eat", cost = 5.0, effect = { add = { hunger = -60 } }, preconditions = [{ agent = "has_food" }] }]
+goals = [{ name = "satisfy_hunger", reward = 10.0, want = [{ agent = "hunger", op = "<", value = 30 }] }]
+expect = { fails = true }
+
+# get_food alone would do; a depth of 0 allows no action at all.
+[[case]]
+name = "respects_max_depth"
+max_depth = 0
+agent = { hunger = 80 }
+actions = [
+  { name = "eat", cost = 5.0, effect = { add = { hunger = -60 } }, preconditions = [{ agent = "has_food" }] },
+  { name = "get_food", cost = 5.0, effect = { add = { hunger = -60 } } },
+]
+goals = [{ name = "satisfy_hunger", reward = 10.0, want = [{ agent = "hunger", op = "<", value = 30 }] }]
+expect = { fails = true }
+
+# The only plan is get_food then eat; a depth of 1 cuts it off.
+[[case]]
+name = "max_depth_prevents_plan_completion"
+max_depth = 1
+agent = { hunger = 80 }
+actions = [
+  { name = "eat", cost = 1.0, effect = { add = { hunger = -60 } }, preconditions = [{ agent = "has_food" }] },
+  { name = "get_food", cost = 1.0, effect = { set = { has_food = true } } },
+]
+goals = [{ name = "satisfy_hunger", reward = 10.0, want = [{ agent = "hunger", op = "<", value = 30 }] }]
+expect = { fails = true }

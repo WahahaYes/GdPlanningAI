@@ -1,0 +1,27 @@
+[[case]]
+name = "single_step_chain_verifies_and_completes"
+first_complete = true
+agent = { goal_met = false }
+actions = [{ name = "finish", effect = { set = { goal_met = true } } }]
+goals = [{ name = "goal", reward = 10.0, want = [{ agent = "goal_met", op = "==", value = true }] }]
+expect = { plan = ["finish"] }
+
+# heal's own effect would meet its precondition; that must not count.
+[[case]]
+name = "action_cannot_satisfy_its_own_precondition"
+agent = { health = 0 }
+actions = [{ name = "heal", effect = { set = { health = 10 } }, preconditions = [{ agent = "health", op = ">", value = 0 }] }]
+goals = [{ name = "recover", reward = 10.0, want = [{ agent = "health", op = ">", value = 5 }] }]
+expect = { fails = true }
+
+# The only held_item provider binds a weapon; eat needs food.
+[[case]]
+name = "binding_in_set_rejected_during_forward_validation"
+agent = { hunger = 80 }
+objects = [{ uid = "101", groups = ["food"] }, { uid = "102", groups = ["weapon"] }]
+actions = [
+  { name = "pickup_sword", provides = [{ binding = "held_item", value = { object = 102 } }] },
+  { name = "eat", cost = 5.0, effect = { add = { hunger = -60 } }, requires = [{ binding_in_set = "held_item", set = "food" }] },
+]
+goals = [{ name = "satisfy_hunger", reward = 10.0, want = [{ agent = "hunger", op = "<", value = 30 }] }]
+expect = { fails = true }

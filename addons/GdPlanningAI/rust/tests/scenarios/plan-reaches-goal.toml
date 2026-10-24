@@ -1,0 +1,18 @@
+[[case]]
+name = "single_action_satisfies_goal"
+agent = { hunger = 80 }
+actions = [{ name = "eat", cost = 5.0, effect = { add = { hunger = -60 } } }]
+goals = [{ name = "satisfy_hunger", reward = 10.0, want = [{ agent = "hunger", op = "<", value = 30 }] }]
+expect = { plan = ["eat"], cost = 5.0 }
+
+# Eating needs the agent at the food, so walking to the fire must come last.
+[[case]]
+name = "goal_level_action_runs_after_the_chain"
+agent = { hunger = 0, pos = 0 }
+actions = [
+  { name = "goto_food", cost = 1.0, effect = { set = { pos = 1 } } },
+  { name = "eat", cost = 1.0, effect = { set = { fed = 1 } }, preconditions = [{ agent = "pos", op = "==", value = 1 }] },
+  { name = "goto_fire", cost = 1.0, effect = { set = { pos = 2 } } },
+]
+goals = [{ name = "fed_by_fire", reward = 10.0, want = [{ agent = "fed", op = "==", value = 1 }, { agent = "pos", op = "==", value = 2 }] }]
+expect = { plan = ["goto_food", "eat", "goto_fire"] }

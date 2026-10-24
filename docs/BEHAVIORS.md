@@ -1,6 +1,6 @@
 # Behaviors
 
-What GdPlanningAI users rely on, one entry per behavior. Each entry has a slug, a scenario, and the tests that prove it. Every test proves one entry. A unit test that names none must test an algorithmic kernel and say why.
+What GdPlanningAI users rely on, one entry per behavior. Each entry has a slug, a scenario, and the tests that prove it; planner cases are fixtures in `addons/GdPlanningAI/rust/tests/scenarios/<slug>.toml`. Every test proves one entry. A unit test that names none must test an algorithmic kernel and say why.
 
 A bug fix adds a case to the test of the behavior it broke. If no entry fits, add the entry first.
 
@@ -10,31 +10,31 @@ A bug fix adds a case to the test of the behavior it broke. If no entry fits, ad
 
 **Scenario:** Given an unmet goal and actions whose simulated effects meet it, when the agent plans, then it gets a chain of those actions in an order where each one's preconditions hold in the state the earlier ones leave.
 
-**Proved by:** `addons/GdPlanningAI/rust/tests/planner_integration.rs`, `test/integration/test_async_planner.gd`
+**Proved by:** `addons/GdPlanningAI/rust/tests/scenarios/plan-reaches-goal.toml`, `test/integration/test_async_planner.gd`
 
 ### `satisfied-goal-plans-nothing`
 
 **Scenario:** Given a goal that already holds, when the agent plans, then it gets an empty, successful plan for that goal and no search runs.
 
-**Proved by:** `addons/GdPlanningAI/rust/tests/planner_integration.rs`, `test/integration/test_async_planner.gd`
+**Proved by:** `addons/GdPlanningAI/rust/tests/scenarios/satisfied-goal-plans-nothing.toml`, `test/integration/test_async_planner.gd`
 
 ### `unreachable-goal-fails`
 
 **Scenario:** Given a goal no chain within `max_recursion` can meet (no action affects it, or a precondition nothing provides), when the agent plans, then the search ends with a failed plan instead of running on.
 
-**Proved by:** `addons/GdPlanningAI/rust/tests/planner_integration.rs`, `addons/GdPlanningAI/rust/tests/budget_exhaustion.rs`, `test/integration/test_async_planner.gd`
+**Proved by:** `addons/GdPlanningAI/rust/tests/scenarios/unreachable-goal-fails.toml`, `test/integration/test_async_planner.gd`
 
 ### `cheapest-plan-wins`
 
 **Scenario:** Given several chains that meet a goal, when the agent plans, then it gets the one with the lowest total cost, even if it is longer.
 
-**Proved by:** `addons/GdPlanningAI/rust/tests/best_cost_termination.rs`, `test/integration/test_async_planner.gd`, `test/integration/test_requirements_provisions.gd`
+**Proved by:** `addons/GdPlanningAI/rust/tests/scenarios/cheapest-plan-wins.toml`, `test/integration/test_async_planner.gd`, `test/integration/test_requirements_provisions.gd`
 
 ### `goals-by-priority`
 
 **Scenario:** Given several goals, when the agent plans, then goals are tried from the highest reward down and the first one with a plan wins.
 
-**Proved by:** `addons/GdPlanningAI/rust/tests/planner_integration.rs`
+**Proved by:** `addons/GdPlanningAI/rust/tests/scenarios/goals-by-priority.toml`, `addons/GdPlanningAI/rust/tests/planner_integration.rs`
 
 ## Chaining and verification
 
@@ -42,19 +42,19 @@ A bug fix adds a case to the test of the behavior it broke. If no entry fits, ad
 
 **Scenario:** Given an action that requires a binding or fact, when the agent plans, then an action providing it is placed before it: `binding` meets `binding_exists`, `binding_equals` and (for objects in the group) `binding_in_set`, and `fact_wildcard("at_target")` meets every `at_target` fact, so Go To is planned in for each interaction. Provisions that already hold need no action.
 
-**Proved by:** `addons/GdPlanningAI/rust/tests/requirement_provision_chaining.rs`, `test/integration/test_requirements_provisions.gd`
+**Proved by:** `addons/GdPlanningAI/rust/tests/scenarios/requirements-chain-through-provisions.toml`, `test/integration/test_requirements_provisions.gd`
 
 ### `plans-verified-forward`
 
 **Scenario:** Given a candidate chain, when the planner replays it from the starting state, then the chain is rejected if any action's preconditions or requirements fail in the state just before it, including a need an earlier step met and a later step undid.
 
-**Proved by:** `addons/GdPlanningAI/rust/tests/requirement_provision_chaining.rs`, `test/integration/test_requirements_provisions.gd`
+**Proved by:** `addons/GdPlanningAI/rust/tests/scenarios/plans-verified-forward.toml`, `test/integration/test_requirements_provisions.gd`
 
 ### `custom-preconditions-decide`
 
 **Scenario:** Given an action with a custom precondition, when the planner considers it, then the callable decides, with the planner's bindings injected: false prunes the branch, and the callable is asked again in the state just before the action when the plan is verified.
 
-**Proved by:** `addons/GdPlanningAI/rust/tests/planner_integration.rs`, `addons/GdPlanningAI/rust/tests/requirement_provision_chaining.rs`
+**Proved by:** `addons/GdPlanningAI/rust/tests/scenarios/custom-preconditions-decide.toml`
 
 ### `precondition-semantics`
 

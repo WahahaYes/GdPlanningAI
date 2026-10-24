@@ -1,0 +1,22 @@
+# quick meets the goal for 1; slow1 then slow2 meets it for 5.
+[[case]]
+name = "best_cost_returns_lowest_cost_plan"
+actions = [
+  { name = "quick", cost = 1.0, effect = { set = { goal_met = true } } },
+  { name = "slow1", cost = 2.0, effect = { set = { can_finish = true } } },
+  { name = "slow2", cost = 3.0, effect = { set = { goal_met = true } }, preconditions = [{ agent = "can_finish", op = "==", value = true }] },
+]
+goals = [{ name = "finish", reward = 10.0, want = [{ agent = "goal_met", op = "==", value = true }] }]
+expect = { plan = ["quick"], cost = 1.0 }
+
+# With Dijkstra the cheapest complete branch is also the first one found.
+[[case]]
+name = "first_complete_returns_first_found_plan"
+first_complete = true
+actions = [
+  { name = "quick", cost = 1.0, effect = { set = { goal_met = true } } },
+  { name = "slow1", cost = 2.0, effect = { set = { can_finish = true } } },
+  { name = "slow2", cost = 3.0, effect = { set = { goal_met = true } }, preconditions = [{ agent = "can_finish", op = "==", value = true }] },
+]
+goals = [{ name = "finish", reward = 10.0, want = [{ agent = "goal_met", op = "==", value = true }] }]
+expect = { plan = ["quick"], cost = 1.0 }

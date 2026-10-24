@@ -1,0 +1,6 @@
+[[case]]
+name = "goal_already_satisfied_returns_empty_plan"
+agent = { hunger = 10 }
+actions = [{ name = "eat", cost = 5.0, effect = { add = { hunger = -60 } } }]
+goals = [{ name = "satisfy_hunger", reward = 10.0, want = [{ agent = "hunger", op = "<", value = 30 }] }]
+expect = { plan = [], cost = 0.0 }
