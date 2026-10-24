@@ -3,6 +3,7 @@
 ## Unreleased
 
 - **Built libraries are no longer in the repository.** The Linux and Windows libraries that used to sit under `addons/GdPlanningAI/bin` are gone, and a pre-commit hook and CI reject new ones. Releases carry working binaries in `GdPlanningAI-X.Y.Z.zip`; anyone using the GitHub source builds the library for their platform with `make -C addons/GdPlanningAI/rust build-release`.
+- **Plan verification makes fewer main-thread calls.** Verifying a plan reuses the first step that discovery already simulated from the agent's current state, so a plan's first action is no longer simulated twice.
 
 ## 0.3.0 - 2026-10-18
 
