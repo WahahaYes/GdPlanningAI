@@ -608,7 +608,8 @@ impl PlannerEngine {
             }
         }
 
-        // The queue is empty. Outstanding callbacks mean we are waiting, not done. (Any parked
+        // The queue is empty, or the BestCost optimality check stopped the search with nodes
+        // still queued. Outstanding callbacks mean we are waiting, not done. (Any parked
         // id works; the scheduler resumes us as soon as an answer for it has been delivered, and
         // an answer for another parked id is picked up on that resume too.)
         if !self.parked_nodes.is_empty() {
@@ -620,19 +621,13 @@ impl PlannerEngine {
                 && plan.action_chain.is_empty()
                 && self.current_goal_index + 1 < goals.len()
             {
-                self.best_plan = None;
-                self.best_cost = f64::INFINITY;
-                self.tree.end_goal(false, &[], 0.0);
-                self.current_goal_index += 1;
-                self.initialize_goal(goals, self.current_goal_index);
+                self.advance_goal(goals);
                 return PlannerRunResult::Pending(0);
             }
 
             // Search exhausted for current goal. Check if there are more goals.
             if self.best_plan.is_none() && self.current_goal_index + 1 < goals.len() {
-                self.tree.end_goal(false, &[], 0.0);
-                self.current_goal_index += 1;
-                self.initialize_goal(goals, self.current_goal_index);
+                self.advance_goal(goals);
                 // Return Pending(0) to signal we yielded to start the next goal
                 return PlannerRunResult::Pending(0);
             }
@@ -659,6 +654,19 @@ impl PlannerEngine {
             }
             PlannerRunResult::Complete(Some(final_plan))
         }
+    }
+
+    /// Drops the current goal's search and seeds the next goal. The queue can still hold nodes
+    /// (the BestCost optimality break leaves them queued), and they must not be verified against
+    /// the next goal's desired state.
+    fn advance_goal(&mut self, goals: &[GoalSpec]) {
+        self.tree.end_goal(false, &[], 0.0);
+        self.best_plan = None;
+        self.best_cost = f64::INFINITY;
+        self.queue.clear();
+        self.visited.clear();
+        self.current_goal_index += 1;
+        self.initialize_goal(goals, self.current_goal_index);
     }
 
     /// Restarts a symbolically complete branch from the initial state to verify it forward. A
