@@ -202,7 +202,7 @@ ______________________________________________________________________
 
 ## 7. Testing
 
-Two independent suites.
+Two independent suites. Each test proves a behavior listed in [BEHAVIORS.md](BEHAVIORS.md).
 
 ### GDScript suite (GUT)
 
@@ -213,7 +213,7 @@ Configured by `.gutconfig.json` (`dirs ["res://test"]`, `include_subdirs true`).
 
 ### Rust suite
 
-In `addons/GdPlanningAI/rust/tests/` (plus `common/mod.rs` helpers). Run with `make test-rust` (`cargo test`). Integration tests build `PlannerEngine`/`SearchContext` directly with mock callback-responder threads, so no Godot runtime is needed. They cover the search state machine (goal priority, depth, budget, cancellation), BestCost vs FirstComplete termination, requirement/provision chaining, branch insertion, snapshot evaluation, debug tree rendering, and a regression test for the Verifying state.
+In `addons/GdPlanningAI/rust/tests/` (plus `common/mod.rs` helpers). Run with `make test-rust` (`cargo test`). Integration tests build engines through `PlannerEngine::new`, as the scheduler does, and answer callbacks with `common`'s responder thread, so no Godot runtime is needed. They cover the search state machine (goal priority, depth, budget, cancellation), BestCost vs FirstComplete termination, requirement/provision chaining, branch insertion, snapshot evaluation, debug tree rendering, and a regression test for the Verifying state.
 
 ______________________________________________________________________
 
