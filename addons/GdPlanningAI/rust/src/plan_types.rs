@@ -158,8 +158,8 @@ fn eval_builtin_on_snapshot(
     }
 }
 
-/// Equality with main-thread semantics: nil equals an empty string, ints and floats compare
-/// numerically, other types only within the same variant.
+/// Equality for operands that are not both numbers ([`snap_compare_all`] compares those first):
+/// nil equals an empty string, other values only within the same variant.
 fn snap_equal(
     source: &BlackboardSnapshot,
     property_name: &str,
@@ -180,13 +180,8 @@ fn snap_equal(
         (VariantSnapshot::Str(s), VariantSnapshot::Nil) if s.is_empty() => true,
         (VariantSnapshot::Bool(a), VariantSnapshot::Bool(b)) => a == b,
         (VariantSnapshot::Str(a), VariantSnapshot::Str(b)) => a == b,
-        (VariantSnapshot::Int(a), VariantSnapshot::Int(b)) => a == b,
         (VariantSnapshot::ObjectRef(a), VariantSnapshot::ObjectRef(b)) => a == b,
-        // Numeric: cross-compare int/float
-        (p, c) => match (snap_as_f64(p), snap_as_f64(c)) {
-            (Some(pn), Some(cn)) => (pn - cn).abs() < 1e-4,
-            _ => false,
-        },
+        _ => false,
     }
 }
 
