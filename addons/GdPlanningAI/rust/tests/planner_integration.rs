@@ -9,8 +9,9 @@ use gdplanningai_rust::plan_types::{
     ActionSpec, CallbackKind, CallbackRequest, CallbackResponse, GoalSpec, PlannerCallback,
     PlannerRunResult, PreconditionSpec,
 };
+use gdplanningai_rust::planner::types::{PriorityNode, SearchNode};
 use gdplanningai_rust::planner::{
-    DijkstraHeuristic, PlannerEngine, SearchContext, TerminationStrategy,
+    DijkstraHeuristic, PlanBranch, PlannerEngine, SearchContext, TerminationStrategy,
 };
 use gdplanningai_rust::precondition::{PreconditionOp, PreconditionTarget};
 use gdplanningai_rust::snapshot::{BlackboardSnapshot, VariantSnapshot};
@@ -558,4 +559,122 @@ fn plan_breaking_a_custom_precondition_is_rejected() {
 
     let plan = result.expect("should produce a result");
     assert!(!plan.success, "got {:?}", plan.action_chain);
+}
+
+#[test]
+fn goal_switch_drops_nodes_queued_under_the_previous_goal() {
+    // Goal 0 holds already (empty-chain plan at cost 0), and a goal-0 node is still queued, as
+    // the BestCost optimality break leaves it. Switching to goal 1 must drop that node rather
+    // than verify it against goal 1's desired state.
+    let agent: Arc<BlackboardSnapshot> = make_agent(80).into();
+    let world: Arc<BlackboardSnapshot> = make_world().into();
+    let goals = vec![
+        GoalSpec {
+            name: "already_met".to_string(),
+            reward: 10.0,
+            desired_state: vec![hunger_less_than(100)],
+            original_index: 0,
+        },
+        GoalSpec {
+            name: "satisfy_hunger".to_string(),
+            reward: 5.0,
+            desired_state: vec![hunger_less_than(30)],
+            original_index: 1,
+        },
+    ];
+
+    let (request_tx, _request_rx) = mpsc::channel::<CallbackRequest>();
+    let (engine_tx, engine_rx) = mpsc::channel::<PlannerCallback>();
+    let ctx = Arc::new(SearchContext {
+        actions: vec![],
+        initial_agent: Arc::clone(&agent),
+        initial_world: Arc::clone(&world),
+        initial_provisions: vec![],
+        request_tx,
+        engine_response_tx: engine_tx.clone(),
+        discovery_results: std::sync::Mutex::new(HashMap::new()),
+        discovery_costs: std::sync::Mutex::new(HashMap::new()),
+        discovery_pending: std::sync::Mutex::new(HashMap::new()),
+        discovery_request_map: std::sync::Mutex::new(HashMap::new()),
+        discovery_precond_results: std::sync::Mutex::new(HashMap::new()),
+        discovery_precond_pending: std::sync::Mutex::new(HashMap::new()),
+        provision_index: HashMap::new(),
+        non_wildcard_actions: vec![],
+    });
+    let mut engine = PlannerEngine::new(ctx, 10, Arc::new(AtomicBool::new(false)))
+        .with_heuristic(Box::new(DijkstraHeuristic))
+        .with_termination_strategy(TerminationStrategy::BestCost);
+    engine.response_rx = engine_rx;
+    engine.response_tx = engine_tx;
+
+    engine.best_plan = Some(PlanResult {
+        success: true,
+        action_chain: vec![],
+        total_cost: 0.0,
+        goal_index: 0,
+        action_bindings: vec![],
+    });
+    engine.best_cost = 0.0;
+    let mut stale = PlanBranch::new(agent, world);
+    stale.goal_index = 0;
+    stale.cost = 5.0;
+    engine.queue.push(PriorityNode {
+        priority: 5.0,
+        node: SearchNode {
+            branch: stale,
+            resumed: false,
+            callback_response: None,
+            expanded_candidates: vec![],
+        },
+    });
+
+    assert!(matches!(engine.plan(&goals), PlannerRunResult::Pending(0)));
+    assert_eq!(engine.current_goal_index, 1);
+    assert_eq!(engine.queue.len(), 1, "only goal 1's root should be queued");
+    assert_eq!(engine.queue.peek().unwrap().node.branch.goal_index, 1);
+}
+
+#[test]
+fn verification_reuses_the_discovered_first_step() {
+    // Discovery already simulated eat from the initial state, so verifying the one-step plan
+    // reuses that post-state: the effect callback fires once, not twice.
+    let actions = vec![ActionSpec {
+        name: "eat".to_string(),
+        cost_callable_id: Some(0),
+        effect_callable_id: Some(0),
+        preconditions: vec![],
+        validity_checks: vec![],
+        requirements: vec![],
+        provisions: vec![],
+        dependent_object_ids: vec![],
+    }];
+    let goals = vec![GoalSpec {
+        name: "satisfy_hunger".to_string(),
+        reward: 10.0,
+        desired_state: vec![hunger_less_than(30)],
+        original_index: 0,
+    }];
+
+    let (responder_tx, _handle) = spawn_callback_responder(5.0, 60);
+    let effect_calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let (req_tx, req_rx) = mpsc::channel::<CallbackRequest>();
+    let counter = Arc::clone(&effect_calls);
+    thread::spawn(move || {
+        for req in req_rx {
+            if matches!(req.kind, CallbackKind::ApplyEffect { .. }) {
+                counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            }
+            let _ = responder_tx.send(req);
+        }
+    });
+
+    let plan = run_planner(make_agent(80), make_world(), actions, goals, 10, req_tx)
+        .expect("should produce a plan");
+    assert!(plan.success);
+    assert_eq!(plan.action_chain, vec![0]);
+    assert_eq!(
+        effect_calls.load(std::sync::atomic::Ordering::Relaxed),
+        1,
+        "verification should reuse discovery's simulation of step 0"
+    );
 }

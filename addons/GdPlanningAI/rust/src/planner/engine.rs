@@ -50,6 +50,8 @@ pub struct PlannerEngine {
     /// Wall-clock budget per [`PlannerEngine::plan`] call before yielding `Pending(0)`;
     /// 0 disables the check.
     pub time_slice_ms: u64,
+    /// Clock read by the time-slice check; [`std::time::Instant::now`] unless a test swaps it.
+    pub clock: fn() -> std::time::Instant,
 
     /// Open nodes ordered by heuristic priority (lowest first).
     pub queue: BinaryHeap<PriorityNode>,
@@ -119,6 +121,7 @@ impl PlannerEngine {
             termination: TerminationStrategy::BestCost,
             iteration_budget: 20000,
             time_slice_ms: 10,
+            clock: std::time::Instant::now,
             queue: BinaryHeap::new(),
             parked_nodes: HashMap::new(),
             visited: HashMap::new(),
@@ -156,6 +159,11 @@ impl PlannerEngine {
     /// Sets the wall-clock budget per step (checked every 128 pops); 0 disables it.
     pub fn with_time_slice_ms(mut self, ms: u64) -> Self {
         self.time_slice_ms = ms;
+        self
+    }
+    /// Sets the clock the time-slice check reads, so tests can make slices expire on demand.
+    pub fn with_clock(mut self, clock: fn() -> std::time::Instant) -> Self {
+        self.clock = clock;
         self
     }
 
@@ -322,7 +330,7 @@ impl PlannerEngine {
 
         // 2. Main Search Loop
         let mut iterations = 0;
-        let search_start = std::time::Instant::now();
+        let search_start = (self.clock)();
         let time_slice = std::time::Duration::from_millis(self.time_slice_ms);
         while let Some(priority_node) = self.queue.pop() {
             let node_priority = priority_node.priority;
@@ -387,7 +395,7 @@ impl PlannerEngine {
             // nodes don't cost an extra resume.
             if self.time_slice_ms > 0
                 && iterations % 128 == 0
-                && search_start.elapsed() >= time_slice
+                && (self.clock)() - search_start >= time_slice
             {
                 self.enqueue(node);
                 return PlannerRunResult::Pending(0);
@@ -600,7 +608,8 @@ impl PlannerEngine {
             }
         }
 
-        // The queue is empty. Outstanding callbacks mean we are waiting, not done. (Any parked
+        // The queue is empty, or the BestCost optimality check stopped the search with nodes
+        // still queued. Outstanding callbacks mean we are waiting, not done. (Any parked
         // id works; the scheduler resumes us as soon as an answer for it has been delivered, and
         // an answer for another parked id is picked up on that resume too.)
         if !self.parked_nodes.is_empty() {
@@ -612,19 +621,13 @@ impl PlannerEngine {
                 && plan.action_chain.is_empty()
                 && self.current_goal_index + 1 < goals.len()
             {
-                self.best_plan = None;
-                self.best_cost = f64::INFINITY;
-                self.tree.end_goal(false, &[], 0.0);
-                self.current_goal_index += 1;
-                self.initialize_goal(goals, self.current_goal_index);
+                self.advance_goal(goals);
                 return PlannerRunResult::Pending(0);
             }
 
             // Search exhausted for current goal. Check if there are more goals.
             if self.best_plan.is_none() && self.current_goal_index + 1 < goals.len() {
-                self.tree.end_goal(false, &[], 0.0);
-                self.current_goal_index += 1;
-                self.initialize_goal(goals, self.current_goal_index);
+                self.advance_goal(goals);
                 // Return Pending(0) to signal we yielded to start the next goal
                 return PlannerRunResult::Pending(0);
             }
@@ -651,6 +654,19 @@ impl PlannerEngine {
             }
             PlannerRunResult::Complete(Some(final_plan))
         }
+    }
+
+    /// Drops the current goal's search and seeds the next goal. The queue can still hold nodes
+    /// (the BestCost optimality break leaves them queued), and they must not be verified against
+    /// the next goal's desired state.
+    fn advance_goal(&mut self, goals: &[GoalSpec]) {
+        self.tree.end_goal(false, &[], 0.0);
+        self.best_plan = None;
+        self.best_cost = f64::INFINITY;
+        self.queue.clear();
+        self.visited.clear();
+        self.current_goal_index += 1;
+        self.initialize_goal(goals, self.current_goal_index);
     }
 
     /// Restarts a symbolically complete branch from the initial state to verify it forward. A
@@ -888,11 +904,14 @@ impl PlannerEngine {
                 .get(branch.simulation_index)
                 .is_some_and(|c| c.is_finite() && *c >= 0.0)
         };
-        // With the cost known, only the effect is left: reuse another branch's post-state, or
-        // wait on its request.
+        // With the cost known, only the effect is left: reuse another branch's post-state or
+        // discovery's (step 0 from the initial state is what discovery simulated), or wait on
+        // another branch's request.
         let cached = if cost_known(branch) {
             if let Some(state) = self.step_cache.get(&key) {
                 Some(state.clone())
+            } else if let Some(state) = self.discovered_step(branch, action_idx, current_bindings) {
+                Some(self.step_cache.entry(key.clone()).or_insert(state).clone())
             } else if callback_response.is_none()
                 && let Some(&id) = self.step_pending.get(&key)
             {
@@ -952,6 +971,27 @@ impl PlannerEngine {
         branch.simulation_index += 1;
         branch.recalculate_cost();
         StepResult::Ready(())
+    }
+
+    /// The post-state discovery recorded for `action_idx` with `bindings`, when `branch` is about
+    /// to simulate it as step 0 from the initial state. Actions without an effect are left to
+    /// [`Self::simulate_and_advance`], which keeps sharing the unchanged state.
+    fn discovered_step(
+        &self,
+        branch: &PlanBranch,
+        action_idx: usize,
+        bindings: &[(String, Vec<VariantSnapshot>)],
+    ) -> Option<(Arc<BlackboardSnapshot>, Arc<BlackboardSnapshot>)> {
+        if branch.simulation_index != 0
+            || self.ctx.actions[action_idx].effect_callable_id.is_none()
+            || !Arc::ptr_eq(&branch.current_agent, &self.ctx.initial_agent)
+            || !Arc::ptr_eq(&branch.current_world, &self.ctx.initial_world)
+        {
+            return None;
+        }
+        let cache = self.ctx.discovery_results.lock().unwrap();
+        let res = cache.get(&(action_idx, bindings.to_vec()))?;
+        Some((Arc::new(res.agent.clone()), Arc::new(res.world.clone())))
     }
 
     /// Clears requirements at or after the current position that this action's provisions satisfy.
