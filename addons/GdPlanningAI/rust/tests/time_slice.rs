@@ -1,7 +1,9 @@
 //! Regression test for wall-clock time-slicing preserving plan results.
 //!
 //! Verifies that planning with time-slicing disabled (`time_slice_ms = 0`)
-//! and enabled (1ms slice) yields the same final plan.
+//! and enabled (1ms slice) yields the same final plan. The engine reads
+//! [`fake_clock`], which advances 1ms per read, so a slice expires at the
+//! first check however fast the build runs the search.
 
 use gdplanningai_rust::plan_tree::PlanResult;
 use gdplanningai_rust::plan_types::{
@@ -15,10 +17,19 @@ use gdplanningai_rust::precondition::{PreconditionOp, PreconditionTarget};
 use gdplanningai_rust::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
+use std::sync::LazyLock;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
+
+static CLOCK_BASE: LazyLock<Instant> = LazyLock::new(Instant::now);
+static CLOCK_TICKS: AtomicU64 = AtomicU64::new(0);
+
+/// A clock that moves 1ms forward on every read.
+fn fake_clock() -> Instant {
+    *CLOCK_BASE + Duration::from_millis(CLOCK_TICKS.fetch_add(1, Ordering::Relaxed))
+}
 
 fn make_agent() -> BlackboardSnapshot {
     let mut props = HashMap::new();
@@ -129,7 +140,8 @@ fn run_to_completion(time_slice_ms: u64, action_count: usize) -> (Option<PlanRes
     let mut engine = PlannerEngine::new(ctx, 10, cancel_flag)
         .with_heuristic(Box::new(DijkstraHeuristic))
         .with_termination_strategy(TerminationStrategy::BestCost)
-        .with_time_slice_ms(time_slice_ms);
+        .with_time_slice_ms(time_slice_ms)
+        .with_clock(fake_clock);
 
     engine.response_rx = engine_rx;
     engine.response_tx = engine_tx;
@@ -189,7 +201,7 @@ fn disabled_vs_enabled_yields_same_plan() {
 #[test]
 fn small_pop_never_yields_to_timer() {
     // Fewer than 128 queue pops: the wall-clock gate (checked every 128
-    // pops) must never fire, even with a 1ms slice enabled.
+    // pops) must never fire, even though every check would find the slice spent.
     let (plan, pending_zero_count) = run_to_completion(1, 5);
 
     let plan = plan.expect("small fan-out should produce a plan");

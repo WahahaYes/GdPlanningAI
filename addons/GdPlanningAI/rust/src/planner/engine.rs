@@ -50,6 +50,8 @@ pub struct PlannerEngine {
     /// Wall-clock budget per [`PlannerEngine::plan`] call before yielding `Pending(0)`;
     /// 0 disables the check.
     pub time_slice_ms: u64,
+    /// Clock read by the time-slice check; [`std::time::Instant::now`] unless a test swaps it.
+    pub clock: fn() -> std::time::Instant,
 
     /// Open nodes ordered by heuristic priority (lowest first).
     pub queue: BinaryHeap<PriorityNode>,
@@ -119,6 +121,7 @@ impl PlannerEngine {
             termination: TerminationStrategy::BestCost,
             iteration_budget: 20000,
             time_slice_ms: 10,
+            clock: std::time::Instant::now,
             queue: BinaryHeap::new(),
             parked_nodes: HashMap::new(),
             visited: HashMap::new(),
@@ -156,6 +159,11 @@ impl PlannerEngine {
     /// Sets the wall-clock budget per step (checked every 128 pops); 0 disables it.
     pub fn with_time_slice_ms(mut self, ms: u64) -> Self {
         self.time_slice_ms = ms;
+        self
+    }
+    /// Sets the clock the time-slice check reads, so tests can make slices expire on demand.
+    pub fn with_clock(mut self, clock: fn() -> std::time::Instant) -> Self {
+        self.clock = clock;
         self
     }
 
@@ -322,7 +330,7 @@ impl PlannerEngine {
 
         // 2. Main Search Loop
         let mut iterations = 0;
-        let search_start = std::time::Instant::now();
+        let search_start = (self.clock)();
         let time_slice = std::time::Duration::from_millis(self.time_slice_ms);
         while let Some(priority_node) = self.queue.pop() {
             let node_priority = priority_node.priority;
@@ -387,7 +395,7 @@ impl PlannerEngine {
             // nodes don't cost an extra resume.
             if self.time_slice_ms > 0
                 && iterations % 128 == 0
-                && search_start.elapsed() >= time_slice
+                && (self.clock)() - search_start >= time_slice
             {
                 self.enqueue(node);
                 return PlannerRunResult::Pending(0);
