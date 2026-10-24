@@ -354,10 +354,11 @@ submit_plan(agent, agent_bb, world_bb, actions, goals, max_depth, budget, time_s
     satisfied_goal_index = goal_specs.empty ? satisfied : -1
     goal_specs.sort_by(reward desc)
 
-    build provision_index + non_wildcard_actions
-    ctx = SearchContext{...}
-    engine = PlannerEngine(ctx, max_depth, cancel_flag)
-        .heuristic(Dijkstra).termination(BestCost).budget(budget).time_slice(time_slice_ms)
+    // new() builds SearchContext (caches, provision_index, non_wildcard_actions) and the
+    // channel the main thread answers on; config defaults: Dijkstra, BestCost
+    engine = PlannerEngine::new(
+        EngineInputs{action_specs, snap_agent, snap_world, initial_provisions, request_tx, cancel_flag},
+        EngineConfig{max_depth, budget, time_slice_ms, ..default})
     spawn first step on Rayon pool (the worker owns the engine until it sends it back)
 
 process_callbacks()  // each frame:

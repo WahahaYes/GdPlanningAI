@@ -1,18 +1,17 @@
 //! Integration test for planner cancellation via cancel_flag.
 
+mod common;
+use common::{inputs, spawn_responder};
+
 use gdplanningai_rust::plan_types::{
-    ActionSpec, CallbackKind, CallbackRequest, CallbackResponse, GoalSpec, PlannerCallback,
-    PlannerRunResult, PreconditionSpec,
+    ActionSpec, CallbackKind, CallbackResponse, GoalSpec, PlannerRunResult, PreconditionSpec,
 };
-use gdplanningai_rust::planner::{
-    DijkstraHeuristic, PlannerEngine, SearchContext, TerminationStrategy,
-};
+use gdplanningai_rust::planner::{EngineConfig, EngineInputs, PlannerEngine};
 use gdplanningai_rust::precondition::{PreconditionOp, PreconditionTarget};
 use gdplanningai_rust::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -58,56 +57,31 @@ fn cancellation_returns_failure_quickly() {
     }];
 
     // Spawn a slow responder so the callback stays pending for a while.
-    let (req_tx, req_rx) = mpsc::channel::<CallbackRequest>();
-    thread::spawn(move || {
-        for req in req_rx {
-            thread::sleep(Duration::from_millis(100));
-            let response = match req.kind {
-                CallbackKind::GetCost { .. } => CallbackResponse::Float(1.0),
-                CallbackKind::ApplyEffect {
-                    mut agent, world, ..
-                } => {
-                    agent
-                        .properties
-                        .insert("magic".to_string(), VariantSnapshot::Bool(true));
-                    CallbackResponse::UpdatedSnapshots(agent, world)
-                }
-                CallbackKind::EvalCustomPrecond { .. } => CallbackResponse::Bool(true),
-            };
-            let _ = req.response_tx.send(PlannerCallback {
-                request_id: req.request_id,
-                response,
-            });
+    let req_tx = spawn_responder(|req| {
+        thread::sleep(Duration::from_millis(100));
+        match req.kind {
+            CallbackKind::GetCost { .. } => CallbackResponse::Float(1.0),
+            CallbackKind::ApplyEffect { mut agent, world } => {
+                agent
+                    .properties
+                    .insert("magic".to_string(), VariantSnapshot::Bool(true));
+                CallbackResponse::UpdatedSnapshots(agent, world)
+            }
+            CallbackKind::EvalCustomPrecond { .. } => CallbackResponse::Bool(true),
         }
     });
 
     let cancel_flag = Arc::new(AtomicBool::new(false));
-    let (engine_tx, engine_rx) = mpsc::channel::<PlannerCallback>();
-    let non_wildcard_actions: Vec<usize> = (0..actions.len()).collect();
-
-    let ctx = Arc::new(SearchContext {
-        actions,
-        initial_agent: agent.into(),
-        initial_world: world.into(),
-        initial_provisions: vec![],
-        request_tx: req_tx,
-        engine_response_tx: engine_tx.clone(),
-        discovery_results: std::sync::Mutex::new(HashMap::new()),
-        discovery_costs: std::sync::Mutex::new(HashMap::new()),
-        discovery_pending: std::sync::Mutex::new(HashMap::new()),
-        discovery_request_map: std::sync::Mutex::new(HashMap::new()),
-        discovery_precond_results: std::sync::Mutex::new(HashMap::new()),
-        discovery_precond_pending: std::sync::Mutex::new(HashMap::new()),
-        provision_index: HashMap::new(),
-        non_wildcard_actions,
-    });
-
-    let mut engine = PlannerEngine::new(ctx, 10, cancel_flag.clone())
-        .with_heuristic(Box::new(DijkstraHeuristic))
-        .with_termination_strategy(TerminationStrategy::BestCost);
-
-    engine.response_rx = engine_rx;
-    engine.response_tx = engine_tx;
+    let mut engine = PlannerEngine::new(
+        EngineInputs {
+            cancel_flag: cancel_flag.clone(),
+            ..inputs(actions, agent, world, req_tx)
+        },
+        EngineConfig {
+            max_depth: 10,
+            ..EngineConfig::default()
+        },
+    );
 
     let start_time = Instant::now();
     let mut iterations = 0;

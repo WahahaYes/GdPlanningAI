@@ -3,68 +3,46 @@
 //! Covers `collect_bindings_for_position`, `clear_initial_state_requirements`,
 //! `validate_action_against_current_state`, `evaluate_open_preconditions_for_position`,
 //! `clear_requirements_from_provisions` and `finalize_verified_branch`. Each test builds a
-//! minimal engine with a callback thread that answers nothing, so only the logic that needs
+//! minimal engine whose callback requests go unanswered, so only the logic that needs
 //! no GDScript round trip is exercised.
 
 mod common;
 use common::{create_sim_object, create_test_agent, create_test_world};
 
-use gdplanningai_rust::plan_types::{
-    ActionSpec, CallbackRequest, CallbackResponse, PlannerCallback, PreconditionSpec,
-};
-use gdplanningai_rust::planner::engine::PlannerEngine;
+use gdplanningai_rust::plan_types::{ActionSpec, CallbackResponse, PreconditionSpec};
 use gdplanningai_rust::planner::simulation::StepResult;
-use gdplanningai_rust::planner::types::{BranchState, PlanBranch, SearchContext};
+use gdplanningai_rust::planner::types::{BranchState, PlanBranch};
+use gdplanningai_rust::planner::{EngineConfig, EngineInputs, PlannerEngine};
 use gdplanningai_rust::precondition::{PreconditionOp, PreconditionTarget};
 use gdplanningai_rust::requirement::{ProvisionSpec, RequirementSpec};
 use gdplanningai_rust::snapshot::{BlackboardSnapshot, VariantSnapshot};
-use std::collections::HashMap;
 use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
 use std::sync::mpsc;
-use std::thread;
 
-/// Build a minimal [`PlannerEngine`] with a do-nothing callback thread.
-///
-/// The resulting engine has a valid [`SearchContext`] so that helpers that read
-/// `self.ctx` (initial state, actions, provisions, etc.) can be exercised
-/// without a full Godot callback setup.
+/// Build a minimal [`PlannerEngine`] whose callback requests go unanswered, so helpers that
+/// read `self.ctx` (initial state, actions, provisions, etc.) can be exercised without a
+/// Godot callback setup.
 fn create_test_engine(
     actions: Vec<ActionSpec>,
     initial_agent: BlackboardSnapshot,
     initial_world: BlackboardSnapshot,
     initial_provisions: Vec<ProvisionSpec>,
 ) -> PlannerEngine {
-    let cancel_flag = Arc::new(AtomicBool::new(false));
-
-    // A thread that drains callback requests so that any accidental pending
-    // callback does not block the test.
-    let (req_tx, req_rx) = mpsc::channel::<CallbackRequest>();
-    thread::spawn(move || while let Ok(_req) = req_rx.recv() {});
-
-    let (engine_tx, engine_rx) = mpsc::channel::<PlannerCallback>();
-
-    let ctx = Arc::new(SearchContext {
-        actions,
-        initial_agent: initial_agent.into(),
-        initial_world: initial_world.into(),
-        initial_provisions,
-        request_tx: req_tx,
-        engine_response_tx: engine_tx.clone(),
-        discovery_results: std::sync::Mutex::new(HashMap::new()),
-        discovery_costs: std::sync::Mutex::new(HashMap::new()),
-        discovery_pending: std::sync::Mutex::new(HashMap::new()),
-        discovery_request_map: std::sync::Mutex::new(HashMap::new()),
-        discovery_precond_results: std::sync::Mutex::new(HashMap::new()),
-        discovery_precond_pending: std::sync::Mutex::new(HashMap::new()),
-        provision_index: HashMap::new(),
-        non_wildcard_actions: vec![],
-    });
-
-    let mut engine = PlannerEngine::new(ctx, 10, cancel_flag);
-    engine.response_rx = engine_rx;
-    engine.response_tx = engine_tx;
-    engine
+    PlannerEngine::new(
+        EngineInputs {
+            actions,
+            agent: initial_agent,
+            world: initial_world,
+            initial_provisions,
+            // Nobody answers: a callback stays pending instead of resolving.
+            request_tx: mpsc::channel().0,
+            cancel_flag: Arc::default(),
+        },
+        EngineConfig {
+            max_depth: 10,
+            ..EngineConfig::default()
+        },
+    )
 }
 
 #[test]

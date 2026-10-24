@@ -2,187 +2,54 @@
 //! custom preconditions, and BindingInSet with world group context.
 
 mod common;
-use common::{create_sim_object, create_test_agent, create_test_world};
+use common::{
+    create_sim_object, create_test_agent, create_test_world, hunger_answers, inputs, reduce_hunger,
+    run_to_completion, spawn_responder,
+};
 use gdplanningai_rust::plan_tree::PlanResult;
 use gdplanningai_rust::plan_types::{
-    ActionSpec, CallbackKind, CallbackRequest, CallbackResponse, GoalSpec, PlannerCallback,
-    PlannerRunResult, PreconditionSpec,
+    ActionSpec, CallbackKind, CallbackRequest, CallbackResponse, GoalSpec, PreconditionSpec,
 };
-use gdplanningai_rust::planner::types::ProvisionKind;
-use gdplanningai_rust::planner::{
-    DijkstraHeuristic, PlannerEngine, SearchContext, TerminationStrategy,
-};
+use gdplanningai_rust::planner::{EngineConfig, PlannerEngine};
 use gdplanningai_rust::precondition::{PreconditionOp, PreconditionTarget};
 use gdplanningai_rust::requirement::{ProvisionSpec, RequirementSpec};
 use gdplanningai_rust::snapshot::{BlackboardSnapshot, VariantSnapshot};
-use std::collections::HashMap;
-use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
 use std::sync::mpsc;
-use std::thread;
-use std::time::{Duration, Instant};
 
-fn build_provision_index(actions: &[ActionSpec]) -> HashMap<(ProvisionKind, String), Vec<usize>> {
-    let mut index: HashMap<(ProvisionKind, String), Vec<usize>> = HashMap::new();
-    for (idx, action) in actions.iter().enumerate() {
-        for prov in &action.provisions {
-            let (kind, name) = match prov {
-                ProvisionSpec::Binding { binding_name, .. } => {
-                    (ProvisionKind::Binding, binding_name.clone())
-                }
-                ProvisionSpec::Fact { fact_name, .. } => (ProvisionKind::Fact, fact_name.clone()),
-                ProvisionSpec::FactWildcard { fact_name } => {
-                    (ProvisionKind::FactWildcard, fact_name.clone())
-                }
-            };
-            index.entry((kind, name)).or_default().push(idx);
-        }
-    }
-    index
-}
-
-fn build_non_wildcard_actions(actions: &[ActionSpec]) -> Vec<usize> {
-    actions
-        .iter()
-        .enumerate()
-        .filter(|(_, a)| {
-            !a.provisions
-                .iter()
-                .any(|p| matches!(p, ProvisionSpec::FactWildcard { .. }))
-        })
-        .map(|(i, _)| i)
-        .collect()
-}
-
-#[allow(dead_code)]
-fn spawn_callback_responder(
-    cost_value: f64,
-    hunger_reduction: i64,
-) -> (mpsc::Sender<CallbackRequest>, thread::JoinHandle<()>) {
-    let (req_tx, req_rx) = mpsc::channel::<CallbackRequest>();
-
-    let handle = thread::spawn(move || {
-        for req in req_rx {
-            let response = match req.kind {
-                CallbackKind::GetCost { .. } => CallbackResponse::Float(cost_value),
-                CallbackKind::ApplyEffect {
-                    mut agent, world, ..
-                } => {
-                    if let Some(VariantSnapshot::Int(current)) =
-                        agent.properties.get("hunger").cloned()
-                    {
-                        let new_hunger = (current - hunger_reduction).max(0);
-                        agent
-                            .properties
-                            .insert("hunger".to_string(), VariantSnapshot::Int(new_hunger));
-                    }
-                    if let Some(VariantSnapshot::Bool(_)) =
-                        agent.properties.get("goal_met").cloned()
-                    {
-                        agent
-                            .properties
-                            .insert("goal_met".to_string(), VariantSnapshot::Bool(true));
-                    }
-                    CallbackResponse::UpdatedSnapshots(agent, world)
-                }
-                CallbackKind::EvalCustomPrecond { .. } => CallbackResponse::Bool(true),
-            };
-            let _ = req.response_tx.send(PlannerCallback {
-                request_id: req.request_id,
-                response,
-            });
-        }
-    });
-
-    (req_tx, handle)
-}
-
-/// Spawn a responder that only reduces hunger for a specific effect callable.
+/// A responder like [`hunger_answers`], except only the effect `hunger_effect_callable_id`
+/// lowers hunger; other effects leave the state unchanged.
 fn spawn_action_aware_responder(
     cost_value: f64,
     hunger_effect_callable_id: usize,
     hunger_reduction: i64,
-) -> (mpsc::Sender<CallbackRequest>, thread::JoinHandle<()>) {
-    let (req_tx, req_rx) = mpsc::channel::<CallbackRequest>();
-
-    let handle = thread::spawn(move || {
-        for req in req_rx {
-            let response = match req.kind {
-                CallbackKind::GetCost { .. } => CallbackResponse::Float(cost_value),
-                CallbackKind::ApplyEffect {
-                    mut agent, world, ..
-                } => {
-                    if req.callable_id == hunger_effect_callable_id
-                        && let Some(VariantSnapshot::Int(current)) =
-                            agent.properties.get("hunger").cloned()
-                    {
-                        let new_hunger = (current - hunger_reduction).max(0);
-                        agent
-                            .properties
-                            .insert("hunger".to_string(), VariantSnapshot::Int(new_hunger));
-                    }
-                    CallbackResponse::UpdatedSnapshots(agent, world)
-                }
-                CallbackKind::EvalCustomPrecond { .. } => CallbackResponse::Bool(true),
-            };
-            let _ = req.response_tx.send(PlannerCallback {
-                request_id: req.request_id,
-                response,
-            });
+) -> mpsc::Sender<CallbackRequest> {
+    spawn_responder(move |req| match req.kind {
+        CallbackKind::GetCost { .. } => CallbackResponse::Float(cost_value),
+        CallbackKind::ApplyEffect { mut agent, world } => {
+            if req.callable_id == hunger_effect_callable_id {
+                reduce_hunger(&mut agent, hunger_reduction);
+            }
+            CallbackResponse::UpdatedSnapshots(agent, world)
         }
-    });
-
-    (req_tx, handle)
+        CallbackKind::EvalCustomPrecond { .. } => CallbackResponse::Bool(true),
+    })
 }
 
-/// Spawn a responder that returns false for a specific callable_id.
+/// A responder like [`hunger_answers`], except the custom precondition `false_callable_id`
+/// fails.
 fn spawn_selective_callback_responder(
     cost_value: f64,
     hunger_reduction: i64,
     false_callable_id: usize,
-) -> (mpsc::Sender<CallbackRequest>, thread::JoinHandle<()>) {
-    let (req_tx, req_rx) = mpsc::channel::<CallbackRequest>();
-
-    let handle = thread::spawn(move || {
-        for req in req_rx {
-            let response = match req.kind {
-                CallbackKind::GetCost { .. } => CallbackResponse::Float(cost_value),
-                CallbackKind::ApplyEffect {
-                    mut agent, world, ..
-                } => {
-                    if let Some(VariantSnapshot::Int(current)) =
-                        agent.properties.get("hunger").cloned()
-                    {
-                        let new_hunger = (current - hunger_reduction).max(0);
-                        agent
-                            .properties
-                            .insert("hunger".to_string(), VariantSnapshot::Int(new_hunger));
-                    }
-                    if let Some(VariantSnapshot::Bool(_)) =
-                        agent.properties.get("goal_met").cloned()
-                    {
-                        agent
-                            .properties
-                            .insert("goal_met".to_string(), VariantSnapshot::Bool(true));
-                    }
-                    CallbackResponse::UpdatedSnapshots(agent, world)
-                }
-                CallbackKind::EvalCustomPrecond { .. } => {
-                    if req.callable_id == false_callable_id {
-                        CallbackResponse::Bool(false)
-                    } else {
-                        CallbackResponse::Bool(true)
-                    }
-                }
-            };
-            let _ = req.response_tx.send(PlannerCallback {
-                request_id: req.request_id,
-                response,
-            });
+) -> mpsc::Sender<CallbackRequest> {
+    let mut answer = hunger_answers(cost_value, hunger_reduction);
+    spawn_responder(move |req| {
+        if matches!(req.kind, CallbackKind::EvalCustomPrecond { .. }) {
+            CallbackResponse::Bool(req.callable_id != false_callable_id)
+        } else {
+            answer(req)
         }
-    });
-
-    (req_tx, handle)
+    })
 }
 
 fn run_planner(
@@ -193,54 +60,17 @@ fn run_planner(
     max_depth: usize,
     request_tx: mpsc::Sender<CallbackRequest>,
 ) -> Option<PlanResult> {
-    let cancel_flag = Arc::new(AtomicBool::new(false));
-
     gdplanningai_rust::logger::init_log_channel();
     gdplanningai_rust::logger::set_log_level(gdplanningai_rust::logger::LogLevel::Debug);
 
-    let (engine_tx, engine_rx) = mpsc::channel::<PlannerCallback>();
-    let non_wildcard_actions = build_non_wildcard_actions(&actions);
-    let provision_index = build_provision_index(&actions);
-
-    let ctx = Arc::new(SearchContext {
-        actions,
-        initial_agent: agent.into(),
-        initial_world: world.into(),
-        initial_provisions: vec![],
-        request_tx,
-        engine_response_tx: engine_tx.clone(),
-        discovery_results: std::sync::Mutex::new(HashMap::new()),
-        discovery_costs: std::sync::Mutex::new(HashMap::new()),
-        discovery_pending: std::sync::Mutex::new(HashMap::new()),
-        discovery_request_map: std::sync::Mutex::new(HashMap::new()),
-        discovery_precond_results: std::sync::Mutex::new(HashMap::new()),
-        discovery_precond_pending: std::sync::Mutex::new(HashMap::new()),
-        provision_index,
-        non_wildcard_actions,
-    });
-
-    let mut engine = PlannerEngine::new(ctx, max_depth, cancel_flag)
-        .with_heuristic(Box::new(DijkstraHeuristic))
-        .with_termination_strategy(TerminationStrategy::BestCost);
-
-    engine.response_rx = engine_rx;
-    engine.response_tx = engine_tx;
-
-    let start_time = Instant::now();
-    let timeout = Duration::from_secs(5);
-
-    loop {
-        if start_time.elapsed() > timeout {
-            panic!("run_planner: Timed out waiting for plan completion");
-        }
-
-        match engine.plan(&goals) {
-            PlannerRunResult::Complete(res) => return res,
-            PlannerRunResult::Pending(_) => {
-                thread::sleep(Duration::from_millis(1));
-            }
-        }
-    }
+    let mut engine = PlannerEngine::new(
+        inputs(actions, agent, world, request_tx),
+        EngineConfig {
+            max_depth,
+            ..EngineConfig::default()
+        },
+    );
+    run_to_completion(&mut engine, &goals)
 }
 
 fn hunger_less_than(threshold: i64) -> PreconditionSpec {
@@ -301,9 +131,8 @@ fn requirement_provision_chains_pickup_then_eat() {
         original_index: 0,
     }];
 
-    let (req_tx, handle) = spawn_action_aware_responder(5.0, 2, 60);
+    let req_tx = spawn_action_aware_responder(5.0, 2, 60);
     let result = run_planner(agent, world, actions, goals, 10, req_tx);
-    drop(handle);
 
     let plan = result.expect("should produce a plan");
     assert!(plan.success);
@@ -363,25 +192,16 @@ fn wildcard_fact_provision_binds_concrete_value() {
         original_index: 0,
     }];
 
-    let (req_tx, req_rx) = mpsc::channel::<CallbackRequest>();
-    thread::spawn(move || {
-        for req in req_rx {
-            let response = match req.kind {
-                CallbackKind::ApplyEffect {
-                    mut agent, world, ..
-                } => {
-                    agent
-                        .properties
-                        .insert("goal_met".to_string(), VariantSnapshot::Bool(true));
-                    CallbackResponse::UpdatedSnapshots(agent, world)
-                }
-                _ => CallbackResponse::Float(1.0),
-            };
-            let _ = req.response_tx.send(PlannerCallback {
-                request_id: req.request_id,
-                response,
-            });
+    let req_tx = spawn_responder(move |req| match req.kind {
+        CallbackKind::ApplyEffect {
+            mut agent, world, ..
+        } => {
+            agent
+                .properties
+                .insert("goal_met".to_string(), VariantSnapshot::Bool(true));
+            CallbackResponse::UpdatedSnapshots(agent, world)
         }
+        _ => CallbackResponse::Float(1.0),
     });
 
     let result = run_planner(agent, world, actions, goals, 10, req_tx);
@@ -463,32 +283,23 @@ fn binding_injection_available_during_forward_validation() {
         original_index: 0,
     }];
 
-    let (req_tx, req_rx) = mpsc::channel::<CallbackRequest>();
-    thread::spawn(move || {
-        for req in req_rx {
-            let response = match req.kind {
-                CallbackKind::ApplyEffect {
-                    mut agent, world, ..
-                } => {
-                    agent
-                        .properties
-                        .insert("done".to_string(), VariantSnapshot::Bool(true));
-                    CallbackResponse::UpdatedSnapshots(agent, world)
-                }
-                CallbackKind::EvalCustomPrecond { .. } => {
-                    // Return true only if the at_target binding contains obj_01
-                    let has_correct = req.bindings.iter().any(|(name, vals)| {
-                        name == "at_target" && vals.contains(&VariantSnapshot::ObjectRef(100))
-                    });
-                    CallbackResponse::Bool(has_correct)
-                }
-                _ => CallbackResponse::Float(1.0),
-            };
-            let _ = req.response_tx.send(PlannerCallback {
-                request_id: req.request_id,
-                response,
-            });
+    let req_tx = spawn_responder(move |req| match req.kind {
+        CallbackKind::ApplyEffect {
+            mut agent, world, ..
+        } => {
+            agent
+                .properties
+                .insert("done".to_string(), VariantSnapshot::Bool(true));
+            CallbackResponse::UpdatedSnapshots(agent, world)
         }
+        CallbackKind::EvalCustomPrecond { .. } => {
+            // Return true only if the at_target binding contains obj_01
+            let has_correct = req.bindings.iter().any(|(name, vals)| {
+                name == "at_target" && vals.contains(&VariantSnapshot::ObjectRef(100))
+            });
+            CallbackResponse::Bool(has_correct)
+        }
+        _ => CallbackResponse::Float(1.0),
     });
 
     let result = run_planner(agent, world, actions, goals, 10, req_tx);
@@ -542,9 +353,8 @@ fn custom_precondition_false_prunes_branch() {
         original_index: 0,
     }];
 
-    let (req_tx, handle) = spawn_selective_callback_responder(5.0, 60, 77);
+    let req_tx = spawn_selective_callback_responder(5.0, 60, 77);
     let result = run_planner(agent, world, actions, goals, 10, req_tx);
-    drop(handle);
 
     let plan = result.expect("should produce a plan");
     assert!(plan.success);
@@ -608,9 +418,8 @@ fn binding_in_set_respects_world_group() {
         original_index: 0,
     }];
 
-    let (req_tx, handle) = spawn_action_aware_responder(5.0, 2, 60);
+    let req_tx = spawn_action_aware_responder(5.0, 2, 60);
     let result = run_planner(agent, world, actions, goals, 10, req_tx);
-    drop(handle);
 
     let plan = result.expect("should produce a plan");
     assert!(plan.success);
@@ -655,25 +464,16 @@ fn action_cannot_satisfy_its_own_precondition() {
         original_index: 0,
     }];
 
-    let (req_tx, req_rx) = mpsc::channel::<CallbackRequest>();
-    thread::spawn(move || {
-        for req in req_rx {
-            let response = match req.kind {
-                CallbackKind::ApplyEffect {
-                    mut agent, world, ..
-                } => {
-                    agent
-                        .properties
-                        .insert("health".to_string(), VariantSnapshot::Int(10));
-                    CallbackResponse::UpdatedSnapshots(agent, world)
-                }
-                _ => CallbackResponse::Float(1.0),
-            };
-            let _ = req.response_tx.send(PlannerCallback {
-                request_id: req.request_id,
-                response,
-            });
+    let req_tx = spawn_responder(move |req| match req.kind {
+        CallbackKind::ApplyEffect {
+            mut agent, world, ..
+        } => {
+            agent
+                .properties
+                .insert("health".to_string(), VariantSnapshot::Int(10));
+            CallbackResponse::UpdatedSnapshots(agent, world)
         }
+        _ => CallbackResponse::Float(1.0),
     });
 
     let result = run_planner(agent, world, actions, goals, 10, req_tx);
@@ -741,9 +541,8 @@ fn binding_in_set_rejected_during_forward_validation() {
         original_index: 0,
     }];
 
-    let (req_tx, handle) = spawn_action_aware_responder(5.0, 2, 60);
+    let req_tx = spawn_action_aware_responder(5.0, 2, 60);
     let result = run_planner(agent, world, actions, goals, 10, req_tx);
-    drop(handle);
 
     let plan = result.expect("planner should complete");
     // Forward validation must enforce the group-membership constraint.

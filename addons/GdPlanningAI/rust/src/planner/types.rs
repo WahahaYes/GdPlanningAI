@@ -185,6 +185,64 @@ pub struct SearchContext {
     pub non_wildcard_actions: Vec<usize>,
 }
 
+impl SearchContext {
+    /// Builds the context for one job with empty discovery caches and the provision index.
+    pub(crate) fn new(
+        actions: Vec<ActionSpec>,
+        agent: BlackboardSnapshot,
+        world: BlackboardSnapshot,
+        initial_provisions: Vec<ProvisionSpec>,
+        request_tx: Sender<CallbackRequest>,
+        engine_response_tx: Sender<PlannerCallback>,
+    ) -> Self {
+        // Which actions provide a given binding / fact / wildcard fact name. Wildcard actions are
+        // excluded from `non_wildcard_actions` because they can only be discovered against a
+        // concrete requirement, which supplies their bindings.
+        let mut provision_index: HashMap<(ProvisionKind, String), Vec<usize>> = HashMap::new();
+        let mut non_wildcard_actions = Vec::new();
+        for (idx, action) in actions.iter().enumerate() {
+            let has_wildcard = action
+                .provisions
+                .iter()
+                .any(|p| matches!(p, ProvisionSpec::FactWildcard { .. }));
+            if !has_wildcard {
+                non_wildcard_actions.push(idx);
+            }
+            for prov in &action.provisions {
+                let (kind, name) = match prov {
+                    ProvisionSpec::Binding { binding_name, .. } => {
+                        (ProvisionKind::Binding, binding_name.clone())
+                    }
+                    ProvisionSpec::Fact { fact_name, .. } => {
+                        (ProvisionKind::Fact, fact_name.clone())
+                    }
+                    ProvisionSpec::FactWildcard { fact_name } => {
+                        (ProvisionKind::FactWildcard, fact_name.clone())
+                    }
+                };
+                provision_index.entry((kind, name)).or_default().push(idx);
+            }
+        }
+
+        Self {
+            actions,
+            initial_agent: Arc::new(agent),
+            initial_world: Arc::new(world),
+            initial_provisions,
+            request_tx,
+            engine_response_tx,
+            discovery_results: std::sync::Mutex::new(HashMap::new()),
+            discovery_costs: std::sync::Mutex::new(HashMap::new()),
+            discovery_pending: std::sync::Mutex::new(HashMap::new()),
+            discovery_request_map: std::sync::Mutex::new(HashMap::new()),
+            discovery_precond_results: std::sync::Mutex::new(HashMap::new()),
+            discovery_precond_pending: std::sync::Mutex::new(HashMap::new()),
+            provision_index,
+            non_wildcard_actions,
+        }
+    }
+}
+
 /// The result of a background action discovery simulation.
 #[derive(Clone)]
 pub struct DiscoveryResult {

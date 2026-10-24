@@ -9,14 +9,12 @@
 use crate::gdpai_blackboard::GdPAIBlackboard;
 use crate::plan_tree::PlanResult;
 use crate::plan_types::*;
-use crate::planner::{
-    DijkstraHeuristic, PlannerEngine, ProvisionKind, SearchContext, TerminationStrategy,
-};
+use crate::planner::{EngineConfig, EngineInputs, PlannerEngine};
 use crate::precondition::{PreconditionHandler, PreconditionOp};
 use crate::requirement::{ProvisionSpec, RequirementSpec};
 use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use godot::prelude::*;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, atomic::AtomicBool};
 
@@ -365,7 +363,6 @@ impl GdPAIPlanScheduler {
 
         let (req_tx, req_rx) = std::sync::mpsc::channel::<CallbackRequest>();
         let (res_tx, res_rx) = std::sync::mpsc::channel::<(PlannerRunResult, PlannerEngine)>();
-        let (engine_tx, engine_rx) = std::sync::mpsc::channel::<PlannerCallback>();
         let cancel_flag = Arc::new(AtomicBool::new(false));
         let max_rec = max_recursion.max(1) as usize;
         let iter_budget = iteration_budget.max(100) as usize;
@@ -386,63 +383,22 @@ impl GdPAIPlanScheduler {
             );
         }
 
-        // Build provision index for fast candidate discovery: which actions provide a given
-        // binding / fact / wildcard fact name. Wildcard actions are excluded from
-        // `non_wildcard_actions` because they can only be discovered against a concrete
-        // requirement, which supplies their bindings.
-        let mut provision_index: HashMap<(ProvisionKind, String), Vec<usize>> = HashMap::new();
-        let mut non_wildcard_actions = Vec::new();
-        for (idx, action) in action_specs.iter().enumerate() {
-            let has_wildcard = action
-                .provisions
-                .iter()
-                .any(|p| matches!(p, ProvisionSpec::FactWildcard { .. }));
-            if !has_wildcard {
-                non_wildcard_actions.push(idx);
-            }
-            for prov in &action.provisions {
-                let (kind, name) = match prov {
-                    ProvisionSpec::Binding { binding_name, .. } => {
-                        (ProvisionKind::Binding, binding_name.clone())
-                    }
-                    ProvisionSpec::Fact { fact_name, .. } => {
-                        (ProvisionKind::Fact, fact_name.clone())
-                    }
-                    ProvisionSpec::FactWildcard { fact_name } => {
-                        (ProvisionKind::FactWildcard, fact_name.clone())
-                    }
-                };
-                provision_index.entry((kind, name)).or_default().push(idx);
-            }
-        }
-
-        let ctx = Arc::new(SearchContext {
-            actions: action_specs,
-            initial_agent: Arc::new(snap_agent),
-            initial_world: Arc::new(snap_world),
-            initial_provisions,
-            request_tx: req_tx,
-            engine_response_tx: engine_tx.clone(),
-            discovery_results: std::sync::Mutex::new(HashMap::new()),
-            discovery_costs: std::sync::Mutex::new(HashMap::new()),
-            discovery_pending: std::sync::Mutex::new(HashMap::new()),
-            discovery_request_map: std::sync::Mutex::new(HashMap::new()),
-            discovery_precond_results: std::sync::Mutex::new(HashMap::new()),
-            discovery_precond_pending: std::sync::Mutex::new(HashMap::new()),
-            provision_index,
-            non_wildcard_actions,
-        });
-
-        let mut engine = PlannerEngine::new(ctx, max_rec, cancel_flag.clone())
-            .with_heuristic(Box::new(DijkstraHeuristic))
-            .with_termination_strategy(TerminationStrategy::BestCost)
-            .with_iteration_budget(iter_budget)
-            .with_time_slice_ms(slice_ms);
-
-        // The engine's answer channel must be the one whose sender is in the context, because
-        // that is the sender callback requests carry.
-        engine.response_rx = engine_rx;
-        engine.response_tx = engine_tx.clone();
+        let engine = PlannerEngine::new(
+            EngineInputs {
+                actions: action_specs,
+                agent: snap_agent,
+                world: snap_world,
+                initial_provisions,
+                request_tx: req_tx,
+                cancel_flag: cancel_flag.clone(),
+            },
+            EngineConfig {
+                max_depth: max_rec,
+                iteration_budget: iter_budget,
+                time_slice_ms: slice_ms,
+                ..EngineConfig::default()
+            },
+        );
 
         let job = ActiveJobHandle {
             agent,
@@ -555,7 +511,7 @@ impl GdPAIPlanScheduler {
                 && !job.cancel_flag.load(std::sync::atomic::Ordering::Relaxed)
             {
                 if let Some(engine) = &job.engine {
-                    return engine.tree.format();
+                    return engine.debug_tree().format();
                 } else {
                     return "Engine is currently running in a background thread.".to_string();
                 }
@@ -565,7 +521,7 @@ impl GdPAIPlanScheduler {
         for job in &self.active_jobs {
             if job.agent_instance_id == agent_instance_id {
                 if let Some(engine) = &job.engine {
-                    return engine.tree.format();
+                    return engine.debug_tree().format();
                 } else {
                     return "Engine is currently running in a background thread.".to_string();
                 }
