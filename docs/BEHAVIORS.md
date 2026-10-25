@@ -92,6 +92,14 @@ Unit tier: the built-in precondition evaluator is an algorithmic kernel.
 
 **Proved by:** `test/unit/test_gdpai_blackboard.gd`
 
+## Agent runtime
+
+### `plan-delivery-observed`
+
+**Scenario:** Given a finished plan, successful or not, when the agent installs it, then `plan_delivered` fires once with the full result dictionary so game code can branch on its `success` flag, `get_current_action()` returns the action at the current step or `null` before the plan starts, and `is_waiting_for_plan()` is true only while a request is in flight.
+
+**Proved by:** `test/unit/test_plan_delivery.gd`
+
 ## Authoring API
 
 ### `blackboard-api`

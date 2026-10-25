@@ -6,6 +6,9 @@ extends Node
 ## then step the current plan. Planning runs in the background; a finished plan replaces the
 ## current one. See [Action] for the hook order.
 
+## Emitted when a finished plan is installed, successful or not; check the result's success flag.
+signal plan_delivered(result: Dictionary)
+
 ## Top-level node of the controlled entity. Object data below it joins the agent's own state.
 @export var entity: Node
 ## Planning settings, starting blackboard and behaviors. Read once in [code]_ready[/code].
@@ -104,6 +107,18 @@ func get_current_plan() -> Array[Action]:
 ## Returns the executing step; [code]-1[/code] before the pre-perform phase.
 func get_current_plan_step() -> int:
 	return _current_plan_step
+
+
+## Returns the action at the current step, or null before the plan starts or after it ends.
+func get_current_action() -> Action:
+	if _current_plan_step < 0 or _current_plan_step >= _current_action_chain.size():
+		return null
+	return _current_action_chain[_current_plan_step]
+
+
+## True while a background plan request is in flight.
+func is_waiting_for_plan() -> bool:
+	return _waiting_for_plan
 
 
 ## Changes the planning strategy. [param interval] is used by the interval strategies.
@@ -220,6 +235,7 @@ func _on_plan_ready(result: Dictionary) -> void:
 		_current_bindings_by_position = {}
 		_current_goal = null
 		_failure_backoff_left = config.failure_backoff
+	plan_delivered.emit(result)
 
 
 ## Runs the guaranteed cleanup phase for the outgoing chain before it is replaced. Posts run
