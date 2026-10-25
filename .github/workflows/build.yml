@@ -200,11 +200,7 @@ jobs:
         with:
           path: ~/.cache/godot-pinned
           key: godot-${{ runner.os }}-${{ hashFiles('global.json') }}
-      # GodotEnv is a .NET 8 tool; runners already ship an 8.0 SDK, so reuse it instead of downloading.
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          dotnet-version: 8.0.x
-          check-latest: false
+      # GodotEnv is a .NET 8 tool; runners already ship an 8.0 SDK on PATH, so no setup-dotnet download.
       - name: GodotEnv tool cache
         id: godotenv-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
