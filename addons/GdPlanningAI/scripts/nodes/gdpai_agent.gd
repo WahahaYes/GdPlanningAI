@@ -109,6 +109,13 @@ func get_current_plan_step() -> int:
 	return _current_plan_step
 
 
+## Returns the action at the current step, or null before the plan starts or after it ends.
+func get_current_action() -> Action:
+	if _current_plan_step < 0 or _current_plan_step >= _current_action_chain.size():
+		return null
+	return _current_action_chain[_current_plan_step]
+
+
 ## Changes the planning strategy. [param interval] is used by the interval strategies.
 func set_planning_strategy(
 	strategy: GdPAIAgentConfig.PlanningStrategy,
