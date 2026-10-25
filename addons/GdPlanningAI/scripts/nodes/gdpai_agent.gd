@@ -116,6 +116,11 @@ func get_current_action() -> Action:
 	return _current_action_chain[_current_plan_step]
 
 
+## True while a background plan request is in flight.
+func is_waiting_for_plan() -> bool:
+	return _waiting_for_plan
+
+
 ## Changes the planning strategy. [param interval] is used by the interval strategies.
 func set_planning_strategy(
 	strategy: GdPAIAgentConfig.PlanningStrategy,
