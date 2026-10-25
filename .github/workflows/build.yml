@@ -226,6 +226,9 @@ jobs:
             addons/GdTimeMachine
           key: addons-${{ runner.os }}-${{ hashFiles('addons.jsonc') }}
       - name: Addons (gut, GdTimeMachine)
+        env:
+          # The net8.0 GodotEnv apphost may only find a newer major runtime (macOS-arm64); roll forward to it.
+          DOTNET_ROLL_FORWARD: LatestMajor
         run: |
           echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
           "$HOME/.dotnet/tools/godotenv" addons install
