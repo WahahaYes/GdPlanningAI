@@ -200,22 +200,9 @@ jobs:
         with:
           path: ~/.cache/godot-pinned
           key: godot-${{ runner.os }}-${{ hashFiles('global.json') }}
-      # GodotEnv is a .NET 8 tool; runners already ship an 8.0 SDK on PATH, so no setup-dotnet download.
-      - name: GodotEnv tool cache
-        id: godotenv-cache
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.dotnet/tools
-          key: godotenv-${{ runner.os }}-2.17.0
-      - name: GodotEnv tool (2.17.0)
-        if: steps.godotenv-cache.outputs.cache-hit != 'true'
-        run: dotnet tool install --global Chickensoft.GodotEnv --version 2.17.0
-      - name: GodotEnv tool cache save
-        if: github.ref == 'refs/heads/main' && steps.godotenv-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.dotnet/tools
-          key: godotenv-${{ runner.os }}-2.17.0
+      # CI clones the addon pins directly: the GodotEnv CLI is a .NET tool
+      # whose apphost cannot resolve a runtime on some runners (macOS-arm64).
+      # Local development keeps using GodotEnv (make addons-install).
       - name: Addons cache
         id: addons-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -225,13 +212,9 @@ jobs:
             addons/gut
             addons/GdTimeMachine
           key: addons-${{ runner.os }}-${{ hashFiles('addons.jsonc') }}
-      - name: Addons (gut, GdTimeMachine)
-        env:
-          # The net8.0 GodotEnv apphost may only find a newer major runtime (macOS-arm64); roll forward to it.
-          DOTNET_ROLL_FORWARD: LatestMajor
-        run: |
-          echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
-          "$HOME/.dotnet/tools/godotenv" addons install
+      - name: Addons (clone gut, GdTimeMachine)
+        if: steps.addons-cache.outputs.cache-hit != 'true'
+        run: uv run --no-project python scripts/install-addons.py
       - name: Addons cache save
         if: github.ref == 'refs/heads/main' && steps.addons-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
