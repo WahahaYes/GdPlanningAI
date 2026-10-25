@@ -182,17 +182,48 @@ jobs:
           workspaces: addons/GdPlanningAI/rust
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
-      - name: Godot (version from global.json)
-        run: scripts/install-godot.sh >> "$GITHUB_PATH"
-      # GodotEnv is a .NET 8 tool; macOS runners ship only a newer runtime.
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+      - name: Godot editor cache
+        id: godot-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          dotnet-version: 8.0.x
-      - name: Addons (gut, GdTimeMachine)
-        run: |
-          dotnet tool install --global Chickensoft.GodotEnv --version 2.17.0
-          echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
-          "$HOME/.dotnet/tools/godotenv" addons install
+          path: ~/.cache/godot-pinned
+          key: godot-${{ runner.os }}-${{ hashFiles('global.json') }}
+      - name: Godot (version from global.json)
+        if: steps.godot-cache.outputs.cache-hit != 'true'
+        run: scripts/install-godot.sh "$HOME/.cache/godot-pinned" >> "$GITHUB_PATH"
+      - name: Godot on PATH (cache hit)
+        if: steps.godot-cache.outputs.cache-hit == 'true'
+        run: echo "$HOME/.cache/godot-pinned" >> "$GITHUB_PATH"
+      - name: Godot editor cache save
+        if: github.ref == 'refs/heads/main' && steps.godot-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/godot-pinned
+          key: godot-${{ runner.os }}-${{ hashFiles('global.json') }}
+      # CI clones the addon pins directly: the GodotEnv CLI is a .NET tool
+      # whose apphost cannot resolve a runtime on some runners (macOS-arm64).
+      # Local development keeps using GodotEnv (make addons-install).
+      - name: Addons cache
+        id: addons-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            .addons
+            addons/gut
+            addons/GdTimeMachine
+          key: addons-${{ runner.os }}-${{ hashFiles('addons.jsonc') }}
+      - name: Addons (clone gut, GdTimeMachine)
+        if: steps.addons-cache.outputs.cache-hit != 'true'
+        run: uv run --no-project python scripts/install-addons.py
+      - name: Addons cache save
+        if: github.ref == 'refs/heads/main' && steps.addons-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            .addons
+            addons/gut
+            addons/GdTimeMachine
+          key: addons-${{ runner.os }}-${{ hashFiles('addons.jsonc') }}
       - name: Build the Rust binary over the LFS pointer
         if: env.COVERAGE != 'true'
         run: make -C addons/GdPlanningAI/rust build-release
