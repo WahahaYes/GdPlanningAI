@@ -132,8 +132,7 @@ impl VariantSnapshot {
 }
 
 /// Send-safe mirror of [`SimObjectProxy`].
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(from = "SimObjectDataShadow", into = "SimObjectDataShadow")]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SimObjectData {
     /// The source node's instance id as a string; also this object's key in
     /// [`BlackboardSnapshot::objects`].
@@ -145,36 +144,6 @@ pub struct SimObjectData {
     pub properties: Arc<HashMap<String, VariantSnapshot>>,
 }
 
-/// Serde shadow of [`SimObjectData`]: serde implements `Serialize` but not `Deserialize`
-/// for `Arc`, so snapshots cross the JSON boundary (probe capture/replay) unshared and are
-/// re-wrapped on load.
-#[derive(Serialize, Deserialize)]
-struct SimObjectDataShadow {
-    uid: String,
-    groups: Vec<String>,
-    properties: HashMap<String, VariantSnapshot>,
-}
-
-impl From<SimObjectDataShadow> for SimObjectData {
-    fn from(shadow: SimObjectDataShadow) -> Self {
-        Self {
-            uid: shadow.uid,
-            groups: shadow.groups,
-            properties: Arc::new(shadow.properties),
-        }
-    }
-}
-
-impl From<SimObjectData> for SimObjectDataShadow {
-    fn from(data: SimObjectData) -> Self {
-        Self {
-            uid: data.uid,
-            groups: data.groups,
-            properties: (*data.properties).clone(),
-        }
-    }
-}
-
 /// Send-safe mirror of [`GdPAIBlackboard`].
 ///
 /// The planner thread operates exclusively on these. The
@@ -182,8 +151,7 @@ impl From<SimObjectData> for SimObjectDataShadow {
 /// in `objects` as [`SimObjectData`]. Both maps are structurally shared behind
 /// [`Arc`]: cloning a snapshot bumps refcounts, and patches copy-on-write only
 /// the maps they touch.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(from = "BlackboardSnapshotShadow", into = "BlackboardSnapshotShadow")]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BlackboardSnapshot {
     /// Plain properties of the blackboard.
     pub properties: Arc<HashMap<String, VariantSnapshot>>,
@@ -191,38 +159,27 @@ pub struct BlackboardSnapshot {
     pub objects: Arc<HashMap<String, Arc<SimObjectData>>>,
 }
 
-/// Serde shadow of [`BlackboardSnapshot`]: see [`SimObjectDataShadow`].
-#[derive(Serialize, Deserialize)]
-struct BlackboardSnapshotShadow {
-    properties: HashMap<String, VariantSnapshot>,
-    objects: HashMap<String, SimObjectData>,
+/// Returns the world object with the given Godot instance ID from a raw objects map.
+/// Shared by [`BlackboardSnapshot::get_object_by_instance_id`] and the effect IR's
+/// binding resolution, so both agree on the id-to-uid mapping.
+pub(crate) fn object_by_id(
+    objects: &HashMap<String, Arc<SimObjectData>>,
+    id: i64,
+) -> Option<&SimObjectData> {
+    objects.get(&id.to_string()).map(|arc| arc.as_ref())
 }
 
-impl From<BlackboardSnapshotShadow> for BlackboardSnapshot {
-    fn from(shadow: BlackboardSnapshotShadow) -> Self {
-        Self {
-            properties: Arc::new(shadow.properties),
-            objects: Arc::new(
-                shadow
-                    .objects
-                    .into_iter()
-                    .map(|(uid, obj)| (uid, Arc::new(obj)))
-                    .collect(),
-            ),
-        }
-    }
-}
-
-impl From<BlackboardSnapshot> for BlackboardSnapshotShadow {
-    fn from(snap: BlackboardSnapshot) -> Self {
-        Self {
-            properties: (*snap.properties).clone(),
-            objects: snap
-                .objects
-                .iter()
-                .map(|(uid, obj)| (uid.clone(), (**obj).clone()))
-                .collect(),
-        }
+/// A world object referred to by a binding value: instance id, uid string or object
+/// handle. The id arms share [`object_by_id`] with snapshot lookups.
+pub(crate) fn resolve_object_key<'a>(
+    key: &VariantSnapshot,
+    world_objects: &'a HashMap<String, Arc<SimObjectData>>,
+) -> Option<&'a SimObjectData> {
+    match key {
+        VariantSnapshot::ObjectRef(id) => object_by_id(world_objects, *id),
+        VariantSnapshot::Int(id) => object_by_id(world_objects, *id),
+        VariantSnapshot::Str(uid) => world_objects.get(uid).map(AsRef::as_ref),
+        _ => None,
     }
 }
 
@@ -238,7 +195,7 @@ impl BlackboardSnapshot {
     /// Returns the object with the given Godot instance ID, if any. Object-valued
     /// properties (`ObjectRef`) are resolved to world objects through this.
     pub fn get_object_by_instance_id(&self, id: i64) -> Option<&SimObjectData> {
-        self.objects.get(&id.to_string()).map(|arc| arc.as_ref())
+        object_by_id(&self.objects, id)
     }
 
     /// Snapshots a live blackboard. Main thread only; `GDPAI_OBJECTS` is carried by `objects`.

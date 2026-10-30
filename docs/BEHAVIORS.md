@@ -78,7 +78,7 @@ Unit tier: the built-in precondition evaluator is an algorithmic kernel.
 
 **Scenario:** Given a search, when several branches need the same action simulated from the same state, then its cost and effect callables run once and the answer is shared, including between discovery and verification.
 
-**Proved by:** `addons/GdPlanningAI/rust/tests/planner_integration.rs`, `addons/GdPlanningAI/rust/src/planner/engine.rs` (branches sharing a step), `addons/GdPlanningAI/rust/src/effect_ir.rs` (native effect ops), `test/integration/test_effect_ir_zero_fallback.gd` (zero effect callbacks on the large scene), `addons/GdPlanningAI/rust/tests/hunger_replay.rs` (captured submit replays to the same plan 20x)
+**Proved by:** `addons/GdPlanningAI/rust/tests/planner_integration.rs`, `addons/GdPlanningAI/rust/src/planner/engine.rs` (branches sharing a step), `addons/GdPlanningAI/rust/src/effect_ir.rs` (native effect ops), `test/integration/test_effect_ir_zero_fallback.gd` (zero effect callbacks on the large scene)
 
 ### `effect-fallback-budget`
 

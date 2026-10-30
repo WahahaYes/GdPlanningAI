@@ -32,12 +32,12 @@ An action declares six things for planning, plus the code that runs it:
 
 **Effect specs** declare the same state change natively so the planner never calls back into GDScript. Override `get_effect_spec()` to return an array of op dictionaries; keep `simulate_effect` as the fallback (it still runs when the spec is empty or fails to parse, with one warning per action at submit). Ops apply in order to snapshot clones:
 
-| Op                      | Keys                                       | Meaning                                    |
-| ----------------------- | ------------------------------------------ | ------------------------------------------ |
-| `set`                   | `target`, `prop`, (`uid`,) `value`         | Store a bool, int, finite float or string. |
-| `inc` / `dec`           | `target`, `prop`, (`uid`,) `amount`        | Add or subtract a finite number.           |
-| `min_cap` / `max_floor` | `target`, `prop`, (`uid`,) `cap` / `floor` | Clamp with `min` / `max`.                  |
-| `copy`                  | `from`, `to`                               | Move one property to another.              |
+| Op            | Keys                                   | Meaning                                       |
+| ------------- | -------------------------------------- | --------------------------------------------- |
+| `set`         | `target`, `prop`, (`uid`,) `value`     | Store a bool, int, finite float or string.    |
+| `inc` / `dec` | `target`, `prop`, (`uid`,) `amount`    | Add or subtract a finite number.              |
+| `clamp`       | `target`, `prop`, (`uid`,) `lo` / `hi` | Clamp into `[lo, hi]` (either end omittable). |
+| `copy`        | `from`, `to`                           | Move one property to another.                 |
 
 `target` is `agent` (plus `prop`) or `object` (plus `uid` and `prop`, the instance id as a string). `dec` also accepts a table amount — `{"binding": "held_item", "table": {...}, "default": 20.0}` — for per-item values like hunger restored; a bound-but-absent key aborts the effect, matching the GDScript early return. `copy` reads `{"object": uid, "prop": p}` or `{"binding": name, "prop": p}` (the binding resolves to a world object, e.g. `at_target`) and writes `{"agent": p}`, `{"agent_group": group, "prop": p}`, or `{"object": uid, "prop": p}`; an unresolvable copy is a no-op. Every Action under `examples/` that overrides `simulate_effect` must override `get_effect_spec` with a non-empty spec (`scripts/lint_style.py` enforces this); user-land custom actions may keep the base empty spec and its callable fallback. `GdPAIPlanScheduler.get_effect_dispatch_stats()` reports native hits vs effect callbacks.
 

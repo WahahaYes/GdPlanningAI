@@ -11,7 +11,6 @@ use crate::effect_ir::EffectOp;
 use crate::precondition::{PreconditionOp, PreconditionTarget};
 use crate::requirement::{ProvisionSpec, RequirementSpec};
 use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -29,7 +28,7 @@ pub fn next_request_id() -> usize {
 /// Send-safe mirror of [`crate::precondition::PreconditionHandler`]. Builtins carry their
 /// data; custom ones carry a `callable_id` resolved on the main thread. Hashable, so specs can
 /// key caches and fingerprints.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum PreconditionSpec {
     /// A comparison the engine evaluates itself against the snapshots.
     Builtin {
@@ -224,7 +223,7 @@ fn snap_compare_all(
 }
 
 /// Numeric value of an `Int` or `Float` snapshot; `None` for every other variant.
-fn snap_as_f64(v: &VariantSnapshot) -> Option<f64> {
+pub(crate) fn snap_as_f64(v: &VariantSnapshot) -> Option<f64> {
     match v {
         VariantSnapshot::Int(i) => Some(*i as f64),
         VariantSnapshot::Float(bits) => Some(f64::from_bits(*bits)),
@@ -234,7 +233,7 @@ fn snap_as_f64(v: &VariantSnapshot) -> Option<f64> {
 
 /// Send-safe description of one GDScript `Action`, built by the scheduler from the
 /// serialized action dictionary.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct ActionSpec {
     /// Display name, used for logging and the debug tree.
     pub name: String,
@@ -260,7 +259,7 @@ pub struct ActionSpec {
 }
 
 /// Send-safe description of one GDScript `Goal`.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct GoalSpec {
     /// Display name, used for logging and the debug tree.
     pub name: String,

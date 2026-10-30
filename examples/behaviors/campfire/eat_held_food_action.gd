@@ -102,7 +102,7 @@ func get_effect_spec() -> Array:
 				"default": optimistic_unbound_restore,
 			},
 		},
-		{"op": "max_floor", "target": "agent", "prop": "hunger", "floor": 0.0},
+		{"op": "clamp", "target": "agent", "prop": "hunger", "lo": 0.0},
 		{"op": "set", "target": "agent", "prop": "held_item", "value": ""},
 	]
 

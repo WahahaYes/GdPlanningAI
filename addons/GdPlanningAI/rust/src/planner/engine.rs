@@ -120,10 +120,6 @@ pub struct EngineInputs {
     pub cancel_flag: Arc<AtomicBool>,
     /// Counts native effect applications for the scheduler's dispatch stats.
     pub effect_ir_hits: Arc<AtomicU64>,
-    /// Per-job cap on GDScript effect fallbacks. Always populated from
-    /// [`EngineConfig::max_effect_fallbacks`] at the scheduler construction site, so the
-    /// config stays the single source of truth; this field is just the per-job channel.
-    pub effect_fallback_budget: usize,
     /// Jobs that tripped the fallback budget (once per job, with the warn). Shared with
     /// the scheduler for the dispatch stats dict.
     pub effect_fallback_trips: Arc<AtomicU64>,
@@ -160,7 +156,8 @@ impl Default for EngineConfig {
 
 impl PlannerEngine {
     /// Creates an engine for one job: builds the shared context (discovery caches, provision
-    /// index) and the channel the main thread answers on.
+    /// index) and the channel the main thread answers on. The fallback budget comes from
+    /// `config`, so [`EngineConfig`] stays the single source of truth.
     pub fn new(inputs: EngineInputs, config: EngineConfig) -> Self {
         let (tx, rx) = std::sync::mpsc::channel();
         let ctx = Arc::new(SearchContext::new(
@@ -171,7 +168,7 @@ impl PlannerEngine {
             inputs.request_tx,
             tx,
             inputs.effect_ir_hits,
-            inputs.effect_fallback_budget,
+            &config,
             inputs.effect_fallback_trips,
         ));
         Self {
@@ -219,33 +216,8 @@ impl PlannerEngine {
         }
 
         let result = self.step_search(goals);
-        self.log_ir_summary();
         self.log_fallback_summary();
         result
-    }
-
-    /// Logs the debug-level native-effect summary for this step: count with mean/p50/p90 of the
-    /// per-effect interpreter times. Silent when no native effect ran, mirroring the transport
-    /// summary in the scheduler.
-    fn log_ir_summary(&self) {
-        let mut timings = self.ctx.effect_ir_timings.lock().unwrap();
-        if timings.is_empty() {
-            return;
-        }
-        let samples: Vec<u64> = std::mem::take(&mut *timings);
-        drop(timings);
-        let n = samples.len();
-        let mut sorted = samples;
-        sorted.sort_unstable();
-        let mean = sorted.iter().sum::<u64>() / n as u64;
-        let at = |p: usize| sorted[(n * p / 100).min(n - 1)];
-        log_debug!(
-            "Native effect IR x{}: mean={}us p50={}us p90={}us",
-            n,
-            mean,
-            at(50),
-            at(90),
-        );
     }
 
     /// Logs fallback usage once the budget trips: how many custom-effect callbacks fired
@@ -1111,7 +1083,6 @@ mod tests {
                 request_tx,
                 cancel_flag: Arc::default(),
                 effect_ir_hits: Arc::new(AtomicU64::new(0)),
-                effect_fallback_budget: EngineConfig::default().max_effect_fallbacks,
                 effect_fallback_trips: Arc::new(AtomicU64::new(0)),
             },
             EngineConfig::default(),
@@ -1134,7 +1105,6 @@ mod tests {
                 request_tx,
                 cancel_flag: Arc::default(),
                 effect_ir_hits: Arc::new(AtomicU64::new(0)),
-                effect_fallback_budget,
                 effect_fallback_trips,
             },
             EngineConfig {

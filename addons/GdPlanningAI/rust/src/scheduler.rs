@@ -15,10 +15,8 @@ use crate::precondition::{PreconditionHandler, PreconditionOp};
 use crate::requirement::{ProvisionSpec, RequirementSpec};
 use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use godot::prelude::*;
-use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::sync::Arc;
-use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{Receiver, Sender};
 
@@ -82,63 +80,6 @@ impl StallNoticeThrottle {
     /// Clears the remembered id once the job resumes or finishes waiting.
     pub fn reset(&mut self) {
         self.last_logged_id = None;
-    }
-}
-
-/// Per-`process_callbacks` aggregates for the `ApplyEffect` transport segments: time
-/// spent rebuilding boards (`into`), running the GDScript callable (`call`), and
-/// diffing the result back (`from`). One entry per effect dispatch; the summary
-/// (count/mean/p50/p90) logs at debug level, so the default level pays nothing.
-#[derive(Default)]
-pub(crate) struct EffectTransportTimings {
-    /// `(into_us, call_us, from_us)` per effect dispatch.
-    samples: Vec<[u64; 3]>,
-}
-
-impl EffectTransportTimings {
-    /// Records one effect dispatch's three transport segments, in microseconds.
-    fn record(&mut self, into_us: u64, call_us: u64, from_us: u64) {
-        self.samples.push([into_us, call_us, from_us]);
-    }
-
-    /// Logs count/mean/p50/p90 per segment at debug level; silent when no effect ran.
-    fn log_summary(&self) {
-        if self.samples.is_empty() {
-            return;
-        }
-        let n = self.samples.len();
-        let mut segs: [Vec<u64>; 3] = [
-            Vec::with_capacity(n),
-            Vec::with_capacity(n),
-            Vec::with_capacity(n),
-        ];
-        for [into_us, call_us, from_us] in &self.samples {
-            segs[0].push(*into_us);
-            segs[1].push(*call_us);
-            segs[2].push(*from_us);
-        }
-        let stat = |values: &mut Vec<u64>| -> (u64, u64, u64) {
-            values.sort_unstable();
-            let mean = values.iter().sum::<u64>() / n as u64;
-            let at = |p: usize| values[(n * p / 100).min(n - 1)];
-            (mean, at(50), at(90))
-        };
-        let (into_mean, into_p50, into_p90) = stat(&mut segs[0]);
-        let (call_mean, call_p50, call_p90) = stat(&mut segs[1]);
-        let (from_mean, from_p50, from_p90) = stat(&mut segs[2]);
-        log_debug!(
-            "ApplyEffect transport x{}: into mean={}us p50={}us p90={}us | call mean={}us p50={}us p90={}us | from mean={}us p50={}us p90={}us",
-            n,
-            into_mean,
-            into_p50,
-            into_p90,
-            call_mean,
-            call_p50,
-            call_p90,
-            from_mean,
-            from_p50,
-            from_p90,
-        );
     }
 }
 
@@ -266,7 +207,6 @@ impl GdPAIPlanScheduler {
         // is what keeps them on the main thread. The answer goes directly to the engine's own
         // receiver; the engine reads it on its next step.
         let mut jobs_with_responses = HashSet::new();
-        let mut effect_timings = EffectTransportTimings::default();
         let mut effect_fallbacks_this_frame = 0u64;
         for job in self.active_jobs.iter_mut().filter(|j| !j.done) {
             while let Ok(req) = job.request_rx.try_recv() {
@@ -274,13 +214,7 @@ impl GdPAIPlanScheduler {
                     effect_fallbacks_this_frame += 1;
                 }
                 let callable = &job.callable_registry[req.callable_id];
-                let response = dispatch_callback(
-                    req.callable_id,
-                    callable,
-                    req.kind,
-                    &req.bindings,
-                    &mut effect_timings,
-                );
+                let response = dispatch_callback(callable, req.kind, &req.bindings);
 
                 let _ = req.response_tx.send(PlannerCallback {
                     request_id: req.request_id,
@@ -291,7 +225,6 @@ impl GdPAIPlanScheduler {
             }
         }
         self.effect_callback_fallbacks += effect_fallbacks_this_frame;
-        effect_timings.log_summary();
         let ir_hits = self.effect_ir_hits.load(Ordering::Relaxed);
         let trips = self.effect_fallback_trips.load(Ordering::Relaxed);
         if (ir_hits, self.effect_callback_fallbacks, trips) != self.last_dispatch_log {
@@ -460,23 +393,6 @@ impl GdPAIPlanScheduler {
             goal_names.join(", "),
             actions.len()
         );
-
-        // Probe-only Hunger capture: the first submit containing a Hunger goal dumps its
-        // inputs and opens the callback trace (see `dump_job0_inputs`).
-        if DUMP_ARMED.load(Ordering::Relaxed)
-            && let Ok(dir) = std::env::var("GDPAI_DUMP_JOB0")
-            && goal_specs.iter().any(|g| g.name == "Hunger")
-        {
-            DUMP_ARMED.store(false, Ordering::Relaxed);
-            dump_job0_inputs(
-                &dir,
-                &action_specs,
-                &goal_specs,
-                &snap_agent,
-                &snap_world,
-                &initial_provisions,
-            );
-        }
 
         let (req_tx, req_rx) = std::sync::mpsc::channel::<CallbackRequest>();
         let (res_tx, res_rx) = std::sync::mpsc::channel::<(PlannerRunResult, PlannerEngine)>();
@@ -683,9 +599,9 @@ fn spawn_engine_step(
 }
 
 /// Builds one submission's engine inputs and config from submit-time data. Budgets are
-/// clamped as documented on [`GdPAIPlanScheduler::submit_plan`]; the inputs' fallback
-/// budget always comes from the returned config's `max_effect_fallbacks`, so `EngineConfig`
-/// stays the single source of truth (see [`EngineInputs::effect_fallback_budget`]).
+/// clamped as documented on [`GdPAIPlanScheduler::submit_plan`]; the fallback budget
+/// lives only in the returned config's `max_effect_fallbacks`, so `EngineConfig`
+/// stays the single source of truth.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn engine_parts_for_submit(
     actions: Vec<ActionSpec>,
@@ -742,7 +658,6 @@ pub(crate) fn engine_parts_for_submit(
         request_tx,
         cancel_flag,
         effect_ir_hits,
-        effect_fallback_budget: engine_config.max_effect_fallbacks,
         effect_fallback_trips,
     };
     (inputs, engine_config)
@@ -846,32 +761,37 @@ fn build_action_specs(
 
 /// Converts the bridge's `effect_spec` arrays into native [`EffectOp`]s. A missing or empty
 /// array means "no spec" without a warning; a present-but-unparseable one warns once per action
-/// and falls back to the effect callable.
+/// and falls back to the effect callable. Accepts both typed `Array[Dictionary]` (what the
+/// bridge sends) and untyped arrays of dictionaries, like [`extract_typed_specs`] does for the
+/// other spec kinds, so direct callers and future GDScript paths stay covered.
 fn parse_effect_spec(dict: &VarDictionary, action_name: &str) -> Option<Vec<EffectOp>> {
     let raw = dict.get("effect_spec")?;
     if raw.is_nil() {
         return None;
     }
-    let op_dicts: Option<Vec<VarDictionary>> =
-        if let Ok(typed) = raw.try_to::<Array<VarDictionary>>() {
-            Some(typed.iter_shared().collect())
-        } else if let Ok(untyped) = raw.try_to::<VarArray>() {
-            let mut out = Vec::with_capacity(untyped.len());
-            let mut malformed = false;
-            for item in untyped.iter_shared() {
-                match item.try_to::<VarDictionary>().ok() {
-                    Some(op_dict) => out.push(op_dict),
-                    None => {
-                        malformed = true;
-                        break;
-                    }
+    let op_dicts: Vec<VarDictionary> = if let Ok(typed) = raw.try_to::<Array<VarDictionary>>() {
+        typed.iter_shared().collect()
+    } else if let Ok(untyped) = raw.try_to::<VarArray>() {
+        let mut out = Vec::with_capacity(untyped.len());
+        let mut malformed = false;
+        for item in untyped.iter_shared() {
+            match item.try_to::<VarDictionary>().ok() {
+                Some(op_dict) => out.push(op_dict),
+                None => {
+                    malformed = true;
+                    break;
                 }
             }
-            if malformed { None } else { Some(out) }
-        } else {
-            None
-        };
-    let Some(op_dicts) = op_dicts else {
+        }
+        if malformed {
+            log_warn!(
+                "Action '{}': ignoring malformed effect_spec; falling back to effect_callable",
+                action_name
+            );
+            return None;
+        }
+        out
+    } else {
         log_warn!(
             "Action '{}': ignoring malformed effect_spec; falling back to effect_callable",
             action_name
@@ -1015,59 +935,10 @@ fn precond_spec_from_dict(
 
 /// Runs one requested callable on fresh blackboards rebuilt from the snapshots. A non-number
 /// cost means infinity; a non-bool precondition means false; effects are diffed back.
-/// Probe-only: appends the round trip to the Hunger trace when one is open.
 fn dispatch_callback(
-    callable_id: usize,
     callable: &Callable,
     kind: CallbackKind,
     bindings: &[(String, Vec<VariantSnapshot>)],
-    timings: &mut EffectTransportTimings,
-) -> CallbackResponse {
-    let (trace_kind, trace_agent, trace_world) = match &kind {
-        CallbackKind::GetCost { agent, world } => ("cost", Arc::clone(agent), Arc::clone(world)),
-        CallbackKind::ApplyEffect { agent, world } => {
-            ("effect", Arc::clone(agent), Arc::clone(world))
-        }
-        CallbackKind::EvalCustomPrecond { agent, world } => {
-            ("precond", Arc::clone(agent), Arc::clone(world))
-        }
-    };
-    let response = dispatch_callback_inner(callable, kind, bindings, timings);
-    if let Some(sink) = TRACE_SINK.get() {
-        let trace_response = match &response {
-            CallbackResponse::Float(f) => TraceResponse::Float(*f),
-            CallbackResponse::Bool(b) => TraceResponse::Bool(*b),
-            CallbackResponse::UpdatedSnapshots(agent, world) => TraceResponse::Snapshots {
-                agent: (**agent).clone(),
-                world: (**world).clone(),
-            },
-        };
-        let line = TraceLine {
-            kind: trace_kind.to_string(),
-            callable_id,
-            agent: (*trace_agent).clone(),
-            world: (*trace_world).clone(),
-            bindings: bindings.to_vec(),
-            response: trace_response,
-        };
-        if let Ok(text) = serde_json::to_string(&line)
-            && let Ok(mut sink) = sink.lock()
-        {
-            use std::io::Write as _;
-            let _ = writeln!(sink, "{text}");
-            let _ = sink.flush();
-        }
-    }
-    response
-}
-
-/// Runs one requested callable on fresh blackboards rebuilt from the snapshots. A non-number
-/// cost means infinity; a non-bool precondition means false; effects are diffed back.
-fn dispatch_callback_inner(
-    callable: &Callable,
-    kind: CallbackKind,
-    bindings: &[(String, Vec<VariantSnapshot>)],
-    timings: &mut EffectTransportTimings,
 ) -> CallbackResponse {
     match kind {
         CallbackKind::GetCost { agent, world } => {
@@ -1094,33 +965,16 @@ fn dispatch_callback_inner(
             CallbackResponse::Float(cost)
         }
         CallbackKind::ApplyEffect { agent, world } => {
-            // Log-gated transport timers: one level check gates all three `Instant`s, so
-            // the default level pays a single atomic load per effect.
-            let timed = crate::logger::get_log_level() >= crate::logger::LogLevel::Debug;
-            let t_into = timed.then(std::time::Instant::now);
             let mut bb_agent = agent.into_blackboard();
             let bb_world = world.into_blackboard();
 
             inject_bindings_into_agent(&mut bb_agent, bindings);
 
-            let t_call = timed.then(std::time::Instant::now);
             let args = vec![bb_agent.to_variant(), bb_world.to_variant()];
             callable.call(&args);
 
-            let t_from = timed.then(std::time::Instant::now);
             let new_agent = Arc::new(BlackboardSnapshot::patch_from(&agent, &bb_agent.bind()));
             let new_world = Arc::new(BlackboardSnapshot::patch_from(&world, &bb_world.bind()));
-            if timed {
-                let t_end = std::time::Instant::now();
-                let us = |a: std::time::Instant, b: std::time::Instant| {
-                    b.duration_since(a).as_micros() as u64
-                };
-                timings.record(
-                    us(t_into.unwrap(), t_call.unwrap()),
-                    us(t_call.unwrap(), t_from.unwrap()),
-                    us(t_from.unwrap(), t_end),
-                );
-            }
             CallbackResponse::UpdatedSnapshots(new_agent, new_world)
         }
         CallbackKind::EvalCustomPrecond { agent, world } => {
@@ -1185,108 +1039,6 @@ fn extract_provisions_from_snapshot(snap: &BlackboardSnapshot) -> Vec<ProvisionS
     provisions
 }
 
-/// Probe-only Hunger capture (Gate-3 nit 5): when `GDPAI_DUMP_JOB0` names a directory,
-/// the first submit containing a Hunger goal writes its inputs (`job0.json`) and every
-/// callback answer (`trace.jsonl`) there for the headless replay harness
-/// (`tests/hunger_replay.rs`). Unset in normal runs: one env lookup per submit, no tracing.
-/// One submitted job's search inputs, as the engine sees them.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Job0Inputs {
-    /// Candidate actions with registry ids.
-    pub actions: Vec<ActionSpec>,
-    /// Goals sorted by reward, Hunger first when it wins.
-    pub goals: Vec<GoalSpec>,
-    /// Agent state at submission.
-    pub agent: BlackboardSnapshot,
-    /// World state at submission.
-    pub world: BlackboardSnapshot,
-    /// Facts already holding.
-    pub initial_provisions: Vec<ProvisionSpec>,
-}
-
-/// One callback round trip: the full request plus the answer the main thread gave.
-/// Custom preconditions and costs can depend on the evaluation state, so the state rides
-/// along — the replay host keys answers on the whole request, not just its id.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct TraceLine {
-    /// `cost`, `effect` or `precond`.
-    pub kind: String,
-    /// Index into the job's callable registry.
-    pub callable_id: usize,
-    /// Agent state the request was evaluated against.
-    pub agent: BlackboardSnapshot,
-    /// World state the request was evaluated against.
-    pub world: BlackboardSnapshot,
-    /// Bindings the engine forwarded to the callable.
-    pub bindings: Vec<(String, Vec<VariantSnapshot>)>,
-    /// The answer the main thread gave.
-    pub response: TraceResponse,
-}
-
-/// The answer part of a [`TraceLine`].
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum TraceResponse {
-    /// Cost callable result.
-    Float(f64),
-    /// Custom-precondition result.
-    Bool(bool),
-    /// Effect diff-back post-states.
-    Snapshots {
-        /// Post-effect agent state.
-        agent: BlackboardSnapshot,
-        /// Post-effect world state.
-        world: BlackboardSnapshot,
-    },
-}
-
-/// Armed until the first Hunger submit is dumped.
-static DUMP_ARMED: AtomicBool = AtomicBool::new(true);
-/// Open trace file, once a Hunger submit has been dumped this process.
-static TRACE_SINK: OnceLock<std::sync::Mutex<std::io::BufWriter<std::fs::File>>> = OnceLock::new();
-
-/// Writes one Hunger submit's inputs and opens the answer trace. Best-effort: failures warn.
-fn dump_job0_inputs(
-    dir: &str,
-    actions: &[ActionSpec],
-    goals: &[GoalSpec],
-    agent: &BlackboardSnapshot,
-    world: &BlackboardSnapshot,
-    initial_provisions: &[ProvisionSpec],
-) {
-    if let Err(e) = std::fs::create_dir_all(dir) {
-        log_warn!("GDPAI_DUMP_JOB0: cannot create {dir}: {e}");
-        return;
-    }
-    let inputs = Job0Inputs {
-        actions: actions.to_vec(),
-        goals: goals.to_vec(),
-        agent: agent.clone(),
-        world: world.clone(),
-        initial_provisions: initial_provisions.to_vec(),
-    };
-    let path = format!("{dir}/job0.json");
-    match serde_json::to_string(&inputs) {
-        Ok(text) => {
-            if let Err(e) = std::fs::write(&path, text) {
-                log_warn!("GDPAI_DUMP_JOB0: cannot write {path}: {e}");
-                return;
-            }
-        }
-        Err(e) => {
-            log_warn!("GDPAI_DUMP_JOB0: cannot serialize inputs: {e}");
-            return;
-        }
-    }
-    let trace_path = format!("{dir}/trace.jsonl");
-    match std::fs::File::create(&trace_path) {
-        Ok(file) => {
-            let _ = TRACE_SINK.set(std::sync::Mutex::new(std::io::BufWriter::new(file)));
-            log_info!("GDPAI_DUMP_JOB0: dumped Hunger submit to {path}, tracing to {trace_path}");
-        }
-        Err(e) => log_warn!("GDPAI_DUMP_JOB0: cannot create {trace_path}: {e}"),
-    }
-}
-
 /// Converts a [`PlanResult`] into the dictionary delivered to `_on_plan_ready`.
 fn result_to_dict(result: &PlanResult) -> VarDictionary {
     let mut dict = VarDictionary::new();
@@ -1329,10 +1081,10 @@ mod tests {
     use std::sync::Arc;
     use std::sync::atomic::AtomicU64;
 
-    /// submit_plan's wiring lives in `engine_parts_for_submit`, which this pins: the inputs'
-    /// fallback budget always equals the returned config's, and the engine carries that
-    /// configured value into its search context. submit_plan itself needs live Godot
-    /// blackboards and callables, so it cannot run in a Rust unit test.
+    /// submit_plan's wiring lives in `engine_parts_for_submit`, which this pins: the
+    /// engine carries the configured fallback budget into its search context.
+    /// submit_plan itself needs live Godot blackboards and callables, so it cannot
+    /// run in a Rust unit test.
     #[test]
     fn submit_wiring_threads_configured_fallback_budget() {
         let empty_snapshot = || BlackboardSnapshot {
@@ -1355,11 +1107,7 @@ mod tests {
             7,
         );
         assert_eq!(
-            inputs.effect_fallback_budget, config.max_effect_fallbacks,
-            "inputs budget comes from the config"
-        );
-        assert_eq!(
-            inputs.effect_fallback_budget, 7,
+            config.max_effect_fallbacks, 7,
             "custom budget flows through the wiring"
         );
         let engine = PlannerEngine::new(inputs, config);
@@ -1384,12 +1132,13 @@ mod tests {
             -5,
         );
         assert_eq!(
-            inputs.effect_fallback_budget, 0,
-            "negative budget clamps to 0"
-        );
-        assert_eq!(
             config.max_effect_fallbacks, 0,
             "negative budget clamps to 0 in the config"
+        );
+        let engine = PlannerEngine::new(inputs, config);
+        assert_eq!(
+            engine.ctx.effect_fallback_budget, 0,
+            "the clamped value reaches the search context"
         );
         assert_eq!(
             EngineConfig::default().max_effect_fallbacks,
