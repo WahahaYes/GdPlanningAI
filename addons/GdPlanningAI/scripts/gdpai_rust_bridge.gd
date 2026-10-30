@@ -42,10 +42,13 @@ func serialize_goals(goals: Array[Goal], agent: GdPAIAgent) -> Array[Dictionary]
 	return _extract_goals(goals, agent)
 
 
-## Serialises each action, embedding [Callable]s for cost and effect.
+## Serialises each action, embedding [Callable]s for cost and effect. The effect spec is
+## sent as a typed Array[Dictionary]; the Rust side only accepts that shape.
 func _extract_actions(actions: Array[Action]) -> Array[Dictionary]:
 	var extracted: Array[Dictionary] = []
 	for action in actions:
+		var effect_spec: Array[Dictionary] = []
+		effect_spec.assign(action.get_effect_spec())
 		(
 			extracted
 			. append(
@@ -53,7 +56,7 @@ func _extract_actions(actions: Array[Action]) -> Array[Dictionary]:
 					"name": action.get_title(),
 					"cost_callable": Callable(action, "get_action_cost"),
 					"effect_callable": Callable(action, "simulate_effect"),
-					"effect_spec": action.get_effect_spec(),
+					"effect_spec": effect_spec,
 					"preconditions": _extract_preconditions(action.get_preconditions()),
 					"validity_checks": _extract_preconditions(action.get_validity_checks()),
 					"requirements": _extract_requirements(action.get_requirements()),
