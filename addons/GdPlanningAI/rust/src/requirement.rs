@@ -7,10 +7,9 @@
 
 use crate::snapshot::VariantSnapshot;
 use godot::prelude::*;
-use serde::{Deserialize, Serialize};
 
 /// A planner-readable dependency that must be satisfied by a prior action's provisions.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum RequirementSpec {
     /// A binding with this name must have been provided (or the agent already has a non-empty
     /// property of that name).
@@ -42,7 +41,7 @@ pub enum RequirementSpec {
 }
 
 /// A value or fact that an action contributes for later actions to consume.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ProvisionSpec {
     /// Binds `binding_name` to a concrete value.
     Binding {

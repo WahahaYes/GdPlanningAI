@@ -15,10 +15,8 @@ use crate::precondition::{PreconditionHandler, PreconditionOp};
 use crate::requirement::{ProvisionSpec, RequirementSpec};
 use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use godot::prelude::*;
-use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::sync::Arc;
-use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{Receiver, Sender};
 
@@ -274,13 +272,8 @@ impl GdPAIPlanScheduler {
                     effect_fallbacks_this_frame += 1;
                 }
                 let callable = &job.callable_registry[req.callable_id];
-                let response = dispatch_callback(
-                    req.callable_id,
-                    callable,
-                    req.kind,
-                    &req.bindings,
-                    &mut effect_timings,
-                );
+                let response =
+                    dispatch_callback(callable, req.kind, &req.bindings, &mut effect_timings);
 
                 let _ = req.response_tx.send(PlannerCallback {
                     request_id: req.request_id,
@@ -460,23 +453,6 @@ impl GdPAIPlanScheduler {
             goal_names.join(", "),
             actions.len()
         );
-
-        // Probe-only Hunger capture: the first submit containing a Hunger goal dumps its
-        // inputs and opens the callback trace (see `dump_job0_inputs`).
-        if DUMP_ARMED.load(Ordering::Relaxed)
-            && let Ok(dir) = std::env::var("GDPAI_DUMP_JOB0")
-            && goal_specs.iter().any(|g| g.name == "Hunger")
-        {
-            DUMP_ARMED.store(false, Ordering::Relaxed);
-            dump_job0_inputs(
-                &dir,
-                &action_specs,
-                &goal_specs,
-                &snap_agent,
-                &snap_world,
-                &initial_provisions,
-            );
-        }
 
         let (req_tx, req_rx) = std::sync::mpsc::channel::<CallbackRequest>();
         let (res_tx, res_rx) = std::sync::mpsc::channel::<(PlannerRunResult, PlannerEngine)>();
@@ -1015,55 +991,7 @@ fn precond_spec_from_dict(
 
 /// Runs one requested callable on fresh blackboards rebuilt from the snapshots. A non-number
 /// cost means infinity; a non-bool precondition means false; effects are diffed back.
-/// Probe-only: appends the round trip to the Hunger trace when one is open.
 fn dispatch_callback(
-    callable_id: usize,
-    callable: &Callable,
-    kind: CallbackKind,
-    bindings: &[(String, Vec<VariantSnapshot>)],
-    timings: &mut EffectTransportTimings,
-) -> CallbackResponse {
-    let (trace_kind, trace_agent, trace_world) = match &kind {
-        CallbackKind::GetCost { agent, world } => ("cost", Arc::clone(agent), Arc::clone(world)),
-        CallbackKind::ApplyEffect { agent, world } => {
-            ("effect", Arc::clone(agent), Arc::clone(world))
-        }
-        CallbackKind::EvalCustomPrecond { agent, world } => {
-            ("precond", Arc::clone(agent), Arc::clone(world))
-        }
-    };
-    let response = dispatch_callback_inner(callable, kind, bindings, timings);
-    if let Some(sink) = TRACE_SINK.get() {
-        let trace_response = match &response {
-            CallbackResponse::Float(f) => TraceResponse::Float(*f),
-            CallbackResponse::Bool(b) => TraceResponse::Bool(*b),
-            CallbackResponse::UpdatedSnapshots(agent, world) => TraceResponse::Snapshots {
-                agent: (**agent).clone(),
-                world: (**world).clone(),
-            },
-        };
-        let line = TraceLine {
-            kind: trace_kind.to_string(),
-            callable_id,
-            agent: (*trace_agent).clone(),
-            world: (*trace_world).clone(),
-            bindings: bindings.to_vec(),
-            response: trace_response,
-        };
-        if let Ok(text) = serde_json::to_string(&line)
-            && let Ok(mut sink) = sink.lock()
-        {
-            use std::io::Write as _;
-            let _ = writeln!(sink, "{text}");
-            let _ = sink.flush();
-        }
-    }
-    response
-}
-
-/// Runs one requested callable on fresh blackboards rebuilt from the snapshots. A non-number
-/// cost means infinity; a non-bool precondition means false; effects are diffed back.
-fn dispatch_callback_inner(
     callable: &Callable,
     kind: CallbackKind,
     bindings: &[(String, Vec<VariantSnapshot>)],
@@ -1183,108 +1111,6 @@ fn extract_provisions_from_snapshot(snap: &BlackboardSnapshot) -> Vec<ProvisionS
         }
     }
     provisions
-}
-
-/// Probe-only Hunger capture (Gate-3 nit 5): when `GDPAI_DUMP_JOB0` names a directory,
-/// the first submit containing a Hunger goal writes its inputs (`job0.json`) and every
-/// callback answer (`trace.jsonl`) there for the headless replay harness
-/// (`tests/hunger_replay.rs`). Unset in normal runs: one env lookup per submit, no tracing.
-/// One submitted job's search inputs, as the engine sees them.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Job0Inputs {
-    /// Candidate actions with registry ids.
-    pub actions: Vec<ActionSpec>,
-    /// Goals sorted by reward, Hunger first when it wins.
-    pub goals: Vec<GoalSpec>,
-    /// Agent state at submission.
-    pub agent: BlackboardSnapshot,
-    /// World state at submission.
-    pub world: BlackboardSnapshot,
-    /// Facts already holding.
-    pub initial_provisions: Vec<ProvisionSpec>,
-}
-
-/// One callback round trip: the full request plus the answer the main thread gave.
-/// Custom preconditions and costs can depend on the evaluation state, so the state rides
-/// along — the replay host keys answers on the whole request, not just its id.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct TraceLine {
-    /// `cost`, `effect` or `precond`.
-    pub kind: String,
-    /// Index into the job's callable registry.
-    pub callable_id: usize,
-    /// Agent state the request was evaluated against.
-    pub agent: BlackboardSnapshot,
-    /// World state the request was evaluated against.
-    pub world: BlackboardSnapshot,
-    /// Bindings the engine forwarded to the callable.
-    pub bindings: Vec<(String, Vec<VariantSnapshot>)>,
-    /// The answer the main thread gave.
-    pub response: TraceResponse,
-}
-
-/// The answer part of a [`TraceLine`].
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum TraceResponse {
-    /// Cost callable result.
-    Float(f64),
-    /// Custom-precondition result.
-    Bool(bool),
-    /// Effect diff-back post-states.
-    Snapshots {
-        /// Post-effect agent state.
-        agent: BlackboardSnapshot,
-        /// Post-effect world state.
-        world: BlackboardSnapshot,
-    },
-}
-
-/// Armed until the first Hunger submit is dumped.
-static DUMP_ARMED: AtomicBool = AtomicBool::new(true);
-/// Open trace file, once a Hunger submit has been dumped this process.
-static TRACE_SINK: OnceLock<std::sync::Mutex<std::io::BufWriter<std::fs::File>>> = OnceLock::new();
-
-/// Writes one Hunger submit's inputs and opens the answer trace. Best-effort: failures warn.
-fn dump_job0_inputs(
-    dir: &str,
-    actions: &[ActionSpec],
-    goals: &[GoalSpec],
-    agent: &BlackboardSnapshot,
-    world: &BlackboardSnapshot,
-    initial_provisions: &[ProvisionSpec],
-) {
-    if let Err(e) = std::fs::create_dir_all(dir) {
-        log_warn!("GDPAI_DUMP_JOB0: cannot create {dir}: {e}");
-        return;
-    }
-    let inputs = Job0Inputs {
-        actions: actions.to_vec(),
-        goals: goals.to_vec(),
-        agent: agent.clone(),
-        world: world.clone(),
-        initial_provisions: initial_provisions.to_vec(),
-    };
-    let path = format!("{dir}/job0.json");
-    match serde_json::to_string(&inputs) {
-        Ok(text) => {
-            if let Err(e) = std::fs::write(&path, text) {
-                log_warn!("GDPAI_DUMP_JOB0: cannot write {path}: {e}");
-                return;
-            }
-        }
-        Err(e) => {
-            log_warn!("GDPAI_DUMP_JOB0: cannot serialize inputs: {e}");
-            return;
-        }
-    }
-    let trace_path = format!("{dir}/trace.jsonl");
-    match std::fs::File::create(&trace_path) {
-        Ok(file) => {
-            let _ = TRACE_SINK.set(std::sync::Mutex::new(std::io::BufWriter::new(file)));
-            log_info!("GDPAI_DUMP_JOB0: dumped Hunger submit to {path}, tracing to {trace_path}");
-        }
-        Err(e) => log_warn!("GDPAI_DUMP_JOB0: cannot create {trace_path}: {e}"),
-    }
 }
 
 /// Converts a [`PlanResult`] into the dictionary delivered to `_on_plan_ready`.
