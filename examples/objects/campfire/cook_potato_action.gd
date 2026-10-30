@@ -79,6 +79,14 @@ func simulate_effect(
 
 
 # Override
+## Native form of [method simulate_effect]: the raw potato becomes a cooked one.
+func get_effect_spec() -> Array:
+	return [
+		{"op": "set", "target": "agent", "prop": "held_item", "value": "cooked_potato"},
+	]
+
+
+# Override
 func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	set_state(agent, "cook_elapsed", 0.0)
 	return Action.Status.SUCCESS

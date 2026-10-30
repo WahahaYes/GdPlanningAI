@@ -6,6 +6,7 @@
 //! GDScript callables, resumes engines that can progress, and reaps finished jobs (dropping
 //! engines off the main thread). Cancellation sets a flag the engine checks between iterations.
 
+use crate::effect_ir::EffectOp;
 use crate::gdpai_blackboard::GdPAIBlackboard;
 use crate::plan_tree::PlanResult;
 use crate::plan_types::*;
@@ -15,8 +16,9 @@ use crate::requirement::{ProvisionSpec, RequirementSpec};
 use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use godot::prelude::*;
 use std::collections::HashSet;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{Receiver, Sender};
-use std::sync::{Arc, atomic::AtomicBool};
 
 /// Main-thread bookkeeping for one planning job. Lives in
 /// [`GdPAIPlanScheduler::active_jobs`] from `submit_plan` until the job is reaped.
@@ -152,6 +154,12 @@ pub struct GdPAIPlanScheduler {
     active_jobs: Vec<ActiveJobHandle>,
     /// Worker pool; `None` until `ready`.
     thread_pool: Option<rayon::ThreadPool>,
+    /// Native effect applications across all jobs; incremented on planner threads.
+    effect_ir_hits: Arc<AtomicU64>,
+    /// Effect callbacks that fell back to GDScript; incremented on the main thread.
+    effect_callback_fallbacks: u64,
+    /// Last totals covered by the debug summary, so it only logs on change.
+    last_dispatch_log: (u64, u64),
     base: Base<Node>,
 }
 
@@ -162,6 +170,9 @@ impl INode for GdPAIPlanScheduler {
             max_threads: 0,
             active_jobs: Vec::new(),
             thread_pool: None,
+            effect_ir_hits: Arc::new(AtomicU64::new(0)),
+            effect_callback_fallbacks: 0,
+            last_dispatch_log: (0, 0),
             base,
         }
     }
@@ -250,8 +261,12 @@ impl GdPAIPlanScheduler {
         // receiver; the engine reads it on its next step.
         let mut jobs_with_responses = HashSet::new();
         let mut effect_timings = EffectTransportTimings::default();
+        let mut effect_fallbacks_this_frame = 0u64;
         for job in self.active_jobs.iter_mut().filter(|j| !j.done) {
             while let Ok(req) = job.request_rx.try_recv() {
+                if matches!(req.kind, CallbackKind::ApplyEffect { .. }) {
+                    effect_fallbacks_this_frame += 1;
+                }
                 let callable = &job.callable_registry[req.callable_id];
                 let response =
                     dispatch_callback(callable, req.kind, &req.bindings, &mut effect_timings);
@@ -264,7 +279,17 @@ impl GdPAIPlanScheduler {
                 jobs_with_responses.insert(job.agent_instance_id);
             }
         }
+        self.effect_callback_fallbacks += effect_fallbacks_this_frame;
         effect_timings.log_summary();
+        let ir_hits = self.effect_ir_hits.load(Ordering::Relaxed);
+        if (ir_hits, self.effect_callback_fallbacks) != self.last_dispatch_log {
+            self.last_dispatch_log = (ir_hits, self.effect_callback_fallbacks);
+            log_debug!(
+                "Effect dispatch totals: native_ir={} callback_fallbacks={}",
+                ir_hits,
+                self.effect_callback_fallbacks,
+            );
+        }
 
         // 3. Resume engines that are ready. An engine is parked in `job.engine` between steps;
         // taking it hands ownership to the next worker step.
@@ -451,6 +476,7 @@ impl GdPAIPlanScheduler {
                 initial_provisions,
                 request_tx: req_tx,
                 cancel_flag: cancel_flag.clone(),
+                effect_ir_hits: self.effect_ir_hits.clone(),
             },
             EngineConfig {
                 max_depth: max_rec,
@@ -544,6 +570,22 @@ impl GdPAIPlanScheduler {
         } else {
             "Pool not initialized".to_string()
         }
+    }
+
+    /// Returns effect dispatch totals: native IR applications vs GDScript effect callbacks.
+    /// Cost and precondition callbacks are served on the same channel but never counted here.
+    #[func]
+    fn get_effect_dispatch_stats(&self) -> VarDictionary {
+        let mut stats = VarDictionary::new();
+        stats.set(
+            "effect_ir_hits",
+            self.effect_ir_hits.load(Ordering::Relaxed) as i64,
+        );
+        stats.set(
+            "effect_callback_fallbacks",
+            self.effect_callback_fallbacks as i64,
+        );
+        stats
     }
 
     /// Sets log verbosity: 0 errors, 1 warnings, 2 info (default), 3 debug. Debug also records
@@ -662,17 +704,23 @@ fn build_action_specs(
             });
 
             let effect_val = dict.get("effect_callable");
-            let effect_id = effect_val.as_ref().and_then(|v| {
-                if let Ok(c) = v.try_to::<Callable>() {
-                    if c.is_valid() {
-                        Some(register_callable(registry, c))
+            let effect_spec = parse_effect_spec(&dict, &name);
+            let effect_id = if effect_spec.is_some() {
+                // The native spec serves every effect: no callable to register.
+                None
+            } else {
+                effect_val.as_ref().and_then(|v| {
+                    if let Ok(c) = v.try_to::<Callable>() {
+                        if c.is_valid() {
+                            Some(register_callable(registry, c))
+                        } else {
+                            None
+                        }
                     } else {
                         None
                     }
-                } else {
-                    None
-                }
-            });
+                })
+            };
 
             let preconditions = extract_precond_specs(&dict, "preconditions", registry);
             let validity_checks = extract_precond_specs(&dict, "validity_checks", registry);
@@ -702,6 +750,7 @@ fn build_action_specs(
                 name,
                 cost_callable_id: cost_id,
                 effect_callable_id: effect_id,
+                effect_spec,
                 preconditions,
                 validity_checks,
                 requirements,
@@ -710,6 +759,59 @@ fn build_action_specs(
             })
         })
         .collect()
+}
+
+/// Converts the bridge's `effect_spec` arrays into native [`EffectOp`]s. A missing or empty
+/// array means "no spec" without a warning; a present-but-unparseable one warns once per action
+/// and falls back to the effect callable.
+fn parse_effect_spec(dict: &VarDictionary, action_name: &str) -> Option<Vec<EffectOp>> {
+    let raw = dict.get("effect_spec")?;
+    if raw.is_nil() {
+        return None;
+    }
+    let op_dicts: Option<Vec<VarDictionary>> =
+        if let Ok(typed) = raw.try_to::<Array<VarDictionary>>() {
+            Some(typed.iter_shared().collect())
+        } else if let Ok(untyped) = raw.try_to::<VarArray>() {
+            let mut out = Vec::with_capacity(untyped.len());
+            let mut malformed = false;
+            for item in untyped.iter_shared() {
+                match item.try_to::<VarDictionary>().ok() {
+                    Some(op_dict) => out.push(op_dict),
+                    None => {
+                        malformed = true;
+                        break;
+                    }
+                }
+            }
+            if malformed { None } else { Some(out) }
+        } else {
+            None
+        };
+    let Some(op_dicts) = op_dicts else {
+        log_warn!(
+            "Action '{}': ignoring malformed effect_spec; falling back to effect_callable",
+            action_name
+        );
+        return None;
+    };
+    if op_dicts.is_empty() {
+        return None;
+    }
+    let mut ops = Vec::with_capacity(op_dicts.len());
+    for op_dict in &op_dicts {
+        match EffectOp::from_dict(op_dict) {
+            Some(op) => ops.push(op),
+            None => {
+                log_warn!(
+                    "Action '{}': ignoring malformed effect_spec; falling back to effect_callable",
+                    action_name
+                );
+                return None;
+            }
+        }
+    }
+    Some(ops)
 }
 
 /// Converts the serialized goal dictionaries into [`GoalSpec`]s. Goals without a `name` or

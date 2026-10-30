@@ -42,6 +42,7 @@ fn iteration_budget_exhaustion_returns_pending() {
         name: "eat".to_string(),
         cost_callable_id: Some(0),
         effect_callable_id: Some(0),
+        effect_spec: None,
         preconditions: vec![],
         validity_checks: vec![],
         requirements: vec![],

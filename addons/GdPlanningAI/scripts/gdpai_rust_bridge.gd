@@ -53,6 +53,7 @@ func _extract_actions(actions: Array[Action]) -> Array[Dictionary]:
 					"name": action.get_title(),
 					"cost_callable": Callable(action, "get_action_cost"),
 					"effect_callable": Callable(action, "simulate_effect"),
+					"effect_spec": action.get_effect_spec(),
 					"preconditions": _extract_preconditions(action.get_preconditions()),
 					"validity_checks": _extract_preconditions(action.get_validity_checks()),
 					"requirements": _extract_requirements(action.get_requirements()),

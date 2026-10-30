@@ -140,6 +140,21 @@ func simulate_effect(
 
 
 # Override
+## Native form of [method simulate_effect]: copies the target's position onto the agent's
+## location proxy, always through the [code]at_target[/code] binding as in GDScript. No
+## ported scene pins a fixed target (only tests construct GoToAction with one), so no
+## pinned-uid form is emitted.
+func get_effect_spec() -> Array:
+	return [
+		{
+			"op": "copy",
+			"from": {"binding": "at_target", "prop": "position"},
+			"to": {"agent_group": "GdPAILocationData", "prop": "position"},
+		},
+	]
+
+
+# Override
 ## Fails without a valid target or navigation agent; caches both and resets arrival tracking.
 func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	if target_location == null or not is_instance_valid(target_location):

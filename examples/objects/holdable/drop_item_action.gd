@@ -39,6 +39,14 @@ func simulate_effect(
 
 
 # Override
+## Native form of [method simulate_effect]: the held-item slot ends up empty.
+func get_effect_spec() -> Array:
+	return [
+		{"op": "set", "target": "agent", "prop": "held_item", "value": ""},
+	]
+
+
+# Override
 func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	set_state(agent, "drop_elapsed", 0.0)
 	return Action.Status.SUCCESS

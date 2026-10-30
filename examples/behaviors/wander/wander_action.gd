@@ -59,6 +59,14 @@ func simulate_effect(
 
 
 # Override
+## Native form of [method simulate_effect]: marks the step without moving the agent.
+func get_effect_spec() -> Array:
+	return [
+		{"op": "set", "target": "agent", "prop": "wandered", "value": true},
+	]
+
+
+# Override
 func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	var location_data: GdPAILocationData = agent.blackboard.get_node_in_group("GdPAILocationData")
 

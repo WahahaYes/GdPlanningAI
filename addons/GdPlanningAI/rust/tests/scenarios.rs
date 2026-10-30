@@ -18,6 +18,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
+use std::sync::atomic::AtomicU64;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -421,6 +422,7 @@ fn run(case: &Case) -> Result<(), String> {
             name: a.name.clone(),
             cost_callable_id,
             effect_callable_id,
+            effect_spec: None,
             preconditions: conditions(&a.preconditions, &mut answers)?,
             validity_checks: conditions(&a.validity, &mut answers)?,
             requirements: a
@@ -470,6 +472,7 @@ fn run(case: &Case) -> Result<(), String> {
                 .collect::<Result<_, _>>()?,
             request_tx: host(answers),
             cancel_flag: Arc::default(),
+            effect_ir_hits: Arc::new(AtomicU64::new(0)),
         },
         config,
     );

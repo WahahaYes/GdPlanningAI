@@ -66,6 +66,13 @@ func simulate_effect(
 	pass
 
 
+## Returns the native effect spec for this action, or [code][][/code] to keep running
+## [method simulate_effect] through GDScript. When every entry parses, the planner applies the
+## spec itself; see [code]docs/AUTHORING_GUIDE.md[/code] for the op reference.
+func get_effect_spec() -> Array:
+	return []
+
+
 # Override
 ## Called once on every action in a new plan, in order, before the first action runs. Validate
 ## the live scene and initialise [method set_state] data; [constant Status.FAILURE] aborts the plan.

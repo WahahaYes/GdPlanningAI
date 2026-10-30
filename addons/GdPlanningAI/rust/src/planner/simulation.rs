@@ -7,6 +7,7 @@
 use crate::plan_types::*;
 use crate::planner::types::SearchContext;
 use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
+use std::sync::atomic::Ordering;
 
 /// The result of a single simulation step.
 #[derive(Debug, PartialEq)]
@@ -151,7 +152,23 @@ pub fn simulate_action(action_idx: usize, args: SimArgs) -> StepResult<SimResult
     }
 
     // 2. Simulate Effect
-    if let Some(id) = action.effect_callable_id {
+    if let Some(spec) = &action.effect_spec {
+        // Native spec: apply synchronously on the snapshots. Never pends, never callbacks.
+        // The timer only runs at debug level, mirroring the transport timers.
+        let timed = crate::logger::get_log_level() >= crate::logger::LogLevel::Debug;
+        let start = timed.then(std::time::Instant::now);
+        let (agent, world) =
+            crate::effect_ir::apply_effect_spec(spec, args.agent, args.world, args.bindings);
+        args.ctx.effect_ir_hits.fetch_add(1, Ordering::Relaxed);
+        if let Some(start) = start {
+            args.ctx
+                .effect_ir_timings
+                .lock()
+                .unwrap()
+                .push(start.elapsed().as_micros() as u64);
+        }
+        StepResult::Ready(SimResult { agent, world, cost })
+    } else if let Some(id) = action.effect_callable_id {
         if let Some(CallbackResponse::UpdatedSnapshots(new_agent, new_world)) = args.response {
             StepResult::Ready(SimResult {
                 agent: new_agent.clone(),

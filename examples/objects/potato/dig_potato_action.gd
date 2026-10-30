@@ -65,6 +65,14 @@ func simulate_effect(
 
 
 # Override
+## Native form of [method simulate_effect]: the agent ends up holding a raw potato.
+func get_effect_spec() -> Array:
+	return [
+		{"op": "set", "target": "agent", "prop": "held_item", "value": "potato"},
+	]
+
+
+# Override
 func perform_action(agent: GdPAIAgent, _delta: float) -> Action.Status:
 	# Another agent may have dug this potato since planning.
 	if not is_instance_valid(potato_ref) or not is_instance_valid(potato_ref.entity):

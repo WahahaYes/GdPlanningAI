@@ -69,6 +69,7 @@ fn verification_reuses_the_discovered_first_step() {
         name: "eat".to_string(),
         cost_callable_id: Some(0),
         effect_callable_id: Some(0),
+        effect_spec: None,
         preconditions: vec![],
         validity_checks: vec![],
         requirements: vec![],

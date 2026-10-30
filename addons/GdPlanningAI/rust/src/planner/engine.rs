@@ -23,7 +23,7 @@ use super::{SearchHeuristic, TerminationStrategy};
 use crate::planner::expander::find_candidates;
 use std::collections::{BinaryHeap, HashMap};
 use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, AtomicU64};
 use std::sync::mpsc::{Receiver, Sender};
 
 /// The GOAP search engine. Goals are tried in the given order (highest reward first); the first
@@ -118,6 +118,8 @@ pub struct EngineInputs {
     pub request_tx: Sender<CallbackRequest>,
     /// Set from another thread to abort the search.
     pub cancel_flag: Arc<AtomicBool>,
+    /// Counts native effect applications for the scheduler's dispatch stats.
+    pub effect_ir_hits: Arc<AtomicU64>,
 }
 
 /// How the search runs. [`Default`] matches the scheduler's defaults.
@@ -158,6 +160,7 @@ impl PlannerEngine {
             inputs.initial_provisions,
             inputs.request_tx,
             tx,
+            inputs.effect_ir_hits,
         ));
         Self {
             ctx,
@@ -203,7 +206,33 @@ impl PlannerEngine {
             }
         }
 
-        self.step_search(goals)
+        let result = self.step_search(goals);
+        self.log_ir_summary();
+        result
+    }
+
+    /// Logs the debug-level native-effect summary for this step: count with mean/p50/p90 of the
+    /// per-effect interpreter times. Silent when no native effect ran, mirroring the transport
+    /// summary in the scheduler.
+    fn log_ir_summary(&self) {
+        let mut timings = self.ctx.effect_ir_timings.lock().unwrap();
+        if timings.is_empty() {
+            return;
+        }
+        let samples: Vec<u64> = std::mem::take(&mut *timings);
+        drop(timings);
+        let n = samples.len();
+        let mut sorted = samples;
+        sorted.sort_unstable();
+        let mean = sorted.iter().sum::<u64>() / n as u64;
+        let at = |p: usize| sorted[(n * p / 100).min(n - 1)];
+        log_debug!(
+            "Native effect IR x{}: mean={}us p50={}us p90={}us",
+            n,
+            mean,
+            at(50),
+            at(90),
+        );
     }
 
     /// Logs the Info-level one-line plan summary: goal, outcome, and search cost.
@@ -936,9 +965,11 @@ impl PlannerEngine {
                     bindings: current_bindings,
                 },
             ) {
-                // No effect: the state is unchanged, so keep sharing it.
+                // No effect (neither a callable nor a native spec): the state is unchanged,
+                // so keep sharing it.
                 StepResult::Ready(_)
-                    if self.ctx.actions[action_idx].effect_callable_id.is_none() =>
+                    if self.ctx.actions[action_idx].effect_callable_id.is_none()
+                        && self.ctx.actions[action_idx].effect_spec.is_none() =>
                 {
                     (
                         Arc::clone(&branch.current_agent),
@@ -981,6 +1012,7 @@ impl PlannerEngine {
     ) -> Option<(Arc<BlackboardSnapshot>, Arc<BlackboardSnapshot>)> {
         if branch.simulation_index != 0
             || self.ctx.actions[action_idx].effect_callable_id.is_none()
+                && self.ctx.actions[action_idx].effect_spec.is_none()
             || !Arc::ptr_eq(&branch.current_agent, &self.ctx.initial_agent)
             || !Arc::ptr_eq(&branch.current_world, &self.ctx.initial_world)
         {
@@ -1044,6 +1076,7 @@ mod tests {
                 initial_provisions: vec![],
                 request_tx,
                 cancel_flag: Arc::default(),
+                effect_ir_hits: Arc::new(AtomicU64::new(0)),
             },
             EngineConfig::default(),
         )
@@ -1068,6 +1101,7 @@ mod tests {
             name: "eat".to_string(),
             cost_callable_id: None,
             effect_callable_id: Some(0),
+            effect_spec: None,
             preconditions: vec![],
             validity_checks: vec![],
             requirements: vec![],
