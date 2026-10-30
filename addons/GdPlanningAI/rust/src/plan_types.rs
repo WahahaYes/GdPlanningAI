@@ -223,7 +223,7 @@ fn snap_compare_all(
 }
 
 /// Numeric value of an `Int` or `Float` snapshot; `None` for every other variant.
-fn snap_as_f64(v: &VariantSnapshot) -> Option<f64> {
+pub(crate) fn snap_as_f64(v: &VariantSnapshot) -> Option<f64> {
     match v {
         VariantSnapshot::Int(i) => Some(*i as f64),
         VariantSnapshot::Float(bits) => Some(f64::from_bits(*bits)),

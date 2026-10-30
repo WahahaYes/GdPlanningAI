@@ -159,6 +159,30 @@ pub struct BlackboardSnapshot {
     pub objects: Arc<HashMap<String, Arc<SimObjectData>>>,
 }
 
+/// Returns the world object with the given Godot instance ID from a raw objects map.
+/// Shared by [`BlackboardSnapshot::get_object_by_instance_id`] and the effect IR's
+/// binding resolution, so both agree on the id-to-uid mapping.
+pub(crate) fn object_by_id(
+    objects: &HashMap<String, Arc<SimObjectData>>,
+    id: i64,
+) -> Option<&SimObjectData> {
+    objects.get(&id.to_string()).map(|arc| arc.as_ref())
+}
+
+/// A world object referred to by a binding value: instance id, uid string or object
+/// handle. The id arms share [`object_by_id`] with snapshot lookups.
+pub(crate) fn resolve_object_key<'a>(
+    key: &VariantSnapshot,
+    world_objects: &'a HashMap<String, Arc<SimObjectData>>,
+) -> Option<&'a SimObjectData> {
+    match key {
+        VariantSnapshot::ObjectRef(id) => object_by_id(world_objects, *id),
+        VariantSnapshot::Int(id) => object_by_id(world_objects, *id),
+        VariantSnapshot::Str(uid) => world_objects.get(uid).map(AsRef::as_ref),
+        _ => None,
+    }
+}
+
 impl BlackboardSnapshot {
     /// Returns an object in `group`. Map order is unspecified, so use it for single-member groups.
     pub fn get_object_by_group(&self, group: &str) -> Option<&SimObjectData> {
@@ -171,7 +195,7 @@ impl BlackboardSnapshot {
     /// Returns the object with the given Godot instance ID, if any. Object-valued
     /// properties (`ObjectRef`) are resolved to world objects through this.
     pub fn get_object_by_instance_id(&self, id: i64) -> Option<&SimObjectData> {
-        self.objects.get(&id.to_string()).map(|arc| arc.as_ref())
+        object_by_id(&self.objects, id)
     }
 
     /// Snapshots a live blackboard. Main thread only; `GDPAI_OBJECTS` is carried by `objects`.

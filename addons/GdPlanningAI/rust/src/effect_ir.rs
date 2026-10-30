@@ -6,7 +6,8 @@
 //! callable. Five ops cover the built-in actions: `set`, `inc`, `dec`, `clamp`
 //! and `copy`. Lookup amounts model table-driven costs like hunger restored per food item.
 
-use crate::snapshot::{BlackboardSnapshot, SimObjectData, VariantSnapshot};
+use crate::plan_types::snap_as_f64;
+use crate::snapshot::{BlackboardSnapshot, SimObjectData, VariantSnapshot, resolve_object_key};
 use godot::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -233,41 +234,36 @@ impl EffectTarget {
         Self::parse(&kind, uid.as_deref(), prop.as_deref())
     }
 
-    /// Mutable slot for the target without creating anything. Missing agents, objects or
+    /// Mutable slot for the target. With `create`, missing agent/object properties
+    /// are created like `set_property`; otherwise missing agents, objects or
     /// properties yield `None` and skip the op.
-    fn resolve_existing<'a>(
+    fn resolve<'a>(
         &self,
         agent_props: &'a mut HashMap<String, VariantSnapshot>,
         world_objects: &'a mut HashMap<String, Arc<SimObjectData>>,
+        create: bool,
     ) -> Option<&'a mut VariantSnapshot> {
         match self {
-            Self::AgentProp { prop } => agent_props.get_mut(prop),
+            Self::AgentProp { prop } => {
+                if create {
+                    Some(
+                        agent_props
+                            .entry(prop.clone())
+                            .or_insert(VariantSnapshot::Nil),
+                    )
+                } else {
+                    agent_props.get_mut(prop)
+                }
+            }
             Self::ObjectProp { uid, prop } => {
                 let obj = Arc::make_mut(world_objects.get_mut(uid)?);
-                Arc::make_mut(&mut obj.properties).get_mut(prop)
+                let props = Arc::make_mut(&mut obj.properties);
+                if create {
+                    Some(props.entry(prop.clone()).or_insert(VariantSnapshot::Nil))
+                } else {
+                    props.get_mut(prop)
+                }
             }
-        }
-    }
-
-    /// Mutable slot for the target, creating agent/object properties like `set_property`.
-    /// Missing objects yield `None` and skip the op.
-    fn resolve_or_create<'a>(
-        &self,
-        agent_props: &'a mut HashMap<String, VariantSnapshot>,
-        world_objects: &'a mut HashMap<String, Arc<SimObjectData>>,
-    ) -> Option<&'a mut VariantSnapshot> {
-        match self {
-            Self::AgentProp { prop } => Some(
-                agent_props
-                    .entry(prop.clone())
-                    .or_insert(VariantSnapshot::Nil),
-            ),
-            Self::ObjectProp { uid, prop } => world_objects.get_mut(uid).map(|obj| {
-                let obj_mut = Arc::make_mut(obj);
-                Arc::make_mut(&mut obj_mut.properties)
-                    .entry(prop.clone())
-                    .or_insert(VariantSnapshot::Nil)
-            }),
         }
     }
 }
@@ -297,7 +293,7 @@ impl CopySource {
             Self::ObjectProp { uid, prop } => world_objects.get(uid)?.properties.get(prop).cloned(),
             Self::BindingProp { binding, prop } => {
                 let key = agent_props.get(binding)?;
-                resolve_object(key, world_objects)?
+                resolve_object_key(key, world_objects)?
                     .properties
                     .get(prop)
                     .cloned()
@@ -330,7 +326,9 @@ impl CopyDest {
         })
     }
 
-    /// Writes the value; missing objects yield `false` and skip the op.
+    /// Writes the value; missing objects yield `false` and skip the op. The plain
+    /// agent/object arms route through [`EffectTarget::resolve`] so copy writes
+    /// share the target logic; only the agent-group lookup stays copy-specific.
     fn write(
         &self,
         value: VariantSnapshot,
@@ -340,7 +338,10 @@ impl CopyDest {
     ) {
         match self {
             Self::AgentProp { prop } => {
-                agent_props.insert(prop.clone(), value);
+                let target = EffectTarget::AgentProp { prop: prop.clone() };
+                if let Some(slot) = target.resolve(agent_props, world_objects, true) {
+                    *slot = value;
+                }
             }
             Self::AgentGroupProp { group, prop } => {
                 let uid = agent_objects
@@ -354,8 +355,12 @@ impl CopyDest {
                 }
             }
             Self::ObjectProp { uid, prop } => {
-                if let Some(obj) = world_objects.get_mut(uid) {
-                    Arc::make_mut(&mut Arc::make_mut(obj).properties).insert(prop.clone(), value);
+                let target = EffectTarget::ObjectProp {
+                    uid: uid.clone(),
+                    prop: prop.clone(),
+                };
+                if let Some(slot) = target.resolve(agent_props, world_objects, true) {
+                    *slot = value;
                 }
             }
         }
@@ -402,28 +407,6 @@ impl EffectAmount {
                 _ => Some(*default),
             },
         }
-    }
-}
-
-/// Numeric value of an int or float snapshot; `None` for every other tier.
-fn snap_as_f64(value: &VariantSnapshot) -> Option<f64> {
-    match value {
-        VariantSnapshot::Int(i) => Some(*i as f64),
-        VariantSnapshot::Float(bits) => Some(f64::from_bits(*bits)),
-        _ => None,
-    }
-}
-
-/// A world object referred to by a binding value: instance id, uid string or object handle.
-fn resolve_object<'a>(
-    key: &VariantSnapshot,
-    world_objects: &'a HashMap<String, Arc<SimObjectData>>,
-) -> Option<&'a SimObjectData> {
-    match key {
-        VariantSnapshot::ObjectRef(id) => world_objects.get(&id.to_string()).map(AsRef::as_ref),
-        VariantSnapshot::Int(id) => world_objects.get(&id.to_string()).map(AsRef::as_ref),
-        VariantSnapshot::Str(uid) => world_objects.get(uid).map(AsRef::as_ref),
-        _ => None,
     }
 }
 
@@ -497,13 +480,13 @@ impl EffectOp {
     ) -> bool {
         match self {
             Self::Set { target, value } => {
-                if let Some(slot) = target.resolve_or_create(agent_props, world_objects) {
+                if let Some(slot) = target.resolve(agent_props, world_objects, true) {
                     *slot = value.clone();
                 }
                 true
             }
             Self::Inc { target, amount } => {
-                if let Some(slot) = target.resolve_existing(agent_props, world_objects)
+                if let Some(slot) = target.resolve(agent_props, world_objects, false)
                     && let Some(current) = snap_as_f64(slot)
                 {
                     *slot = VariantSnapshot::Float((current + amount).to_bits());
@@ -514,7 +497,7 @@ impl EffectOp {
                 let Some(subtract) = amount.resolve(agent_props) else {
                     return false;
                 };
-                if let Some(slot) = target.resolve_existing(agent_props, world_objects)
+                if let Some(slot) = target.resolve(agent_props, world_objects, false)
                     && let Some(current) = snap_as_f64(slot)
                 {
                     *slot = VariantSnapshot::Float((current - subtract).to_bits());
@@ -522,7 +505,7 @@ impl EffectOp {
                 true
             }
             Self::Clamp { target, lo, hi } => {
-                if let Some(slot) = target.resolve_existing(agent_props, world_objects)
+                if let Some(slot) = target.resolve(agent_props, world_objects, false)
                     && let Some(current) = snap_as_f64(slot)
                 {
                     *slot = VariantSnapshot::Float(current.clamp(*lo, *hi).to_bits());
