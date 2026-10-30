@@ -49,7 +49,7 @@ func _submit_plan_and_wait(
 	_plan_ready = false
 	_last_plan_result = {}
 	scheduler.submit_plan(
-		self, agent_bb, world_bb, actions, goals, max_recursion, iteration_budget, 10
+		self, agent_bb, world_bb, actions, goals, max_recursion, iteration_budget, 10, 128
 	)
 
 	for i in range(timeout_frames):
@@ -280,6 +280,7 @@ func test_async_newer_submission_cancels_older_inflight_plan() -> void:
 			100,
 			20000,
 			10,
+			128,
 		)
 	)
 	(
@@ -293,6 +294,7 @@ func test_async_newer_submission_cancels_older_inflight_plan() -> void:
 			100,
 			20000,
 			10,
+			128,
 		)
 	)
 

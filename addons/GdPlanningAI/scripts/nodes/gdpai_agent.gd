@@ -200,6 +200,7 @@ func _start_plan_async() -> void:
 			config.max_recursion,
 			config.iteration_budget,
 			config.time_slice_ms,
+			config.max_effect_fallbacks,
 		)
 	)
 

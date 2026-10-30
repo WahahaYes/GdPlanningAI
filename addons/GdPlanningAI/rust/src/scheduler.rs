@@ -371,7 +371,8 @@ impl GdPAIPlanScheduler {
     /// Submits a planning job for `agent`, cancelling its unfinished one. Blackboards are
     /// snapshotted now. Already-satisfied goals are dropped; the rest are tried by descending
     /// reward and the first with a plan wins. Budgets are clamped: `max_recursion` >= 1,
-    /// `iteration_budget` >= 100, `time_slice_ms` = 0 disables time-slicing.
+    /// `iteration_budget` >= 100, `time_slice_ms` = 0 disables time-slicing,
+    /// `max_effect_fallbacks` >= 0 (per-search GDScript effect cap).
     #[func]
     #[allow(clippy::too_many_arguments)]
     fn submit_plan(
@@ -384,6 +385,7 @@ impl GdPAIPlanScheduler {
         max_recursion: i64,
         iteration_budget: i64,
         time_slice_ms: i64,
+        max_effect_fallbacks: i64,
     ) {
         let agent_instance_id = agent.instance_id().to_i64();
 
@@ -492,6 +494,7 @@ impl GdPAIPlanScheduler {
             max_recursion,
             iteration_budget,
             time_slice_ms,
+            max_effect_fallbacks,
         );
         let engine = PlannerEngine::new(inputs, engine_config);
 
@@ -696,10 +699,12 @@ pub(crate) fn engine_parts_for_submit(
     max_recursion: i64,
     iteration_budget: i64,
     time_slice_ms: i64,
+    max_effect_fallbacks: i64,
 ) -> (EngineInputs, EngineConfig) {
     let max_rec = max_recursion.max(1) as usize;
     let iter_budget = iteration_budget.max(100) as usize;
     let slice_ms = time_slice_ms.max(0) as u64;
+    let fallback_budget = max_effect_fallbacks.max(0) as usize;
     if max_recursion < 1 {
         log_warn!("max_recursion was clamped from {} to 1", max_recursion);
     }
@@ -715,11 +720,18 @@ pub(crate) fn engine_parts_for_submit(
             time_slice_ms
         );
     }
+    if max_effect_fallbacks < 0 {
+        log_warn!(
+            "max_effect_fallbacks was clamped from {} to 0",
+            max_effect_fallbacks
+        );
+    }
 
     let engine_config = EngineConfig {
         max_depth: max_rec,
         iteration_budget: iter_budget,
         time_slice_ms: slice_ms,
+        max_effect_fallbacks: fallback_budget,
         ..EngineConfig::default()
     };
     let inputs = EngineInputs {
@@ -1340,16 +1352,49 @@ mod tests {
             5,
             1000,
             10,
+            7,
         );
         assert_eq!(
             inputs.effect_fallback_budget, config.max_effect_fallbacks,
             "inputs budget comes from the config"
         );
+        assert_eq!(
+            inputs.effect_fallback_budget, 7,
+            "custom budget flows through the wiring"
+        );
         let engine = PlannerEngine::new(inputs, config);
         assert_eq!(
-            engine.ctx.effect_fallback_budget,
-            EngineConfig::default().max_effect_fallbacks,
+            engine.ctx.effect_fallback_budget, 7,
             "the configured value reaches the search context"
+        );
+
+        let (req_tx, _req_rx) = std::sync::mpsc::channel();
+        let (inputs, config) = engine_parts_for_submit(
+            Vec::new(),
+            empty_snapshot(),
+            empty_snapshot(),
+            Vec::new(),
+            req_tx,
+            Arc::default(),
+            Arc::new(AtomicU64::new(0)),
+            Arc::new(AtomicU64::new(0)),
+            5,
+            1000,
+            10,
+            -5,
+        );
+        assert_eq!(
+            inputs.effect_fallback_budget, 0,
+            "negative budget clamps to 0"
+        );
+        assert_eq!(
+            config.max_effect_fallbacks, 0,
+            "negative budget clamps to 0 in the config"
+        );
+        assert_eq!(
+            EngineConfig::default().max_effect_fallbacks,
+            128,
+            "unset budget defaults to 128"
         );
     }
 
