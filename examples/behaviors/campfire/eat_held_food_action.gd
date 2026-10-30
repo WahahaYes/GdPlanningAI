@@ -87,6 +87,27 @@ func simulate_effect(
 
 
 # Override
+## Native form of [method simulate_effect]: eats the bound item via the restore table, or the
+## optimistic default while unbound. A bound-but-inedible key aborts the effect, as in GDScript.
+func get_effect_spec() -> Array:
+	return [
+		{
+			"op": "dec",
+			"target": "agent",
+			"prop": "hunger",
+			"amount":
+			{
+				"binding": "held_item",
+				"table": hunger_restored_by_item.duplicate(),
+				"default": optimistic_unbound_restore,
+			},
+		},
+		{"op": "max_floor", "target": "agent", "prop": "hunger", "floor": 0.0},
+		{"op": "set", "target": "agent", "prop": "held_item", "value": ""},
+	]
+
+
+# Override
 func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	set_state(agent, "eat_elapsed", 0.0)
 	return Action.Status.SUCCESS

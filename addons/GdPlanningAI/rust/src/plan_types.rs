@@ -7,6 +7,7 @@
 //! The channel messages ([`CallbackRequest`] and [`PlannerCallback`]) carry the conversation
 //! between the planner thread and the main thread; see [`crate::planner::simulation`].
 
+use crate::effect_ir::EffectOp;
 use crate::precondition::{PreconditionOp, PreconditionTarget};
 use crate::requirement::{ProvisionSpec, RequirementSpec};
 use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
@@ -239,6 +240,9 @@ pub struct ActionSpec {
     pub cost_callable_id: Option<usize>,
     /// Registry id of the effect callable; `None` means the action does not change state.
     pub effect_callable_id: Option<usize>,
+    /// Native effect spec; when `Some`, the planner applies it directly and the callable above
+    /// is never registered. `None` means effects run through GDScript as before.
+    pub effect_spec: Option<Vec<EffectOp>>,
     /// Conditions that must hold in the state just before the action runs.
     pub preconditions: Vec<PreconditionSpec>,
     /// Conditions on the *initial* state that decide whether the action is considered at all

@@ -74,6 +74,17 @@ func simulate_effect(
 
 
 # Override
+## Native form of [method simulate_effect]. Empty while the item is gone, so the planner
+## falls back to the callable instead of planning around a freed pickup.
+func get_effect_spec() -> Array:
+	if not is_instance_valid(holdable_item) or not is_instance_valid(holdable_item.entity):
+		return []
+	return [
+		{"op": "set", "target": "agent", "prop": "held_item", "value": holdable_item.item_id},
+	]
+
+
+# Override
 func pre_perform_action(_agent: GdPAIAgent) -> Action.Status:
 	if not is_instance_valid(holdable_item) or not is_instance_valid(holdable_item.entity):
 		return Action.Status.FAILURE

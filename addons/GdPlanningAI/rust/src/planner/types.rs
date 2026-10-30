@@ -11,6 +11,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
+use std::sync::atomic::AtomicU64;
 use std::sync::mpsc::Sender;
 
 use std::cmp::Ordering;
@@ -72,8 +73,9 @@ pub struct SearchNode {
     /// The main thread's answer to the request this node was parked on, consumed by the next
     /// simulation step. Cleared once that step makes progress.
     pub callback_response: Option<CallbackResponse>,
-    /// Candidates already expanded from this node, so a repeat from discovery is ignored. Cleared
-    /// on resume.
+    /// Candidates already expanded from this node, so a repeat from discovery is ignored.
+    /// Retained across resumes; find_candidates re-runs to pick up newly-ready entries,
+    /// `contains` skips already-expanded keys.
     pub expanded_candidates: Vec<(usize, BindingMap)>,
 }
 
@@ -183,6 +185,11 @@ pub struct SearchContext {
     pub provision_index: HashMap<(ProvisionKind, String), Vec<usize>>,
     /// Action indices that have no wildcard provisions (can be discovered with empty bindings).
     pub non_wildcard_actions: Vec<usize>,
+    /// Counts native effect applications; read by the scheduler's dispatch stats.
+    pub effect_ir_hits: Arc<AtomicU64>,
+    /// Per-effect native application times in microseconds, drained per step for the debug
+    /// summary. Only filled at debug log level.
+    pub effect_ir_timings: std::sync::Mutex<Vec<u64>>,
 }
 
 impl SearchContext {
@@ -194,6 +201,7 @@ impl SearchContext {
         initial_provisions: Vec<ProvisionSpec>,
         request_tx: Sender<CallbackRequest>,
         engine_response_tx: Sender<PlannerCallback>,
+        effect_ir_hits: Arc<AtomicU64>,
     ) -> Self {
         // Which actions provide a given binding / fact / wildcard fact name. Wildcard actions are
         // excluded from `non_wildcard_actions` because they can only be discovered against a
@@ -239,6 +247,8 @@ impl SearchContext {
             discovery_precond_pending: std::sync::Mutex::new(HashMap::new()),
             provision_index,
             non_wildcard_actions,
+            effect_ir_hits,
+            effect_ir_timings: std::sync::Mutex::new(Vec::new()),
         }
     }
 }

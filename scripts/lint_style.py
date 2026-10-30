@@ -15,8 +15,9 @@ GDScript
   - gd-export          : ``@export`` variable without a ``##`` docstring on the preceding line
   - gd-inline-lambda  : any lambda literal (``func(``) inside a dict/array/paren;
                          predefine as a ``var name: Callable = func(...)`` instead
-  - gd-doc-length      : ``##`` block longer than 10 lines (class header) or 6 (anything else)
-
+  - gd-doc-length     : ``##`` block longer than 10 lines (class header) or 6 (anything else)
+  - gd-effect-spec    : Action under ``examples/`` (or ``goto_action.gd``) overriding
+                         ``simulate_effect`` without a non-empty ``get_effect_spec``
 Rust
   - rs-module   : ``.rs`` file missing ``//!`` module-level doc at the top
   - rs-pub-doc  : ``pub`` struct / enum / fn without a ``///`` doc-comment immediately above
@@ -95,6 +96,7 @@ def report(violations: list[tuple]) -> int:
 RE_GD_WALRUS = re.compile(r":=")
 RE_GD_BORDER = re.compile(r"#\s*-{" + str(BORDER_DASHES) + r",}")
 RE_GD_FUNC = re.compile(r"^(func |static func )")  # matches only unindented funcs
+RE_GD_NAMED_FUNC = re.compile(r"^(?:static\s+)?func\s+(\w+)\s*\(")
 RE_GD_INLINE_LAMBDA = re.compile(r"\bfunc\s*\(")  # any func( usage (lambda)
 RE_GD_EXPORT = re.compile(r"^\s*@export\b")
 RE_GD_DOCSTRING = re.compile(r"^\s*##")
@@ -320,6 +322,85 @@ def lint_rust(path: Path) -> list[tuple]:
     return violations
 
 
+def lint_effect_spec(paths: list[Path]) -> list[tuple]:
+    """Every Action under examples/ or goto_action.gd that overrides simulate_effect must
+    also override get_effect_spec with a non-empty spec, so scenes never silently fall
+    back to GDScript effect callbacks. User-land custom actions (outside examples/) are
+    exempt: they may keep the base empty spec and its callable fallback.
+
+    This is a healthy-scene guarantee: a conditional `return []` when a referenced object
+    is gone (e.g. add_fuel/pickup guarding on `is_instance_valid`) is intentional and
+    allowed, since planning around a freed object must fall back to the callable. Only an
+    unconditional empty spec is rejected. The authoritative zero-fallback check is the
+    dynamic large-scene test (test_effect_ir_zero_fallback.gd), which requires no
+    ApplyEffect callbacks while IR covers every action."""
+    violations: list[tuple] = []
+    for path in paths:
+        name = path.name
+        text = str(path).replace("\\", "/")
+        if not (
+            "/examples/" in text
+            or text.startswith("examples/")
+            or name == "goto_action.gd"
+        ):
+            continue
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError as exc:
+            print(f"WARNING: could not read {path}: {exc}", file=sys.stderr)
+            continue
+
+        funcs = {}
+        for i, raw in enumerate(lines):
+            match = RE_GD_NAMED_FUNC.match(raw)
+            if match:
+                funcs[match.group(1)] = i
+        if "simulate_effect" not in funcs:
+            continue
+        if "get_effect_spec" not in funcs:
+            violations.append(
+                (
+                    path,
+                    funcs["simulate_effect"] + 1,
+                    "gd-effect-spec",
+                    (
+                        "overrides simulate_effect but has no get_effect_spec "
+                        "(native effect spec required under examples/)"
+                    ),
+                )
+            )
+            continue
+
+        start = funcs["get_effect_spec"] + 1
+        body: list[str] = []
+        for raw in lines[start:]:
+            stripped = raw.strip()
+            if stripped == "" or stripped.startswith("#"):
+                continue
+            if not raw[:1].isspace():
+                break
+            # Strip inline comments and doc lines; spec bodies hold no `#` inside strings.
+            code_part = stripped.split("#", 1)[0].strip()
+            if code_part == "" or code_part.startswith("##"):
+                continue
+            body.append(code_part)
+        code = [line for line in body if not line.startswith("##")]
+        normalized = ["".join(line.split()) for line in code]
+        if "".join(normalized) == "return[]":
+            violations.append(
+                (
+                    path,
+                    funcs["get_effect_spec"] + 1,
+                    "gd-effect-spec",
+                    (
+                        "get_effect_spec is empty (return []): "
+                        "simulate_effect overrides need a non-empty native spec"
+                    ),
+                )
+            )
+    return violations
+
+
 def main() -> int:
     gd_files = git_tracked_files([".gd"])
     rs_files = git_tracked_files([".rs"])
@@ -328,6 +409,8 @@ def main() -> int:
 
     for path in gd_files:
         violations.extend(lint_gdscript(path))
+
+    violations.extend(lint_effect_spec(gd_files))
 
     for path in rs_files:
         violations.extend(lint_rust(path))

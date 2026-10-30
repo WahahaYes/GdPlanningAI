@@ -82,6 +82,32 @@ func simulate_effect(
 
 
 # Override
+## Native form of [method simulate_effect]: pours fuel (capped at 100) and frees the hand.
+## Empty while the campfire is gone, so the planner falls back to the callable.
+func get_effect_spec() -> Array:
+	if not is_instance_valid(campfire_ref):
+		return []
+	var campfire_uid: String = str(campfire_ref.get_instance_id())
+	return [
+		{
+			"op": "inc",
+			"target": "object",
+			"uid": campfire_uid,
+			"prop": "current_fuel",
+			"amount": fuel_per_wood,
+		},
+		{
+			"op": "min_cap",
+			"target": "object",
+			"uid": campfire_uid,
+			"prop": "current_fuel",
+			"cap": 100.0,
+		},
+		{"op": "set", "target": "agent", "prop": "held_item", "value": ""},
+	]
+
+
+# Override
 func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	set_state(agent, "add_fuel_elapsed", 0.0)
 	return Action.Status.SUCCESS

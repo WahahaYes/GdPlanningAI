@@ -57,6 +57,14 @@ func simulate_effect(
 
 
 # Override
+## Native form of [method simulate_effect]: the agent ends up holding wood.
+func get_effect_spec() -> Array:
+	return [
+		{"op": "set", "target": "agent", "prop": "held_item", "value": "wood"},
+	]
+
+
+# Override
 func perform_action(agent: GdPAIAgent, _delta: float) -> Action.Status:
 	agent.blackboard.set_property("held_item", "wood")
 	return Action.Status.SUCCESS

@@ -60,6 +60,7 @@ fn make_actions_with_count(count: usize) -> Vec<ActionSpec> {
         name: "eat".to_string(),
         cost_callable_id: Some(0),
         effect_callable_id: Some(EAT_EFFECT),
+        effect_spec: None,
         preconditions: vec![PreconditionSpec::Builtin {
             target: PreconditionTarget::Agent,
             operation: PreconditionOp::Equal,
@@ -75,6 +76,7 @@ fn make_actions_with_count(count: usize) -> Vec<ActionSpec> {
         name: format!("get_food_{}", i),
         cost_callable_id: Some(0),
         effect_callable_id: Some(GET_FOOD_EFFECT),
+        effect_spec: None,
         preconditions: vec![],
         validity_checks: vec![],
         requirements: vec![],

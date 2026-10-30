@@ -10,6 +10,7 @@ use godot::prelude::*;
 #[macro_use]
 pub mod logger;
 pub mod debug_tree;
+pub mod effect_ir;
 pub mod gdpai_blackboard;
 pub mod plan_tree;
 pub mod plan_types;

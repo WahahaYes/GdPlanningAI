@@ -525,6 +525,7 @@ mod tests {
     use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
     use std::collections::HashMap;
     use std::sync::Arc;
+    use std::sync::atomic::AtomicU64;
     use std::sync::mpsc::{self, Receiver};
 
     fn empty_snapshot() -> BlackboardSnapshot {
@@ -539,6 +540,7 @@ mod tests {
             name: name.to_string(),
             cost_callable_id: None,
             effect_callable_id: None,
+            effect_spec: None,
             preconditions: vec![],
             validity_checks: vec![],
             requirements: vec![],
@@ -573,6 +575,7 @@ mod tests {
             vec![],
             req_tx,
             engine_tx,
+            Arc::new(AtomicU64::new(0)),
         ));
 
         (ctx, req_rx)

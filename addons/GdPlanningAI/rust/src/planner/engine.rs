@@ -23,7 +23,7 @@ use super::{SearchHeuristic, TerminationStrategy};
 use crate::planner::expander::find_candidates;
 use std::collections::{BinaryHeap, HashMap};
 use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, AtomicU64};
 use std::sync::mpsc::{Receiver, Sender};
 
 /// The GOAP search engine. Goals are tried in the given order (highest reward first); the first
@@ -118,6 +118,8 @@ pub struct EngineInputs {
     pub request_tx: Sender<CallbackRequest>,
     /// Set from another thread to abort the search.
     pub cancel_flag: Arc<AtomicBool>,
+    /// Counts native effect applications for the scheduler's dispatch stats.
+    pub effect_ir_hits: Arc<AtomicU64>,
 }
 
 /// How the search runs. [`Default`] matches the scheduler's defaults.
@@ -158,6 +160,7 @@ impl PlannerEngine {
             inputs.initial_provisions,
             inputs.request_tx,
             tx,
+            inputs.effect_ir_hits,
         ));
         Self {
             ctx,
@@ -203,7 +206,33 @@ impl PlannerEngine {
             }
         }
 
-        self.step_search(goals)
+        let result = self.step_search(goals);
+        self.log_ir_summary();
+        result
+    }
+
+    /// Logs the debug-level native-effect summary for this step: count with mean/p50/p90 of the
+    /// per-effect interpreter times. Silent when no native effect ran, mirroring the transport
+    /// summary in the scheduler.
+    fn log_ir_summary(&self) {
+        let mut timings = self.ctx.effect_ir_timings.lock().unwrap();
+        if timings.is_empty() {
+            return;
+        }
+        let samples: Vec<u64> = std::mem::take(&mut *timings);
+        drop(timings);
+        let n = samples.len();
+        let mut sorted = samples;
+        sorted.sort_unstable();
+        let mean = sorted.iter().sum::<u64>() / n as u64;
+        let at = |p: usize| sorted[(n * p / 100).min(n - 1)];
+        log_debug!(
+            "Native effect IR x{}: mean={}us p50={}us p90={}us",
+            n,
+            mean,
+            at(50),
+            at(90),
+        );
     }
 
     /// Logs the Info-level one-line plan summary: goal, outcome, and search cost.
@@ -401,12 +430,14 @@ impl PlannerEngine {
                 }
                 self.visited.insert(fp, node.branch.cost);
             }
-            // A resumed node re-runs discovery from scratch; forgetting its expanded candidates
-            // is safe because the children created before parking are already queued, and
-            // the visited check then discards the duplicates.
-            if node.resumed {
-                node.expanded_candidates.clear();
-            }
+            // A resumed node re-runs discovery to pick up newly-ready candidates, but it
+            // must not re-add the ones it already expanded: that would record duplicate
+            // tree nodes (inflating branch counts) and queue duplicate branches the
+            // visited check then discards. `expanded_candidates` already holds every
+            // candidate added before parking, and the branch's open needs cannot change
+            // across resumes, so skipping them is exact except the duplicate-args wildcard,
+            // which needs two steps instead of one, and keeps native and callback
+            // effect paths on identical search trees.
             node.resumed = false;
 
             // Prune anything that already costs at least as much as the best plan found.
@@ -936,9 +967,11 @@ impl PlannerEngine {
                     bindings: current_bindings,
                 },
             ) {
-                // No effect: the state is unchanged, so keep sharing it.
+                // No effect (neither a callable nor a native spec): the state is unchanged,
+                // so keep sharing it.
                 StepResult::Ready(_)
-                    if self.ctx.actions[action_idx].effect_callable_id.is_none() =>
+                    if self.ctx.actions[action_idx].effect_callable_id.is_none()
+                        && self.ctx.actions[action_idx].effect_spec.is_none() =>
                 {
                     (
                         Arc::clone(&branch.current_agent),
@@ -981,6 +1014,7 @@ impl PlannerEngine {
     ) -> Option<(Arc<BlackboardSnapshot>, Arc<BlackboardSnapshot>)> {
         if branch.simulation_index != 0
             || self.ctx.actions[action_idx].effect_callable_id.is_none()
+                && self.ctx.actions[action_idx].effect_spec.is_none()
             || !Arc::ptr_eq(&branch.current_agent, &self.ctx.initial_agent)
             || !Arc::ptr_eq(&branch.current_world, &self.ctx.initial_world)
         {
@@ -1018,6 +1052,7 @@ impl PlannerEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::effect_ir::{EffectAmount, EffectOp, EffectTarget};
     use crate::precondition::{PreconditionOp, PreconditionTarget};
     use std::sync::mpsc;
 
@@ -1044,6 +1079,7 @@ mod tests {
                 initial_provisions: vec![],
                 request_tx,
                 cancel_flag: Arc::default(),
+                effect_ir_hits: Arc::new(AtomicU64::new(0)),
             },
             EngineConfig::default(),
         )
@@ -1068,6 +1104,7 @@ mod tests {
             name: "eat".to_string(),
             cost_callable_id: None,
             effect_callable_id: Some(0),
+            effect_spec: None,
             preconditions: vec![],
             validity_checks: vec![],
             requirements: vec![],
@@ -1132,6 +1169,84 @@ mod tests {
         ));
         assert!(Arc::ptr_eq(&a.current_agent, &c.current_agent));
         assert!(requests.try_recv().is_err(), "no request for a cached step");
+    }
+
+    /// A resumed node re-expands only newly-ready candidates: parking on a cost
+    /// callback and resuming must not duplicate the children added before parking.
+    /// (Regression test: re-adding them inflated branch counts whenever a native
+    /// effect resolved while other actions still needed callbacks.)
+    #[test]
+    fn resumed_node_does_not_duplicate_expanded_candidates() {
+        let dec_hunger = || EffectOp::Dec {
+            target: EffectTarget::AgentProp {
+                prop: "hunger".to_string(),
+            },
+            amount: EffectAmount::Direct(60.0),
+        };
+        let plain =
+            |name: &str, cost_callable_id: Option<usize>, effect_spec: Option<Vec<EffectOp>>| {
+                ActionSpec {
+                    name: name.to_string(),
+                    cost_callable_id,
+                    effect_callable_id: None,
+                    effect_spec,
+                    preconditions: vec![],
+                    validity_checks: vec![],
+                    requirements: vec![],
+                    provisions: vec![],
+                    dependent_object_ids: vec![],
+                }
+            };
+        let (req_tx, requests) = mpsc::channel::<CallbackRequest>();
+        let mut engine = engine(
+            vec![
+                plain("pricey", Some(0), Some(vec![dec_hunger()])),
+                plain("cheap", None, Some(vec![dec_hunger()])),
+            ],
+            snapshot(&[("hunger", VariantSnapshot::Int(80))]),
+            req_tx,
+        );
+        let goals = vec![GoalSpec {
+            name: "full".to_string(),
+            reward: 1.0,
+            desired_state: vec![hunger_less_than(30)],
+            original_index: 0,
+        }];
+
+        // First slice: cheap expands synchronously while pricey waits on its cost.
+        assert!(matches!(engine.plan(&goals), PlannerRunResult::Pending(_)));
+        let cost_req = requests.try_recv().expect("pricey cost callback");
+        assert!(requests.try_recv().is_err(), "only the cost pends");
+
+        // Answer: pricey costs more than cheap's default 1.0.
+        engine
+            .ctx
+            .engine_response_tx
+            .send(PlannerCallback {
+                request_id: cost_req.request_id,
+                response: CallbackResponse::Float(5.0),
+            })
+            .unwrap();
+
+        // Resume to completion: the root re-expands once, adding pricey but
+        // not cheap again.
+        let mut outcome = PlannerRunResult::Pending(0);
+        for _ in 0..10 {
+            outcome = engine.plan(&goals);
+            if matches!(outcome, PlannerRunResult::Complete(_)) {
+                break;
+            }
+        }
+        let PlannerRunResult::Complete(Some(plan)) = outcome else {
+            panic!("search should complete, got {outcome:?}");
+        };
+        assert_eq!(plan.action_chain, vec![1], "cheap wins");
+        assert!((plan.total_cost - 1.0).abs() < 1e-9);
+        assert!(
+            engine.debug_tree().summary().contains("Branches: 3 "),
+            "root plus one child per action, no resume duplicates: {}",
+            engine.debug_tree().summary()
+        );
     }
 
     /// Goal 0 holds already (empty-chain plan at cost 0) while a goal-0 node is still queued, as

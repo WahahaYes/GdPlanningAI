@@ -13,6 +13,7 @@ use gdplanningai_rust::planner::{EngineInputs, PlannerEngine};
 use gdplanningai_rust::snapshot::{BlackboardSnapshot, SimObjectData, VariantSnapshot};
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::sync::atomic::AtomicU64;
 use std::sync::mpsc::{self, Sender};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -83,6 +84,7 @@ pub fn inputs(
         initial_provisions: vec![],
         request_tx,
         cancel_flag: Arc::default(),
+        effect_ir_hits: Arc::new(AtomicU64::new(0)),
     }
 }
 

@@ -81,6 +81,15 @@ func simulate_effect(
 
 
 # Override
+## Native form of [method simulate_effect]: the optimistic hunger drop, floored at zero.
+func get_effect_spec() -> Array:
+	return [
+		{"op": "dec", "target": "agent", "prop": "hunger", "amount": _sim_hunger_gain},
+		{"op": "max_floor", "target": "agent", "prop": "hunger", "floor": 0.0},
+	]
+
+
+# Override
 func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	if not is_instance_valid(fruit_tree):
 		return Action.Status.FAILURE

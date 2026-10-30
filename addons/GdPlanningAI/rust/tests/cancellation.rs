@@ -34,6 +34,7 @@ fn cancellation_returns_failure_quickly() {
         name: "slow_action".to_string(),
         cost_callable_id: Some(1),
         effect_callable_id: Some(2),
+        effect_spec: None,
         preconditions: vec![],
         validity_checks: vec![PreconditionSpec::Custom {
             callable_id: 99,
