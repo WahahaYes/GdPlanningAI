@@ -188,9 +188,6 @@ pub struct SearchContext {
     pub non_wildcard_actions: Vec<usize>,
     /// Counts native effect applications; read by the scheduler's dispatch stats.
     pub effect_ir_hits: Arc<AtomicU64>,
-    /// Per-effect native application times in microseconds, drained per step for the debug
-    /// summary. Only filled at debug log level.
-    pub effect_ir_timings: std::sync::Mutex<Vec<u64>>,
     /// Per-job cap on GDScript effect fallbacks. The ApplyEffect send site checks this
     /// before firing: at or over budget the requesting branch goes `Invalid`.
     pub effect_fallback_budget: usize,
@@ -266,7 +263,6 @@ impl SearchContext {
             provision_index,
             non_wildcard_actions,
             effect_ir_hits,
-            effect_ir_timings: std::sync::Mutex::new(Vec::new()),
             effect_fallback_budget: config.max_effect_fallbacks,
             effect_fallback_count: AtomicU64::new(0),
             effect_fallback_trips,

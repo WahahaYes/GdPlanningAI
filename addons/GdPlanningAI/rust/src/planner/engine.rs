@@ -216,33 +216,8 @@ impl PlannerEngine {
         }
 
         let result = self.step_search(goals);
-        self.log_ir_summary();
         self.log_fallback_summary();
         result
-    }
-
-    /// Logs the debug-level native-effect summary for this step: count with mean/p50/p90 of the
-    /// per-effect interpreter times. Silent when no native effect ran, mirroring the transport
-    /// summary in the scheduler.
-    fn log_ir_summary(&self) {
-        let mut timings = self.ctx.effect_ir_timings.lock().unwrap();
-        if timings.is_empty() {
-            return;
-        }
-        let samples: Vec<u64> = std::mem::take(&mut *timings);
-        drop(timings);
-        let n = samples.len();
-        let mut sorted = samples;
-        sorted.sort_unstable();
-        let mean = sorted.iter().sum::<u64>() / n as u64;
-        let at = |p: usize| sorted[(n * p / 100).min(n - 1)];
-        log_debug!(
-            "Native effect IR x{}: mean={}us p50={}us p90={}us",
-            n,
-            mean,
-            at(50),
-            at(90),
-        );
     }
 
     /// Logs fallback usage once the budget trips: how many custom-effect callbacks fired

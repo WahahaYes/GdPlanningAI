@@ -83,63 +83,6 @@ impl StallNoticeThrottle {
     }
 }
 
-/// Per-`process_callbacks` aggregates for the `ApplyEffect` transport segments: time
-/// spent rebuilding boards (`into`), running the GDScript callable (`call`), and
-/// diffing the result back (`from`). One entry per effect dispatch; the summary
-/// (count/mean/p50/p90) logs at debug level, so the default level pays nothing.
-#[derive(Default)]
-pub(crate) struct EffectTransportTimings {
-    /// `(into_us, call_us, from_us)` per effect dispatch.
-    samples: Vec<[u64; 3]>,
-}
-
-impl EffectTransportTimings {
-    /// Records one effect dispatch's three transport segments, in microseconds.
-    fn record(&mut self, into_us: u64, call_us: u64, from_us: u64) {
-        self.samples.push([into_us, call_us, from_us]);
-    }
-
-    /// Logs count/mean/p50/p90 per segment at debug level; silent when no effect ran.
-    fn log_summary(&self) {
-        if self.samples.is_empty() {
-            return;
-        }
-        let n = self.samples.len();
-        let mut segs: [Vec<u64>; 3] = [
-            Vec::with_capacity(n),
-            Vec::with_capacity(n),
-            Vec::with_capacity(n),
-        ];
-        for [into_us, call_us, from_us] in &self.samples {
-            segs[0].push(*into_us);
-            segs[1].push(*call_us);
-            segs[2].push(*from_us);
-        }
-        let stat = |values: &mut Vec<u64>| -> (u64, u64, u64) {
-            values.sort_unstable();
-            let mean = values.iter().sum::<u64>() / n as u64;
-            let at = |p: usize| values[(n * p / 100).min(n - 1)];
-            (mean, at(50), at(90))
-        };
-        let (into_mean, into_p50, into_p90) = stat(&mut segs[0]);
-        let (call_mean, call_p50, call_p90) = stat(&mut segs[1]);
-        let (from_mean, from_p50, from_p90) = stat(&mut segs[2]);
-        log_debug!(
-            "ApplyEffect transport x{}: into mean={}us p50={}us p90={}us | call mean={}us p50={}us p90={}us | from mean={}us p50={}us p90={}us",
-            n,
-            into_mean,
-            into_p50,
-            into_p90,
-            call_mean,
-            call_p50,
-            call_p90,
-            from_mean,
-            from_p50,
-            from_p90,
-        );
-    }
-}
-
 /// Runs planning jobs on background threads and services their GDScript callbacks. Meant as an
 /// autoload: call `submit_plan` to start a job and `process_callbacks` every frame, or no job
 /// progresses. The thread pool is created in `_ready`.
@@ -264,7 +207,6 @@ impl GdPAIPlanScheduler {
         // is what keeps them on the main thread. The answer goes directly to the engine's own
         // receiver; the engine reads it on its next step.
         let mut jobs_with_responses = HashSet::new();
-        let mut effect_timings = EffectTransportTimings::default();
         let mut effect_fallbacks_this_frame = 0u64;
         for job in self.active_jobs.iter_mut().filter(|j| !j.done) {
             while let Ok(req) = job.request_rx.try_recv() {
@@ -272,8 +214,7 @@ impl GdPAIPlanScheduler {
                     effect_fallbacks_this_frame += 1;
                 }
                 let callable = &job.callable_registry[req.callable_id];
-                let response =
-                    dispatch_callback(callable, req.kind, &req.bindings, &mut effect_timings);
+                let response = dispatch_callback(callable, req.kind, &req.bindings);
 
                 let _ = req.response_tx.send(PlannerCallback {
                     request_id: req.request_id,
@@ -284,7 +225,6 @@ impl GdPAIPlanScheduler {
             }
         }
         self.effect_callback_fallbacks += effect_fallbacks_this_frame;
-        effect_timings.log_summary();
         let ir_hits = self.effect_ir_hits.load(Ordering::Relaxed);
         let trips = self.effect_fallback_trips.load(Ordering::Relaxed);
         if (ir_hits, self.effect_callback_fallbacks, trips) != self.last_dispatch_log {
@@ -994,7 +934,6 @@ fn dispatch_callback(
     callable: &Callable,
     kind: CallbackKind,
     bindings: &[(String, Vec<VariantSnapshot>)],
-    timings: &mut EffectTransportTimings,
 ) -> CallbackResponse {
     match kind {
         CallbackKind::GetCost { agent, world } => {
@@ -1021,33 +960,16 @@ fn dispatch_callback(
             CallbackResponse::Float(cost)
         }
         CallbackKind::ApplyEffect { agent, world } => {
-            // Log-gated transport timers: one level check gates all three `Instant`s, so
-            // the default level pays a single atomic load per effect.
-            let timed = crate::logger::get_log_level() >= crate::logger::LogLevel::Debug;
-            let t_into = timed.then(std::time::Instant::now);
             let mut bb_agent = agent.into_blackboard();
             let bb_world = world.into_blackboard();
 
             inject_bindings_into_agent(&mut bb_agent, bindings);
 
-            let t_call = timed.then(std::time::Instant::now);
             let args = vec![bb_agent.to_variant(), bb_world.to_variant()];
             callable.call(&args);
 
-            let t_from = timed.then(std::time::Instant::now);
             let new_agent = Arc::new(BlackboardSnapshot::patch_from(&agent, &bb_agent.bind()));
             let new_world = Arc::new(BlackboardSnapshot::patch_from(&world, &bb_world.bind()));
-            if timed {
-                let t_end = std::time::Instant::now();
-                let us = |a: std::time::Instant, b: std::time::Instant| {
-                    b.duration_since(a).as_micros() as u64
-                };
-                timings.record(
-                    us(t_into.unwrap(), t_call.unwrap()),
-                    us(t_call.unwrap(), t_from.unwrap()),
-                    us(t_from.unwrap(), t_end),
-                );
-            }
             CallbackResponse::UpdatedSnapshots(new_agent, new_world)
         }
         CallbackKind::EvalCustomPrecond { agent, world } => {
