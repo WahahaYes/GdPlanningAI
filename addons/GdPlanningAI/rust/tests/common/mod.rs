@@ -85,7 +85,6 @@ pub fn inputs(
         request_tx,
         cancel_flag: Arc::default(),
         effect_ir_hits: Arc::new(AtomicU64::new(0)),
-        effect_fallback_budget: 100_000,
         effect_fallback_trips: Arc::new(AtomicU64::new(0)),
     }
 }

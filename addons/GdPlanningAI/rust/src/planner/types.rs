@@ -4,6 +4,7 @@
 //! tagged with its consumer's chain position so [`PlanBranch::insert_action_at`] can shift them.
 //! [`SearchContext`] holds what all branches share: specs, initial snapshots, channels and caches.
 
+use super::engine::EngineConfig;
 use crate::plan_types::*;
 use crate::requirement::{ProvisionSpec, RequirementSpec};
 use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
@@ -206,6 +207,8 @@ pub struct SearchContext {
 
 impl SearchContext {
     /// Builds the context for one job with empty discovery caches and the provision index.
+    /// The fallback budget comes from `config`, so [`EngineConfig`] stays the single
+    /// source of truth.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         actions: Vec<ActionSpec>,
@@ -215,7 +218,7 @@ impl SearchContext {
         request_tx: Sender<CallbackRequest>,
         engine_response_tx: Sender<PlannerCallback>,
         effect_ir_hits: Arc<AtomicU64>,
-        effect_fallback_budget: usize,
+        config: &EngineConfig,
         effect_fallback_trips: Arc<AtomicU64>,
     ) -> Self {
         // Which actions provide a given binding / fact / wildcard fact name. Wildcard actions are
@@ -264,7 +267,7 @@ impl SearchContext {
             non_wildcard_actions,
             effect_ir_hits,
             effect_ir_timings: std::sync::Mutex::new(Vec::new()),
-            effect_fallback_budget,
+            effect_fallback_budget: config.max_effect_fallbacks,
             effect_fallback_count: AtomicU64::new(0),
             effect_fallback_trips,
             effect_fallback_warned: AtomicBool::new(false),

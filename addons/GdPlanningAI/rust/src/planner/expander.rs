@@ -577,7 +577,7 @@ mod tests {
             req_tx,
             engine_tx,
             Arc::new(AtomicU64::new(0)),
-            128,
+            &crate::planner::EngineConfig::default(),
             Arc::new(AtomicU64::new(0)),
         ));
 

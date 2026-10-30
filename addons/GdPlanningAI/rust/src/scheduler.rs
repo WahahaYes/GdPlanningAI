@@ -659,9 +659,9 @@ fn spawn_engine_step(
 }
 
 /// Builds one submission's engine inputs and config from submit-time data. Budgets are
-/// clamped as documented on [`GdPAIPlanScheduler::submit_plan`]; the inputs' fallback
-/// budget always comes from the returned config's `max_effect_fallbacks`, so `EngineConfig`
-/// stays the single source of truth (see [`EngineInputs::effect_fallback_budget`]).
+/// clamped as documented on [`GdPAIPlanScheduler::submit_plan`]; the fallback budget
+/// lives only in the returned config's `max_effect_fallbacks`, so `EngineConfig`
+/// stays the single source of truth.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn engine_parts_for_submit(
     actions: Vec<ActionSpec>,
@@ -718,7 +718,6 @@ pub(crate) fn engine_parts_for_submit(
         request_tx,
         cancel_flag,
         effect_ir_hits,
-        effect_fallback_budget: engine_config.max_effect_fallbacks,
         effect_fallback_trips,
     };
     (inputs, engine_config)
@@ -1155,10 +1154,10 @@ mod tests {
     use std::sync::Arc;
     use std::sync::atomic::AtomicU64;
 
-    /// submit_plan's wiring lives in `engine_parts_for_submit`, which this pins: the inputs'
-    /// fallback budget always equals the returned config's, and the engine carries that
-    /// configured value into its search context. submit_plan itself needs live Godot
-    /// blackboards and callables, so it cannot run in a Rust unit test.
+    /// submit_plan's wiring lives in `engine_parts_for_submit`, which this pins: the
+    /// engine carries the configured fallback budget into its search context.
+    /// submit_plan itself needs live Godot blackboards and callables, so it cannot
+    /// run in a Rust unit test.
     #[test]
     fn submit_wiring_threads_configured_fallback_budget() {
         let empty_snapshot = || BlackboardSnapshot {
@@ -1181,11 +1180,7 @@ mod tests {
             7,
         );
         assert_eq!(
-            inputs.effect_fallback_budget, config.max_effect_fallbacks,
-            "inputs budget comes from the config"
-        );
-        assert_eq!(
-            inputs.effect_fallback_budget, 7,
+            config.max_effect_fallbacks, 7,
             "custom budget flows through the wiring"
         );
         let engine = PlannerEngine::new(inputs, config);
@@ -1210,12 +1205,13 @@ mod tests {
             -5,
         );
         assert_eq!(
-            inputs.effect_fallback_budget, 0,
-            "negative budget clamps to 0"
-        );
-        assert_eq!(
             config.max_effect_fallbacks, 0,
             "negative budget clamps to 0 in the config"
+        );
+        let engine = PlannerEngine::new(inputs, config);
+        assert_eq!(
+            engine.ctx.effect_fallback_budget, 0,
+            "the clamped value reaches the search context"
         );
         assert_eq!(
             EngineConfig::default().max_effect_fallbacks,

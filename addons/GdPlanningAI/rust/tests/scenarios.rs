@@ -457,6 +457,9 @@ fn run(case: &Case) -> Result<(), String> {
     if case.first_complete {
         config.termination = TerminationStrategy::FirstComplete;
     }
+    // Scenario TOMLs predate the fallback budget; keep them effectively uncapped so
+    // only the dedicated budget tests exercise the cap.
+    config.max_effect_fallbacks = 100_000;
     let mut engine = PlannerEngine::new(
         EngineInputs {
             actions,
@@ -470,7 +473,6 @@ fn run(case: &Case) -> Result<(), String> {
             request_tx: host(answers),
             cancel_flag: Arc::default(),
             effect_ir_hits: Arc::new(AtomicU64::new(0)),
-            effect_fallback_budget: 100_000,
             effect_fallback_trips: Arc::new(AtomicU64::new(0)),
         },
         config,

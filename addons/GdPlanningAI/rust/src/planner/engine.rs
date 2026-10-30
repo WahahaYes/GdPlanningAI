@@ -120,10 +120,6 @@ pub struct EngineInputs {
     pub cancel_flag: Arc<AtomicBool>,
     /// Counts native effect applications for the scheduler's dispatch stats.
     pub effect_ir_hits: Arc<AtomicU64>,
-    /// Per-job cap on GDScript effect fallbacks. Always populated from
-    /// [`EngineConfig::max_effect_fallbacks`] at the scheduler construction site, so the
-    /// config stays the single source of truth; this field is just the per-job channel.
-    pub effect_fallback_budget: usize,
     /// Jobs that tripped the fallback budget (once per job, with the warn). Shared with
     /// the scheduler for the dispatch stats dict.
     pub effect_fallback_trips: Arc<AtomicU64>,
@@ -160,7 +156,8 @@ impl Default for EngineConfig {
 
 impl PlannerEngine {
     /// Creates an engine for one job: builds the shared context (discovery caches, provision
-    /// index) and the channel the main thread answers on.
+    /// index) and the channel the main thread answers on. The fallback budget comes from
+    /// `config`, so [`EngineConfig`] stays the single source of truth.
     pub fn new(inputs: EngineInputs, config: EngineConfig) -> Self {
         let (tx, rx) = std::sync::mpsc::channel();
         let ctx = Arc::new(SearchContext::new(
@@ -171,7 +168,7 @@ impl PlannerEngine {
             inputs.request_tx,
             tx,
             inputs.effect_ir_hits,
-            inputs.effect_fallback_budget,
+            &config,
             inputs.effect_fallback_trips,
         ));
         Self {
@@ -1111,7 +1108,6 @@ mod tests {
                 request_tx,
                 cancel_flag: Arc::default(),
                 effect_ir_hits: Arc::new(AtomicU64::new(0)),
-                effect_fallback_budget: EngineConfig::default().max_effect_fallbacks,
                 effect_fallback_trips: Arc::new(AtomicU64::new(0)),
             },
             EngineConfig::default(),
@@ -1134,7 +1130,6 @@ mod tests {
                 request_tx,
                 cancel_flag: Arc::default(),
                 effect_ir_hits: Arc::new(AtomicU64::new(0)),
-                effect_fallback_budget,
                 effect_fallback_trips,
             },
             EngineConfig {

@@ -128,6 +128,9 @@ fn run_to_completion(time_slice_ms: u64, action_count: usize) -> (Option<PlanRes
             max_depth: 10,
             time_slice_ms,
             clock: fake_clock,
+            // The 300-candidate fan-out needs hundreds of fallback effects; the
+            // default 128 cap predates this test's uncapped helper budget.
+            max_effect_fallbacks: 100_000,
             ..EngineConfig::default()
         },
     );
@@ -199,6 +202,7 @@ fn cancel_returns_complete_immediately() {
         EngineConfig {
             max_depth: 10,
             time_slice_ms: 1,
+            max_effect_fallbacks: 100_000,
             ..EngineConfig::default()
         },
     );
