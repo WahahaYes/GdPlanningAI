@@ -25,6 +25,9 @@ enum PlanningStrategy {
 @export var iteration_budget: int = 20000
 ## Milliseconds per planning step before yielding; [code]0[/code] disables time-slicing.
 @export var time_slice_ms: int = 10
+## Per-search cap on GDScript effect fallbacks; branches exceeding it are dropped.
+## Matches EngineConfig.max_effect_fallbacks; negatives clamp to 0.
+@export var max_effect_fallbacks: int = 128
 ## Starting contents of the agent's blackboard.
 @export var blackboard_plan: GdPAIBlackboardPlan = GdPAIBlackboardPlan.new()
 ## Behaviors supplying the agent's goals, actions and updaters.
