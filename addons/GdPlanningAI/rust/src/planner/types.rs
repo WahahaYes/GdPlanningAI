@@ -73,8 +73,9 @@ pub struct SearchNode {
     /// The main thread's answer to the request this node was parked on, consumed by the next
     /// simulation step. Cleared once that step makes progress.
     pub callback_response: Option<CallbackResponse>,
-    /// Candidates already expanded from this node, so a repeat from discovery is ignored. Cleared
-    /// on resume.
+    /// Candidates already expanded from this node, so a repeat from discovery is ignored.
+    /// Retained across resumes; find_candidates re-runs to pick up newly-ready entries,
+    /// `contains` skips already-expanded keys.
     pub expanded_candidates: Vec<(usize, BindingMap)>,
 }
 
