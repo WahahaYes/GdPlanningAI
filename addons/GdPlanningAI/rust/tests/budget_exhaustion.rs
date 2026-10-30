@@ -11,21 +11,22 @@ use gdplanningai_rust::planner::{EngineConfig, PlannerEngine};
 use gdplanningai_rust::precondition::{PreconditionOp, PreconditionTarget};
 use gdplanningai_rust::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::sync::mpsc;
 
 fn make_agent() -> BlackboardSnapshot {
     let mut props = HashMap::new();
     props.insert("hunger".to_string(), VariantSnapshot::Int(80));
     BlackboardSnapshot {
-        properties: props,
-        objects: HashMap::new(),
+        properties: Arc::new(props),
+        objects: Arc::new(HashMap::new()),
     }
 }
 
 fn make_world() -> BlackboardSnapshot {
     BlackboardSnapshot {
-        properties: HashMap::new(),
-        objects: HashMap::new(),
+        properties: Arc::new(HashMap::new()),
+        objects: Arc::new(HashMap::new()),
     }
 }
 

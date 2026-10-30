@@ -16,6 +16,7 @@ use gdplanningai_rust::precondition::{PreconditionOp, PreconditionTarget};
 use gdplanningai_rust::requirement::{ProvisionSpec, RequirementSpec};
 use gdplanningai_rust::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /// Serializes tests that mutate the process-global log level, since cargo
 /// runs tests in one binary on multiple threads sharing that state.
@@ -25,8 +26,8 @@ fn make_agent(hunger: i64) -> BlackboardSnapshot {
     let mut props = HashMap::new();
     props.insert("hunger".to_string(), VariantSnapshot::Int(hunger));
     BlackboardSnapshot {
-        properties: props,
-        objects: HashMap::new(),
+        properties: Arc::new(props),
+        objects: Arc::new(HashMap::new()),
     }
 }
 
@@ -56,8 +57,8 @@ fn run_eat_plan_at_level(level: LogLevel) -> PlanOutcome {
 fn run_eat_plan() -> PlanOutcome {
     let agent = make_agent(80);
     let world = BlackboardSnapshot {
-        properties: HashMap::new(),
-        objects: HashMap::new(),
+        properties: Arc::new(HashMap::new()),
+        objects: Arc::new(HashMap::new()),
     };
     let food = |name: &str| ActionSpec {
         name: name.to_string(),
@@ -181,13 +182,13 @@ fn verification_requirement_failure_is_recorded_on_tree() {
     // Go To provides at_target for any object while planning, but its effect never moves the
     // agent, so replaying the plan finds the agent away from the target.
     let mut agent = make_agent(80);
-    agent.objects.insert(
+    Arc::make_mut(&mut agent.objects).insert(
         "agent_location".to_string(),
-        create_sim_object(
+        Arc::new(create_sim_object(
             "agent_location",
             vec!["GdPAILocationData"],
             vec![("position", VariantSnapshot::Int(0))],
-        ),
+        )),
     );
     let world = create_test_world(
         vec![],

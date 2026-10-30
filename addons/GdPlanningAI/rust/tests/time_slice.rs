@@ -35,15 +35,15 @@ fn make_agent() -> BlackboardSnapshot {
     let mut props = HashMap::new();
     props.insert("hunger".to_string(), VariantSnapshot::Int(80));
     BlackboardSnapshot {
-        properties: props,
-        objects: HashMap::new(),
+        properties: Arc::new(props),
+        objects: Arc::new(HashMap::new()),
     }
 }
 
 fn make_world() -> BlackboardSnapshot {
     BlackboardSnapshot {
-        properties: HashMap::new(),
-        objects: HashMap::new(),
+        properties: Arc::new(HashMap::new()),
+        objects: Arc::new(HashMap::new()),
     }
 }
 
@@ -105,11 +105,10 @@ fn spawn_callback_responder() -> mpsc::Sender<CallbackRequest> {
         CallbackKind::GetCost { .. } => CallbackResponse::Float(5.0),
         CallbackKind::ApplyEffect { mut agent, world } => {
             if req.callable_id == GET_FOOD_EFFECT {
-                agent
-                    .properties
+                Arc::make_mut(&mut Arc::make_mut(&mut agent).properties)
                     .insert("has_food".to_string(), VariantSnapshot::Bool(true));
             } else {
-                reduce_hunger(&mut agent, 60);
+                reduce_hunger(Arc::make_mut(&mut agent), 60);
             }
             CallbackResponse::UpdatedSnapshots(agent, world)
         }

@@ -19,15 +19,15 @@ fn make_agent(hunger: i64) -> BlackboardSnapshot {
     let mut props = HashMap::new();
     props.insert("hunger".to_string(), VariantSnapshot::Int(hunger));
     BlackboardSnapshot {
-        properties: props,
-        objects: HashMap::new(),
+        properties: Arc::new(props),
+        objects: Arc::new(HashMap::new()),
     }
 }
 
 fn make_world() -> BlackboardSnapshot {
     BlackboardSnapshot {
-        properties: HashMap::new(),
-        objects: HashMap::new(),
+        properties: Arc::new(HashMap::new()),
+        objects: Arc::new(HashMap::new()),
     }
 }
 

@@ -8,10 +8,12 @@
 
 use crate::snapshot::{BlackboardSnapshot, SimObjectData, VariantSnapshot};
 use godot::prelude::*;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /// Where a value-writing op stores its result.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum EffectTarget {
     /// An agent blackboard property.
     AgentProp {
@@ -28,7 +30,7 @@ pub enum EffectTarget {
 }
 
 /// Where a `Copy` reads its value from.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum CopySource {
     /// A property of the world object with this uid.
     ObjectProp {
@@ -47,7 +49,7 @@ pub enum CopySource {
 }
 
 /// Where a `Copy` writes its value to.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum CopyDest {
     /// An agent blackboard property.
     AgentProp {
@@ -71,7 +73,7 @@ pub enum CopyDest {
 }
 
 /// The amount a `Dec` subtracts.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum EffectAmount {
     /// A constant.
     Direct(f64),
@@ -87,7 +89,7 @@ pub enum EffectAmount {
 }
 
 /// One declarative effect step; a spec is a list applied in order.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum EffectOp {
     /// Set the target to a Tier-1 value.
     Set {
@@ -135,7 +137,8 @@ pub enum EffectOp {
 
 /// Applies `ops` to clones of the snapshots and returns the post-state.
 ///
-/// The three property maps are cloned once; the world top-level properties are never written.
+/// Structural sharing: the three property maps are `Arc::clone`d then copy-on-write;
+/// the world top-level properties are never written, so that [`Arc`] is shared outright.
 /// Bindings are injected into the agent clone first (mirroring the callback path), then each
 /// op runs in order. A `Lookup` miss aborts the remaining ops but keeps earlier ones.
 pub fn apply_effect_spec(
@@ -144,17 +147,22 @@ pub fn apply_effect_spec(
     world: &BlackboardSnapshot,
     bindings: &[(String, Vec<VariantSnapshot>)],
 ) -> (BlackboardSnapshot, BlackboardSnapshot) {
-    let mut agent_props = agent.properties.clone();
-    let mut agent_objects = agent.objects.clone();
-    let mut world_objects = world.objects.clone();
-    for (name, values) in bindings {
-        if !name.is_empty() && !values.is_empty() {
-            agent_props.insert(name.clone(), values[0].clone());
+    let mut agent_props = Arc::clone(&agent.properties);
+    let mut agent_objects = Arc::clone(&agent.objects);
+    let mut world_objects = Arc::clone(&world.objects);
+    {
+        let agent_props_mut = Arc::make_mut(&mut agent_props);
+        let agent_objects_mut = Arc::make_mut(&mut agent_objects);
+        let world_objects_mut = Arc::make_mut(&mut world_objects);
+        for (name, values) in bindings {
+            if !name.is_empty() && !values.is_empty() {
+                agent_props_mut.insert(name.clone(), values[0].clone());
+            }
         }
-    }
-    for op in ops {
-        if !op.apply_to(&mut agent_props, &mut agent_objects, &mut world_objects) {
-            break;
+        for op in ops {
+            if !op.apply_to(agent_props_mut, agent_objects_mut, world_objects_mut) {
+                break;
+            }
         }
     }
     (
@@ -163,7 +171,7 @@ pub fn apply_effect_spec(
             objects: agent_objects,
         },
         BlackboardSnapshot {
-            properties: world.properties.clone(),
+            properties: Arc::clone(&world.properties),
             objects: world_objects,
         },
     )
@@ -234,11 +242,14 @@ impl EffectTarget {
     fn resolve_existing<'a>(
         &self,
         agent_props: &'a mut HashMap<String, VariantSnapshot>,
-        world_objects: &'a mut HashMap<String, SimObjectData>,
+        world_objects: &'a mut HashMap<String, Arc<SimObjectData>>,
     ) -> Option<&'a mut VariantSnapshot> {
         match self {
             Self::AgentProp { prop } => agent_props.get_mut(prop),
-            Self::ObjectProp { uid, prop } => world_objects.get_mut(uid)?.properties.get_mut(prop),
+            Self::ObjectProp { uid, prop } => {
+                let obj = Arc::make_mut(world_objects.get_mut(uid)?);
+                Arc::make_mut(&mut obj.properties).get_mut(prop)
+            }
         }
     }
 
@@ -247,7 +258,7 @@ impl EffectTarget {
     fn resolve_or_create<'a>(
         &self,
         agent_props: &'a mut HashMap<String, VariantSnapshot>,
-        world_objects: &'a mut HashMap<String, SimObjectData>,
+        world_objects: &'a mut HashMap<String, Arc<SimObjectData>>,
     ) -> Option<&'a mut VariantSnapshot> {
         match self {
             Self::AgentProp { prop } => Some(
@@ -256,7 +267,8 @@ impl EffectTarget {
                     .or_insert(VariantSnapshot::Nil),
             ),
             Self::ObjectProp { uid, prop } => world_objects.get_mut(uid).map(|obj| {
-                obj.properties
+                let obj_mut = Arc::make_mut(obj);
+                Arc::make_mut(&mut obj_mut.properties)
                     .entry(prop.clone())
                     .or_insert(VariantSnapshot::Nil)
             }),
@@ -283,7 +295,7 @@ impl CopySource {
     fn read(
         &self,
         agent_props: &HashMap<String, VariantSnapshot>,
-        world_objects: &HashMap<String, SimObjectData>,
+        world_objects: &HashMap<String, Arc<SimObjectData>>,
     ) -> Option<VariantSnapshot> {
         match self {
             Self::ObjectProp { uid, prop } => world_objects.get(uid)?.properties.get(prop).cloned(),
@@ -327,8 +339,8 @@ impl CopyDest {
         &self,
         value: VariantSnapshot,
         agent_props: &mut HashMap<String, VariantSnapshot>,
-        agent_objects: &mut HashMap<String, SimObjectData>,
-        world_objects: &mut HashMap<String, SimObjectData>,
+        agent_objects: &mut HashMap<String, Arc<SimObjectData>>,
+        world_objects: &mut HashMap<String, Arc<SimObjectData>>,
     ) {
         match self {
             Self::AgentProp { prop } => {
@@ -342,12 +354,12 @@ impl CopyDest {
                 if let Some(uid) = uid
                     && let Some(obj) = agent_objects.get_mut(&uid)
                 {
-                    obj.properties.insert(prop.clone(), value);
+                    Arc::make_mut(&mut Arc::make_mut(obj).properties).insert(prop.clone(), value);
                 }
             }
             Self::ObjectProp { uid, prop } => {
                 if let Some(obj) = world_objects.get_mut(uid) {
-                    obj.properties.insert(prop.clone(), value);
+                    Arc::make_mut(&mut Arc::make_mut(obj).properties).insert(prop.clone(), value);
                 }
             }
         }
@@ -409,12 +421,12 @@ fn snap_as_f64(value: &VariantSnapshot) -> Option<f64> {
 /// A world object referred to by a binding value: instance id, uid string or object handle.
 fn resolve_object<'a>(
     key: &VariantSnapshot,
-    world_objects: &'a HashMap<String, SimObjectData>,
+    world_objects: &'a HashMap<String, Arc<SimObjectData>>,
 ) -> Option<&'a SimObjectData> {
     match key {
-        VariantSnapshot::ObjectRef(id) => world_objects.get(&id.to_string()),
-        VariantSnapshot::Int(id) => world_objects.get(&id.to_string()),
-        VariantSnapshot::Str(uid) => world_objects.get(uid),
+        VariantSnapshot::ObjectRef(id) => world_objects.get(&id.to_string()).map(AsRef::as_ref),
+        VariantSnapshot::Int(id) => world_objects.get(&id.to_string()).map(AsRef::as_ref),
+        VariantSnapshot::Str(uid) => world_objects.get(uid).map(AsRef::as_ref),
         _ => None,
     }
 }
@@ -476,8 +488,8 @@ impl EffectOp {
     fn apply_to(
         &self,
         agent_props: &mut HashMap<String, VariantSnapshot>,
-        agent_objects: &mut HashMap<String, SimObjectData>,
-        world_objects: &mut HashMap<String, SimObjectData>,
+        agent_objects: &mut HashMap<String, Arc<SimObjectData>>,
+        world_objects: &mut HashMap<String, Arc<SimObjectData>>,
     ) -> bool {
         match self {
             Self::Set { target, value } => {
@@ -541,11 +553,13 @@ mod tests {
 
     fn agent(props: &[(&str, VariantSnapshot)]) -> BlackboardSnapshot {
         BlackboardSnapshot {
-            properties: props
-                .iter()
-                .map(|(k, v)| (k.to_string(), v.clone()))
-                .collect(),
-            objects: HashMap::new(),
+            properties: Arc::new(
+                props
+                    .iter()
+                    .map(|(k, v)| (k.to_string(), v.clone()))
+                    .collect(),
+            ),
+            objects: Arc::new(HashMap::new()),
         }
     }
 
@@ -553,15 +567,15 @@ mod tests {
         let mut objects = HashMap::new();
         objects.insert(
             "loc".to_string(),
-            SimObjectData {
+            Arc::new(SimObjectData {
                 uid: "loc".to_string(),
                 groups: vec!["GdPAILocationData".to_string()],
-                properties: HashMap::from([("position".to_string(), position)]),
-            },
+                properties: Arc::new(HashMap::from([("position".to_string(), position)])),
+            }),
         );
         BlackboardSnapshot {
-            properties: HashMap::new(),
-            objects,
+            properties: Arc::new(HashMap::new()),
+            objects: Arc::new(objects),
         }
     }
 
@@ -569,18 +583,20 @@ mod tests {
         let mut objects = HashMap::new();
         objects.insert(
             uid.to_string(),
-            SimObjectData {
+            Arc::new(SimObjectData {
                 uid: uid.to_string(),
                 groups: vec![],
-                properties: props
-                    .iter()
-                    .map(|(k, v)| (k.to_string(), v.clone()))
-                    .collect(),
-            },
+                properties: Arc::new(
+                    props
+                        .iter()
+                        .map(|(k, v)| (k.to_string(), v.clone()))
+                        .collect(),
+                ),
+            }),
         );
         BlackboardSnapshot {
-            properties: HashMap::new(),
-            objects,
+            properties: Arc::new(HashMap::new()),
+            objects: Arc::new(objects),
         }
     }
 
@@ -895,6 +911,41 @@ mod tests {
             after_bare.objects["loc"].properties.get("position"),
             Some(&VariantSnapshot::Bytes(vec![1, 2, 3, 4])),
             "missing source leaves the agent position alone"
+        );
+    }
+
+    /// An op touching only agent props leaves every world object entry shared: the world
+    /// map is copy-on-write, so untouched entries keep their Arcs.
+    #[test]
+    fn agent_prop_op_leaves_world_object_entries_shared() {
+        let world = world_with("7", &[("fuel", float(5.0))]);
+        let agent = agent(&[("hunger", float(80.0))]);
+        let ops = vec![
+            EffectOp::Dec {
+                target: EffectTarget::AgentProp {
+                    prop: "hunger".to_string(),
+                },
+                amount: EffectAmount::Direct(25.0),
+            },
+            EffectOp::MaxFloor {
+                target: EffectTarget::AgentProp {
+                    prop: "hunger".to_string(),
+                },
+                floor: 0.0,
+            },
+        ];
+        let (after_agent, after_world) = apply_effect_spec(&ops, &agent, &world, &no_bindings());
+        assert_eq!(after_agent.properties.get("hunger"), Some(&float(55.0)));
+        assert!(
+            Arc::ptr_eq(
+                world.objects.get("7").expect("base has object 7"),
+                after_world.objects.get("7").expect("patched has object 7")
+            ),
+            "untouched world objects stay ptr_eq after an agent-prop op"
+        );
+        assert!(
+            Arc::ptr_eq(&world.properties, &after_world.properties),
+            "world top-level properties are never written, so they stay shared"
         );
     }
 

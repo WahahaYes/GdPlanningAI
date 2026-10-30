@@ -11,6 +11,7 @@ use crate::planner::types::{
 };
 use crate::requirement::{ProvisionSpec, RequirementSpec, provision_satisfies_requirement};
 use std::collections::{BTreeSet, HashMap};
+use std::sync::Arc;
 
 /// A candidate action that can potentially satisfy one or more open needs.
 pub struct Candidate {
@@ -101,8 +102,8 @@ fn lookup_or_start_discovery(
     match simulate_action(
         action_idx,
         SimArgs {
-            agent: &ctx.initial_agent,
-            world: &ctx.initial_world,
+            agent: Arc::clone(&ctx.initial_agent),
+            world: Arc::clone(&ctx.initial_world),
             ctx,
             response: None,
             branch_action_costs: &mut cost_cache,
@@ -112,8 +113,8 @@ fn lookup_or_start_discovery(
     ) {
         StepResult::Ready(res) => {
             let disc_res = DiscoveryResult {
-                agent: res.agent,
-                world: res.world,
+                agent: Arc::new(res.agent),
+                world: Arc::new(res.world),
                 cost: res.cost,
             };
             let mut cache = ctx.discovery_results.lock().unwrap();
@@ -530,8 +531,8 @@ mod tests {
 
     fn empty_snapshot() -> BlackboardSnapshot {
         BlackboardSnapshot {
-            properties: HashMap::new(),
-            objects: HashMap::new(),
+            properties: Arc::new(HashMap::new()),
+            objects: Arc::new(HashMap::new()),
         }
     }
 
@@ -575,6 +576,8 @@ mod tests {
             vec![],
             req_tx,
             engine_tx,
+            Arc::new(AtomicU64::new(0)),
+            128,
             Arc::new(AtomicU64::new(0)),
         ));
 

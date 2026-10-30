@@ -11,7 +11,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
-use std::sync::atomic::AtomicU64;
+use std::sync::atomic::{AtomicBool, AtomicU64};
 use std::sync::mpsc::Sender;
 
 use std::cmp::Ordering;
@@ -190,10 +190,23 @@ pub struct SearchContext {
     /// Per-effect native application times in microseconds, drained per step for the debug
     /// summary. Only filled at debug log level.
     pub effect_ir_timings: std::sync::Mutex<Vec<u64>>,
+    /// Per-job cap on GDScript effect fallbacks. The ApplyEffect send site checks this
+    /// before firing: at or over budget the requesting branch goes `Invalid`.
+    pub effect_fallback_budget: usize,
+    /// GDScript effect fallbacks used so far this job (one slot reserved atomically per
+    /// send; released if the channel is gone). Cost and custom-precondition callbacks
+    /// never touch this.
+    pub effect_fallback_count: AtomicU64,
+    /// Jobs that tripped the fallback budget (incremented once per job, with the warn).
+    /// Shared with the scheduler for the dispatch stats dict.
+    pub effect_fallback_trips: Arc<AtomicU64>,
+    /// Whether the budget-trip warning already fired this job (`log_warn` once per job).
+    pub effect_fallback_warned: AtomicBool,
 }
 
 impl SearchContext {
     /// Builds the context for one job with empty discovery caches and the provision index.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         actions: Vec<ActionSpec>,
         agent: BlackboardSnapshot,
@@ -202,6 +215,8 @@ impl SearchContext {
         request_tx: Sender<CallbackRequest>,
         engine_response_tx: Sender<PlannerCallback>,
         effect_ir_hits: Arc<AtomicU64>,
+        effect_fallback_budget: usize,
+        effect_fallback_trips: Arc<AtomicU64>,
     ) -> Self {
         // Which actions provide a given binding / fact / wildcard fact name. Wildcard actions are
         // excluded from `non_wildcard_actions` because they can only be discovered against a
@@ -249,6 +264,10 @@ impl SearchContext {
             non_wildcard_actions,
             effect_ir_hits,
             effect_ir_timings: std::sync::Mutex::new(Vec::new()),
+            effect_fallback_budget,
+            effect_fallback_count: AtomicU64::new(0),
+            effect_fallback_trips,
+            effect_fallback_warned: AtomicBool::new(false),
         }
     }
 }
@@ -257,9 +276,9 @@ impl SearchContext {
 #[derive(Clone)]
 pub struct DiscoveryResult {
     /// Agent state after simulating the action once against the initial state.
-    pub agent: BlackboardSnapshot,
+    pub agent: Arc<BlackboardSnapshot>,
     /// World state after simulating the action once against the initial state.
-    pub world: BlackboardSnapshot,
+    pub world: Arc<BlackboardSnapshot>,
     /// The action's cost in that same simulation.
     pub cost: f64,
 }

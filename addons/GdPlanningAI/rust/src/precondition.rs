@@ -12,6 +12,7 @@ use super::gdpai_blackboard::GdPAIBlackboard;
 use crate::plan_types::PreconditionSpec;
 use crate::snapshot::VariantSnapshot;
 use godot::prelude::*;
+use serde::{Deserialize, Serialize};
 
 /// Main-thread precondition evaluator holding live Godot values; the planner uses
 /// [`PreconditionSpec`] instead.
@@ -30,7 +31,7 @@ pub struct PreconditionHandler {
 }
 
 /// Where to evaluate a precondition.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum PreconditionTarget {
     /// The agent's own blackboard.
     Agent,
@@ -46,7 +47,7 @@ pub enum PreconditionTarget {
 }
 
 /// Types of precondition operations.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum PreconditionOp {
     /// The property exists.
     HasProperty,

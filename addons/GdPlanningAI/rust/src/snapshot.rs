@@ -8,12 +8,14 @@
 use crate::gdpai_blackboard::GdPAIBlackboard;
 use crate::sim_object_proxy::SimObjectProxy;
 use godot::prelude::*;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 /// Send-safe mirror of a Godot [`Variant`]: primitives as Rust values, live objects as
 /// instance-id handles, and everything else as opaque `var_to_bytes` blobs the planner can
 /// compare but not inspect.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum VariantSnapshot {
     /// A nil variant (also the fallback when a value cannot be serialised).
     Nil,
@@ -130,7 +132,8 @@ impl VariantSnapshot {
 }
 
 /// Send-safe mirror of [`SimObjectProxy`].
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(from = "SimObjectDataShadow", into = "SimObjectDataShadow")]
 pub struct SimObjectData {
     /// The source node's instance id as a string; also this object's key in
     /// [`BlackboardSnapshot::objects`].
@@ -138,20 +141,89 @@ pub struct SimObjectData {
     /// Group names the source node belongs to.
     pub groups: Vec<String>,
     /// The simulation-relevant properties the object exposed at snapshot time.
-    pub properties: HashMap<String, VariantSnapshot>,
+    /// Shared structurally: untouched objects keep the same [`Arc`] across patches.
+    pub properties: Arc<HashMap<String, VariantSnapshot>>,
+}
+
+/// Serde shadow of [`SimObjectData`]: serde implements `Serialize` but not `Deserialize`
+/// for `Arc`, so snapshots cross the JSON boundary (probe capture/replay) unshared and are
+/// re-wrapped on load.
+#[derive(Serialize, Deserialize)]
+struct SimObjectDataShadow {
+    uid: String,
+    groups: Vec<String>,
+    properties: HashMap<String, VariantSnapshot>,
+}
+
+impl From<SimObjectDataShadow> for SimObjectData {
+    fn from(shadow: SimObjectDataShadow) -> Self {
+        Self {
+            uid: shadow.uid,
+            groups: shadow.groups,
+            properties: Arc::new(shadow.properties),
+        }
+    }
+}
+
+impl From<SimObjectData> for SimObjectDataShadow {
+    fn from(data: SimObjectData) -> Self {
+        Self {
+            uid: data.uid,
+            groups: data.groups,
+            properties: (*data.properties).clone(),
+        }
+    }
 }
 
 /// Send-safe mirror of [`GdPAIBlackboard`].
 ///
 /// The planner thread operates exclusively on these. The
 /// `GDPAI_OBJECTS` key is excluded from `properties`; world objects live
-/// in `objects` as [`SimObjectData`].
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// in `objects` as [`SimObjectData`]. Both maps are structurally shared behind
+/// [`Arc`]: cloning a snapshot bumps refcounts, and patches copy-on-write only
+/// the maps they touch.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(from = "BlackboardSnapshotShadow", into = "BlackboardSnapshotShadow")]
 pub struct BlackboardSnapshot {
     /// Plain properties of the blackboard.
-    pub properties: HashMap<String, VariantSnapshot>,
+    pub properties: Arc<HashMap<String, VariantSnapshot>>,
     /// World objects keyed by uid (instance id as a string).
-    pub objects: HashMap<String, SimObjectData>,
+    pub objects: Arc<HashMap<String, Arc<SimObjectData>>>,
+}
+
+/// Serde shadow of [`BlackboardSnapshot`]: see [`SimObjectDataShadow`].
+#[derive(Serialize, Deserialize)]
+struct BlackboardSnapshotShadow {
+    properties: HashMap<String, VariantSnapshot>,
+    objects: HashMap<String, SimObjectData>,
+}
+
+impl From<BlackboardSnapshotShadow> for BlackboardSnapshot {
+    fn from(shadow: BlackboardSnapshotShadow) -> Self {
+        Self {
+            properties: Arc::new(shadow.properties),
+            objects: Arc::new(
+                shadow
+                    .objects
+                    .into_iter()
+                    .map(|(uid, obj)| (uid, Arc::new(obj)))
+                    .collect(),
+            ),
+        }
+    }
+}
+
+impl From<BlackboardSnapshot> for BlackboardSnapshotShadow {
+    fn from(snap: BlackboardSnapshot) -> Self {
+        Self {
+            properties: (*snap.properties).clone(),
+            objects: snap
+                .objects
+                .iter()
+                .map(|(uid, obj)| (uid.clone(), (**obj).clone()))
+                .collect(),
+        }
+    }
 }
 
 impl BlackboardSnapshot {
@@ -160,17 +232,18 @@ impl BlackboardSnapshot {
         self.objects
             .values()
             .find(|obj| obj.groups.contains(&group.to_string()))
+            .map(|arc| arc.as_ref())
     }
 
     /// Returns the object with the given Godot instance ID, if any. Object-valued
     /// properties (`ObjectRef`) are resolved to world objects through this.
     pub fn get_object_by_instance_id(&self, id: i64) -> Option<&SimObjectData> {
-        self.objects.get(&id.to_string())
+        self.objects.get(&id.to_string()).map(|arc| arc.as_ref())
     }
 
     /// Snapshots a live blackboard. Main thread only; `GDPAI_OBJECTS` is carried by `objects`.
     pub fn from_blackboard(bb: &GdPAIBlackboard) -> Self {
-        let properties = bb
+        let properties: HashMap<String, VariantSnapshot> = bb
             .properties
             .iter()
             .filter(|(k, _)| k.as_str() != "GDPAI_OBJECTS")
@@ -180,7 +253,7 @@ impl BlackboardSnapshot {
             })
             .collect();
 
-        let objects = bb
+        let objects: HashMap<String, Arc<SimObjectData>> = bb
             .objects
             .iter()
             .map(|(uid, proxy)| {
@@ -188,19 +261,20 @@ impl BlackboardSnapshot {
                 let obj = SimObjectData {
                     uid: p.uid.clone(),
                     groups: p.groups.clone(),
-                    properties: p
-                        .properties
-                        .iter()
-                        .map(|(k, v)| (k.clone(), VariantSnapshot::from_variant(v)))
-                        .collect(),
+                    properties: Arc::new(
+                        p.properties
+                            .iter()
+                            .map(|(k, v)| (k.clone(), VariantSnapshot::from_variant(v)))
+                            .collect(),
+                    ),
                 };
-                (uid.clone(), obj)
+                (uid.clone(), Arc::new(obj))
             })
             .collect();
 
         Self {
-            properties,
-            objects,
+            properties: Arc::new(properties),
+            objects: Arc::new(objects),
         }
     }
 
@@ -219,7 +293,7 @@ impl BlackboardSnapshot {
                 .map(|(k, v)| (k.clone(), v.to_variant()))
                 .collect();
 
-            for (uid, obj_data) in &self.objects {
+            for (uid, obj_data) in self.objects.iter() {
                 let mut proxy = SimObjectProxy::new_gd();
                 {
                     let mut p = proxy.bind_mut();
@@ -284,81 +358,112 @@ impl BlackboardSnapshot {
         objects_dirty: &HashSet<String>,
         encode: impl Fn(&V) -> VariantSnapshot,
     ) -> BlackboardSnapshot {
-        let mut properties = base.properties.clone();
-        patch_map(
-            &base.properties,
-            &mut properties,
-            live_props,
-            props_dirty,
-            &encode,
-        );
-        // Mirror from_blackboard: GDPAI_OBJECTS is carried by objects, never properties.
-        properties.remove("GDPAI_OBJECTS");
-
-        let mut objects = base.objects.clone();
-        // Presence first: base objects missing from the live board are erased, even when
-        // nobody flagged them — live wins so patch matches a full re-snapshot.
-        objects.retain(|uid, _| live_objects.contains_key(uid));
-        let no_base_props = HashMap::new();
-        for (uid, live) in live_objects {
-            if objects_dirty.contains(uid) || !live.dirty.is_empty() {
-                let entry = objects.entry(uid.clone()).or_insert_with(|| SimObjectData {
-                    uid: live.uid.to_string(),
-                    groups: live.groups.to_vec(),
-                    properties: HashMap::new(),
-                });
-                entry.uid = live.uid.to_string();
-                entry.groups = live.groups.to_vec();
-                let base_props = base
-                    .objects
-                    .get(uid)
-                    .map(|obj| &obj.properties)
-                    .unwrap_or(&no_base_props);
+        // Structural sharing: clone the Arcs (refcount bumps), then copy-on-write the
+        // maps before patching. Untouched entries keep their inner Arcs, so untouched
+        // objects stay `ptr_eq` with the base after the patch. A fully untouched patch
+        // skips the copy entirely and shares the top-level maps too (see below).
+        let properties = if props_dirty.is_empty()
+            && aliased_keys(&base.properties).next().is_none()
+            && !base.properties.contains_key("GDPAI_OBJECTS")
+        {
+            // Nothing dirty, no aliasing cover, and no reserved key to strip: the patched
+            // map would equal the base one, so share its Arc instead of cloning.
+            Arc::clone(&base.properties)
+        } else {
+            let mut properties = Arc::clone(&base.properties);
+            {
+                let props_mut = Arc::make_mut(&mut properties);
                 patch_map(
-                    base_props,
-                    &mut entry.properties,
-                    live.properties,
-                    live.dirty,
+                    &base.properties,
+                    props_mut,
+                    live_props,
+                    props_dirty,
                     &encode,
                 );
-                // Rebuilt proxies only mark current keys dirty, so prune keys the live
-                // proxy dropped; otherwise stale Tier-1 entries survive from the base clone.
-                if objects_dirty.contains(uid) {
-                    entry
-                        .properties
-                        .retain(|key, _| live.properties.contains_key(key));
-                }
-            } else if let Some(entry) = objects.get_mut(uid) {
-                // Untouched proxy: only the aliasing cover can change anything. Collect the
-                // keys first so the base scan and the mutation do not alias.
-                let aliased: Vec<String> = aliased_keys(&entry.properties).cloned().collect();
-                for key in &aliased {
-                    match live.properties.get(key) {
-                        Some(v) => {
-                            entry.properties.insert(key.clone(), encode(v));
+                // Mirror from_blackboard: GDPAI_OBJECTS is carried by objects, never properties.
+                props_mut.remove("GDPAI_OBJECTS");
+            }
+            properties
+        };
+
+        let objects = if objects_untouched(base, live_objects, objects_dirty) {
+            // No presence change, nothing flagged, no per-proxy dirt and no aliasing cover:
+            // every entry would be skipped in place, so share the base map outright.
+            Arc::clone(&base.objects)
+        } else {
+            let mut objects = Arc::clone(&base.objects);
+            {
+                let objects_mut = Arc::make_mut(&mut objects);
+                // Presence first: base objects missing from the live board are erased, even when
+                // nobody flagged them — live wins so patch matches a full re-snapshot.
+                objects_mut.retain(|uid, _| live_objects.contains_key(uid));
+                let no_base_props: HashMap<String, VariantSnapshot> = HashMap::new();
+                for (uid, live) in live_objects {
+                    if objects_dirty.contains(uid) || !live.dirty.is_empty() {
+                        let arc_entry = objects_mut.entry(uid.clone()).or_insert_with(|| {
+                            Arc::new(SimObjectData {
+                                uid: live.uid.to_string(),
+                                groups: live.groups.to_vec(),
+                                properties: Arc::new(HashMap::new()),
+                            })
+                        });
+                        let entry = Arc::make_mut(arc_entry);
+                        entry.uid = live.uid.to_string();
+                        entry.groups = live.groups.to_vec();
+                        let base_props = base
+                            .objects
+                            .get(uid)
+                            .map(|obj| &*obj.properties)
+                            .unwrap_or(&no_base_props);
+                        let props_mut = Arc::make_mut(&mut entry.properties);
+                        patch_map(base_props, props_mut, live.properties, live.dirty, &encode);
+                        // Rebuilt proxies only mark current keys dirty, so prune keys the live
+                        // proxy dropped; otherwise stale Tier-1 entries survive from the base clone.
+                        if objects_dirty.contains(uid) {
+                            props_mut.retain(|key, _| live.properties.contains_key(key));
                         }
-                        None => {
-                            entry.properties.remove(key);
+                    } else if let Some(arc_entry) = objects_mut.get_mut(uid) {
+                        // Untouched proxy: only the aliasing cover can change anything. When no
+                        // aliased keys exist the Arc stays shared (ptr_eq with base). Collect the
+                        // keys first so the base scan and the mutation do not alias.
+                        let aliased: Vec<String> =
+                            aliased_keys(&arc_entry.properties).cloned().collect();
+                        if aliased.is_empty() {
+                            continue;
                         }
+                        let entry = Arc::make_mut(arc_entry);
+                        let props_mut = Arc::make_mut(&mut entry.properties);
+                        for key in &aliased {
+                            match live.properties.get(key) {
+                                Some(v) => {
+                                    props_mut.insert(key.clone(), encode(v));
+                                }
+                                None => {
+                                    props_mut.remove(key);
+                                }
+                            }
+                        }
+                    } else {
+                        // A live object the base never had and nobody flagged cannot arise through
+                        // the marking mutators; snapshot it fully so live still wins.
+                        objects_mut.insert(
+                            uid.clone(),
+                            Arc::new(SimObjectData {
+                                uid: live.uid.to_string(),
+                                groups: live.groups.to_vec(),
+                                properties: Arc::new(
+                                    live.properties
+                                        .iter()
+                                        .map(|(k, v)| (k.clone(), encode(v)))
+                                        .collect(),
+                                ),
+                            }),
+                        );
                     }
                 }
-            } else {
-                // A live object the base never had and nobody flagged cannot arise through
-                // the marking mutators; snapshot it fully so live still wins.
-                objects.insert(
-                    uid.clone(),
-                    SimObjectData {
-                        uid: live.uid.to_string(),
-                        groups: live.groups.to_vec(),
-                        properties: live
-                            .properties
-                            .iter()
-                            .map(|(k, v)| (k.clone(), encode(v)))
-                            .collect(),
-                    },
-                );
             }
-        }
+            objects
+        };
         BlackboardSnapshot {
             properties,
             objects,
@@ -417,6 +522,25 @@ fn patch_map<V>(
     }
 }
 
+/// True when no object entry can change: nothing flagged, the live key set matches the
+/// base one, no proxy reports dirt, and no base object needs the aliasing cover. The
+/// caller then shares the base objects map outright instead of cloning it.
+fn objects_untouched<V>(
+    base: &BlackboardSnapshot,
+    live_objects: &HashMap<String, LiveObject<'_, V>>,
+    objects_dirty: &HashSet<String>,
+) -> bool {
+    objects_dirty.is_empty()
+        && live_objects.len() == base.objects.len()
+        && live_objects.iter().all(|(uid, live)| {
+            live.dirty.is_empty()
+                && base
+                    .objects
+                    .get(uid)
+                    .is_some_and(|obj| aliased_keys(&obj.properties).next().is_none())
+        })
+}
+
 /// Keys whose base snapshot needs the aliasing cover: [`VariantSnapshot::Bytes`] and
 /// [`VariantSnapshot::Array`] values may share storage with GDScript-side handles.
 fn aliased_keys(base: &HashMap<String, VariantSnapshot>) -> impl Iterator<Item = &String> + '_ {
@@ -472,11 +596,11 @@ mod tests {
 
     fn base_snapshot(
         properties: HashMap<String, VariantSnapshot>,
-        objects: HashMap<String, SimObjectData>,
+        objects: HashMap<String, Arc<SimObjectData>>,
     ) -> BlackboardSnapshot {
         BlackboardSnapshot {
-            properties,
-            objects,
+            properties: Arc::new(properties),
+            objects: Arc::new(objects),
         }
     }
 
@@ -545,7 +669,7 @@ mod tests {
         // `gone` erases without encoding; `cfg` encodes once despite also matching
         // the aliasing cover; untouched Tier 1 `a` is reused.
         assert_eq!(
-            patched.properties,
+            *patched.properties,
             snaps(&[
                 ("a", VariantSnapshot::Int(1)),
                 ("b", VariantSnapshot::Int(3)),
@@ -576,7 +700,7 @@ mod tests {
             &count,
         );
         assert_eq!(
-            patched.properties,
+            *patched.properties,
             snaps(&[
                 ("keep", VariantSnapshot::Int(2)),
                 ("new", VariantSnapshot::Int(3)),
@@ -587,17 +711,17 @@ mod tests {
 
     #[test]
     fn proxy_write_encodes_only_its_dirty_key() {
-        let mut base_objects = HashMap::new();
+        let mut base_objects: HashMap<String, Arc<SimObjectData>> = HashMap::new();
         base_objects.insert(
             "7".to_string(),
-            SimObjectData {
+            Arc::new(SimObjectData {
                 uid: "7".to_string(),
                 groups: vec![],
-                properties: snaps(&[
+                properties: Arc::new(snaps(&[
                     ("fuel", VariantSnapshot::Int(5)),
                     ("wood", VariantSnapshot::Int(1)),
-                ]),
-            },
+                ])),
+            }),
         );
         let base = base_snapshot(HashMap::new(), base_objects);
         let live_props = props(&[("fuel", TestValue::Int(3)), ("wood", TestValue::Int(1))]);
@@ -613,7 +737,7 @@ mod tests {
             &count,
         );
         assert_eq!(
-            patched.objects["7"].properties,
+            *patched.objects["7"].properties,
             snaps(&[
                 ("fuel", VariantSnapshot::Int(3)),
                 ("wood", VariantSnapshot::Int(1)),
@@ -624,15 +748,15 @@ mod tests {
 
     #[test]
     fn object_rebuild_refreshes_and_prunes() {
-        let mut base_objects = HashMap::new();
+        let mut base_objects: HashMap<String, Arc<SimObjectData>> = HashMap::new();
         for (uid, fuel) in [("7", 1), ("9", 1)] {
             base_objects.insert(
                 uid.to_string(),
-                SimObjectData {
+                Arc::new(SimObjectData {
                     uid: uid.to_string(),
                     groups: vec![],
-                    properties: snaps(&[("fuel", VariantSnapshot::Int(fuel))]),
-                },
+                    properties: Arc::new(snaps(&[("fuel", VariantSnapshot::Int(fuel))])),
+                }),
             );
         }
         let base = base_snapshot(HashMap::new(), base_objects);
@@ -656,14 +780,14 @@ mod tests {
         );
         assert!(!patched.objects.contains_key("9"));
         assert_eq!(
-            patched.objects["7"].properties,
+            *patched.objects["7"].properties,
             snaps(&[
                 ("fuel", VariantSnapshot::Int(2)),
                 ("extra", VariantSnapshot::Int(3)),
             ])
         );
         assert_eq!(
-            patched.objects["11"].properties,
+            *patched.objects["11"].properties,
             snaps(&[("fuel", VariantSnapshot::Int(9))])
         );
         assert_eq!(count.get(), 3);
@@ -692,24 +816,24 @@ mod tests {
         );
         assert!(!patched.properties.contains_key("GDPAI_OBJECTS"));
         assert_eq!(
-            patched.properties,
+            *patched.properties,
             snaps(&[("hunger", VariantSnapshot::Int(1))])
         );
     }
 
     #[test]
     fn rebuilt_proxy_shrinking_keys_prunes_dropped_tier1() {
-        let mut base_objects = HashMap::new();
+        let mut base_objects: HashMap<String, Arc<SimObjectData>> = HashMap::new();
         base_objects.insert(
             "7".to_string(),
-            SimObjectData {
+            Arc::new(SimObjectData {
                 uid: "7".to_string(),
                 groups: vec![],
-                properties: snaps(&[
+                properties: Arc::new(snaps(&[
                     ("fuel", VariantSnapshot::Int(5)),
                     ("extra", VariantSnapshot::Int(9)),
-                ]),
-            },
+                ])),
+            }),
         );
         let base = base_snapshot(HashMap::new(), base_objects);
         // Rebuild shrank the proxy: mark_all_dirty marked only the surviving key.
@@ -726,7 +850,7 @@ mod tests {
             &count,
         );
         assert_eq!(
-            patched.objects["7"].properties,
+            *patched.objects["7"].properties,
             snaps(&[("fuel", VariantSnapshot::Int(5))])
         );
         assert!(!patched.objects["7"].properties.contains_key("extra"));
@@ -764,7 +888,7 @@ mod tests {
             &count,
         );
         assert_eq!(
-            patched.properties,
+            *patched.properties,
             snaps(&[
                 ("cfg", VariantSnapshot::Bytes(vec![1, 2, 3])),
                 (
@@ -780,17 +904,17 @@ mod tests {
 
     #[test]
     fn untouched_tier1_board_encodes_nothing() {
-        let mut base_objects = HashMap::new();
+        let mut base_objects: HashMap<String, Arc<SimObjectData>> = HashMap::new();
         base_objects.insert(
             "7".to_string(),
-            SimObjectData {
+            Arc::new(SimObjectData {
                 uid: "7".to_string(),
                 groups: vec!["fire".to_string()],
-                properties: snaps(&[
+                properties: Arc::new(snaps(&[
                     ("fuel", VariantSnapshot::Int(5)),
                     ("lit", VariantSnapshot::Bool(true)),
-                ]),
-            },
+                ])),
+            }),
         );
         let base = base_snapshot(
             snaps(&[
@@ -825,5 +949,22 @@ mod tests {
         );
         assert_eq!(patched, base);
         assert_eq!(count.get(), 0);
+        // Structural sharing: the untouched object keeps its Arc across the patch.
+        assert!(
+            Arc::ptr_eq(
+                base.objects.get("7").expect("base has object 7"),
+                patched.objects.get("7").expect("patched has object 7")
+            ),
+            "untouched objects stay ptr_eq after patch"
+        );
+        // A fully untouched patch shares the top-level maps too, not just their entries.
+        assert!(
+            Arc::ptr_eq(&base.properties, &patched.properties),
+            "untouched properties map stays ptr_eq after patch"
+        );
+        assert!(
+            Arc::ptr_eq(&base.objects, &patched.objects),
+            "untouched objects map stays ptr_eq after patch"
+        );
     }
 }

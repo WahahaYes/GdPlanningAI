@@ -25,8 +25,8 @@ pub fn create_test_agent(properties: Vec<(&str, VariantSnapshot)>) -> Blackboard
         props.insert(key.to_string(), value);
     }
     BlackboardSnapshot {
-        properties: props,
-        objects: HashMap::new(),
+        properties: Arc::new(props),
+        objects: Arc::new(HashMap::new()),
     }
 }
 
@@ -40,14 +40,14 @@ pub fn create_test_world(
         props.insert(key.to_string(), value);
     }
 
-    let mut objs = HashMap::new();
+    let mut objs: HashMap<String, Arc<SimObjectData>> = HashMap::new();
     for (uid, obj) in objects {
-        objs.insert(uid.to_string(), obj);
+        objs.insert(uid.to_string(), Arc::new(obj));
     }
 
     BlackboardSnapshot {
-        properties: props,
-        objects: objs,
+        properties: Arc::new(props),
+        objects: Arc::new(objs),
     }
 }
 
@@ -66,7 +66,7 @@ pub fn create_sim_object(
     SimObjectData {
         uid: uid.to_string(),
         groups: groups_vec,
-        properties: props,
+        properties: Arc::new(props),
     }
 }
 
@@ -85,6 +85,8 @@ pub fn inputs(
         request_tx,
         cancel_flag: Arc::default(),
         effect_ir_hits: Arc::new(AtomicU64::new(0)),
+        effect_fallback_budget: 100_000,
+        effect_fallback_trips: Arc::new(AtomicU64::new(0)),
     }
 }
 
@@ -111,7 +113,7 @@ pub fn spawn_responder(
 /// Lowers the agent's int `hunger` by `by`, not below 0; no-op if it has none.
 pub fn reduce_hunger(agent: &mut BlackboardSnapshot, by: i64) {
     if let Some(VariantSnapshot::Int(current)) = agent.properties.get("hunger").cloned() {
-        agent.properties.insert(
+        Arc::make_mut(&mut agent.properties).insert(
             "hunger".to_string(),
             VariantSnapshot::Int((current - by).max(0)),
         );
@@ -127,7 +129,8 @@ pub fn hunger_answers(
     move |req| match req.kind {
         CallbackKind::GetCost { .. } => CallbackResponse::Float(cost),
         CallbackKind::ApplyEffect { mut agent, world } => {
-            reduce_hunger(&mut agent, hunger_reduction);
+            let agent_mut = Arc::make_mut(&mut agent);
+            reduce_hunger(agent_mut, hunger_reduction);
             CallbackResponse::UpdatedSnapshots(agent, world)
         }
         CallbackKind::EvalCustomPrecond { .. } => CallbackResponse::Bool(true),
