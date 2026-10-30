@@ -4,6 +4,7 @@
 
 - **Built libraries are no longer in the repository.** The Linux and Windows libraries that used to sit under `addons/GdPlanningAI/bin` are gone, and a pre-commit hook and CI reject new ones. Releases carry working binaries in `GdPlanningAI-X.Y.Z.zip`; anyone using the GitHub source builds the library for their platform with `make -C addons/GdPlanningAI/rust build-release`.
 - **Plan verification makes fewer main-thread calls.** Verifying a plan reuses the first step that discovery already simulated from the agent's current state, so a plan's first action is no longer simulated twice.
+- **Blackboard effects run natively when actions declare a spec.** Effect application rebuilds only dirty blackboard properties instead of full snapshots, roughly halving hunger-class scenes in the Phase-1 bench. Actions declaring `get_effect_spec` run set/inc/dec/clamp/copy in Rust (~10-25us/effect); actions without a spec still fall back to GDScript `simulate_effect`, with zero fallback callbacks and identical plans on the `campfire_large_3d` bench. Snapshots share structure across the planner boundary instead of cloning, and each search caps GDScript effect fallbacks via `GdPAIAgentConfig.max_effect_fallbacks` (default 128) with warn-and-count. The follow-up cleanup removed ~630 lines of capture/debug scaffolding and accepts spec arrays typed or untyped; reference after the train is Hunger mean ~117ms and Maintain Fire ~81ms on `campfire_large_3d` with same plans and costs.
 
 ## 0.3.0 - 2026-10-18
 
