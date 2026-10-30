@@ -335,7 +335,7 @@ ______________________________________________________________________
 ## 8. Scheduler (`GdPAIPlanScheduler`)
 
 ```
-submit_plan(agent, agent_bb, world_bb, actions, goals, max_depth, budget, time_slice_ms):
+submit_plan(agent, agent_bb, world_bb, actions, goals, max_recursion, iteration_budget, time_slice_ms, max_effect_fallbacks):
     cancel existing jobs for agent
     snap_agent = snapshot(agent_bb); snap_world = snapshot(world_bb)
     initial_provisions = extract(agent) + extract(world)
