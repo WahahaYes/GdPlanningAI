@@ -761,21 +761,43 @@ fn build_action_specs(
 
 /// Converts the bridge's `effect_spec` arrays into native [`EffectOp`]s. A missing or empty
 /// array means "no spec" without a warning; a present-but-unparseable one warns once per action
-/// and falls back to the effect callable. The bridge always sends a typed
-/// `Array[Dictionary]` (see `gdpai_rust_bridge.gd`), so only that shape is accepted here.
+/// and falls back to the effect callable. Accepts both typed `Array[Dictionary]` (what the
+/// bridge sends) and untyped arrays of dictionaries, like [`extract_typed_specs`] does for the
+/// other spec kinds, so direct callers and future GDScript paths stay covered.
 fn parse_effect_spec(dict: &VarDictionary, action_name: &str) -> Option<Vec<EffectOp>> {
     let raw = dict.get("effect_spec")?;
     if raw.is_nil() {
         return None;
     }
-    let Ok(typed) = raw.try_to::<Array<VarDictionary>>() else {
+    let op_dicts: Vec<VarDictionary> = if let Ok(typed) = raw.try_to::<Array<VarDictionary>>() {
+        typed.iter_shared().collect()
+    } else if let Ok(untyped) = raw.try_to::<VarArray>() {
+        let mut out = Vec::with_capacity(untyped.len());
+        let mut malformed = false;
+        for item in untyped.iter_shared() {
+            match item.try_to::<VarDictionary>().ok() {
+                Some(op_dict) => out.push(op_dict),
+                None => {
+                    malformed = true;
+                    break;
+                }
+            }
+        }
+        if malformed {
+            log_warn!(
+                "Action '{}': ignoring malformed effect_spec; falling back to effect_callable",
+                action_name
+            );
+            return None;
+        }
+        out
+    } else {
         log_warn!(
             "Action '{}': ignoring malformed effect_spec; falling back to effect_callable",
             action_name
         );
         return None;
     };
-    let op_dicts: Vec<VarDictionary> = typed.iter_shared().collect();
     if op_dicts.is_empty() {
         return None;
     }
