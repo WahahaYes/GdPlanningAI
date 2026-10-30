@@ -4,7 +4,7 @@
 //! properties are Godot values.
 
 use godot::prelude::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// Read/write snapshot of a world object's simulation-relevant state.
 ///
@@ -25,6 +25,10 @@ pub struct SimObjectProxy {
     /// Simulation-relevant state, as reported by the source node's `get_sim_properties()` and
     /// then modified by simulated effects.
     pub properties: HashMap<String, Variant>,
+    /// Property keys mutated since the proxy was created. Same role as
+    /// [`crate::gdpai_blackboard::GdPAIBlackboard::dirty_props`], but per object. Never
+    /// read from GDScript.
+    pub(crate) dirty: HashSet<String>,
     base: Base<RefCounted>,
 }
 
@@ -35,8 +39,23 @@ impl IRefCounted for SimObjectProxy {
             uid: String::new(),
             groups: Vec::new(),
             properties: HashMap::new(),
+            dirty: HashSet::new(),
             base,
         }
+    }
+}
+
+impl SimObjectProxy {
+    /// Single choke point for property dirt: every mutation of [`Self::properties`] funnels
+    /// through here so diff-back never misses a key.
+    pub(crate) fn mark_dirty(&mut self, key: &str) {
+        self.dirty.insert(key.to_string());
+    }
+
+    /// Marks every current property dirty. Used when the owning blackboard rebuilds this
+    /// proxy wholesale (`GDPAI_OBJECTS`), where per-key tracking would miss the refresh.
+    pub(crate) fn mark_all_dirty(&mut self) {
+        self.dirty.extend(self.properties.keys().cloned());
     }
 }
 
@@ -71,7 +90,9 @@ impl SimObjectProxy {
     /// Sets the simulation property [param key] to [param value].
     #[func]
     pub fn set_property(&mut self, key: GString, value: Variant) {
-        self.properties.insert(key.to_string(), value);
+        let key_str = key.to_string();
+        self.mark_dirty(&key_str);
+        self.properties.insert(key_str, value);
     }
 
     /// Returns [code]true[/code] if simulation property [param key] is present.

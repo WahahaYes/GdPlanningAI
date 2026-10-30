@@ -10,7 +10,7 @@
 
 use crate::sim_object_proxy::SimObjectProxy;
 use godot::prelude::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// Key/value store for agent or world state, accessible from GDScript.
 ///
@@ -29,6 +29,13 @@ pub struct GdPAIBlackboard {
     /// Live nodes behind `objects`. Empty on simulation blackboards, so planning code cannot
     /// reach live nodes.
     pub source_objects: HashMap<String, Gd<Node>>,
+    /// Property keys mutated since the board was built. Populated only through the marking
+    /// mutators below, so [`crate::snapshot::BlackboardSnapshot::patch_from`] can re-encode
+    /// just these keys. Never read from GDScript.
+    pub(crate) dirty_props: HashSet<String>,
+    /// Object uids whose proxy — or whose presence in [`Self::objects`] — changed since the
+    /// board was built. Same consumer as [`Self::dirty_props`]. Never read from GDScript.
+    pub(crate) dirty_objects: HashSet<String>,
     base: Base<RefCounted>,
 }
 
@@ -39,8 +46,24 @@ impl IRefCounted for GdPAIBlackboard {
             properties: HashMap::new(),
             objects: HashMap::new(),
             source_objects: HashMap::new(),
+            dirty_props: HashSet::new(),
+            dirty_objects: HashSet::new(),
             base,
         }
+    }
+}
+
+impl GdPAIBlackboard {
+    /// Single choke point for property dirt: every mutation of [`Self::properties`] funnels
+    /// through here so diff-back never misses a key.
+    pub(crate) fn mark_dirty(&mut self, key: &str) {
+        self.dirty_props.insert(key.to_string());
+    }
+
+    /// Single choke point for object dirt: call whenever a proxy's contents change or an
+    /// object enters or leaves [`Self::objects`].
+    pub(crate) fn mark_object_dirty(&mut self, uid: &str) {
+        self.dirty_objects.insert(uid.to_string());
     }
 }
 
@@ -63,6 +86,7 @@ impl GdPAIBlackboard {
     pub fn set_property(&mut self, key: GString, value: Variant) {
         let key_str = key.to_string();
         if key_str == "GDPAI_OBJECTS" {
+            let old_uids: Vec<String> = self.objects.keys().cloned().collect();
             self.objects.clear();
             self.source_objects.clear();
             if let Ok(objects_array) = value.clone().try_to::<Array<Variant>>() {
@@ -85,7 +109,20 @@ impl GdPAIBlackboard {
                     }
                 }
             }
+            // The structure changed: removals (old uids) and every rebuilt proxy count as
+            // dirty, so diff-back re-snapshots them instead of trusting the base.
+            for uid in old_uids {
+                self.mark_object_dirty(&uid);
+            }
+            let new_uids: Vec<String> = self.objects.keys().cloned().collect();
+            for uid in &new_uids {
+                self.mark_object_dirty(uid);
+                if let Some(proxy) = self.objects.get(uid) {
+                    proxy.clone().bind_mut().mark_all_dirty();
+                }
+            }
         }
+        self.mark_dirty(&key_str);
         self.properties.insert(key_str, value);
     }
 
@@ -102,9 +139,14 @@ impl GdPAIBlackboard {
     pub fn erase_property(&mut self, key: GString) {
         let key_str = key.to_string();
         if key_str == "GDPAI_OBJECTS" {
+            let old_uids: Vec<String> = self.objects.keys().cloned().collect();
             self.objects.clear();
             self.source_objects.clear();
+            for uid in old_uids {
+                self.mark_object_dirty(&uid);
+            }
         }
+        self.mark_dirty(&key_str);
         self.properties.remove(&key_str);
     }
 
@@ -121,15 +163,26 @@ impl GdPAIBlackboard {
     /// Replaces all properties with those from [param dict].
     ///
     /// Equivalent to clearing the blackboard and calling [method set_property] for each entry.
+    /// Every dropped key and object stays marked dirty, so diff-back erases them too.
     #[func]
     pub fn set_dict(&mut self, dict: VarDictionary) {
+        let old_keys: Vec<String> = self.properties.keys().cloned().collect();
+        let old_uids: Vec<String> = self.objects.keys().cloned().collect();
         self.properties.clear();
         self.objects.clear();
         self.source_objects.clear();
+        self.dirty_props.clear();
+        self.dirty_objects.clear();
         for (k, v) in dict.iter_shared() {
             if let Ok(key) = k.try_to::<GString>() {
                 self.set_property(key, v);
             }
+        }
+        for key in old_keys {
+            self.mark_dirty(&key);
+        }
+        for uid in old_uids {
+            self.mark_object_dirty(&uid);
         }
     }
 
@@ -214,6 +267,7 @@ impl GdPAIBlackboard {
 
     /// Returns a copy whose properties and proxies can be changed without affecting this one.
     /// Property values are copied shallowly; live nodes are not carried over.
+    /// Dirty sets are intentionally not copied: clones start clean and are never patch_from bases.
     #[func]
     pub fn clone_for_simulation(&self) -> Gd<GdPAIBlackboard> {
         let mut new_bb = GdPAIBlackboard::new_gd();

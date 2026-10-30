@@ -8,7 +8,7 @@
 use crate::gdpai_blackboard::GdPAIBlackboard;
 use crate::sim_object_proxy::SimObjectProxy;
 use godot::prelude::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// Send-safe mirror of a Godot [`Variant`]: primitives as Rust values, live objects as
 /// instance-id handles, and everything else as opaque `var_to_bytes` blobs the planner can
@@ -205,7 +205,11 @@ impl BlackboardSnapshot {
     }
 
     /// Rebuilds a simulation blackboard (proxies, no live nodes). Main thread only.
-    pub fn into_blackboard(self) -> Gd<GdPAIBlackboard> {
+    ///
+    /// Borrows the snapshot so [`Self::patch_from`] can diff the board back onto the base
+    /// it was built from. Fresh boards start with empty dirty sets: they match the
+    /// snapshot exactly, and every later mutation goes through a marking mutator.
+    pub fn into_blackboard(&self) -> Gd<GdPAIBlackboard> {
         let mut bb = GdPAIBlackboard::new_gd();
         {
             let mut b = bb.bind_mut();
@@ -215,21 +219,611 @@ impl BlackboardSnapshot {
                 .map(|(k, v)| (k.clone(), v.to_variant()))
                 .collect();
 
-            for (uid, obj_data) in self.objects {
+            for (uid, obj_data) in &self.objects {
                 let mut proxy = SimObjectProxy::new_gd();
                 {
                     let mut p = proxy.bind_mut();
-                    p.uid = obj_data.uid;
-                    p.groups = obj_data.groups;
+                    p.uid = obj_data.uid.clone();
+                    p.groups = obj_data.groups.clone();
                     p.properties = obj_data
                         .properties
                         .iter()
                         .map(|(k, v)| (k.clone(), v.to_variant()))
                         .collect();
                 }
-                b.objects.insert(uid, proxy);
+                b.objects.insert(uid.clone(), proxy);
             }
         }
         bb
+    }
+
+    /// Diffs a mutated simulation board back onto its base snapshot. Main thread only.
+    ///
+    /// `old` is the snapshot the board was built from ([`Self::into_blackboard`]); `bb`
+    /// is that board after the effect callable ran. Clones the base maps, then re-encodes
+    /// only dirty keys plus erasures and the aliasing cover, so untouched entries pay no
+    /// `from_variant` cost. Must equal [`Self::from_blackboard`] on the same board.
+    pub fn patch_from(old: &BlackboardSnapshot, bb: &GdPAIBlackboard) -> Self {
+        let guards: HashMap<String, _> = bb
+            .objects
+            .iter()
+            .map(|(uid, proxy)| (uid.clone(), proxy.bind()))
+            .collect();
+        let live_objects: HashMap<String, LiveObject<'_, Variant>> = guards
+            .iter()
+            .map(|(uid, guard)| {
+                (
+                    uid.clone(),
+                    LiveObject {
+                        uid: &guard.uid,
+                        groups: &guard.groups,
+                        properties: &guard.properties,
+                        dirty: &guard.dirty,
+                    },
+                )
+            })
+            .collect();
+        Self::patch_with(
+            old,
+            &bb.properties,
+            &bb.dirty_props,
+            &live_objects,
+            &bb.dirty_objects,
+            VariantSnapshot::from_variant,
+        )
+    }
+
+    /// Engine-free diff core behind [`Self::patch_from`]: `encode` stands in for
+    /// [`VariantSnapshot::from_variant`], so unit tests can pin the merge logic and count
+    /// encodings without a Godot engine.
+    fn patch_with<V>(
+        base: &BlackboardSnapshot,
+        live_props: &HashMap<String, V>,
+        props_dirty: &HashSet<String>,
+        live_objects: &HashMap<String, LiveObject<'_, V>>,
+        objects_dirty: &HashSet<String>,
+        encode: impl Fn(&V) -> VariantSnapshot,
+    ) -> BlackboardSnapshot {
+        let mut properties = base.properties.clone();
+        patch_map(
+            &base.properties,
+            &mut properties,
+            live_props,
+            props_dirty,
+            &encode,
+        );
+        // Mirror from_blackboard: GDPAI_OBJECTS is carried by objects, never properties.
+        properties.remove("GDPAI_OBJECTS");
+
+        let mut objects = base.objects.clone();
+        // Presence first: base objects missing from the live board are erased, even when
+        // nobody flagged them — live wins so patch matches a full re-snapshot.
+        objects.retain(|uid, _| live_objects.contains_key(uid));
+        let no_base_props = HashMap::new();
+        for (uid, live) in live_objects {
+            if objects_dirty.contains(uid) || !live.dirty.is_empty() {
+                let entry = objects.entry(uid.clone()).or_insert_with(|| SimObjectData {
+                    uid: live.uid.to_string(),
+                    groups: live.groups.to_vec(),
+                    properties: HashMap::new(),
+                });
+                entry.uid = live.uid.to_string();
+                entry.groups = live.groups.to_vec();
+                let base_props = base
+                    .objects
+                    .get(uid)
+                    .map(|obj| &obj.properties)
+                    .unwrap_or(&no_base_props);
+                patch_map(
+                    base_props,
+                    &mut entry.properties,
+                    live.properties,
+                    live.dirty,
+                    &encode,
+                );
+                // Rebuilt proxies only mark current keys dirty, so prune keys the live
+                // proxy dropped; otherwise stale Tier-1 entries survive from the base clone.
+                if objects_dirty.contains(uid) {
+                    entry
+                        .properties
+                        .retain(|key, _| live.properties.contains_key(key));
+                }
+            } else if let Some(entry) = objects.get_mut(uid) {
+                // Untouched proxy: only the aliasing cover can change anything. Collect the
+                // keys first so the base scan and the mutation do not alias.
+                let aliased: Vec<String> = aliased_keys(&entry.properties).cloned().collect();
+                for key in &aliased {
+                    match live.properties.get(key) {
+                        Some(v) => {
+                            entry.properties.insert(key.clone(), encode(v));
+                        }
+                        None => {
+                            entry.properties.remove(key);
+                        }
+                    }
+                }
+            } else {
+                // A live object the base never had and nobody flagged cannot arise through
+                // the marking mutators; snapshot it fully so live still wins.
+                objects.insert(
+                    uid.clone(),
+                    SimObjectData {
+                        uid: live.uid.to_string(),
+                        groups: live.groups.to_vec(),
+                        properties: live
+                            .properties
+                            .iter()
+                            .map(|(k, v)| (k.clone(), encode(v)))
+                            .collect(),
+                    },
+                );
+            }
+        }
+        BlackboardSnapshot {
+            properties,
+            objects,
+        }
+    }
+}
+
+/// Engine-free view of one live world object for diff-back.
+struct LiveObject<'a, V> {
+    /// Proxy uid (the board's object-map key).
+    uid: &'a str,
+    /// Proxy groups; fixed for the proxy's lifetime.
+    groups: &'a [String],
+    /// Live simulation properties.
+    properties: &'a HashMap<String, V>,
+    /// Keys mutated since the proxy was created.
+    dirty: &'a HashSet<String>,
+}
+
+/// Merges one property map: dirty keys are re-encoded (or erased when the live board
+/// dropped them), and untouched [`VariantSnapshot::Bytes`]/[`VariantSnapshot::Array`]
+/// base entries are re-encoded as aliasing cover — GDScript may hold a shared
+/// Dictionary/Array and mutate it in place without any marking call. Tier 1 values and
+/// object handles are owned copies, so untouched ones are reused as-is.
+/// Note: a freed ObjectRef re-encodes as Nil but patch reuses the stale handle — effects must not free scene objects.
+fn patch_map<V>(
+    base: &HashMap<String, VariantSnapshot>,
+    patched: &mut HashMap<String, VariantSnapshot>,
+    live: &HashMap<String, V>,
+    dirty: &HashSet<String>,
+    encode: impl Fn(&V) -> VariantSnapshot,
+) {
+    for key in dirty {
+        match live.get(key) {
+            Some(v) => {
+                patched.insert(key.clone(), encode(v));
+            }
+            None => {
+                patched.remove(key);
+            }
+        }
+    }
+    // Dirty keys were just encoded above; re-encoding them here would double-count.
+    for key in aliased_keys(base) {
+        if dirty.contains(key) {
+            continue;
+        }
+        match live.get(key) {
+            Some(v) => {
+                patched.insert(key.clone(), encode(v));
+            }
+            None => {
+                patched.remove(key);
+            }
+        }
+    }
+}
+
+/// Keys whose base snapshot needs the aliasing cover: [`VariantSnapshot::Bytes`] and
+/// [`VariantSnapshot::Array`] values may share storage with GDScript-side handles.
+fn aliased_keys(base: &HashMap<String, VariantSnapshot>) -> impl Iterator<Item = &String> + '_ {
+    base.iter().filter_map(|(key, snap)| {
+        matches!(snap, VariantSnapshot::Bytes(_) | VariantSnapshot::Array(_)).then_some(key)
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::cell::Cell;
+
+    /// Engine-free stand-in for live values: Tier 1 ints, Tier 2 blobs, arrays.
+    #[derive(Clone, Debug, PartialEq)]
+    enum TestValue {
+        Int(i64),
+        Blob(Vec<u8>),
+        List(Vec<TestValue>),
+    }
+
+    fn encode_value(v: &TestValue) -> VariantSnapshot {
+        match v {
+            TestValue::Int(i) => VariantSnapshot::Int(*i),
+            TestValue::Blob(b) => VariantSnapshot::Bytes(b.clone()),
+            TestValue::List(items) => {
+                VariantSnapshot::Array(items.iter().map(encode_value).collect())
+            }
+        }
+    }
+
+    /// Counting encoder: stands in for `VariantSnapshot::from_variant`.
+    fn counting<'a>(count: &'a Cell<usize>) -> impl Fn(&TestValue) -> VariantSnapshot + 'a {
+        |v: &TestValue| {
+            count.set(count.get() + 1);
+            encode_value(v)
+        }
+    }
+
+    fn props(pairs: &[(&str, TestValue)]) -> HashMap<String, TestValue> {
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.clone()))
+            .collect()
+    }
+
+    fn snaps(pairs: &[(&str, VariantSnapshot)]) -> HashMap<String, VariantSnapshot> {
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.clone()))
+            .collect()
+    }
+
+    fn base_snapshot(
+        properties: HashMap<String, VariantSnapshot>,
+        objects: HashMap<String, SimObjectData>,
+    ) -> BlackboardSnapshot {
+        BlackboardSnapshot {
+            properties,
+            objects,
+        }
+    }
+
+    fn live<'a>(
+        uid: &'a str,
+        properties: &'a HashMap<String, TestValue>,
+        dirty: &'a HashSet<String>,
+    ) -> LiveObject<'a, TestValue> {
+        const GROUPS: &[String] = &[];
+        LiveObject {
+            uid,
+            groups: GROUPS,
+            properties,
+            dirty,
+        }
+    }
+
+    fn set(keys: &[&str]) -> HashSet<String> {
+        keys.iter().map(|k| k.to_string()).collect()
+    }
+
+    fn patch(
+        base: &BlackboardSnapshot,
+        live_props: &HashMap<String, TestValue>,
+        props_dirty: &HashSet<String>,
+        live_objects: &HashMap<String, LiveObject<'_, TestValue>>,
+        objects_dirty: &HashSet<String>,
+        count: &Cell<usize>,
+    ) -> BlackboardSnapshot {
+        BlackboardSnapshot::patch_with(
+            base,
+            live_props,
+            props_dirty,
+            live_objects,
+            objects_dirty,
+            counting(count),
+        )
+    }
+
+    #[test]
+    fn set_erase_and_new_key_match_live() {
+        let base = base_snapshot(
+            snaps(&[
+                ("a", VariantSnapshot::Int(1)),
+                ("b", VariantSnapshot::Int(2)),
+                ("gone", VariantSnapshot::Int(9)),
+                ("cfg", VariantSnapshot::Bytes(vec![1])),
+            ]),
+            HashMap::new(),
+        );
+        let live = props(&[
+            ("a", TestValue::Int(1)),
+            ("b", TestValue::Int(3)),
+            ("c", TestValue::Int(4)),
+            ("cfg", TestValue::Blob(vec![1, 2])),
+        ]);
+        let count = Cell::new(0);
+        let patched = patch(
+            &base,
+            &live,
+            &set(&["b", "c", "gone", "cfg"]),
+            &HashMap::new(),
+            &HashSet::new(),
+            &count,
+        );
+        // `gone` erases without encoding; `cfg` encodes once despite also matching
+        // the aliasing cover; untouched Tier 1 `a` is reused.
+        assert_eq!(
+            patched.properties,
+            snaps(&[
+                ("a", VariantSnapshot::Int(1)),
+                ("b", VariantSnapshot::Int(3)),
+                ("c", VariantSnapshot::Int(4)),
+                ("cfg", VariantSnapshot::Bytes(vec![1, 2])),
+            ])
+        );
+        assert_eq!(count.get(), 3);
+    }
+
+    #[test]
+    fn bulk_replace_marks_everything() {
+        let base = base_snapshot(
+            snaps(&[
+                ("a", VariantSnapshot::Int(1)),
+                ("keep", VariantSnapshot::Int(2)),
+            ]),
+            HashMap::new(),
+        );
+        let live = props(&[("keep", TestValue::Int(2)), ("new", TestValue::Int(3))]);
+        let count = Cell::new(0);
+        let patched = patch(
+            &base,
+            &live,
+            &set(&["a", "keep", "new"]),
+            &HashMap::new(),
+            &HashSet::new(),
+            &count,
+        );
+        assert_eq!(
+            patched.properties,
+            snaps(&[
+                ("keep", VariantSnapshot::Int(2)),
+                ("new", VariantSnapshot::Int(3)),
+            ])
+        );
+        assert_eq!(count.get(), 2);
+    }
+
+    #[test]
+    fn proxy_write_encodes_only_its_dirty_key() {
+        let mut base_objects = HashMap::new();
+        base_objects.insert(
+            "7".to_string(),
+            SimObjectData {
+                uid: "7".to_string(),
+                groups: vec![],
+                properties: snaps(&[
+                    ("fuel", VariantSnapshot::Int(5)),
+                    ("wood", VariantSnapshot::Int(1)),
+                ]),
+            },
+        );
+        let base = base_snapshot(HashMap::new(), base_objects);
+        let live_props = props(&[("fuel", TestValue::Int(3)), ("wood", TestValue::Int(1))]);
+        let proxy_dirty = set(&["fuel"]);
+        let live_objects = HashMap::from([("7".to_string(), live("7", &live_props, &proxy_dirty))]);
+        let count = Cell::new(0);
+        let patched = patch(
+            &base,
+            &HashMap::new(),
+            &HashSet::new(),
+            &live_objects,
+            &HashSet::new(),
+            &count,
+        );
+        assert_eq!(
+            patched.objects["7"].properties,
+            snaps(&[
+                ("fuel", VariantSnapshot::Int(3)),
+                ("wood", VariantSnapshot::Int(1)),
+            ])
+        );
+        assert_eq!(count.get(), 1);
+    }
+
+    #[test]
+    fn object_rebuild_refreshes_and_prunes() {
+        let mut base_objects = HashMap::new();
+        for (uid, fuel) in [("7", 1), ("9", 1)] {
+            base_objects.insert(
+                uid.to_string(),
+                SimObjectData {
+                    uid: uid.to_string(),
+                    groups: vec![],
+                    properties: snaps(&[("fuel", VariantSnapshot::Int(fuel))]),
+                },
+            );
+        }
+        let base = base_snapshot(HashMap::new(), base_objects);
+        // uid 7 rebuilt (all keys dirty), uid 11 added, uid 9 dropped.
+        let live7 = props(&[("fuel", TestValue::Int(2)), ("extra", TestValue::Int(3))]);
+        let live11 = props(&[("fuel", TestValue::Int(9))]);
+        let dirty7 = set(&["fuel", "extra"]);
+        let dirty11 = set(&["fuel"]);
+        let live_objects = HashMap::from([
+            ("7".to_string(), live("7", &live7, &dirty7)),
+            ("11".to_string(), live("11", &live11, &dirty11)),
+        ]);
+        let count = Cell::new(0);
+        let patched = patch(
+            &base,
+            &HashMap::new(),
+            &HashSet::new(),
+            &live_objects,
+            &set(&["7", "9"]),
+            &count,
+        );
+        assert!(!patched.objects.contains_key("9"));
+        assert_eq!(
+            patched.objects["7"].properties,
+            snaps(&[
+                ("fuel", VariantSnapshot::Int(2)),
+                ("extra", VariantSnapshot::Int(3)),
+            ])
+        );
+        assert_eq!(
+            patched.objects["11"].properties,
+            snaps(&[("fuel", VariantSnapshot::Int(9))])
+        );
+        assert_eq!(count.get(), 3);
+    }
+
+    #[test]
+    fn gdpai_objects_key_never_enters_patched_properties() {
+        let base = base_snapshot(
+            snaps(&[("hunger", VariantSnapshot::Int(1))]),
+            HashMap::new(),
+        );
+        // Live board has the reserved key set (as properties always does); from
+        // would exclude it, so patch must too.
+        let live = props(&[
+            ("hunger", TestValue::Int(1)),
+            ("GDPAI_OBJECTS", TestValue::Int(0)),
+        ]);
+        let count = Cell::new(0);
+        let patched = patch(
+            &base,
+            &live,
+            &set(&["GDPAI_OBJECTS"]),
+            &HashMap::new(),
+            &HashSet::new(),
+            &count,
+        );
+        assert!(!patched.properties.contains_key("GDPAI_OBJECTS"));
+        assert_eq!(
+            patched.properties,
+            snaps(&[("hunger", VariantSnapshot::Int(1))])
+        );
+    }
+
+    #[test]
+    fn rebuilt_proxy_shrinking_keys_prunes_dropped_tier1() {
+        let mut base_objects = HashMap::new();
+        base_objects.insert(
+            "7".to_string(),
+            SimObjectData {
+                uid: "7".to_string(),
+                groups: vec![],
+                properties: snaps(&[
+                    ("fuel", VariantSnapshot::Int(5)),
+                    ("extra", VariantSnapshot::Int(9)),
+                ]),
+            },
+        );
+        let base = base_snapshot(HashMap::new(), base_objects);
+        // Rebuild shrank the proxy: mark_all_dirty marked only the surviving key.
+        let live_props = props(&[("fuel", TestValue::Int(5))]);
+        let proxy_dirty = set(&["fuel"]);
+        let live_objects = HashMap::from([("7".to_string(), live("7", &live_props, &proxy_dirty))]);
+        let count = Cell::new(0);
+        let patched = patch(
+            &base,
+            &HashMap::new(),
+            &HashSet::new(),
+            &live_objects,
+            &set(&["7"]),
+            &count,
+        );
+        assert_eq!(
+            patched.objects["7"].properties,
+            snaps(&[("fuel", VariantSnapshot::Int(5))])
+        );
+        assert!(!patched.objects["7"].properties.contains_key("extra"));
+    }
+
+    #[test]
+    fn unmarked_aliased_writes_are_picked_up() {
+        let base = base_snapshot(
+            snaps(&[
+                ("cfg", VariantSnapshot::Bytes(vec![1, 2])),
+                (
+                    "tags",
+                    VariantSnapshot::Array(vec![VariantSnapshot::Int(1)]),
+                ),
+                ("n", VariantSnapshot::Int(0)),
+            ]),
+            HashMap::new(),
+        );
+        // No marking call fired, but the shared handles changed in place.
+        let live = props(&[
+            ("cfg", TestValue::Blob(vec![1, 2, 3])),
+            (
+                "tags",
+                TestValue::List(vec![TestValue::Int(1), TestValue::Int(2)]),
+            ),
+            ("n", TestValue::Int(0)),
+        ]);
+        let count = Cell::new(0);
+        let patched = patch(
+            &base,
+            &live,
+            &HashSet::new(),
+            &HashMap::new(),
+            &HashSet::new(),
+            &count,
+        );
+        assert_eq!(
+            patched.properties,
+            snaps(&[
+                ("cfg", VariantSnapshot::Bytes(vec![1, 2, 3])),
+                (
+                    "tags",
+                    VariantSnapshot::Array(vec![VariantSnapshot::Int(1), VariantSnapshot::Int(2)])
+                ),
+                ("n", VariantSnapshot::Int(0)),
+            ])
+        );
+        assert_ne!(patched.properties, base.properties);
+        assert_eq!(count.get(), 2);
+    }
+
+    #[test]
+    fn untouched_tier1_board_encodes_nothing() {
+        let mut base_objects = HashMap::new();
+        base_objects.insert(
+            "7".to_string(),
+            SimObjectData {
+                uid: "7".to_string(),
+                groups: vec!["fire".to_string()],
+                properties: snaps(&[
+                    ("fuel", VariantSnapshot::Int(5)),
+                    ("lit", VariantSnapshot::Bool(true)),
+                ]),
+            },
+        );
+        let base = base_snapshot(
+            snaps(&[
+                ("hunger", VariantSnapshot::Int(3)),
+                ("name", VariantSnapshot::Str("agent".to_string())),
+                ("pos", VariantSnapshot::Float(1.5f64.to_bits())),
+                ("held", VariantSnapshot::ObjectRef(42)),
+                ("nothing", VariantSnapshot::Nil),
+            ]),
+            base_objects,
+        );
+        // Live content identical to base; nothing marked anywhere. Live values are
+        // never encoded on this path, so their stand-ins only need matching keys.
+        let agent_live = props(&[
+            ("hunger", TestValue::Int(3)),
+            ("name", TestValue::Int(0)),
+            ("pos", TestValue::Int(0)),
+            ("held", TestValue::Int(0)),
+            ("nothing", TestValue::Int(0)),
+        ]);
+        let proxy_live = props(&[("fuel", TestValue::Int(5)), ("lit", TestValue::Int(1))]);
+        let clean = HashSet::new();
+        let live_objects = HashMap::from([("7".to_string(), live("7", &proxy_live, &clean))]);
+        let count = Cell::new(0);
+        let patched = patch(
+            &base,
+            &agent_live,
+            &HashSet::new(),
+            &live_objects,
+            &HashSet::new(),
+            &count,
+        );
+        assert_eq!(patched, base);
+        assert_eq!(count.get(), 0);
     }
 }
