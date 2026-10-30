@@ -11,7 +11,9 @@ use crate::effect_ir::EffectOp;
 use crate::precondition::{PreconditionOp, PreconditionTarget};
 use crate::requirement::{ProvisionSpec, RequirementSpec};
 use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::Sender;
 
@@ -27,7 +29,7 @@ pub fn next_request_id() -> usize {
 /// Send-safe mirror of [`crate::precondition::PreconditionHandler`]. Builtins carry their
 /// data; custom ones carry a `callable_id` resolved on the main thread. Hashable, so specs can
 /// key caches and fingerprints.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum PreconditionSpec {
     /// A comparison the engine evaluates itself against the snapshots.
     Builtin {
@@ -82,8 +84,8 @@ impl PreconditionSpec {
                                     property,
                                     value.as_ref(),
                                     &BlackboardSnapshot {
-                                        properties: obj.properties.clone(),
-                                        objects: HashMap::new(),
+                                        properties: Arc::clone(&obj.properties),
+                                        objects: Arc::new(HashMap::new()),
                                     },
                                 )
                             } else {
@@ -232,7 +234,7 @@ fn snap_as_f64(v: &VariantSnapshot) -> Option<f64> {
 
 /// Send-safe description of one GDScript `Action`, built by the scheduler from the
 /// serialized action dictionary.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ActionSpec {
     /// Display name, used for logging and the debug tree.
     pub name: String,
@@ -258,7 +260,7 @@ pub struct ActionSpec {
 }
 
 /// Send-safe description of one GDScript `Goal`.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct GoalSpec {
     /// Display name, used for logging and the debug tree.
     pub name: String,
@@ -311,31 +313,32 @@ pub enum PlannerRunResult {
 }
 
 /// What the main thread should do with the callable. Carries snapshots, rebuilt into
-/// blackboards on the main thread.
+/// blackboards on the main thread. Snapshots travel as [`Arc`] so the planner thread and
+/// the transport boundary share structure instead of cloning whole maps.
 pub enum CallbackKind {
     /// Call `cost_callable(agent, world)` → return `Float(f64)`.
     /// Bindings are pre-injected into `agent` before the call.
     GetCost {
         /// Agent state the cost is computed against.
-        agent: BlackboardSnapshot,
+        agent: Arc<BlackboardSnapshot>,
         /// World state passed alongside.
-        world: BlackboardSnapshot,
+        world: Arc<BlackboardSnapshot>,
     },
     /// Call `effect_callable(agent, world)` → return updated snapshots.
     /// Bindings are pre-injected into `agent` before the call.
     ApplyEffect {
         /// State the effect is applied to; the callable mutates a rebuilt copy.
-        agent: BlackboardSnapshot,
+        agent: Arc<BlackboardSnapshot>,
         /// World state passed alongside.
-        world: BlackboardSnapshot,
+        world: Arc<BlackboardSnapshot>,
     },
     /// Call `eval_callable(agent, world)` → return `Bool(bool)`.
     /// Bindings are pre-injected into `agent` before the call.
     EvalCustomPrecond {
         /// State the precondition is evaluated against.
-        agent: BlackboardSnapshot,
+        agent: Arc<BlackboardSnapshot>,
         /// World state passed alongside.
-        world: BlackboardSnapshot,
+        world: Arc<BlackboardSnapshot>,
     },
 }
 
@@ -349,7 +352,7 @@ pub enum CallbackResponse {
     /// non-bool).
     Bool(bool),
     /// Mutated snapshots after `ApplyEffect`.
-    UpdatedSnapshots(BlackboardSnapshot, BlackboardSnapshot),
+    UpdatedSnapshots(Arc<BlackboardSnapshot>, Arc<BlackboardSnapshot>),
 }
 
 #[cfg(test)]
@@ -365,20 +368,25 @@ mod tests {
 
     fn snapshot(props: &[(&str, V)]) -> BlackboardSnapshot {
         BlackboardSnapshot {
-            properties: props
-                .iter()
-                .map(|(k, v)| (k.to_string(), v.clone()))
-                .collect(),
-            objects: HashMap::new(),
+            properties: Arc::new(
+                props
+                    .iter()
+                    .map(|(k, v)| (k.to_string(), v.clone()))
+                    .collect(),
+            ),
+            objects: Arc::new(HashMap::new()),
         }
     }
 
-    fn object(uid: &str, groups: &[&str], hunger_value: i64) -> (String, SimObjectData) {
-        let data = SimObjectData {
+    fn object(uid: &str, groups: &[&str], hunger_value: i64) -> (String, Arc<SimObjectData>) {
+        let data = Arc::new(SimObjectData {
             uid: uid.to_string(),
             groups: groups.iter().map(|g| g.to_string()).collect(),
-            properties: HashMap::from([("hunger_value".to_string(), V::Int(hunger_value))]),
-        };
+            properties: Arc::new(HashMap::from([(
+                "hunger_value".to_string(),
+                V::Int(hunger_value),
+            )])),
+        });
         (uid.to_string(), data)
     }
 
@@ -408,11 +416,11 @@ mod tests {
             ("shared", V::Int(1)),
         ]);
         let mut world = snapshot(&[("shared", V::Int(2))]);
-        world.objects = HashMap::from([
+        world.objects = Arc::new(HashMap::from([
             object("1", &["food"], 30),
             object("2", &["food"], 60),
             object("3", &["rock"], 90),
-        ]);
+        ]));
 
         use Target::{Agent, Group, World};
         #[rustfmt::skip]

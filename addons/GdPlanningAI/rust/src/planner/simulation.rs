@@ -7,6 +7,7 @@
 use crate::plan_types::*;
 use crate::planner::types::SearchContext;
 use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
+use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
 /// The result of a single simulation step.
@@ -42,10 +43,10 @@ pub struct SimResult {
 /// mutable slice across resumptions of a single branch to avoid redundant
 /// Godot callback round-trips.
 pub struct SimArgs<'a> {
-    /// Agent state the action is simulated against.
-    pub agent: &'a BlackboardSnapshot,
-    /// World state the action is simulated against.
-    pub world: &'a BlackboardSnapshot,
+    /// Agent state the action is simulated against (shared handle, never deep-cloned).
+    pub agent: Arc<crate::snapshot::BlackboardSnapshot>,
+    /// World state the action is simulated against (shared handle, never deep-cloned).
+    pub world: Arc<crate::snapshot::BlackboardSnapshot>,
     /// Shared run context: action specs, request channel and discovery caches.
     pub ctx: &'a SearchContext,
     /// The main thread's answer to the last request this caller got `Pending` for, if the
@@ -65,8 +66,8 @@ pub struct SimArgs<'a> {
 /// return `Pending` until called again with the `Bool` response.
 pub fn eval_precondition(
     spec: &PreconditionSpec,
-    agent: &BlackboardSnapshot,
-    world: &BlackboardSnapshot,
+    agent: &Arc<crate::snapshot::BlackboardSnapshot>,
+    world: &Arc<crate::snapshot::BlackboardSnapshot>,
     ctx: &SearchContext,
     response: Option<&CallbackResponse>,
     bindings: &[(String, Vec<VariantSnapshot>)],
@@ -84,8 +85,8 @@ pub fn eval_precondition(
                 request_id,
                 callable_id: *callable_id,
                 kind: CallbackKind::EvalCustomPrecond {
-                    agent: agent.clone(),
-                    world: world.clone(),
+                    agent: Arc::clone(agent),
+                    world: Arc::clone(world),
                 },
                 bindings: bindings.to_vec(),
                 response_tx: ctx.engine_response_tx.clone(),
@@ -129,8 +130,8 @@ pub fn simulate_action(action_idx: usize, args: SimArgs) -> StepResult<SimResult
                     request_id,
                     callable_id: id,
                     kind: CallbackKind::GetCost {
-                        agent: args.agent.clone(),
-                        world: args.world.clone(),
+                        agent: Arc::clone(&args.agent),
+                        world: Arc::clone(&args.world),
                     },
                     bindings: args.bindings.to_vec(),
                     response_tx: args.ctx.engine_response_tx.clone(),
@@ -158,7 +159,7 @@ pub fn simulate_action(action_idx: usize, args: SimArgs) -> StepResult<SimResult
         let timed = crate::logger::get_log_level() >= crate::logger::LogLevel::Debug;
         let start = timed.then(std::time::Instant::now);
         let (agent, world) =
-            crate::effect_ir::apply_effect_spec(spec, args.agent, args.world, args.bindings);
+            crate::effect_ir::apply_effect_spec(spec, &args.agent, &args.world, args.bindings);
         args.ctx.effect_ir_hits.fetch_add(1, Ordering::Relaxed);
         if let Some(start) = start {
             args.ctx
@@ -171,29 +172,74 @@ pub fn simulate_action(action_idx: usize, args: SimArgs) -> StepResult<SimResult
     } else if let Some(id) = action.effect_callable_id {
         if let Some(CallbackResponse::UpdatedSnapshots(new_agent, new_world)) = args.response {
             StepResult::Ready(SimResult {
-                agent: new_agent.clone(),
-                world: new_world.clone(),
+                agent: new_agent.as_ref().clone(),
+                world: new_world.as_ref().clone(),
                 cost,
             })
         } else {
+            // Fallback budget: custom GDScript effects stay rare and visible. One slot is
+            // reserved atomically (try_update fails once the count reaches the budget),
+            // so concurrent steps cannot over-admit; the reservation is released if the
+            // channel is gone. At or over budget the requesting branch is Invalid (dropped);
+            // the trip warns once per job and bumps the shared trips counter. Cost and
+            // precondition callbacks are never counted here.
+            //
+            // Single-threaded-engine note: each engine runs one step at a time (it is moved
+            // between worker threads but never shared), so in practice no two steps race
+            // here; fetch_update keeps the count exact even if that ever changes. A closed
+            // channel means the job is being torn down, so the branch is dropped (Invalid)
+            // rather than parked on an answer that can never arrive.
+            if args
+                .ctx
+                .effect_fallback_count
+                .try_update(Ordering::Relaxed, Ordering::Relaxed, |c| {
+                    (c < args.ctx.effect_fallback_budget as u64).then_some(c + 1)
+                })
+                .is_err()
+            {
+                if !args
+                    .ctx
+                    .effect_fallback_warned
+                    .swap(true, Ordering::Relaxed)
+                {
+                    log_warn!(
+                        "Effect fallback budget exceeded (cap {}): dropping branch; custom effects should declare effect_spec",
+                        args.ctx.effect_fallback_budget
+                    );
+                    args.ctx
+                        .effect_fallback_trips
+                        .fetch_add(1, Ordering::Relaxed);
+                }
+                return StepResult::Invalid;
+            }
             let request_id = crate::plan_types::next_request_id();
-            let _ = args.ctx.request_tx.send(CallbackRequest {
-                request_id,
-                callable_id: id,
-                kind: CallbackKind::ApplyEffect {
-                    agent: args.agent.clone(),
-                    world: args.world.clone(),
-                },
-                bindings: args.bindings.to_vec(),
-                response_tx: args.ctx.engine_response_tx.clone(),
-            });
+            if args
+                .ctx
+                .request_tx
+                .send(CallbackRequest {
+                    request_id,
+                    callable_id: id,
+                    kind: CallbackKind::ApplyEffect {
+                        agent: Arc::clone(&args.agent),
+                        world: Arc::clone(&args.world),
+                    },
+                    bindings: args.bindings.to_vec(),
+                    response_tx: args.ctx.engine_response_tx.clone(),
+                })
+                .is_err()
+            {
+                args.ctx
+                    .effect_fallback_count
+                    .fetch_sub(1, Ordering::Relaxed);
+                return StepResult::Invalid;
+            }
             StepResult::Pending(request_id)
         }
     } else {
         // No effect callable - identity effect
         StepResult::Ready(SimResult {
-            agent: args.agent.clone(),
-            world: args.world.clone(),
+            agent: args.agent.as_ref().clone(),
+            world: args.world.as_ref().clone(),
             cost,
         })
     }

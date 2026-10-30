@@ -22,12 +22,12 @@ fn cancellation_returns_failure_quickly() {
     // This parks the root node and keeps the search in Pending state,
     // giving us time to cancel.
     let agent = BlackboardSnapshot {
-        properties: HashMap::new(),
-        objects: HashMap::new(),
+        properties: Arc::new(HashMap::new()),
+        objects: Arc::new(HashMap::new()),
     };
     let world = BlackboardSnapshot {
-        properties: HashMap::new(),
-        objects: HashMap::new(),
+        properties: Arc::new(HashMap::new()),
+        objects: Arc::new(HashMap::new()),
     };
 
     let actions = vec![ActionSpec {
@@ -63,8 +63,7 @@ fn cancellation_returns_failure_quickly() {
         match req.kind {
             CallbackKind::GetCost { .. } => CallbackResponse::Float(1.0),
             CallbackKind::ApplyEffect { mut agent, world } => {
-                agent
-                    .properties
+                Arc::make_mut(&mut Arc::make_mut(&mut agent).properties)
                     .insert("magic".to_string(), VariantSnapshot::Bool(true));
                 CallbackResponse::UpdatedSnapshots(agent, world)
             }

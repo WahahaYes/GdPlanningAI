@@ -199,11 +199,11 @@ fn values(vs: &[toml::Value]) -> Result<Vec<VariantSnapshot>, String> {
 
 fn snapshot(props: &toml::Table, objects: &[Object]) -> Result<BlackboardSnapshot, String> {
     let mut snap = BlackboardSnapshot {
-        properties: HashMap::new(),
-        objects: HashMap::new(),
+        properties: Arc::new(HashMap::new()),
+        objects: Arc::new(HashMap::new()),
     };
     for (k, v) in props {
-        snap.properties.insert(k.clone(), value(v)?);
+        Arc::make_mut(&mut snap.properties).insert(k.clone(), value(v)?);
     }
     for obj in objects {
         let mut data = create_sim_object(
@@ -212,9 +212,9 @@ fn snapshot(props: &toml::Table, objects: &[Object]) -> Result<BlackboardSnapsho
             vec![],
         );
         for (k, v) in &obj.properties {
-            data.properties.insert(k.clone(), value(v)?);
+            Arc::make_mut(&mut data.properties).insert(k.clone(), value(v)?);
         }
-        snap.objects.insert(obj.uid.clone(), data);
+        Arc::make_mut(&mut snap.objects).insert(obj.uid.clone(), Arc::new(data));
     }
     Ok(snap)
 }
@@ -325,9 +325,7 @@ fn provision(p: &Provision) -> Result<ProvisionSpec, String> {
 
 fn apply(effect: &Effect, agent: &mut BlackboardSnapshot) {
     for (k, v) in &effect.set {
-        agent
-            .properties
-            .insert(k.clone(), value(v).expect("checked at load"));
+        Arc::make_mut(&mut agent.properties).insert(k.clone(), value(v).expect("checked at load"));
     }
     for (k, v) in &effect.add {
         let delta = v.as_integer().expect("checked at load");
@@ -335,8 +333,7 @@ fn apply(effect: &Effect, agent: &mut BlackboardSnapshot) {
             Some(VariantSnapshot::Int(i)) => *i,
             _ => 0,
         };
-        agent
-            .properties
+        Arc::make_mut(&mut agent.properties)
             .insert(k.clone(), VariantSnapshot::Int(current + delta));
     }
 }
@@ -370,9 +367,9 @@ fn host(answers: Vec<Answer>) -> std::sync::mpsc::Sender<CallbackRequest> {
         match (&req.kind, answer) {
             (CallbackKind::GetCost { .. }, Answer::Cost(c)) => CallbackResponse::Float(*c),
             (CallbackKind::ApplyEffect { agent, world }, Answer::Effect(e)) => {
-                let mut agent = agent.clone();
-                apply(e, &mut agent);
-                CallbackResponse::UpdatedSnapshots(agent, world.clone())
+                let mut agent = Arc::clone(agent);
+                apply(e, Arc::make_mut(&mut agent));
+                CallbackResponse::UpdatedSnapshots(agent, Arc::clone(world))
             }
             (CallbackKind::EvalCustomPrecond { agent, world }, Answer::Custom(c)) => {
                 CallbackResponse::Bool(answer_custom(c, &req, agent, world))
@@ -473,6 +470,8 @@ fn run(case: &Case) -> Result<(), String> {
             request_tx: host(answers),
             cancel_flag: Arc::default(),
             effect_ir_hits: Arc::new(AtomicU64::new(0)),
+            effect_fallback_budget: 100_000,
+            effect_fallback_trips: Arc::new(AtomicU64::new(0)),
         },
         config,
     );

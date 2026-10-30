@@ -120,6 +120,13 @@ pub struct EngineInputs {
     pub cancel_flag: Arc<AtomicBool>,
     /// Counts native effect applications for the scheduler's dispatch stats.
     pub effect_ir_hits: Arc<AtomicU64>,
+    /// Per-job cap on GDScript effect fallbacks. Always populated from
+    /// [`EngineConfig::max_effect_fallbacks`] at the scheduler construction site, so the
+    /// config stays the single source of truth; this field is just the per-job channel.
+    pub effect_fallback_budget: usize,
+    /// Jobs that tripped the fallback budget (once per job, with the warn). Shared with
+    /// the scheduler for the dispatch stats dict.
+    pub effect_fallback_trips: Arc<AtomicU64>,
 }
 
 /// How the search runs. [`Default`] matches the scheduler's defaults.
@@ -134,6 +141,8 @@ pub struct EngineConfig {
     pub time_slice_ms: u64,
     /// Clock read by the time-slice check, so tests can make slices expire on demand.
     pub clock: fn() -> std::time::Instant,
+    /// Per-job cap on GDScript effect fallbacks; exceeding drops the requesting branch.
+    pub max_effect_fallbacks: usize,
 }
 
 impl Default for EngineConfig {
@@ -144,6 +153,7 @@ impl Default for EngineConfig {
             iteration_budget: 20000,
             time_slice_ms: 10,
             clock: std::time::Instant::now,
+            max_effect_fallbacks: 128,
         }
     }
 }
@@ -161,6 +171,8 @@ impl PlannerEngine {
             inputs.request_tx,
             tx,
             inputs.effect_ir_hits,
+            inputs.effect_fallback_budget,
+            inputs.effect_fallback_trips,
         ));
         Self {
             ctx,
@@ -208,6 +220,7 @@ impl PlannerEngine {
 
         let result = self.step_search(goals);
         self.log_ir_summary();
+        self.log_fallback_summary();
         result
     }
 
@@ -232,6 +245,22 @@ impl PlannerEngine {
             mean,
             at(50),
             at(90),
+        );
+    }
+
+    /// Logs fallback usage once the budget trips: how many custom-effect callbacks fired
+    /// against the cap. Silent until the first trip (warned once per job in simulation),
+    /// so conforming scenes pay nothing.
+    fn log_fallback_summary(&self) {
+        use std::sync::atomic::Ordering;
+        if !self.ctx.effect_fallback_warned.load(Ordering::Relaxed) {
+            return;
+        }
+        log_debug!(
+            "Effect fallback budget tripped: used={} cap={} trips={}",
+            self.ctx.effect_fallback_count.load(Ordering::Relaxed),
+            self.ctx.effect_fallback_budget,
+            self.ctx.effect_fallback_trips.load(Ordering::Relaxed),
         );
     }
 
@@ -336,8 +365,8 @@ impl PlannerEngine {
                             cache.insert(
                                 (idx, bindings.clone()),
                                 DiscoveryResult {
-                                    agent: agent.clone(),
-                                    world: world.clone(),
+                                    agent: Arc::clone(agent),
+                                    world: Arc::clone(world),
                                     cost,
                                 },
                             );
@@ -368,7 +397,7 @@ impl PlannerEngine {
                 {
                     self.step_cache
                         .entry(key)
-                        .or_insert_with(|| (Arc::new(agent.clone()), Arc::new(world.clone())));
+                        .or_insert_with(|| (Arc::clone(agent), Arc::clone(world)));
                 }
             }
 
@@ -958,8 +987,8 @@ impl PlannerEngine {
             None => match simulate_action(
                 action_idx,
                 SimArgs {
-                    agent: &branch.current_agent,
-                    world: &branch.current_world,
+                    agent: Arc::clone(&branch.current_agent),
+                    world: Arc::clone(&branch.current_world),
                     ctx: &self.ctx,
                     response: callback_response,
                     branch_action_costs: &mut branch.action_costs,
@@ -1022,7 +1051,7 @@ impl PlannerEngine {
         }
         let cache = self.ctx.discovery_results.lock().unwrap();
         let res = cache.get(&(action_idx, bindings.to_vec()))?;
-        Some((Arc::new(res.agent.clone()), Arc::new(res.world.clone())))
+        Some((Arc::clone(&res.agent), Arc::clone(&res.world)))
     }
 
     /// At the end of a verified chain: records it if it is the cheapest plan so far. Verification
@@ -1058,11 +1087,13 @@ mod tests {
 
     fn snapshot(props: &[(&str, VariantSnapshot)]) -> BlackboardSnapshot {
         BlackboardSnapshot {
-            properties: props
-                .iter()
-                .map(|(k, v)| (k.to_string(), v.clone()))
-                .collect(),
-            objects: HashMap::new(),
+            properties: Arc::new(
+                props
+                    .iter()
+                    .map(|(k, v)| (k.to_string(), v.clone()))
+                    .collect(),
+            ),
+            objects: Arc::new(HashMap::new()),
         }
     }
 
@@ -1080,8 +1111,36 @@ mod tests {
                 request_tx,
                 cancel_flag: Arc::default(),
                 effect_ir_hits: Arc::new(AtomicU64::new(0)),
+                effect_fallback_budget: EngineConfig::default().max_effect_fallbacks,
+                effect_fallback_trips: Arc::new(AtomicU64::new(0)),
             },
             EngineConfig::default(),
+        )
+    }
+
+    fn engine_with_fallback_budget(
+        actions: Vec<ActionSpec>,
+        agent: BlackboardSnapshot,
+        request_tx: mpsc::Sender<CallbackRequest>,
+        effect_fallback_budget: usize,
+        effect_fallback_trips: Arc<AtomicU64>,
+    ) -> PlannerEngine {
+        PlannerEngine::new(
+            EngineInputs {
+                actions,
+                agent,
+                world: snapshot(&[]),
+                initial_provisions: vec![],
+                request_tx,
+                cancel_flag: Arc::default(),
+                effect_ir_hits: Arc::new(AtomicU64::new(0)),
+                effect_fallback_budget,
+                effect_fallback_trips,
+            },
+            EngineConfig {
+                max_effect_fallbacks: effect_fallback_budget,
+                ..EngineConfig::default()
+            },
         )
     }
 
@@ -1144,10 +1203,11 @@ mod tests {
         assert!(requests.try_recv().is_err(), "no second request");
 
         let mut agent = (*engine.ctx.initial_agent).clone();
-        agent
-            .properties
-            .insert("hunger".to_string(), VariantSnapshot::Int(20));
-        let answer = CallbackResponse::UpdatedSnapshots(agent, (*engine.ctx.initial_world).clone());
+        Arc::make_mut(&mut agent.properties).insert("hunger".to_string(), VariantSnapshot::Int(20));
+        let answer = CallbackResponse::UpdatedSnapshots(
+            Arc::new(agent),
+            Arc::clone(&engine.ctx.initial_world),
+        );
         for branch in [&mut a, &mut b] {
             assert!(matches!(
                 engine.simulate_and_advance(branch, 0, &[], Some(&answer)),
@@ -1303,5 +1363,213 @@ mod tests {
         assert_eq!(engine.current_goal_index, 1);
         assert_eq!(engine.queue.len(), 1, "only goal 1's root should be queued");
         assert_eq!(engine.queue.peek().unwrap().node.branch.goal_index, 1);
+    }
+
+    /// Fallback budget: at or over cap the requesting branch goes `Invalid`, the trip
+    /// warns once per job and bumps the shared trips counter. Cost and precondition
+    /// callbacks are never counted.
+    #[test]
+    fn fallback_budget_cap_forces_invalid_warn_once_and_trips() {
+        use std::sync::atomic::Ordering;
+        let fallback_action = || ActionSpec {
+            name: "custom".to_string(),
+            cost_callable_id: None,
+            effect_callable_id: Some(0),
+            effect_spec: None,
+            preconditions: vec![],
+            validity_checks: vec![],
+            requirements: vec![],
+            provisions: vec![],
+            dependent_object_ids: vec![],
+        };
+
+        // Cap 0: the very first fallback is over budget.
+        let trips = Arc::new(AtomicU64::new(0));
+        let (req_tx, requests) = mpsc::channel::<CallbackRequest>();
+        let mut engine = engine_with_fallback_budget(
+            vec![fallback_action()],
+            snapshot(&[("hunger", VariantSnapshot::Int(80))]),
+            req_tx,
+            0,
+            Arc::clone(&trips),
+        );
+        let mut branch = PlanBranch::new(
+            Arc::clone(&engine.ctx.initial_agent),
+            Arc::clone(&engine.ctx.initial_world),
+        );
+        branch.state = BranchState::Verifying;
+        branch.action_chain = vec![0];
+        branch.action_costs = vec![1.0];
+        assert!(matches!(
+            engine.simulate_and_advance(&mut branch, 0, &[], None),
+            StepResult::Invalid
+        ));
+        assert!(requests.try_recv().is_err(), "over budget sends nothing");
+        assert_eq!(trips.load(Ordering::Relaxed), 1, "first trip bumps trips");
+        // A second over-budget branch warns no more and trips no more.
+        let mut again = PlanBranch::new(
+            Arc::clone(&engine.ctx.initial_agent),
+            Arc::clone(&engine.ctx.initial_world),
+        );
+        again.state = BranchState::Verifying;
+        again.action_chain = vec![0];
+        again.action_costs = vec![1.0];
+        assert!(matches!(
+            engine.simulate_and_advance(&mut again, 0, &[], None),
+            StepResult::Invalid
+        ));
+        assert_eq!(
+            trips.load(Ordering::Relaxed),
+            1,
+            "warn-once means trips stays at one per job"
+        );
+        assert_eq!(
+            engine.ctx.effect_fallback_count.load(Ordering::Relaxed),
+            0,
+            "over-budget requests never increment the use count"
+        );
+
+        // Cap 1: the first fallback sends, the second is over budget. Exercise the
+        // ApplyEffect send site directly so step-request sharing cannot park the
+        // second call on the first one's pending request.
+        let trips = Arc::new(AtomicU64::new(0));
+        let (req_tx, requests) = mpsc::channel::<CallbackRequest>();
+        let engine = engine_with_fallback_budget(
+            vec![fallback_action()],
+            snapshot(&[("hunger", VariantSnapshot::Int(80))]),
+            req_tx,
+            1,
+            Arc::clone(&trips),
+        );
+        {
+            use crate::planner::simulation::{SimArgs, simulate_action};
+            let mut costs = vec![-1.0];
+            let res = simulate_action(
+                0,
+                SimArgs {
+                    agent: Arc::clone(&engine.ctx.initial_agent),
+                    world: Arc::clone(&engine.ctx.initial_world),
+                    ctx: &engine.ctx,
+                    response: None,
+                    branch_action_costs: &mut costs,
+                    simulation_index: 0,
+                    bindings: &[],
+                },
+            );
+            assert!(matches!(res, StepResult::Pending(_)), "under budget sends");
+        }
+        assert!(requests.try_recv().is_ok(), "under budget sends once");
+        assert_eq!(trips.load(Ordering::Relaxed), 0, "no trip yet");
+        {
+            use crate::planner::simulation::{SimArgs, simulate_action};
+            let mut costs = vec![-1.0];
+            let res = simulate_action(
+                0,
+                SimArgs {
+                    agent: Arc::clone(&engine.ctx.initial_agent),
+                    world: Arc::clone(&engine.ctx.initial_world),
+                    ctx: &engine.ctx,
+                    response: None,
+                    branch_action_costs: &mut costs,
+                    simulation_index: 0,
+                    bindings: &[],
+                },
+            );
+            assert!(matches!(res, StepResult::Invalid), "second request trips");
+        }
+        assert_eq!(trips.load(Ordering::Relaxed), 1, "second request trips");
+        assert_eq!(
+            engine.ctx.effect_fallback_count.load(Ordering::Relaxed),
+            1,
+            "only the sent fallback counts"
+        );
+    }
+
+    /// Fresh jobs reset the fallback count while sharing the trips counter: job 1 trips
+    /// (trips==1), job 2 starts at count==0 with its own warn flag, and trips cumulatively
+    /// (trips==2).
+    #[test]
+    fn fallback_budget_resets_per_job_while_trips_accumulate() {
+        use crate::planner::simulation::{SimArgs, simulate_action};
+        use std::sync::atomic::Ordering;
+        let fallback_action = || ActionSpec {
+            name: "custom".to_string(),
+            cost_callable_id: None,
+            effect_callable_id: Some(0),
+            effect_spec: None,
+            preconditions: vec![],
+            validity_checks: vec![],
+            requirements: vec![],
+            provisions: vec![],
+            dependent_object_ids: vec![],
+        };
+
+        let trips = Arc::new(AtomicU64::new(0));
+        // Job 1: budget 0, so its very first fallback trips.
+        let (req_tx, _requests) = mpsc::channel::<CallbackRequest>();
+        let mut job1 = engine_with_fallback_budget(
+            vec![fallback_action()],
+            snapshot(&[("hunger", VariantSnapshot::Int(80))]),
+            req_tx,
+            0,
+            Arc::clone(&trips),
+        );
+        let mut branch = PlanBranch::new(
+            Arc::clone(&job1.ctx.initial_agent),
+            Arc::clone(&job1.ctx.initial_world),
+        );
+        branch.state = BranchState::Verifying;
+        branch.action_chain = vec![0];
+        branch.action_costs = vec![1.0];
+        assert!(matches!(
+            job1.simulate_and_advance(&mut branch, 0, &[], None),
+            StepResult::Invalid
+        ));
+        assert_eq!(trips.load(Ordering::Relaxed), 1, "job 1 trips");
+
+        // Job 2: a fresh context on the same shared trips counter.
+        let (req_tx, _requests) = mpsc::channel::<CallbackRequest>();
+        let job2 = engine_with_fallback_budget(
+            vec![fallback_action()],
+            snapshot(&[("hunger", VariantSnapshot::Int(80))]),
+            req_tx,
+            1,
+            Arc::clone(&trips),
+        );
+        assert_eq!(
+            job2.ctx.effect_fallback_count.load(Ordering::Relaxed),
+            0,
+            "a fresh job starts at count==0"
+        );
+        assert!(
+            !job2.ctx.effect_fallback_warned.load(Ordering::Relaxed),
+            "a fresh job has its own warn flag"
+        );
+        let attempt = || {
+            let mut costs = vec![-1.0];
+            simulate_action(
+                0,
+                SimArgs {
+                    agent: Arc::clone(&job2.ctx.initial_agent),
+                    world: Arc::clone(&job2.ctx.initial_world),
+                    ctx: &job2.ctx,
+                    response: None,
+                    branch_action_costs: &mut costs,
+                    simulation_index: 0,
+                    bindings: &[],
+                },
+            )
+        };
+        // The first fallback sends (count 1, no trip yet)...
+        assert!(matches!(attempt(), StepResult::Pending(_)));
+        assert_eq!(job2.ctx.effect_fallback_count.load(Ordering::Relaxed), 1);
+        assert_eq!(trips.load(Ordering::Relaxed), 1, "no trip yet");
+        // ...the second is over budget and trips cumulatively.
+        assert!(matches!(attempt(), StepResult::Invalid));
+        assert_eq!(
+            trips.load(Ordering::Relaxed),
+            2,
+            "trips accumulate across jobs"
+        );
     }
 }

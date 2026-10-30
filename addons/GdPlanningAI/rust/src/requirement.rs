@@ -7,9 +7,10 @@
 
 use crate::snapshot::VariantSnapshot;
 use godot::prelude::*;
+use serde::{Deserialize, Serialize};
 
 /// A planner-readable dependency that must be satisfied by a prior action's provisions.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum RequirementSpec {
     /// A binding with this name must have been provided (or the agent already has a non-empty
     /// property of that name).
@@ -41,7 +42,7 @@ pub enum RequirementSpec {
 }
 
 /// A value or fact that an action contributes for later actions to consume.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ProvisionSpec {
     /// Binds `binding_name` to a concrete value.
     Binding {
@@ -225,7 +226,7 @@ pub fn extract_initial_provisions(
     let mut provisions = Vec::new();
 
     // Extract all non-null agent properties as binding provisions
-    for (key, value) in &agent.properties {
+    for (key, value) in agent.properties.iter() {
         // Skip null/empty values that don't represent meaningful bindings
         if !value.is_null() && !value.is_empty_string() {
             provisions.push(ProvisionSpec::Binding {
@@ -428,33 +429,35 @@ mod tests {
     use super::*;
     use crate::snapshot::{BlackboardSnapshot, SimObjectData, VariantSnapshot};
     use std::collections::HashMap;
+    use std::sync::Arc;
 
     #[test]
     fn binding_in_set_checks_all_matching_bindings() {
         let agent = BlackboardSnapshot {
-            properties: HashMap::new(),
-            objects: HashMap::new(),
+            properties: Arc::new(HashMap::new()),
+            objects: Arc::new(HashMap::new()),
         };
-        let mut world = BlackboardSnapshot {
-            properties: HashMap::new(),
-            objects: HashMap::new(),
-        };
-        world.objects.insert(
+        let mut world_objects: HashMap<String, Arc<SimObjectData>> = HashMap::new();
+        world_objects.insert(
             "1".to_string(),
-            SimObjectData {
+            Arc::new(SimObjectData {
                 uid: "1".to_string(),
                 groups: vec!["weapon".to_string()],
-                properties: HashMap::new(),
-            },
+                properties: Arc::new(HashMap::new()),
+            }),
         );
-        world.objects.insert(
+        world_objects.insert(
             "2".to_string(),
-            SimObjectData {
+            Arc::new(SimObjectData {
                 uid: "2".to_string(),
                 groups: vec!["food".to_string()],
-                properties: HashMap::new(),
-            },
+                properties: Arc::new(HashMap::new()),
+            }),
         );
+        let world = BlackboardSnapshot {
+            properties: Arc::new(HashMap::new()),
+            objects: Arc::new(world_objects),
+        };
 
         let current_bindings = vec![
             ("held_item".to_string(), vec![VariantSnapshot::ObjectRef(1)]),
