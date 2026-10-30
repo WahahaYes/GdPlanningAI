@@ -106,7 +106,7 @@ Unit tier: the built-in precondition evaluator is an algorithmic kernel.
 
 **Scenario:** Given a blackboard, when properties and world objects are written and read, then values keep their types, objects are wrapped in proxies found by group, and a clone is an independent copy for simulation.
 
-**Proved by:** `test/unit/test_gdpai_blackboard.gd`, `test/unit/test_sim_object_proxy.gd`
+**Proved by:** `test/unit/test_gdpai_blackboard.gd`, `test/unit/test_sim_object_proxy.gd`, `addons/GdPlanningAI/rust/src/snapshot.rs` (patch_with diff-back re-encoding only dirty keys)
 
 ### `goto-arrives-or-replans`
 
