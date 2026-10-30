@@ -3,7 +3,7 @@
 //! An action may declare `effect_spec` (see `Action::get_effect_spec`) alongside its
 //! `simulate_effect` callable. When every entry parses, the planner applies the spec itself
 //! ([`apply_effect_spec`]) and never round-trips to GDScript; otherwise it falls back to the
-//! callable. Six ops cover the built-in actions: `set`, `inc`, `dec`, `min_cap`, `max_floor`
+//! callable. Five ops cover the built-in actions: `set`, `inc`, `dec`, `clamp`
 //! and `copy`. Lookup amounts model table-driven costs like hunger restored per food item.
 
 use crate::snapshot::{BlackboardSnapshot, SimObjectData, VariantSnapshot};
@@ -112,19 +112,15 @@ pub enum EffectOp {
         /// How much to subtract.
         amount: EffectAmount,
     },
-    /// Clamp the target down to at most the cap; non-numeric targets skip the op.
-    MinCap {
+    /// Clamp the target into `[lo, hi]`; non-numeric targets skip the op. A missing
+    /// bound is unbounded (`-INFINITY` / `INFINITY`); at least one must be present.
+    Clamp {
         /// Where to clamp.
         target: EffectTarget,
-        /// Finite upper bound.
-        cap: f64,
-    },
-    /// Clamp the target up to at least the floor; non-numeric targets skip the op.
-    MaxFloor {
-        /// Where to clamp.
-        target: EffectTarget,
-        /// Finite lower bound.
-        floor: f64,
+        /// Lower bound, or `-INFINITY` when the spec omits `lo`.
+        lo: f64,
+        /// Upper bound, or `INFINITY` when the spec omits `hi`.
+        hi: f64,
     },
     /// Copy one property to another, preserving whatever tier it holds.
     Copy {
@@ -459,15 +455,23 @@ impl EffectOp {
                     amount: EffectAmount::parse(&raw)?,
                 })
             }
-            "min_cap" => {
+            "clamp" => {
                 let target = EffectTarget::from_op_dict(dict)?;
-                let cap = finite(dict.get("cap").and_then(|v| variant_f64(&v)))?;
-                Some(Self::MinCap { target, cap })
-            }
-            "max_floor" => {
-                let target = EffectTarget::from_op_dict(dict)?;
-                let floor = finite(dict.get("floor").and_then(|v| variant_f64(&v)))?;
-                Some(Self::MaxFloor { target, floor })
+                if dict.get("lo").is_none() && dict.get("hi").is_none() {
+                    return None;
+                }
+                let lo = match dict.get("lo") {
+                    None => f64::NEG_INFINITY,
+                    Some(v) => finite(variant_f64(&v))?,
+                };
+                let hi = match dict.get("hi") {
+                    None => f64::INFINITY,
+                    Some(v) => finite(variant_f64(&v))?,
+                };
+                if lo > hi {
+                    return None;
+                }
+                Some(Self::Clamp { target, lo, hi })
             }
             "copy" => {
                 let from_raw = dict.get("from")?;
@@ -517,19 +521,11 @@ impl EffectOp {
                 }
                 true
             }
-            Self::MinCap { target, cap } => {
+            Self::Clamp { target, lo, hi } => {
                 if let Some(slot) = target.resolve_existing(agent_props, world_objects)
                     && let Some(current) = snap_as_f64(slot)
                 {
-                    *slot = VariantSnapshot::Float(current.min(*cap).to_bits());
-                }
-                true
-            }
-            Self::MaxFloor { target, floor } => {
-                if let Some(slot) = target.resolve_existing(agent_props, world_objects)
-                    && let Some(current) = snap_as_f64(slot)
-                {
-                    *slot = VariantSnapshot::Float(current.max(*floor).to_bits());
+                    *slot = VariantSnapshot::Float(current.clamp(*lo, *hi).to_bits());
                 }
                 true
             }
@@ -662,9 +658,9 @@ mod tests {
         assert_eq!(world_after.objects, world.objects);
     }
 
-    /// `inc` adds and `min_cap` clamps: the AddFuel shape (90 + 15 capped at 100).
+    /// `inc` adds and `clamp` caps: the AddFuel shape (90 + 15 capped at 100).
     #[test]
-    fn inc_then_min_cap_matches_add_fuel() {
+    fn inc_then_clamp_matches_add_fuel() {
         let target = EffectTarget::ObjectProp {
             uid: "42".to_string(),
             prop: "current_fuel".to_string(),
@@ -674,7 +670,11 @@ mod tests {
                 target: target.clone(),
                 amount: 15.0,
             },
-            EffectOp::MinCap { target, cap: 100.0 },
+            EffectOp::Clamp {
+                target,
+                lo: f64::NEG_INFINITY,
+                hi: 100.0,
+            },
         ];
         let world = world_with("42", &[("current_fuel", float(90.0))]);
         let (_, after) = apply_effect_spec(&ops, &agent(&[]), &world, &no_bindings());
@@ -684,9 +684,9 @@ mod tests {
         );
     }
 
-    /// `dec` with a direct amount and `max_floor`: the ShakeTree shape.
+    /// `dec` with a direct amount and `clamp`: the ShakeTree shape.
     #[test]
-    fn dec_then_max_floor_matches_shake_tree() {
+    fn dec_then_clamp_matches_shake_tree() {
         let target = EffectTarget::AgentProp {
             prop: "hunger".to_string(),
         };
@@ -695,7 +695,11 @@ mod tests {
                 target: target.clone(),
                 amount: EffectAmount::Direct(7.5),
             },
-            EffectOp::MaxFloor { target, floor: 0.0 },
+            EffectOp::Clamp {
+                target,
+                lo: 0.0,
+                hi: f64::INFINITY,
+            },
         ];
         let (after, _) = apply_effect_spec(
             &ops,
@@ -729,11 +733,16 @@ mod tests {
                 target: target.clone(),
                 amount: 5.0,
             },
-            EffectOp::MinCap {
+            EffectOp::Clamp {
                 target: target.clone(),
-                cap: 9.0,
+                lo: f64::NEG_INFINITY,
+                hi: 9.0,
             },
-            EffectOp::MaxFloor { target, floor: 1.0 },
+            EffectOp::Clamp {
+                target,
+                lo: 1.0,
+                hi: f64::INFINITY,
+            },
         ];
         let missing = agent(&[]);
         let (after, _) = apply_effect_spec(&ops, &missing, &agent(&[]), &no_bindings());
@@ -927,11 +936,12 @@ mod tests {
                 },
                 amount: EffectAmount::Direct(25.0),
             },
-            EffectOp::MaxFloor {
+            EffectOp::Clamp {
                 target: EffectTarget::AgentProp {
                     prop: "hunger".to_string(),
                 },
-                floor: 0.0,
+                lo: 0.0,
+                hi: f64::INFINITY,
             },
         ];
         let (after_agent, after_world) = apply_effect_spec(&ops, &agent, &world, &no_bindings());
@@ -994,11 +1004,12 @@ mod tests {
                     default: 20.0,
                 },
             },
-            EffectOp::MaxFloor {
+            EffectOp::Clamp {
                 target: EffectTarget::AgentProp {
                     prop: "hunger".to_string(),
                 },
-                floor: 0.0,
+                lo: 0.0,
+                hi: f64::INFINITY,
             },
             EffectOp::Set {
                 target: EffectTarget::AgentProp {
@@ -1030,7 +1041,7 @@ mod tests {
         );
     }
 
-    /// Missing hunger still clears the hand: Dec/MaxFloor skip a missing target while Set
+    /// Missing hunger still clears the hand: Dec/Clamp skip a missing target while Set
     /// applies. Unreachable-but-defined: validity requires agent_has_property hunger and no
     /// action deletes hunger, so planning never simulates this; the GDScript body instead
     /// returns early without clearing. Pinned here so any reachability change is deliberate.
@@ -1047,11 +1058,12 @@ mod tests {
                     default: 20.0,
                 },
             },
-            EffectOp::MaxFloor {
+            EffectOp::Clamp {
                 target: EffectTarget::AgentProp {
                     prop: "hunger".to_string(),
                 },
-                floor: 0.0,
+                lo: 0.0,
+                hi: f64::INFINITY,
             },
             EffectOp::Set {
                 target: EffectTarget::AgentProp {

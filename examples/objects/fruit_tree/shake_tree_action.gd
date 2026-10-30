@@ -85,7 +85,7 @@ func simulate_effect(
 func get_effect_spec() -> Array:
 	return [
 		{"op": "dec", "target": "agent", "prop": "hunger", "amount": _sim_hunger_gain},
-		{"op": "max_floor", "target": "agent", "prop": "hunger", "floor": 0.0},
+		{"op": "clamp", "target": "agent", "prop": "hunger", "lo": 0.0},
 	]
 
 

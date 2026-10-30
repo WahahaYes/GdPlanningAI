@@ -97,11 +97,11 @@ func get_effect_spec() -> Array:
 			"amount": fuel_per_wood,
 		},
 		{
-			"op": "min_cap",
+			"op": "clamp",
 			"target": "object",
 			"uid": campfire_uid,
 			"prop": "current_fuel",
-			"cap": 100.0,
+			"hi": 100.0,
 		},
 		{"op": "set", "target": "agent", "prop": "held_item", "value": ""},
 	]
