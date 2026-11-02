@@ -177,6 +177,10 @@ clean-cache: clean ## Also remove caches (.godot/, Rust target/); addons and bin
 check-behaviors: ## Check that docs/BEHAVIORS.md and the test files point at each other
 	@uv run scripts/check_behaviors.py
 
+.PHONY: check-readme-safety
+check-readme-safety: ## Check README is safe to paste into asset store descriptions
+	@uv run scripts/check_readme_safety.py
+
 .PHONY: check-docs
 check-docs: ## Check consistency of README and LICENSE between root and addon directory
 	@echo "Checking documentation consistency..."

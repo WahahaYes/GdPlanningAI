@@ -109,6 +109,17 @@ repos:
         language: fail
         files: ^addons/GdPlanningAI/bin/.*\.(so|dll|dylib)$
 
+  # README paste-safety: the text ships in the asset store/library listings.
+  - repo: local
+    hooks:
+      - id: check-readme-safety
+        name: Check README pastes into asset store descriptions (via make)
+        entry: make check-readme-safety
+        language: system
+        files: ^(README\.md|addons/GdPlanningAI/README\.md)$
+        require_serial: true
+        pass_filenames: false
+
   # Documentation drift check (README/LICENSE between root and addon)
   - repo: local
     hooks:

@@ -1,6 +1,12 @@
-![GdPlanningAI banner](https://raw.githubusercontent.com/WahahaYes/GdPlanningAI/refs/heads/main/media/gdpai_banner.png)
+<p align="center"><img src="https://raw.githubusercontent.com/WahahaYes/GdPlanningAI/refs/heads/main/media/gdpai_banner.png" width="768" alt="GdPlanningAI banner: three smiling agent figures above the project name and tagline 'An agent planning framework for Godot'"></p>
 
-[![Coverage](https://codecov.io/gh/WahahaYes/GdPlanningAI/graph/badge.svg)](https://codecov.io/gh/WahahaYes/GdPlanningAI)
+# GdPlanningAI
+
+[![Godot Asset Library](https://img.shields.io/badge/Godot_Asset_Library-4156-blue.svg)](https://godotengine.org/asset-library/asset/4156) [![Coverage](https://codecov.io/gh/WahahaYes/GdPlanningAI/graph/badge.svg)](https://codecov.io/gh/WahahaYes/GdPlanningAI) [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://github.com/WahahaYes/GdPlanningAI/blob/main/LICENSE.txt)
+
+GdPlanningAI (shortened as **GdPAI**) is an agent planning addon for Godot 4. Agents work out their own chains of actions at runtime, based on their attributes and the objects around them, instead of following hand-written state transitions or behavior trees. This can greatly reduce the developer overhead of creating AI behaviors, but it is a more complex, less intuitive system.
+
+![GIF of the hunger_multi_agent_2d.tscn scene running](https://raw.githubusercontent.com/WahahaYes/GdPlanningAI/refs/heads/main/media/2d_demo.gif)
 
 # Table of Contents
 
@@ -13,15 +19,9 @@
 1. [Frequently Asked Questions (FAQ)](#faq)
 1. [TODOs](#todos)
 
-# GdPlanningAI
-
-GdPlanningAI (shortened as **GdPAI**) is an agent planning addon for Godot 4. Agents work out their own chains of actions at runtime, based on their attributes and the objects around them, instead of following hand-written state transitions or behavior trees. This can greatly reduce the developer overhead of creating AI behaviors, but it is a more complex, less intuitive system.
-
-![GIF of the hunger_multi_agent_2d.tscn scene running](https://raw.githubusercontent.com/WahahaYes/GdPlanningAI/refs/heads/main/media/2d_demo.gif)
-
 The framework is based on Goal Oriented Action Planning (GOAP), the planning system Jeff Orkin developed in the early 2000s and used in games like F.E.A.R., Fallout 3, and Middle-earth: Shadow of Mordor. It started as a reimplementation of GOAP, then expanded the planning logic and put more emphasis on interactable objects.
 
-The planner is written in Rust and searches on background threads. Agents, goals, and actions are written in GDScript. [docs/ALGORITHM.md](docs/ALGORITHM.md) explains how a plan is found.
+The planner is written in Rust and searches on background threads. Agents, goals, and actions are written in GDScript. [docs/ALGORITHM.md](https://github.com/WahahaYes/GdPlanningAI/blob/main/docs/ALGORITHM.md) explains how a plan is found.
 
 The original motivation and "making of" process is covered here:
 
@@ -31,7 +31,7 @@ The original motivation and "making of" process is covered here:
 
 This repo is structured as a Godot addon, so it installs through Godot's asset library. Installing copies `addons/GdPlanningAI` and the related `script_templates` folder into your project.
 
-Release versions are available on the Godot asset library at [https://godotengine.org/asset-library/asset](https://godotengine.org/asset-library/asset).
+Release versions are available on the [Godot asset library](https://godotengine.org/asset-library/asset/4156).
 
 **Release zip.** Each release attaches `GdPlanningAI-X.Y.Z.zip` on the [releases page](https://github.com/WahahaYes/GdPlanningAI/releases): the addon with its Rust library built for Linux, Windows and macOS. GitHub's own source archives do not hold working binaries, so install from the zip.
 
@@ -62,7 +62,7 @@ The main classes you'll work with:
 - **`GdPAIBehaviorConfig` and `GdPAIAgentConfig`**: reusable behaviors that group related goals, actions, and property updaters. The agent config combines behaviors into an agent type and picks when it plans (`CONTINUOUS`, `ON_INTERVAL`, `ON_DEMAND`, `ON_INTERVAL_FORCED`).
 - **`GoToAction`**: the built-in navigation action. Actions that happen at a place require the agent to be there, and `GoToAction` can satisfy that for any location, so the planner adds the walking steps itself (for example `GoToAction` -> `PickupAction` -> `EatHeldFoodAction`).
 
-Full authoring guide: [docs/AUTHORING_GUIDE.md](docs/AUTHORING_GUIDE.md).
+Full authoring guide: [docs/AUTHORING_GUIDE.md](https://github.com/WahahaYes/GdPlanningAI/blob/main/docs/AUTHORING_GUIDE.md).
 
 ### Debugging
 
@@ -86,7 +86,7 @@ The docs live in this repository; the asset library install copies only the addo
 
 GdPlanningAI, Copyright 2025 Ethan Wilson
 
-This work is licensed under the Apache License, Version 2.0. The license file can be viewed at [LICENSE.txt](LICENSE.txt) and at [http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0).
+This work is licensed under the Apache License, Version 2.0. The license file can be viewed at [LICENSE.txt](https://github.com/WahahaYes/GdPlanningAI/blob/main/LICENSE.txt) and at [http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0).
 
 **Demo Assets**
 
