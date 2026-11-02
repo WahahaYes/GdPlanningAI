@@ -8,7 +8,7 @@ rust-version = "1.99.1"
 crate-type = ["cdylib", "lib"]
 
 [dependencies]
-godot = "0.4.5"
+godot = "0.5.5"
 serde = { version = "1.0", features = ["derive"] }
 rayon = "1.8"
 
@@ -22,7 +22,7 @@ name = "scenarios"
 harness = false
 
 [build-dependencies]
-godot-bindings = "0.4.5"
+godot-bindings = "0.5.5"
 
 [profile.release]
 strip = true

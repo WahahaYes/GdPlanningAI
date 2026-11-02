@@ -5,6 +5,7 @@
 //! on a Rayon worker and asks the main thread, via `process_callbacks`, to run GDScript costs,
 //! effects and custom preconditions. See `docs/ALGORITHM.md`.
 
+use godot::init::{InitLevel, InitStage};
 use godot::prelude::*;
 
 #[macro_use]
@@ -29,8 +30,12 @@ struct GdPlanningAIExt;
 unsafe impl ExtensionLibrary for GdPlanningAIExt {
     /// Creates the global log channel as early as possible so that log lines
     /// emitted from planner threads have somewhere to go.
-    fn on_level_init(level: InitLevel) {
-        if level == InitLevel::Servers {
+    fn min_level() -> InitLevel {
+        InitLevel::Servers
+    }
+
+    fn on_stage_init(stage: InitStage) {
+        if stage == InitStage::Servers {
             crate::logger::init_log_channel();
         }
     }
