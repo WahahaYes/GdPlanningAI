@@ -143,12 +143,6 @@ checksum = "9f1f0d310082fd5de539d4f41601182241147498444a7695c520288a0cdbead6"
 
 [[package]]
 name = "gdextension-api"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5383f33a2772746bbc83e5b0480862dd1eedfd0518b976f37f3db11c81e71a6a"
-
-[[package]]
-name = "gdextension-api"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3489a9e7463353467db3cfe3eb12de31c9b6200e4f928bde4959bf5db5b31d2f"
@@ -158,7 +152,7 @@ name = "gdplanningai-rust"
 version = "0.3.0"
 dependencies = [
  "godot",
- "godot-bindings 0.4.5",
+ "godot-bindings",
  "libtest-mimic",
  "rayon",
  "serde",
@@ -183,20 +177,11 @@ dependencies = [
 
 [[package]]
 name = "godot-bindings"
-version = "0.4.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f38b6e65306c05e3c3f0131ee8dbf7394691e53268d72019007ec20687f2280f"
-dependencies = [
- "gdextension-api 0.3.3",
-]
-
-[[package]]
-name = "godot-bindings"
 version = "0.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7ce6fed360f27cc44ee188246880bb842cdb96bf13aec1d0ec31cccfa50b1cf6"
 dependencies = [
- "gdextension-api 0.5.1",
+ "gdextension-api",
 ]
 
 [[package]]
@@ -211,7 +196,7 @@ version = "0.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "08409103fba47d9cb5b64dcb0b679b06ba3153d9c96d5e918bb97f065d553c60"
 dependencies = [
- "godot-bindings 0.5.5",
+ "godot-bindings",
  "heck",
  "nanoserde",
  "proc-macro2",
@@ -225,7 +210,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "40ab630dbc7ce797f09eda29025ebadab1b700778c988ad19c47bddc51874a90"
 dependencies = [
  "glam",
- "godot-bindings 0.5.5",
+ "godot-bindings",
  "godot-cell",
  "godot-codegen",
  "godot-ffi",
@@ -237,7 +222,7 @@ version = "0.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "18c296047c042d74828b2cb2e71bbadd22dd4ff98346c696b6c0a4a5decbf57f"
 dependencies = [
- "godot-bindings 0.5.5",
+ "godot-bindings",
  "godot-codegen",
  "libc",
 ]
@@ -248,7 +233,7 @@ version = "0.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c9ffca7ec0dfad5885a96b3819b3dafc1014c36d2931464f96d9ab0bee87b52e"
 dependencies = [
- "godot-bindings 0.5.5",
+ "godot-bindings",
  "proc-macro2",
  "quote",
  "venial",

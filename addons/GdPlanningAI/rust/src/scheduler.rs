@@ -1098,7 +1098,8 @@ fn result_to_dict(result: &PlanResult) -> VarDictionary {
     for action_index in &result.action_chain {
         action_chain.push(&action_index.to_variant());
     }
-    dict.set("action_chain", action_chain.to_variant());
+    let action_chain_var = action_chain.to_variant();
+    dict.set("action_chain", &action_chain_var);
 
     // Add action-specific bindings
     let mut action_bindings = Array::<Variant>::new();
@@ -1113,7 +1114,8 @@ fn result_to_dict(result: &PlanResult) -> VarDictionary {
         binding_tuple.push(&vals_array.to_variant());
         action_bindings.push(&binding_tuple.to_variant());
     }
-    dict.set("action_bindings", action_bindings.to_variant());
+    let action_bindings_var = action_bindings.to_variant();
+    dict.set("action_bindings", &action_bindings_var);
 
     dict
 }
