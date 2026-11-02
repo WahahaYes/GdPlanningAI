@@ -153,8 +153,8 @@ lint-godot: ## Lint tracked GDScript files with gdlint (gdtoolkit defaults)
 ##@ Checks
 
 .PHONY: check
-check: ## Run every pre-commit hook on every file, as CI's precommit job does (formatters may rewrite, then it fails)
-	uv run pre-commit run --all-files --show-diff-on-failure
+check: ## Run every hook in .pre-commit-config.yaml on every file, as CI's precommit job does (formatters may rewrite, then it fails)
+	prek run --all-files --show-diff-on-failure
 
 ##@ Cleaning
 

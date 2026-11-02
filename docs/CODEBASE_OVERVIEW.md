@@ -20,7 +20,7 @@ The top-level of the repo:
 | `test/`             | GUT GDScript test suite (`test/unit/`, `test/integration/`).                            |
 | `media/`            | Demo assets used by the README (banner, gifs, screenshots).                             |
 
-Other files of note at the root: `Makefile` (see [section 6](#6-build-system)), `project.godot` (Godot 4.7 project, no main scene), `addons.jsonc` (third-party addon manifest, `gut` v9.6.0 + `GdTimeMachine` v0.1.1), and `.pre-commit-config.yaml`.
+Other files of note at the root: `Makefile` (see [section 6](#6-build-system)), `project.godot` (Godot 4.7 project, no main scene), `addons.jsonc` (third-party addon manifest, `gut` v9.6.0 + `GdTimeMachine` v0.1.1), and `.pre-commit-config.yaml` (hooks config, run with prek).
 
 ______________________________________________________________________
 
@@ -192,7 +192,7 @@ Every target sets `RUSTFLAGS` with `--remap-path-prefix`, so the built binaries 
 
 ### Build artifact flow
 
-`make build-release` produces the shared library for the current OS and copies it into `addons/GdPlanningAI/bin/<platform>/`. `gdplanningai.gdextension` loads the platform-appropriate file at runtime (`.so` on Linux, `.dll` on Windows, `.dylib` on macOS). Built libraries are never committed: `bin/` ignores them, a pre-commit hook rejects them, and CI runs that hook over every file.
+`make build-release` produces the shared library for the current OS and copies it into `addons/GdPlanningAI/bin/<platform>/`. `gdplanningai.gdextension` loads the platform-appropriate file at runtime (`.so` on Linux, `.dll` on Windows, `.dylib` on macOS). Built libraries are never committed: `bin/` ignores them, a hook in `.pre-commit-config.yaml` rejects them, and CI runs the hooks over every file.
 
 Release binaries are built by CI (`build.yml`): Linux and macOS (universal, `lipo` of aarch64 and x86_64) on their runners, Windows natively with MSVC. The release workflow packages those fresh builds into `GdPlanningAI-X.Y.Z.zip`; the binaries committed under `bin/` are not checked or refreshed, and can lag the Rust sources.
 
@@ -221,7 +221,7 @@ ______________________________________________________________________
 
 - **Formatting and linting**: `make format-rust` (rustfmt), `make format-godot` (spacing fixer + gdformat), `make lint-godot` (gdlint), `make lint-style` (style linter over git-tracked `.gd`/`.rs` files: bans `:=`, checks borders, docstrings, and spacing).
 - **`scripts/`**: `fix_gd_spacing.py` (2 blank lines before top-level funcs), `lint_style.py` (style linter).
-- **Pre-commit hooks** (`.pre-commit-config.yaml`, commit stage only; tests are run by hand): pre-commit-hooks v5.0.0, cargo fmt/clippy (via the rust Makefile), gitleaks v8.24.0, mdformat 0.7.19 (`--wrap=no`, GFM tables), ruff v0.6.0 + ruff-format, gdformat, gdlint, `lint-style`, and `check-docs`.
+- **Hooks** (`.pre-commit-config.yaml`, run with prek, commit stage only; tests are run by hand): pre-commit-hooks v5.0.0, cargo fmt/clippy (via the rust Makefile), gitleaks v8.24.0, mdformat 0.7.19 (`--wrap=no`, GFM tables), ruff v0.6.0 + ruff-format, gdformat, gdlint, `lint-style`, and `check-docs`.
 - **Third-party addons** (`addons.jsonc`): `gut` v9.6.0 (bitwes/Gut) + `GdTimeMachine` v0.1.1 (WahahaYes/GdTimeMachine), installed via GodotEnv, gitignored, cached under `.addons/`. All three editor plugins (GdPlanningAI, gut, GdTimeMachine) are enabled.
 - **`project.godot`**: Godot 4.7, Forward Plus renderer, **no main scene** (run scenes directly). Autoloads: `GdPAIAutoload`, `GdTimeMachineGracefulStop`. Its `[dotnet]` section is written by the .NET build of the editor; the project has no C#.
 - **No CI**: there is no `.github/` and no GitHub Actions. Quality gates are the local Make targets and the pre-commit hooks.
