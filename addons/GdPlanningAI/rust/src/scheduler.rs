@@ -965,6 +965,10 @@ fn precond_spec_from_dict(
 
 /// Runs one requested callable on fresh blackboards rebuilt from the snapshots. A non-number
 /// cost means infinity; a non-bool precondition means false; effects are diffed back.
+///
+/// Object-valued snapshot properties rebuild as live shared handles (`ObjectRef`
+/// in `snapshot.rs`): callbacks must treat them as read-only — a write escapes the
+/// snapshot, changing the real object and every other agent's search.
 fn dispatch_callback(
     callable: &Callable,
     kind: CallbackKind,

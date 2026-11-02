@@ -31,6 +31,11 @@ pub enum VariantSnapshot {
     /// Tier 2: binary blob produced by `var_to_bytes`.
     Bytes(Vec<u8>),
     /// Tier 3: Godot instance-ID of a live object (opaque handle).
+    ///
+    /// Rebuilds as the *live shared* object, so Object-valued properties are
+    /// read-only in simulation: mutating it escapes the snapshot into the real
+    /// object and every other agent's search. Copy scalars onto the blackboard
+    /// or expose sim state via `GdPAIObjectData` properties instead.
     ObjectRef(i64),
     /// Untyped array whose elements are snapshotted individually (so object handles and
     /// primitives inside it keep their tier).
@@ -102,7 +107,11 @@ impl VariantSnapshot {
                 match Gd::<Object>::try_from_instance_id(instance_id) {
                     Ok(obj) => obj.to_variant(),
                     Err(_) => {
-                        log_warn!(
+                        // Expected contention in multi-agent scenes: another agent may
+                        // have picked up or freed the object while a search still
+                        // referred to it, so this stays at debug to avoid noise at the
+                        // default log level (and GUT engine-error counts).
+                        log_debug!(
                             "ObjectRef({}): object was freed before callback; returning Nil.",
                             id
                         );
