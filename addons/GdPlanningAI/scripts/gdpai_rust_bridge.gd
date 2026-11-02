@@ -43,7 +43,8 @@ func serialize_goals(goals: Array[Goal], agent: GdPAIAgent) -> Array[Dictionary]
 
 
 ## Serialises each action, embedding [Callable]s for cost and effect. The effect spec is
-## sent as a typed Array[Dictionary]; the Rust side only accepts that shape.
+## sent as a typed Array[Dictionary] (preferred); the Rust side also accepts untyped
+## arrays, but every entry must be a Dictionary.
 func _extract_actions(actions: Array[Action]) -> Array[Dictionary]:
 	var extracted: Array[Dictionary] = []
 	for action in actions:

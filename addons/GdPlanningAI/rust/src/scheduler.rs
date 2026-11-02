@@ -762,42 +762,30 @@ fn build_action_specs(
 /// Converts the bridge's `effect_spec` arrays into native [`EffectOp`]s. A missing or empty
 /// array means "no spec" without a warning; a present-but-unparseable one warns once per action
 /// and falls back to the effect callable. Accepts both typed `Array[Dictionary]` (what the
-/// bridge sends) and untyped arrays of dictionaries, like [`extract_typed_specs`] does for the
-/// other spec kinds, so direct callers and future GDScript paths stay covered.
+/// bridge sends) and untyped arrays of dictionaries via [`coerce_dict_array`], so direct
+/// callers and future GDScript paths stay covered.
 fn parse_effect_spec(dict: &VarDictionary, action_name: &str) -> Option<Vec<EffectOp>> {
     let raw = dict.get("effect_spec")?;
     if raw.is_nil() {
         return None;
     }
-    let op_dicts: Vec<VarDictionary> = if let Ok(typed) = raw.try_to::<Array<VarDictionary>>() {
-        typed.iter_shared().collect()
-    } else if let Ok(untyped) = raw.try_to::<VarArray>() {
-        let mut out = Vec::with_capacity(untyped.len());
-        let mut malformed = false;
-        for item in untyped.iter_shared() {
-            match item.try_to::<VarDictionary>().ok() {
-                Some(op_dict) => out.push(op_dict),
-                None => {
-                    malformed = true;
-                    break;
-                }
-            }
-        }
-        if malformed {
+    let (op_dicts, dropped) = match coerce_dict_array(&raw) {
+        Some(pair) => pair,
+        None => {
             log_warn!(
                 "Action '{}': ignoring malformed effect_spec; falling back to effect_callable",
                 action_name
             );
             return None;
         }
-        out
-    } else {
+    };
+    if dropped > 0 {
         log_warn!(
             "Action '{}': ignoring malformed effect_spec; falling back to effect_callable",
             action_name
         );
         return None;
-    };
+    }
     if op_dicts.is_empty() {
         return None;
     }
@@ -855,28 +843,70 @@ fn build_goal_specs(goals: &Array<VarDictionary>, registry: &mut Vec<Callable>) 
         .collect()
 }
 
-/// Reads `dict[key]` as an array of dictionaries (typed or untyped) and parses each entry with
-/// `parse_fn`, dropping entries it rejects. A missing key gives an empty vector.
+/// Coerces a bridge array value into dictionaries: typed `Array[Dictionary]` (what the
+/// bridge sends) as-is, or an untyped array whose dictionary entries are kept. This is the
+/// single home of the dual-shape arm shared by [`parse_effect_spec`] and
+/// [`extract_typed_specs`]. Returns the kept entries plus the count of dropped
+/// non-dictionary entries, or `None` when the value is neither shape.
+fn coerce_dict_array(raw: &Variant) -> Option<(Vec<VarDictionary>, usize)> {
+    if let Ok(typed) = raw.try_to::<Array<VarDictionary>>() {
+        return Some((typed.iter_shared().collect(), 0));
+    }
+    let untyped = raw.try_to::<VarArray>().ok()?;
+    let mut out = Vec::with_capacity(untyped.len());
+    let mut dropped = 0;
+    for item in untyped.iter_shared() {
+        match item.try_to::<VarDictionary>() {
+            Ok(dict) => out.push(dict),
+            Err(_) => dropped += 1,
+        }
+    }
+    Some((out, dropped))
+}
+
+/// Reads `dict[key]` as an array of dictionaries (typed or untyped, via
+/// [`coerce_dict_array`]) and parses each entry with `parse_fn`. A missing key or nil gives
+/// an empty vector without a warning; a malformed shape or dropped entries warn once per
+/// owner (naming `dict["name"]`, which covers both actions and goals) instead of
+/// silently shrinking the specs.
 fn extract_typed_specs<T, F>(dict: &VarDictionary, key: &str, mut parse_fn: F) -> Vec<T>
 where
     F: FnMut(&VarDictionary) -> Option<T>,
 {
-    dict.get(key)
-        .and_then(|v| {
-            v.try_to::<Array<VarDictionary>>().ok().or_else(|| {
-                v.try_to::<VarArray>().ok().map(|arr| {
-                    let mut typed = Array::<VarDictionary>::new();
-                    for item in arr.iter_shared() {
-                        if let Ok(dict) = item.try_to::<VarDictionary>() {
-                            typed.push(&dict);
-                        }
-                    }
-                    typed
-                })
-            })
-        })
-        .map(|arr| arr.iter_shared().filter_map(|d| parse_fn(&d)).collect())
-        .unwrap_or_default()
+    let Some(raw) = dict.get(key) else {
+        return Vec::new();
+    };
+    if raw.is_nil() {
+        return Vec::new();
+    }
+    let owner = dict
+        .get("name")
+        .and_then(|v| v.try_to::<String>().ok())
+        .unwrap_or_else(|| "<unnamed>".to_string());
+    let Some((dicts, mut dropped)) = coerce_dict_array(&raw) else {
+        log_warn!(
+            "Ignoring malformed '{}' for '{}'; expected an array of dictionaries",
+            key,
+            owner
+        );
+        return Vec::new();
+    };
+    let mut out = Vec::with_capacity(dicts.len());
+    for d in &dicts {
+        match parse_fn(d) {
+            Some(spec) => out.push(spec),
+            None => dropped += 1,
+        }
+    }
+    if dropped > 0 {
+        log_warn!(
+            "Ignoring {} malformed '{}' entries for '{}'",
+            dropped,
+            key,
+            owner
+        );
+    }
+    out
 }
 
 /// [`extract_typed_specs`] for precondition dictionaries, registering custom callables.
