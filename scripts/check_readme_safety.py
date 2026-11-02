@@ -244,8 +244,14 @@ def check_exists(dest: str):
 
 
 def report(hits: list[tuple]) -> int:
+    """Print hits and return an exit code.
+
+    Hits go to stdout, one necro hit-line each
+    (``path:line:col: [code] summary``); the why/help/explain guidance and
+    the count summary go to stderr so necro never tries to parse them.
+    """
     if not hits:
-        print("check_readme_safety: README is paste-safe.")
+        print("check_readme_safety: README is paste-safe.", file=sys.stderr)
         return 0
     shown_why: set[str] = set()
     for display, lineno, col, code, summary, why, help_text in sorted(
@@ -253,13 +259,16 @@ def report(hits: list[tuple]) -> int:
     ):
         print(f"{display}:{lineno}:{col}: [{code}] {summary}")
         if code not in shown_why:
-            print(f"  why: {why}")
-            print(f"  help: {help_text}")
-            print(f"  explain: uv run scripts/check_readme_safety.py --explain {code}")
+            print(f"  why: {why}", file=sys.stderr)
+            print(f"  help: {help_text}", file=sys.stderr)
+            print(
+                f"  explain: uv run scripts/check_readme_safety.py --explain {code}",
+                file=sys.stderr,
+            )
             shown_why.add(code)
         else:
-            print(f"  help: {help_text}")
-    print(f"\ncheck_readme_safety: {len(hits)} violation(s) found.")
+            print(f"  help: {help_text}", file=sys.stderr)
+    print(f"check_readme_safety: {len(hits)} violation(s) found.", file=sys.stderr)
     return 1
 
 

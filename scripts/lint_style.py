@@ -79,9 +79,14 @@ def doc_length_violations(
 
 
 def report(violations: list[tuple]) -> int:
-    """Print violations and return an exit code."""
+    """Print violations and return an exit code.
+
+    Hits go to stdout, one necro hit-line each
+    (``path:line: [rule] message``); the human summary goes to stderr so
+    necro never tries to parse it.
+    """
     if not violations:
-        print("lint_style: no violations found.")
+        print("lint_style: no violations found.", file=sys.stderr)
         return 0
 
     for path, lineno, rule, message in sorted(
@@ -89,7 +94,7 @@ def report(violations: list[tuple]) -> int:
     ):
         print(f"{path}:{lineno}: [{rule}] {message}")
 
-    print(f"\nlint_style: {len(violations)} violation(s) found.")
+    print(f"lint_style: {len(violations)} violation(s) found.", file=sys.stderr)
     return 1
 
 
