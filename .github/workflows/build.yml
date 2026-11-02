@@ -1,5 +1,5 @@
 # CI for the addon. Every job step is one local command (see Makefile):
-#   prek run --all-files       hooks (formatters, lints, secrets)
+#   uv run prek run --all-files       hooks (formatters, lints, secrets)
 #   make format-check; make -C addons/GdPlanningAI/rust lint; make coverage   format (Rust + GDScript), clippy, tests instrumented
 #   make godot-version                      the Godot pin (global.json)
 #   make test-godot-verbose                 the GUT suite, full log, nonzero on failure
@@ -75,8 +75,6 @@ jobs:
         with:
           fetch-depth: 0
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
-      - name: Install prek (pinned)
-        run: uv tool install "prek==0.5.9"
       # Toolchain, llvm-tools and the cargo-llvm-cov binary survive here; make
       # setup reinstalls whatever a stale hit lacks. Restored everywhere, saved
       # only from jobs that run make setup (rust, godot), never from precommit.
@@ -103,7 +101,7 @@ jobs:
         # over the pushed commits instead.
         env:
           SKIP: gitleaks,cargo-clippy
-        run: prek run --all-files --show-diff-on-failure
+        run: uv run prek run --all-files --show-diff-on-failure
       - name: Prek environments cache save
         if: github.ref == 'refs/heads/main' && steps.prek-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -145,7 +143,7 @@ jobs:
         run: |
           for sha in $(git rev-list --no-merges "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"); do
             git log -1 --format=%B "$sha" > "$RUNNER_TEMP/msg"
-            prek run no-ai-attribution --hook-stage commit-msg --commit-msg-filename "$RUNNER_TEMP/msg" || { echo "bad message in $sha"; exit 1; }
+            uv run prek run no-ai-attribution --hook-stage commit-msg --commit-msg-filename "$RUNNER_TEMP/msg" || { echo "bad message in $sha"; exit 1; }
           done
 
   # Rust checks run once, on Linux, in debug (the tests also pass under --release). The tests run
