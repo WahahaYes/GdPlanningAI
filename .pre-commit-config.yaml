@@ -38,17 +38,14 @@ repos:
         require_serial: true
         pass_filenames: false
 
-  # Advisory necro trial: informational only, always passes.
-  # pre-commit has no allow-failure flag, so the wrapper exits 0 by
-  # construction; the enforcing flip (bare `necro`) needs explicit approval
-  # after the per-rule keep/disable/baseline review. Runs from the project env
-  # via pyproject (`uv run --frozen necro`): a released wheel with the rust pack
-  # makes this report real hits while still passing.
+  # Necro gate: enforcing. Runs from the project env via pyproject
+  # (`uv run --frozen necro`): a released wheel with the rust pack.
+  # Keep this entry bare so hits fail the hook.
   - repo: local
     hooks:
-      - id: necro-advisory
-        name: necro advisory (informational, always passes)
-        entry: "bash -c 'uv run --frozen necro; status=$?; echo necro-exit=$status-advisory-ignored; exit 0'"
+      - id: necro
+        name: necro
+        entry: uv run --frozen necro
         language: system
         always_run: true
         pass_filenames: false
