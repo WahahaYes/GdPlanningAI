@@ -7,8 +7,8 @@
 use crate::plan_types::*;
 use crate::planner::types::SearchContext;
 use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
-use std::sync::Arc;
 use std::sync::atomic::Ordering;
+use std::sync::{Arc, PoisonError};
 
 /// The result of a single simulation step.
 #[derive(Debug, PartialEq)]
@@ -122,7 +122,11 @@ pub fn simulate_action(action_idx: usize, args: SimArgs) -> StepResult<SimResult
             *f
         } else {
             // Check global discovery cost cache before firing a new callback
-            let costs = args.ctx.discovery_costs.lock().unwrap();
+            let costs = args
+                .ctx
+                .discovery_costs
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
             let key = (action_idx, args.bindings.to_vec());
             if let Some(&cached_cost) = costs.get(&key) {
                 drop(costs);

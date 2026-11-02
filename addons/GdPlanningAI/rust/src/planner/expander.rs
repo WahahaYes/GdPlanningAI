@@ -11,7 +11,7 @@ use crate::planner::types::{
 };
 use crate::requirement::{ProvisionSpec, RequirementSpec, provision_satisfies_requirement};
 use std::collections::{BTreeSet, HashMap};
-use std::sync::Arc;
+use std::sync::{Arc, PoisonError};
 
 /// A candidate action that can potentially satisfy one or more open needs.
 pub struct Candidate {
@@ -48,15 +48,15 @@ fn check_pending_or_clean_stale<K>(
 where
     K: Clone + Eq + std::hash::Hash,
 {
-    let pending = pending_map.lock().unwrap();
+    let pending = pending_map.lock().unwrap_or_else(PoisonError::into_inner);
     if let Some(&id) = pending.get(key) {
-        let req_map = request_map.lock().unwrap();
+        let req_map = request_map.lock().unwrap_or_else(PoisonError::into_inner);
         if req_map.contains_key(&id) {
             return Some(id);
         } else {
             drop(req_map);
             drop(pending);
-            let mut pending = pending_map.lock().unwrap();
+            let mut pending = pending_map.lock().unwrap_or_else(PoisonError::into_inner);
             pending.remove(key);
         }
     }
@@ -73,7 +73,10 @@ fn lookup_or_start_discovery(
 ) -> StepResult<DiscoveryResult> {
     // 1. Check cache
     {
-        let cache = ctx.discovery_results.lock().unwrap();
+        let cache = ctx
+            .discovery_results
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
         if let Some(res) = cache.get(&(action_idx, bindings.clone())) {
             return StepResult::Ready(res.clone());
         }
@@ -90,7 +93,10 @@ fn lookup_or_start_discovery(
 
     // 3. Start discovery simulation
     let mut cost_cache = {
-        let costs = ctx.discovery_costs.lock().unwrap();
+        let costs = ctx
+            .discovery_costs
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
         vec![
             costs
                 .get(&(action_idx, bindings.clone()))
@@ -117,18 +123,30 @@ fn lookup_or_start_discovery(
                 world: Arc::new(res.world),
                 cost: res.cost,
             };
-            let mut cache = ctx.discovery_results.lock().unwrap();
+            let mut cache = ctx
+                .discovery_results
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
             cache.insert((action_idx, bindings.clone()), disc_res.clone());
             StepResult::Ready(disc_res)
         }
         StepResult::Pending(id) => {
             if cost_cache[0] >= 0.0 {
-                let mut costs = ctx.discovery_costs.lock().unwrap();
+                let mut costs = ctx
+                    .discovery_costs
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner);
                 costs.insert((action_idx, bindings.clone()), cost_cache[0]);
             }
-            let mut pending = ctx.discovery_pending.lock().unwrap();
+            let mut pending = ctx
+                .discovery_pending
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
             pending.insert((action_idx, bindings.clone()), id);
-            let mut req_map = ctx.discovery_request_map.lock().unwrap();
+            let mut req_map = ctx
+                .discovery_request_map
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
             req_map.insert(
                 id,
                 DiscoveryRequest::Simulation(action_idx, bindings.clone()),
@@ -207,7 +225,10 @@ pub fn find_candidates(branch: &PlanBranch, ctx: &SearchContext) -> CandidatesRe
 
                 // 1. Check cache
                 let cached = {
-                    let cache = ctx.discovery_precond_results.lock().unwrap();
+                    let cache = ctx
+                        .discovery_precond_results
+                        .lock()
+                        .unwrap_or_else(PoisonError::into_inner);
                     cache
                         .get(&(idx, check.clone(), empty_bindings.clone()))
                         .copied()
@@ -243,7 +264,10 @@ pub fn find_candidates(branch: &PlanBranch, ctx: &SearchContext) -> CandidatesRe
                 ) {
                     StepResult::Ready(res) => {
                         // Cache immediately so subsequent calls don't re-fire
-                        let mut cache = ctx.discovery_precond_results.lock().unwrap();
+                        let mut cache = ctx
+                            .discovery_precond_results
+                            .lock()
+                            .unwrap_or_else(PoisonError::into_inner);
                         cache.insert((idx, check.clone(), empty_bindings.clone()), res);
                         drop(cache);
                         if !res {
@@ -252,10 +276,16 @@ pub fn find_candidates(branch: &PlanBranch, ctx: &SearchContext) -> CandidatesRe
                         }
                     }
                     StepResult::Pending(id) => {
-                        let mut pending = ctx.discovery_precond_pending.lock().unwrap();
+                        let mut pending = ctx
+                            .discovery_precond_pending
+                            .lock()
+                            .unwrap_or_else(PoisonError::into_inner);
                         pending.insert((idx, check.clone(), empty_bindings.clone()), id);
                         drop(pending);
-                        let mut req_map = ctx.discovery_request_map.lock().unwrap();
+                        let mut req_map = ctx
+                            .discovery_request_map
+                            .lock()
+                            .unwrap_or_else(PoisonError::into_inner);
                         req_map.insert(
                             id,
                             DiscoveryRequest::Precondition(idx, check.clone(), empty_bindings),
@@ -302,7 +332,10 @@ pub fn find_candidates(branch: &PlanBranch, ctx: &SearchContext) -> CandidatesRe
                                         }
                                     } else {
                                         // Custom precond check with specific discovery bindings
-                                        let cache = ctx.discovery_precond_results.lock().unwrap();
+                                        let cache = ctx
+                                            .discovery_precond_results
+                                            .lock()
+                                            .unwrap_or_else(PoisonError::into_inner);
                                         if let Some(&eval_res) =
                                             cache.get(&(idx, pre.clone(), bindings.clone()))
                                         {
@@ -328,7 +361,9 @@ pub fn find_candidates(branch: &PlanBranch, ctx: &SearchContext) -> CandidatesRe
                                                         let mut cache = ctx
                                                             .discovery_precond_results
                                                             .lock()
-                                                            .unwrap();
+                                                            .unwrap_or_else(
+                                                                PoisonError::into_inner,
+                                                            );
                                                         cache.insert(
                                                             (idx, pre.clone(), bindings.clone()),
                                                             eval_res,
@@ -341,7 +376,9 @@ pub fn find_candidates(branch: &PlanBranch, ctx: &SearchContext) -> CandidatesRe
                                                         let mut pending = ctx
                                                             .discovery_precond_pending
                                                             .lock()
-                                                            .unwrap();
+                                                            .unwrap_or_else(
+                                                                PoisonError::into_inner,
+                                                            );
                                                         pending.insert(
                                                             (idx, pre.clone(), bindings.clone()),
                                                             id,
@@ -349,7 +386,9 @@ pub fn find_candidates(branch: &PlanBranch, ctx: &SearchContext) -> CandidatesRe
                                                         let mut req_map = ctx
                                                             .discovery_request_map
                                                             .lock()
-                                                            .unwrap();
+                                                            .unwrap_or_else(
+                                                                PoisonError::into_inner,
+                                                            );
                                                         req_map.insert(
                                                             id,
                                                             DiscoveryRequest::Precondition(
@@ -416,7 +455,10 @@ pub fn find_candidates(branch: &PlanBranch, ctx: &SearchContext) -> CandidatesRe
                                 satisfied_preconditions.push(pre_idx);
                             }
                         } else {
-                            let cache = ctx.discovery_precond_results.lock().unwrap();
+                            let cache = ctx
+                                .discovery_precond_results
+                                .lock()
+                                .unwrap_or_else(PoisonError::into_inner);
                             if let Some(&eval_res) =
                                 cache.get(&(idx, pre.clone(), empty_bindings.clone()))
                             {
@@ -443,8 +485,10 @@ pub fn find_candidates(branch: &PlanBranch, ctx: &SearchContext) -> CandidatesRe
                                         &empty_bindings,
                                     ) {
                                         StepResult::Ready(eval_res) => {
-                                            let mut cache =
-                                                ctx.discovery_precond_results.lock().unwrap();
+                                            let mut cache = ctx
+                                                .discovery_precond_results
+                                                .lock()
+                                                .unwrap_or_else(PoisonError::into_inner);
                                             cache.insert(
                                                 (idx, pre.clone(), empty_bindings.clone()),
                                                 eval_res,
@@ -454,14 +498,18 @@ pub fn find_candidates(branch: &PlanBranch, ctx: &SearchContext) -> CandidatesRe
                                             }
                                         }
                                         StepResult::Pending(id) => {
-                                            let mut pending =
-                                                ctx.discovery_precond_pending.lock().unwrap();
+                                            let mut pending = ctx
+                                                .discovery_precond_pending
+                                                .lock()
+                                                .unwrap_or_else(PoisonError::into_inner);
                                             pending.insert(
                                                 (idx, pre.clone(), empty_bindings.clone()),
                                                 id,
                                             );
-                                            let mut req_map =
-                                                ctx.discovery_request_map.lock().unwrap();
+                                            let mut req_map = ctx
+                                                .discovery_request_map
+                                                .lock()
+                                                .unwrap_or_else(PoisonError::into_inner);
                                             req_map.insert(
                                                 id,
                                                 DiscoveryRequest::Precondition(

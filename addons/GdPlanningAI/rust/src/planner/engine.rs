@@ -22,9 +22,9 @@ use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use super::{SearchHeuristic, TerminationStrategy};
 use crate::planner::expander::find_candidates;
 use std::collections::{BinaryHeap, HashMap};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64};
 use std::sync::mpsc::{Receiver, Sender};
+use std::sync::{Arc, PoisonError};
 
 /// The GOAP search engine. Goals are tried in the given order (highest reward first); the first
 /// goal with a plan wins.
@@ -319,7 +319,11 @@ impl PlannerEngine {
             // steps of one branch) are written to the shared caches, so every node that needed
             // them can proceed, not just the one that triggered the request.
             let discovery_req = {
-                let req_map = self.ctx.discovery_request_map.lock().unwrap();
+                let req_map = self
+                    .ctx
+                    .discovery_request_map
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner);
                 req_map.get(&callback.request_id).cloned()
             };
 
@@ -329,9 +333,17 @@ impl PlannerEngine {
                         if let CallbackResponse::UpdatedSnapshots(ref agent, ref world) =
                             callback.response
                         {
-                            let mut cache = self.ctx.discovery_results.lock().unwrap();
+                            let mut cache = self
+                                .ctx
+                                .discovery_results
+                                .lock()
+                                .unwrap_or_else(PoisonError::into_inner);
                             let cost = {
-                                let costs = self.ctx.discovery_costs.lock().unwrap();
+                                let costs = self
+                                    .ctx
+                                    .discovery_costs
+                                    .lock()
+                                    .unwrap_or_else(PoisonError::into_inner);
                                 costs.get(&(idx, bindings.clone())).cloned().unwrap_or(1.0)
                             };
                             cache.insert(
@@ -343,23 +355,43 @@ impl PlannerEngine {
                                 },
                             );
                         } else if let CallbackResponse::Float(cost) = callback.response {
-                            let mut costs = self.ctx.discovery_costs.lock().unwrap();
+                            let mut costs = self
+                                .ctx
+                                .discovery_costs
+                                .lock()
+                                .unwrap_or_else(PoisonError::into_inner);
                             costs.insert((idx, bindings.clone()), cost);
                         }
 
-                        let mut pending = self.ctx.discovery_pending.lock().unwrap();
+                        let mut pending = self
+                            .ctx
+                            .discovery_pending
+                            .lock()
+                            .unwrap_or_else(PoisonError::into_inner);
                         pending.remove(&(idx, bindings));
                     }
                     DiscoveryRequest::Precondition(idx, spec, bindings) => {
                         if let CallbackResponse::Bool(b) = callback.response {
-                            let mut cache = self.ctx.discovery_precond_results.lock().unwrap();
+                            let mut cache = self
+                                .ctx
+                                .discovery_precond_results
+                                .lock()
+                                .unwrap_or_else(PoisonError::into_inner);
                             cache.insert((idx, spec.clone(), bindings.clone()), b);
                         }
-                        let mut pending = self.ctx.discovery_precond_pending.lock().unwrap();
+                        let mut pending = self
+                            .ctx
+                            .discovery_precond_pending
+                            .lock()
+                            .unwrap_or_else(PoisonError::into_inner);
                         pending.remove(&(idx, spec, bindings));
                     }
                 }
-                let mut req_map = self.ctx.discovery_request_map.lock().unwrap();
+                let mut req_map = self
+                    .ctx
+                    .discovery_request_map
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner);
                 req_map.remove(&callback.request_id);
             }
 
@@ -486,8 +518,7 @@ impl PlannerEngine {
                                 {
                                     // Goal already satisfied (empty plan) but more goals remain.
                                     // Don't return yet; let step_search move to the next goal.
-                                } else {
-                                    let plan = self.best_plan.take().unwrap();
+                                } else if let Some(plan) = self.best_plan.take() {
                                     self.log_result_summary(&plan, goals);
                                     return PlannerRunResult::Complete(Some(plan));
                                 }
@@ -544,7 +575,11 @@ impl PlannerEngine {
                         );
 
                         let discovery_cost = {
-                            let cache = self.ctx.discovery_results.lock().unwrap();
+                            let cache = self
+                                .ctx
+                                .discovery_results
+                                .lock()
+                                .unwrap_or_else(PoisonError::into_inner);
                             cache
                                 .get(&(cand.action_idx, cand.bindings.clone()))
                                 .map(|r| r.cost)
@@ -671,7 +706,7 @@ impl PlannerEngine {
         // id works; the scheduler resumes us as soon as an answer for it has been delivered, and
         // an answer for another parked id is picked up on that resume too.)
         if !self.parked_nodes.is_empty() {
-            PlannerRunResult::Pending(*self.parked_nodes.keys().next().unwrap())
+            PlannerRunResult::Pending(self.parked_nodes.keys().next().copied().unwrap_or(0))
         } else {
             // If the current goal is already satisfied (empty plan) and there are more goals,
             // skip to the next goal instead of returning the empty plan.
@@ -1027,7 +1062,11 @@ impl PlannerEngine {
         {
             return None;
         }
-        let cache = self.ctx.discovery_results.lock().unwrap();
+        let cache = self
+            .ctx
+            .discovery_results
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
         let res = cache.get(&(action_idx, bindings.to_vec()))?;
         Some((Arc::clone(&res.agent), Arc::clone(&res.world)))
     }
