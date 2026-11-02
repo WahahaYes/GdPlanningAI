@@ -157,11 +157,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5383f33a2772746bbc83e5b0480862dd1eedfd0518b976f37f3db11c81e71a6a"
 
 [[package]]
+name = "gdextension-api"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3489a9e7463353467db3cfe3eb12de31c9b6200e4f928bde4959bf5db5b31d2f"
+
+[[package]]
 name = "gdplanningai-rust"
 version = "0.3.0"
 dependencies = [
  "godot",
- "godot-bindings",
+ "godot-bindings 0.5.5",
  "libtest-mimic",
  "rayon",
  "serde",
@@ -190,7 +196,16 @@ version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f38b6e65306c05e3c3f0131ee8dbf7394691e53268d72019007ec20687f2280f"
 dependencies = [
- "gdextension-api",
+ "gdextension-api 0.3.3",
+]
+
+[[package]]
+name = "godot-bindings"
+version = "0.5.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7ce6fed360f27cc44ee188246880bb842cdb96bf13aec1d0ec31cccfa50b1cf6"
+dependencies = [
+ "gdextension-api 0.5.1",
 ]
 
 [[package]]
@@ -205,7 +220,7 @@ version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "00b9a59f603f354c54d83fb74071209203d0ebe396b2419acc731c90ebf94680"
 dependencies = [
- "godot-bindings",
+ "godot-bindings 0.4.5",
  "heck",
  "nanoserde",
  "proc-macro2",
@@ -220,7 +235,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "989e80dfb58d2048ae0dca60bec32129dc1f96510f904b992ad170d84e950c33"
 dependencies = [
  "glam",
- "godot-bindings",
+ "godot-bindings 0.4.5",
  "godot-cell",
  "godot-codegen",
  "godot-ffi",
@@ -232,7 +247,7 @@ version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6237b26c52c5baa6566705a73cd8804ea4ef83a666540939dd5a4e068c242666"
 dependencies = [
- "godot-bindings",
+ "godot-bindings 0.4.5",
  "godot-codegen",
  "godot-macros",
  "libc",
@@ -244,7 +259,7 @@ version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d696b67ba99ff7d75e07546b04c3a711651d2c9e5851c9225dea3b64f8bb5af6"
 dependencies = [
- "godot-bindings",
+ "godot-bindings 0.4.5",
  "proc-macro2",
  "quote",
  "venial",

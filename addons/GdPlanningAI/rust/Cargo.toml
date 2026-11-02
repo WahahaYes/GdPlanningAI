@@ -22,7 +22,7 @@ name = "scenarios"
 harness = false
 
 [build-dependencies]
-godot-bindings = "0.4.5"
+godot-bindings = "0.5.5"
 
 [profile.release]
 strip = true
