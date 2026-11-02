@@ -11,7 +11,7 @@ use crate::gdpai_blackboard::GdPAIBlackboard;
 use crate::plan_tree::PlanResult;
 use crate::plan_types::*;
 use crate::planner::{EngineConfig, EngineInputs, PlannerEngine};
-use crate::precondition::{PreconditionHandler, PreconditionOp};
+use crate::precondition::{PreconditionEvaluator, PreconditionOp};
 use crate::requirement::{ProvisionSpec, RequirementSpec};
 use crate::snapshot::{BlackboardSnapshot, VariantSnapshot};
 use godot::prelude::*;
@@ -129,11 +129,12 @@ impl INode for GdPAIPlanScheduler {
         if self.max_threads > 0 {
             builder = builder.num_threads(self.max_threads as usize);
         }
-        self.thread_pool = Some(
-            builder
-                .build()
-                .expect("GdPAIPlanScheduler: failed to build Rayon thread pool"),
-        );
+        match builder.build() {
+            Ok(pool) => self.thread_pool = Some(pool),
+            Err(e) => {
+                godot_error!("GdPAIPlanScheduler: failed to build Rayon thread pool: {e}");
+            }
+        }
         log_info!("GdPAIPlanScheduler ready");
     }
 }
@@ -307,7 +308,7 @@ impl GdPAIPlanScheduler {
     /// `iteration_budget` >= 100, `time_slice_ms` = 0 disables time-slicing,
     /// `max_effect_fallbacks` >= 0 (per-search GDScript effect cap).
     #[func]
-    #[allow(clippy::too_many_arguments)]
+    #[expect(clippy::too_many_arguments, reason = "matches godot bridge signature")]
     fn submit_plan(
         &mut self,
         agent: Gd<Object>,
@@ -351,13 +352,13 @@ impl GdPAIPlanScheduler {
         // Builtins run on the submit-time snapshots through the same
         // `evaluate_builtin` the planner searches with, so the pre-filter
         // cannot disagree with simulation on nil/empty or float tolerance.
-        // Only `Custom` conditions fall back to the live `PreconditionHandler`,
+        // Only `Custom` conditions fall back to the live `PreconditionEvaluator`,
         // which alone can run their GDScript callables.
         let goal_satisfied = |goal: &GoalSpec| -> bool {
             goal.desired_state.iter().all(|pre| {
                 match pre.evaluate_builtin(&snap_agent, &snap_world) {
                     Some(result) => result,
-                    None => PreconditionHandler::from_spec(pre, &callable_registry)
+                    None => PreconditionEvaluator::from_spec(pre, &callable_registry)
                         .is_some_and(|h| h.evaluate(&agent_bb, &world_bb)),
                 }
             })
@@ -602,7 +603,7 @@ fn spawn_engine_step(
 /// clamped as documented on [`GdPAIPlanScheduler::submit_plan`]; the fallback budget
 /// lives only in the returned config's `max_effect_fallbacks`, so `EngineConfig`
 /// stays the single source of truth.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments, reason = "wires submit-time data together")]
 pub(crate) fn engine_parts_for_submit(
     actions: Vec<ActionSpec>,
     agent: BlackboardSnapshot,
@@ -933,7 +934,7 @@ fn precond_spec_from_dict(
     dict: &VarDictionary,
     registry: &mut Vec<Callable>,
 ) -> Option<PreconditionSpec> {
-    let handler = PreconditionHandler::from_dict(dict)?;
+    let handler = PreconditionEvaluator::from_dict(dict)?;
 
     if handler.operation == PreconditionOp::CustomCallback {
         let callable = handler.eval_callable?;

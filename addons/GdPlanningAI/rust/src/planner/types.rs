@@ -206,7 +206,7 @@ impl SearchContext {
     /// Builds the context for one job with empty discovery caches and the provision index.
     /// The fallback budget comes from `config`, so [`EngineConfig`] stays the single
     /// source of truth.
-    #[allow(clippy::too_many_arguments)]
+    #[expect(clippy::too_many_arguments, reason = "job wiring lives at one site")]
     pub(crate) fn new(
         actions: Vec<ActionSpec>,
         agent: BlackboardSnapshot,
@@ -399,7 +399,7 @@ impl PlanBranch {
     /// Inserts `action_idx` at `insert_pos` (its first consumer), shifting later positions.
     /// Clears the satisfied needs (indices refer to the lists before the shift) and adds the
     /// action's own needs at its position. Returns the new bindings.
-    #[allow(clippy::too_many_arguments)]
+    #[expect(clippy::too_many_arguments, reason = "keeps chain and needs in sync")]
     pub fn insert_action_at(
         &mut self,
         insert_pos: usize,

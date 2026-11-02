@@ -2,7 +2,7 @@
 //! thread, and a loop that runs an engine to completion.
 
 // Each test file compiles this module on its own and uses only part of it.
-#![allow(dead_code)]
+#![expect(dead_code, reason = "each test target uses part of this file")]
 
 use gdplanningai_rust::plan_tree::PlanResult;
 use gdplanningai_rust::plan_types::{

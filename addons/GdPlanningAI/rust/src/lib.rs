@@ -25,6 +25,7 @@ pub mod snapshot;
 struct GdPlanningAIExt;
 
 #[gdextension]
+// SAFETY: GdPlanningAIExt is the crate's single GDExtension entry point with no data; Godot initializes it once before any other extension calls.
 unsafe impl ExtensionLibrary for GdPlanningAIExt {
     /// Creates the global log channel as early as possible so that log lines
     /// emitted from planner threads have somewhere to go.
