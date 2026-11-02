@@ -1,0 +1,5 @@
+# Advisory trial: rust pack only, no repo rules, no disables yet.
+# Per-rule keep/disable/baseline decisions land with the follow-up review;
+# the enforcing flip needs explicit approval.
+version: 0
+include: [necro:rust]
