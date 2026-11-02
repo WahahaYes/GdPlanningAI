@@ -343,7 +343,7 @@ submit_plan(agent, agent_bb, world_bb, actions, goals, max_recursion, iteration_
     action_specs = build(actions)  // registers callables → IDs
     goal_specs = build(goals)
 
-    // Pre-filter satisfied goals (main thread, PreconditionHandler on the live blackboards)
+    // Pre-filter satisfied goals (main thread, PreconditionEvaluator on the live blackboards)
     satisfied = highest_reward goal where desired_state all true in initial state
     goal_specs = goal_specs.filter(not satisfied)
     satisfied_goal_index = goal_specs.empty ? satisfied : -1

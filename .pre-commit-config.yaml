@@ -38,6 +38,19 @@ repos:
         require_serial: true
         pass_filenames: false
 
+  # Necro gate: enforcing. Runs from the project env via pyproject
+  # (`uv run --frozen necro`): a released wheel with the rust pack.
+  # Keep this entry bare so hits fail the hook.
+  - repo: local
+    hooks:
+      - id: necro
+        name: necro
+        entry: uv run --frozen necro
+        language: system
+        always_run: true
+        pass_filenames: false
+        verbose: true
+
   # Secret detection
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.30.1

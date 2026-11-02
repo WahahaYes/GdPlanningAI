@@ -1,0 +1,27 @@
+# Advisory trial: rust pack plus repo rules, all non-blocking (the
+# pre-commit hook wraps `necro` to always pass). Per-rule keep/disable/baseline
+# decisions land with the follow-up review; the enforcing flip (bare `necro`
+# failing the hook) needs explicit approval.
+version: 0
+include: [necro:rust]
+rules:
+  gdtoolkit:
+    command: uv run --script scripts/necro_gdtoolkit.py
+    message: GDScript file fails gdformat or gdlint
+    why: gdformat and gdlint are the repo's GDScript formatting and lint baseline (make format-godot, make lint-godot); drift breaks the pre-commit gate.
+    fix: Run `make format-godot`, then clear what `uv run gdlint <file>` still reports.
+  gdscript-style:
+    command: uv run scripts/lint_style.py
+    message: Style-guide violation (explicit types, spacing, docstrings)
+    why: The style guide keeps GDScript explicit (no `:=`), consistently spaced, and documented so generated bindings and hand-written scenes read the same.
+    fix: Read the [rule] tag on the hit and `make lint-style`; the checker's docstring defines every tag.
+  behavior-catalog:
+    command: uv run scripts/check_behaviors.py
+    message: Behavior catalog and tests disagree
+    why: docs/BEHAVIORS.md is the contract between documented behavior and its proof; a dangling slug or path means a behavior with no test or a test with no entry.
+    fix: Add the missing `**Proved by:**` entry or the missing test/fixture, then `make check-behaviors`.
+  readme-safety:
+    command: uv run scripts/check_readme_safety.py
+    message: README is not safe to paste into the asset listings
+    why: The README is pasted by hand into the Asset Store and Asset Library descriptions, where relative links break and over-long text gets rejected.
+    fix: Use absolute repo URLs and keep it under the limit; `uv run scripts/check_readme_safety.py --explain <code>` shows the rule in full.

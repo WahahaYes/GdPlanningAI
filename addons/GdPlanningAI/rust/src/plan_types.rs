@@ -25,7 +25,7 @@ pub fn next_request_id() -> usize {
     NEXT_REQUEST_ID.fetch_add(1, Ordering::SeqCst)
 }
 
-/// Send-safe mirror of [`crate::precondition::PreconditionHandler`]. Builtins carry their
+/// Send-safe mirror of [`crate::precondition::PreconditionEvaluator`]. Builtins carry their
 /// data; custom ones carry a `callable_id` resolved on the main thread. Hashable, so specs can
 /// key caches and fingerprints.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

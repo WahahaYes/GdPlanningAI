@@ -80,7 +80,7 @@ Module map of `rust/src/`:
 | `scheduler.rs`          | `GdPAIPlanScheduler`: job lifecycle, callable registry, dispatch.                                                                      |
 | `snapshot.rs`           | `VariantSnapshot`, `SimObjectData`, `BlackboardSnapshot` (send-safe mirrors; main-thread conversion to and from Godot types).          |
 | `gdpai_blackboard.rs`   | `GdPAIBlackboard` Godot class (agent/world state).                                                                                     |
-| `precondition.rs`       | `PreconditionHandler` (main-thread reconstruction for the pre-filter).                                                                 |
+| `precondition.rs`       | `PreconditionEvaluator` (main-thread reconstruction for the pre-filter).                                                               |
 | `plan_tree.rs`          | `PlanResult`, the plan handed back to GDScript.                                                                                        |
 | `sim_object_proxy.rs`   | `SimObjectProxy`, a world-object snapshot.                                                                                             |
 | `debug_tree.rs`         | `TreeDump`, search-tree dump structures backing the `get_debug_tree` text output.                                                      |

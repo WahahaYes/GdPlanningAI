@@ -81,16 +81,23 @@ pub fn eval_precondition(
                 return StepResult::Ready(*b);
             }
             let request_id = crate::plan_types::next_request_id();
-            let _ = ctx.request_tx.send(CallbackRequest {
-                request_id,
-                callable_id: *callable_id,
-                kind: CallbackKind::EvalCustomPrecond {
-                    agent: Arc::clone(agent),
-                    world: Arc::clone(world),
-                },
-                bindings: bindings.to_vec(),
-                response_tx: ctx.engine_response_tx.clone(),
-            });
+            if ctx
+                .request_tx
+                .send(CallbackRequest {
+                    request_id,
+                    callable_id: *callable_id,
+                    kind: CallbackKind::EvalCustomPrecond {
+                        agent: Arc::clone(agent),
+                        world: Arc::clone(world),
+                    },
+                    bindings: bindings.to_vec(),
+                    response_tx: ctx.engine_response_tx.clone(),
+                })
+                .is_err()
+            {
+                // The main thread is gone (job torn down), so no answer can arrive.
+                return StepResult::Invalid;
+            }
             StepResult::Pending(request_id)
         }
     }
@@ -126,16 +133,24 @@ pub fn simulate_action(action_idx: usize, args: SimArgs) -> StepResult<SimResult
             } else {
                 drop(costs);
                 let request_id = crate::plan_types::next_request_id();
-                let _ = args.ctx.request_tx.send(CallbackRequest {
-                    request_id,
-                    callable_id: id,
-                    kind: CallbackKind::GetCost {
-                        agent: Arc::clone(&args.agent),
-                        world: Arc::clone(&args.world),
-                    },
-                    bindings: args.bindings.to_vec(),
-                    response_tx: args.ctx.engine_response_tx.clone(),
-                });
+                if args
+                    .ctx
+                    .request_tx
+                    .send(CallbackRequest {
+                        request_id,
+                        callable_id: id,
+                        kind: CallbackKind::GetCost {
+                            agent: Arc::clone(&args.agent),
+                            world: Arc::clone(&args.world),
+                        },
+                        bindings: args.bindings.to_vec(),
+                        response_tx: args.ctx.engine_response_tx.clone(),
+                    })
+                    .is_err()
+                {
+                    // The main thread is gone (job torn down), so no answer can arrive.
+                    return StepResult::Invalid;
+                }
                 return StepResult::Pending(request_id);
             }
         }

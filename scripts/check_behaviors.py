@@ -81,9 +81,12 @@ def main() -> int:
     for problem in problems:
         print(problem)
     if problems:
-        print(f"\ncheck_behaviors: {len(problems)} dangling slug(s) or path(s).")
+        print(
+            f"check_behaviors: {len(problems)} dangling slug(s) or path(s).",
+            file=sys.stderr,
+        )
         return 1
-    print("check_behaviors: catalog and tests agree.")
+    print("check_behaviors: catalog and tests agree.", file=sys.stderr)
     return 0
 
 

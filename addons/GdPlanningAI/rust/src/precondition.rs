@@ -3,9 +3,9 @@
 //! Builtins have a single implementation on the planning path:
 //! [`PreconditionSpec::evaluate_builtin`] on snapshots. The goal pre-filter in `submit_plan`
 //! runs builtins on the submit-time snapshots through it, so it cannot disagree with simulation
-//! on nil/empty or float tolerance; only `Custom` conditions fall back to [`PreconditionHandler`]
+//! on nil/empty or float tolerance; only `Custom` conditions fall back to [`PreconditionEvaluator`]
 //! on the live blackboards, which alone can run their GDScript callables. The builtin arms of
-//! [`PreconditionHandler::evaluate`] below are retained for direct handler use and keep their
+//! [`PreconditionEvaluator::evaluate`] below are retained for direct handler use and keep their
 //! historical live-blackboard semantics (nil fails every operation, `f64::EPSILON` tolerance).
 
 use super::gdpai_blackboard::GdPAIBlackboard;
@@ -16,7 +16,7 @@ use godot::prelude::*;
 /// Main-thread precondition evaluator holding live Godot values; the planner uses
 /// [`PreconditionSpec`] instead.
 #[derive(Clone, Debug)]
-pub struct PreconditionHandler {
+pub struct PreconditionEvaluator {
     /// Where to evaluate the precondition
     pub target: PreconditionTarget,
     /// Operation to perform
@@ -66,7 +66,7 @@ pub enum PreconditionOp {
     CustomCallback,
 }
 
-impl PreconditionHandler {
+impl PreconditionEvaluator {
     /// Creates a handler from the bridge dictionary. Missing keys fall back to defaults, so this
     /// currently always returns `Some`.
     pub fn from_dict(dict: &VarDictionary) -> Option<Self> {
@@ -345,35 +345,35 @@ mod tests {
     #[test]
     fn parse_all_known_operations() {
         assert_eq!(
-            PreconditionHandler::parse_operation("has_property"),
+            PreconditionEvaluator::parse_operation("has_property"),
             PreconditionOp::HasProperty
         );
         assert_eq!(
-            PreconditionHandler::parse_operation("equal"),
+            PreconditionEvaluator::parse_operation("equal"),
             PreconditionOp::Equal
         );
         assert_eq!(
-            PreconditionHandler::parse_operation("not_equal"),
+            PreconditionEvaluator::parse_operation("not_equal"),
             PreconditionOp::NotEqual
         );
         assert_eq!(
-            PreconditionHandler::parse_operation("greater_than"),
+            PreconditionEvaluator::parse_operation("greater_than"),
             PreconditionOp::GreaterThan
         );
         assert_eq!(
-            PreconditionHandler::parse_operation("greater_than_or_equal"),
+            PreconditionEvaluator::parse_operation("greater_than_or_equal"),
             PreconditionOp::GreaterThanOrEqual
         );
         assert_eq!(
-            PreconditionHandler::parse_operation("less_than"),
+            PreconditionEvaluator::parse_operation("less_than"),
             PreconditionOp::LessThan
         );
         assert_eq!(
-            PreconditionHandler::parse_operation("less_than_or_equal"),
+            PreconditionEvaluator::parse_operation("less_than_or_equal"),
             PreconditionOp::LessThanOrEqual
         );
         assert_eq!(
-            PreconditionHandler::parse_operation("custom_callback"),
+            PreconditionEvaluator::parse_operation("custom_callback"),
             PreconditionOp::CustomCallback
         );
     }
@@ -381,19 +381,19 @@ mod tests {
     #[test]
     fn parse_operation_is_case_insensitive() {
         assert_eq!(
-            PreconditionHandler::parse_operation("EQUAL"),
+            PreconditionEvaluator::parse_operation("EQUAL"),
             PreconditionOp::Equal
         );
         assert_eq!(
-            PreconditionHandler::parse_operation("Greater_Than"),
+            PreconditionEvaluator::parse_operation("Greater_Than"),
             PreconditionOp::GreaterThan
         );
         assert_eq!(
-            PreconditionHandler::parse_operation("HAS_PROPERTY"),
+            PreconditionEvaluator::parse_operation("HAS_PROPERTY"),
             PreconditionOp::HasProperty
         );
         assert_eq!(
-            PreconditionHandler::parse_operation("CUSTOM_CALLBACK"),
+            PreconditionEvaluator::parse_operation("CUSTOM_CALLBACK"),
             PreconditionOp::CustomCallback
         );
     }
@@ -401,15 +401,15 @@ mod tests {
     #[test]
     fn parse_unknown_operation_defaults_to_has_property() {
         assert_eq!(
-            PreconditionHandler::parse_operation("nonexistent"),
+            PreconditionEvaluator::parse_operation("nonexistent"),
             PreconditionOp::HasProperty
         );
         assert_eq!(
-            PreconditionHandler::parse_operation(""),
+            PreconditionEvaluator::parse_operation(""),
             PreconditionOp::HasProperty
         );
         assert_eq!(
-            PreconditionHandler::parse_operation("gt"),
+            PreconditionEvaluator::parse_operation("gt"),
             PreconditionOp::HasProperty
         );
     }

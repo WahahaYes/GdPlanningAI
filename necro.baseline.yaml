@@ -1,0 +1,138 @@
+version: 1
+entries:
+  - rule: "rust/no-unwrap"
+    path: "addons/GdPlanningAI/rust/src/planner/engine.rs"
+    fingerprint: "PlannerRunResult::Pending(*self.parked_nodes.keys().next().unwrap())"
+    line: 674
+  - rule: "rust/no-unwrap"
+    path: "addons/GdPlanningAI/rust/src/planner/engine.rs"
+    fingerprint: "let cache = self.ctx.discovery_results.lock().unwrap();"
+    line: 547
+  - rule: "rust/no-unwrap"
+    path: "addons/GdPlanningAI/rust/src/planner/engine.rs"
+    fingerprint: "let cache = self.ctx.discovery_results.lock().unwrap();"
+    line: 1024
+  - rule: "rust/no-unwrap"
+    path: "addons/GdPlanningAI/rust/src/planner/engine.rs"
+    fingerprint: "let costs = self.ctx.discovery_costs.lock().unwrap();"
+    line: 334
+  - rule: "rust/no-unwrap"
+    path: "addons/GdPlanningAI/rust/src/planner/engine.rs"
+    fingerprint: "let mut cache = self.ctx.discovery_precond_results.lock().unwrap();"
+    line: 355
+  - rule: "rust/no-unwrap"
+    path: "addons/GdPlanningAI/rust/src/planner/engine.rs"
+    fingerprint: "let mut cache = self.ctx.discovery_results.lock().unwrap();"
+    line: 332
+  - rule: "rust/no-unwrap"
+    path: "addons/GdPlanningAI/rust/src/planner/engine.rs"
+    fingerprint: "let mut costs = self.ctx.discovery_costs.lock().unwrap();"
+    line: 346
+  - rule: "rust/no-unwrap"
+    path: "addons/GdPlanningAI/rust/src/planner/engine.rs"
+    fingerprint: "let mut pending = self.ctx.discovery_pending.lock().unwrap();"
+    line: 350
+  - rule: "rust/no-unwrap"
+    path: "addons/GdPlanningAI/rust/src/planner/engine.rs"
+    fingerprint: "let mut pending = self.ctx.discovery_precond_pending.lock().unwrap();"
+    line: 358
+  - rule: "rust/no-unwrap"
+    path: "addons/GdPlanningAI/rust/src/planner/engine.rs"
+    fingerprint: "let mut req_map = self.ctx.discovery_request_map.lock().unwrap();"
+    line: 362
+  - rule: "rust/no-unwrap"
+    path: "addons/GdPlanningAI/rust/src/planner/engine.rs"
+    fingerprint: "let plan = self.best_plan.take().unwrap();"
+    line: 490
+  - rule: "rust/no-unwrap"
+    path: "addons/GdPlanningAI/rust/src/planner/engine.rs"
+    fingerprint: "let req_map = self.ctx.discovery_request_map.lock().unwrap();"
+    line: 322
+  - rule: "rust/no-unwrap"
+    path: "addons/GdPlanningAI/rust/src/planner/expander.rs"
+    fingerprint: "ctx.discovery_precond_pending.lock().unwrap();"
+    line: 458
+  - rule: "rust/no-unwrap"
+    path: "addons/GdPlanningAI/rust/src/planner/expander.rs"
+    fingerprint: "ctx.discovery_precond_results.lock().unwrap();"
+    line: 447
+  - rule: "rust/no-unwrap"
+    path: "addons/GdPlanningAI/rust/src/planner/expander.rs"
+    fingerprint: "ctx.discovery_request_map.lock().unwrap();"
+    line: 464
+  - rule: "rust/no-unwrap"
+    path: "addons/GdPlanningAI/rust/src/planner/expander.rs"
+    fingerprint: "let cache = ctx.discovery_precond_results.lock().unwrap();"
+    line: 210
+  - rule: "rust/no-unwrap"
+    path: "addons/GdPlanningAI/rust/src/planner/expander.rs"
+    fingerprint: "let cache = ctx.discovery_precond_results.lock().unwrap();"
+    line: 305
+  - rule: "rust/no-unwrap"
+    path: "addons/GdPlanningAI/rust/src/planner/expander.rs"
+    fingerprint: "let cache = ctx.discovery_precond_results.lock().unwrap();"
+    line: 419
+  - rule: "rust/no-unwrap"
+    path: "addons/GdPlanningAI/rust/src/planner/expander.rs"
+    fingerprint: "let cache = ctx.discovery_results.lock().unwrap();"
+    line: 76
+  - rule: "rust/no-unwrap"
+    path: "addons/GdPlanningAI/rust/src/planner/expander.rs"
+    fingerprint: "let costs = ctx.discovery_costs.lock().unwrap();"
+    line: 93
+  - rule: "rust/no-unwrap"
+    path: "addons/GdPlanningAI/rust/src/planner/expander.rs"
+    fingerprint: "let mut cache = ctx"
+    line: 328
+  - rule: "rust/no-unwrap"
+    path: "addons/GdPlanningAI/rust/src/planner/expander.rs"
+    fingerprint: "let mut cache = ctx.discovery_precond_results.lock().unwrap();"
+    line: 246
+  - rule: "rust/no-unwrap"
+    path: "addons/GdPlanningAI/rust/src/planner/expander.rs"
+    fingerprint: "let mut cache = ctx.discovery_results.lock().unwrap();"
+    line: 120
+  - rule: "rust/no-unwrap"
+    path: "addons/GdPlanningAI/rust/src/planner/expander.rs"
+    fingerprint: "let mut costs = ctx.discovery_costs.lock().unwrap();"
+    line: 126
+  - rule: "rust/no-unwrap"
+    path: "addons/GdPlanningAI/rust/src/planner/expander.rs"
+    fingerprint: "let mut pending = ctx"
+    line: 341
+  - rule: "rust/no-unwrap"
+    path: "addons/GdPlanningAI/rust/src/planner/expander.rs"
+    fingerprint: "let mut pending = ctx.discovery_pending.lock().unwrap();"
+    line: 129
+  - rule: "rust/no-unwrap"
+    path: "addons/GdPlanningAI/rust/src/planner/expander.rs"
+    fingerprint: "let mut pending = ctx.discovery_precond_pending.lock().unwrap();"
+    line: 255
+  - rule: "rust/no-unwrap"
+    path: "addons/GdPlanningAI/rust/src/planner/expander.rs"
+    fingerprint: "let mut pending = pending_map.lock().unwrap();"
+    line: 59
+  - rule: "rust/no-unwrap"
+    path: "addons/GdPlanningAI/rust/src/planner/expander.rs"
+    fingerprint: "let mut req_map = ctx"
+    line: 349
+  - rule: "rust/no-unwrap"
+    path: "addons/GdPlanningAI/rust/src/planner/expander.rs"
+    fingerprint: "let mut req_map = ctx.discovery_request_map.lock().unwrap();"
+    line: 131
+  - rule: "rust/no-unwrap"
+    path: "addons/GdPlanningAI/rust/src/planner/expander.rs"
+    fingerprint: "let mut req_map = ctx.discovery_request_map.lock().unwrap();"
+    line: 258
+  - rule: "rust/no-unwrap"
+    path: "addons/GdPlanningAI/rust/src/planner/expander.rs"
+    fingerprint: "let pending = pending_map.lock().unwrap();"
+    line: 51
+  - rule: "rust/no-unwrap"
+    path: "addons/GdPlanningAI/rust/src/planner/expander.rs"
+    fingerprint: "let req_map = request_map.lock().unwrap();"
+    line: 53
+  - rule: "rust/no-unwrap"
+    path: "addons/GdPlanningAI/rust/src/planner/simulation.rs"
+    fingerprint: "let costs = args.ctx.discovery_costs.lock().unwrap();"
+    line: 118
