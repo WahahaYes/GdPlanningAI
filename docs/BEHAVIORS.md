@@ -74,6 +74,12 @@ Unit tier: the built-in precondition evaluator is an algorithmic kernel.
 
 **Proved by:** `addons/GdPlanningAI/rust/tests/time_slice.rs`, `addons/GdPlanningAI/rust/tests/budget_exhaustion.rs`, `addons/GdPlanningAI/rust/tests/cancellation.rs`, `addons/GdPlanningAI/rust/src/scheduler.rs`, `test/integration/test_async_planner.gd`
 
+### `concurrent-agents-isolated`
+
+**Scenario:** Given two agents planning concurrently over one shared world board, when each search simulates effects that mutate world snapshot properties, then each agent gets the plan for its own goal and the live world and agent boards are unchanged afterwards.
+
+**Proved by:** `test/integration/test_cross_agent_isolation.gd`
+
 ### `simulations-run-once`
 
 **Scenario:** Given a search, when several branches need the same action simulated from the same state, then its cost and effect callables run once and the answer is shared, including between discovery and verification.

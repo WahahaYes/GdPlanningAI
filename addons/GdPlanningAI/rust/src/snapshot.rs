@@ -32,12 +32,10 @@ pub enum VariantSnapshot {
     Bytes(Vec<u8>),
     /// Tier 3: Godot instance-ID of a live object (opaque handle).
     ///
-    /// The handle resolves back to the *live shared* object when a callback board
-    /// is rebuilt ([`VariantSnapshot::to_variant`]), so Object-valued blackboard
-    /// properties are effectively read-only in simulation: mutating the object
-    /// escapes the snapshot, changing the real object and every other agent's
-    /// search. Copy the scalars you need onto the blackboard, or expose
-    /// per-object simulation state with `GdPAIObjectData` sim properties instead.
+    /// Rebuilds as the *live shared* object, so Object-valued properties are
+    /// read-only in simulation: mutating it escapes the snapshot into the real
+    /// object and every other agent's search. Copy scalars onto the blackboard
+    /// or expose sim state via `GdPAIObjectData` properties instead.
     ObjectRef(i64),
     /// Untyped array whose elements are snapshotted individually (so object handles and
     /// primitives inside it keep their tier).
