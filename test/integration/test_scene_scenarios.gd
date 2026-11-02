@@ -56,6 +56,11 @@ func _check_settled(case_id: String, cases: ConfigFile, section: String, scene: 
 
 ## Runs the scene with agents planning, then checks what they did.
 func _check_run(case_id: String, cases: ConfigFile, section: String, scene: Node) -> void:
+	# Fixed seed so spawn layouts (potatoes, fruit) are identical every run.
+	# The global RNG is randomized per process, and without this the walk
+	# distances vary run to run, which swings the campfire fuel burn-down
+	# race against plan timing on slower machines.
+	seed(20261025)
 	var required: Array = cases.get_value(section, "completes", [])
 	var observe: bool = cases.get_value(section, "observe", false)
 	add_child_autofree(scene)
