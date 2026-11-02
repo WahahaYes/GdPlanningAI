@@ -1,4 +1,5 @@
 SHELL := /bin/bash
+.DEFAULT_GOAL := help
 
 # Directory paths
 RUST_DIR = .
@@ -41,6 +42,11 @@ setup: ## Install the pinned toolchain (rustfmt, clippy) and the coverage tools;
 		cargo install cargo-llvm-cov --version $(CARGO_LLVM_COV_VERSION) --locked
 
 ##@ Build
+
+# Disk: a fresh build-release + cargo test leaves target/ at ~2.7 GB
+# (measured 2026-11-02: ~0.4 GB release + ~2.3 GB debug). Cargo keeps every
+# variant it ever built here (one per toolchain, lockfile and flags), so a
+# tree well past that is mostly dead copies: clean-cache, not a sweep.
 
 .PHONY: build-release
 build-release: ## Build the release binary for this OS into ../bin (macOS: universal)
@@ -158,9 +164,11 @@ format-check: ## Check formatting with rustfmt (no rewrite)
 lint: ## Run clippy; warnings fail
 	@cargo clippy --all-targets --message-format=short -- -D warnings
 
-.PHONY: clean
-clean: ## Clean build artifacts
+.PHONY: clean-cache
+clean-cache: ## Remove the cargo target/ cache (per generated-files.md tiers, this is a cache, not intermediates)
+	@du -sh $(TARGET_DIR) 2>/dev/null || true
 	@cargo clean 2>&1 | grep -E "(error|Error)" || true
+	@echo "clean-cache: removed $(TARGET_DIR)"
 
 .PHONY: doc
 doc: ## Generate documentation
@@ -170,4 +178,4 @@ doc: ## Generate documentation
 
 .PHONY: help
 help: ## Show this help message
-	@awk 'BEGIN {FS = ":.*?## "}; /^##@ / {printf "\n\033[1m%s\033[0m\n", substr($$0, 5)}; /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*?## "}; /^##@ / {printf "\n\033[1m%s\033[0m\n", substr($$0, 5)}; /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)

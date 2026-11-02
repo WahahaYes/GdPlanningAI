@@ -1,11 +1,16 @@
 # Recipes rely on bash (PIPESTATUS).
 SHELL := /bin/bash
+.DEFAULT_GOAL := help
 
 ##@ Setup
 
 .PHONY: setup
-setup: ## Install the pinned Rust toolchain (rustfmt, clippy) and the coverage tools; safe to rerun
+setup: addons-install ## Install addons, the pinned Rust toolchain, and the library when bin/ lacks one; safe to rerun
 	"$(MAKE)" -C addons/GdPlanningAI/rust setup
+	@if [ -z "$$(find addons/GdPlanningAI/bin -type f \( -name '*.so' -o -name '*.dll' -o -name '*.dylib' \) | head -1)" ]; then \
+		echo "No library in addons/GdPlanningAI/bin: building..."; \
+		"$(MAKE)" -C addons/GdPlanningAI/rust build-release; \
+	fi
 
 ##@ Testing
 
@@ -118,8 +123,9 @@ test-godot-pipe-output: ## Run Godot integration tests with full output to file
 format: format-rust format-godot ## Format all source files (Rust + GDScript)
 
 .PHONY: format-check
-format-check: ## Check Rust formatting without rewriting (CI)
+format-check: ## Check formatting without rewriting: Rust (rustfmt) and GDScript (gdformat --check)
 	"$(MAKE)" -C addons/GdPlanningAI/rust format-check
+	@out=$$(git ls-files -z '*.gd' | xargs -0 -r uv run gdformat --check 2>&1) || { echo "$$out"; exit 1; }
 
 .PHONY: format-rust
 format-rust: ## Format Rust source files with rustfmt
@@ -132,6 +138,10 @@ format-godot: ## Format tracked GDScript files with gdformat (requires gdtoolkit
 
 ##@ Linting
 
+.PHONY: lint
+lint: lint-style lint-godot ## Run every linter: GDScript/Rust style, gdlint, Rust clippy; warnings fail
+	"$(MAKE)" -C addons/GdPlanningAI/rust lint
+
 .PHONY: lint-style
 lint-style: ## Check GDScript and Rust files for style-guide violations
 	uv run scripts/lint_style.py
@@ -139,6 +149,27 @@ lint-style: ## Check GDScript and Rust files for style-guide violations
 .PHONY: lint-godot
 lint-godot: ## Lint tracked GDScript files with gdlint (gdtoolkit defaults)
 	@out=$$(git ls-files -z '*.gd' | xargs -0 -r uv run gdlint 2>&1) || { echo "$$out"; exit 1; }
+
+##@ Checks
+
+.PHONY: check
+check: ## Run every pre-commit hook on every file, as CI's precommit job does (formatters may rewrite, then it fails)
+	uv run pre-commit run --all-files --show-diff-on-failure
+
+##@ Cleaning
+
+.PHONY: clean
+clean: ## Remove intermediates (media/captures, logs, instrumented profiles); bins, caches and addons stay
+	@size=$$(du -sch media/captures *.log default_*.profraw 2>/dev/null | tail -n 1 | cut -f1); \
+	rm -rf media/captures *.log default_*.profraw; \
+	echo "clean: removed intermediates ($${size:-nothing there})"
+
+.PHONY: clean-cache
+clean-cache: clean ## Also remove caches (.godot/, Rust target/); addons and bins stay
+	@du -sh .godot addons/GdPlanningAI/rust/target 2>/dev/null || true
+	@rm -rf .godot
+	"$(MAKE)" -C addons/GdPlanningAI/rust clean-cache
+	@echo "clean-cache: removed .godot/ and the Rust target/ cache"
 
 ##@ Documentation
 
@@ -202,4 +233,4 @@ godot-install-pinned: ## Install the pinned Godot version (uses godotenv)
 
 .PHONY: help
 help: ## Show this help message
-	@awk 'BEGIN {FS = ":.*?## "}; /^##@ / {printf "\n\033[1m%s\033[0m\n", substr($$0, 5)}; /^[a-zA-Z0-9_-]+:.*?## / {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*?## "}; /^##@ / {printf "\n\033[1m%s\033[0m\n", substr($$0, 5)}; /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)

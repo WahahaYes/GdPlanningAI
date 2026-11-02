@@ -1,6 +1,6 @@
 # CI for the addon. Every job step is one local command (see Makefile):
 #   uv run pre-commit run --all-files       hooks (formatters, lints, secrets)
-#   make format-check; make -C addons/GdPlanningAI/rust lint; make coverage   Rust checks; the tests run instrumented
+#   make format-check; make -C addons/GdPlanningAI/rust lint; make coverage   format (Rust + GDScript), clippy, tests instrumented
 #   make godot-version                      the Godot pin (global.json)
 #   make test-godot-verbose                 the GUT suite, full log, nonzero on failure
 #   make test-e2e                           end-to-end example scenes (Linux leg only)
@@ -132,6 +132,7 @@ jobs:
           workspaces: addons/GdPlanningAI/rust
           # Main seeds caches every PR reads; PR runs never write their own.
           save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
       - name: Coverage tools (llvm-tools, pinned cargo-llvm-cov)
         run: make -C addons/GdPlanningAI/rust setup
       - run: make format-check
