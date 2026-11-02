@@ -1,5 +1,5 @@
 # CI for the addon. Every job step is one local command (see Makefile):
-#   uv run pre-commit run --all-files       hooks (formatters, lints, secrets)
+#   uv run prek run --all-files       hooks (formatters, lints, secrets)
 #   make format-check; make -C addons/GdPlanningAI/rust lint; make coverage   format (Rust + GDScript), clippy, tests instrumented
 #   make godot-version                      the Godot pin (global.json)
 #   make test-godot-verbose                 the GUT suite, full log, nonzero on failure
@@ -62,7 +62,7 @@ jobs:
               - 'scripts/**'
               - '.github/workflows/**'
 
-  # Every pre-commit hook except clippy (the rust job runs it), as the first
+  # Every hook in .pre-commit-config.yaml except clippy (the rust job runs it), as the first
   # and cheapest gate: the other jobs wait for it. Formatters rewrite files,
   # so a hook that changes anything fails here.
   precommit:
@@ -90,24 +90,24 @@ jobs:
       - name: Rust toolchain (rustfmt, from rust-toolchain.toml)
         working-directory: addons/GdPlanningAI/rust
         run: rustup toolchain install
-      - name: Pre-commit environments cache
-        id: pc-cache
+      - name: Prek environments cache
+        id: prek-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cache/pre-commit
-          key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
+          path: ~/.cache/prek
+          key: prek-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
       - name: Hooks (all files)
         # gitleaks scans staged changes, which CI has none of; it runs below
         # over the pushed commits instead.
         env:
           SKIP: gitleaks,cargo-clippy
-        run: uv run pre-commit run --all-files --show-diff-on-failure
-      - name: Pre-commit environments cache save
-        if: github.ref == 'refs/heads/main' && steps.pc-cache.outputs.cache-hit != 'true'
+        run: uv run prek run --all-files --show-diff-on-failure
+      - name: Prek environments cache save
+        if: github.ref == 'refs/heads/main' && steps.prek-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cache/pre-commit
-          key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
+          path: ~/.cache/prek
+          key: prek-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
       - name: Gitleaks binary cache
         id: gitleaks-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -143,7 +143,7 @@ jobs:
         run: |
           for sha in $(git rev-list --no-merges "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"); do
             git log -1 --format=%B "$sha" > "$RUNNER_TEMP/msg"
-            uv run pre-commit run no-ai-attribution --hook-stage commit-msg --commit-msg-filename "$RUNNER_TEMP/msg" || { echo "bad message in $sha"; exit 1; }
+            uv run prek run no-ai-attribution --hook-stage commit-msg --commit-msg-filename "$RUNNER_TEMP/msg" || { echo "bad message in $sha"; exit 1; }
           done
 
   # Rust checks run once, on Linux, in debug (the tests also pass under --release). The tests run

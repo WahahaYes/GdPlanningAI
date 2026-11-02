@@ -1,5 +1,5 @@
 # Advisory trial: rust pack plus repo rules, all non-blocking (the
-# pre-commit hook wraps `necro` to always pass). Per-rule keep/disable/baseline
+# hook entry wraps `necro` to always pass). Per-rule keep/disable/baseline
 # decisions land with the follow-up review; the enforcing flip (bare `necro`
 # failing the hook) needs explicit approval.
 version: 0
@@ -8,7 +8,7 @@ rules:
   gdtoolkit:
     command: uv run --script scripts/necro_gdtoolkit.py
     message: GDScript file fails gdformat or gdlint
-    why: gdformat and gdlint are the repo's GDScript formatting and lint baseline (make format-godot, make lint-godot); drift breaks the pre-commit gate.
+    why: gdformat and gdlint are the repo's GDScript formatting and lint baseline (make format-godot, make lint-godot); drift breaks the hooks gate.
     fix: Run `make format-godot`, then clear what `uv run gdlint <file>` still reports.
   gdscript-style:
     command: uv run scripts/lint_style.py
