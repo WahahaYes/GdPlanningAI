@@ -155,7 +155,7 @@ impl GdPAIBlackboard {
     pub fn get_dict(&self) -> VarDictionary {
         let mut dict = VarDictionary::new();
         for (k, v) in &self.properties {
-            let _ = dict.insert(k.clone(), v.clone());
+            dict.set(k.clone(), v.clone());
         }
         dict
     }

@@ -700,7 +700,13 @@ impl PlannerEngine {
                     let action_names: Vec<String> = final_plan
                         .action_chain
                         .iter()
-                        .map(|&idx| self.ctx.actions[idx as usize].name.clone())
+                        .map(|&idx| {
+                            usize::try_from(idx)
+                                .ok()
+                                .and_then(|i| self.ctx.actions.get(i))
+                                .map(|action| action.name.clone())
+                                .unwrap_or_else(|| "<invalid action index>".to_string())
+                        })
                         .collect();
                     self.tree
                         .end_goal(true, &action_names, final_plan.total_cost);

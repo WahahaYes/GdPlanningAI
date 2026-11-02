@@ -126,8 +126,10 @@ impl INode for GdPAIPlanScheduler {
 
     fn ready(&mut self) {
         let mut builder = rayon::ThreadPoolBuilder::new();
-        if self.max_threads > 0 {
-            builder = builder.num_threads(self.max_threads as usize);
+        if let Ok(threads) = usize::try_from(self.max_threads)
+            && threads > 0
+        {
+            builder = builder.num_threads(threads);
         }
         match builder.build() {
             Ok(pool) => self.thread_pool = Some(pool),
@@ -217,10 +219,19 @@ impl GdPAIPlanScheduler {
                 let callable = &job.callable_registry[req.callable_id];
                 let response = dispatch_callback(callable, req.kind, &req.bindings);
 
-                let _ = req.response_tx.send(PlannerCallback {
-                    request_id: req.request_id,
-                    response,
-                });
+                if req
+                    .response_tx
+                    .send(PlannerCallback {
+                        request_id: req.request_id,
+                        response,
+                    })
+                    .is_err()
+                {
+                    log_debug!(
+                        "Dropping response for request {}: the engine is gone",
+                        req.request_id
+                    );
+                }
                 job.completed_request_ids.insert(req.request_id);
                 jobs_with_responses.insert(job.agent_instance_id);
             }
@@ -594,7 +605,9 @@ fn spawn_engine_step(
         let mut engine_mut = engine;
         tp.spawn(move || {
             let result = engine_mut.plan(&goals);
-            let _ = res_tx.send((result, engine_mut));
+            if res_tx.send((result, engine_mut)).is_err() {
+                log_debug!("Engine step finished after its job was reaped; dropping the engine");
+            }
         });
     }
 }
@@ -618,10 +631,10 @@ pub(crate) fn engine_parts_for_submit(
     time_slice_ms: i64,
     max_effect_fallbacks: i64,
 ) -> (EngineInputs, EngineConfig) {
-    let max_rec = max_recursion.max(1) as usize;
-    let iter_budget = iteration_budget.max(100) as usize;
-    let slice_ms = time_slice_ms.max(0) as u64;
-    let fallback_budget = max_effect_fallbacks.max(0) as usize;
+    let max_rec = usize::try_from(max_recursion.max(1)).unwrap_or(usize::MAX);
+    let iter_budget = usize::try_from(iteration_budget.max(100)).unwrap_or(usize::MAX);
+    let slice_ms = u64::try_from(time_slice_ms.max(0)).unwrap_or(u64::MAX);
+    let fallback_budget = usize::try_from(max_effect_fallbacks.max(0)).unwrap_or(usize::MAX);
     if max_recursion < 1 {
         log_warn!("max_recursion was clamped from {} to 1", max_recursion);
     }

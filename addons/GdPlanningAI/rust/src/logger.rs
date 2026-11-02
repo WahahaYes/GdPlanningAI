@@ -157,10 +157,13 @@ pub fn get_log_level() -> LogLevel {
 
 /// Returns the current timestamp in milliseconds since Unix epoch (0 if the clock is before it).
 pub fn get_timestamp_ms() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::SystemTime::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64
+    u64::try_from(
+        std::time::SystemTime::now()
+            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis(),
+    )
+    .unwrap_or(u64::MAX)
 }
 
 /// Logs at error severity via `godot_error!`. Always emitted regardless of log level.
@@ -171,11 +174,14 @@ macro_rules! log_error {
         let timestamp = $crate::logger::get_timestamp_ms();
         if let Some(sender) = $crate::logger::get_log_sender() {
             if let Ok(sender) = sender.lock() {
-                let _ = sender.send($crate::logger::LogMessage {
+                let queued = sender.send($crate::logger::LogMessage {
                     level: $crate::logger::LogLevel::Error,
                     message,
                     timestamp,
                 });
+                if let Err(unsent) = queued {
+                    eprintln!("[GdPAI ERROR] {}", unsent.0.message);
+                }
             }
         } else {
             // Channel not initialized - fall back to Rust stdio (e.g., in tests without Godot)
@@ -193,11 +199,14 @@ macro_rules! log_warn {
             let timestamp = $crate::logger::get_timestamp_ms();
             if let Some(sender) = $crate::logger::get_log_sender() {
                 if let Ok(sender) = sender.lock() {
-                    let _ = sender.send($crate::logger::LogMessage {
+                    let queued = sender.send($crate::logger::LogMessage {
                         level: $crate::logger::LogLevel::Warn,
                         message,
                         timestamp,
                     });
+                    if let Err(unsent) = queued {
+                        eprintln!("[GdPAI WARN] {}", unsent.0.message);
+                    }
                 }
             } else {
                 // Channel not initialized - fall back to Rust stdio (e.g., in tests without Godot)
@@ -216,11 +225,14 @@ macro_rules! log_info {
             let timestamp = $crate::logger::get_timestamp_ms();
             if let Some(sender) = $crate::logger::get_log_sender() {
                 if let Ok(sender) = sender.lock() {
-                    let _ = sender.send($crate::logger::LogMessage {
+                    let queued = sender.send($crate::logger::LogMessage {
                         level: $crate::logger::LogLevel::Info,
                         message,
                         timestamp,
                     });
+                    if let Err(unsent) = queued {
+                        println!("[GdPAI] {}", unsent.0.message);
+                    }
                 }
             } else {
                 // Channel not initialized - fall back to Rust stdio (e.g., in tests without Godot)
@@ -239,11 +251,14 @@ macro_rules! log_debug {
             let timestamp = $crate::logger::get_timestamp_ms();
             if let Some(sender) = $crate::logger::get_log_sender() {
                 if let Ok(sender) = sender.lock() {
-                    let _ = sender.send($crate::logger::LogMessage {
+                    let queued = sender.send($crate::logger::LogMessage {
                         level: $crate::logger::LogLevel::Debug,
                         message,
                         timestamp,
                     });
+                    if let Err(unsent) = queued {
+                        println!("[GdPAI DEBUG] {}", unsent.0.message);
+                    }
                 }
             } else {
                 // Channel not initialized - fall back to Rust stdio (e.g., in tests without Godot)
