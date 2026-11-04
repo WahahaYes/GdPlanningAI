@@ -1,0 +1,41 @@
+[gd_scene format=3 uid="uid://gjkz9x45gdvuj"]
+
+[ext_resource type="Script" uid="uid://dqtvcdw7yxit7" path="res://examples/source_3d/assets/environment/meadow_backdrop_3d.gd" id="1_script"]
+[ext_resource type="Material" uid="uid://v6jw2323ygn48" path="res://examples/source_3d/assets/environment/meadow_ground_3d.tres" id="2_ground"]
+[ext_resource type="Material" uid="uid://2kyf7j3543tks" path="res://examples/source_3d/assets/environment/meadow_grass_3d.tres" id="3_grass"]
+[ext_resource type="PackedScene" uid="uid://bi86ane1xtvwr" path="res://examples/source_3d/assets/vendored/KayKit_MedievalHexagon/Assets/gltf/decoration/nature/tree_single_A.gltf" id="4_tree_a"]
+[ext_resource type="PackedScene" uid="uid://vv4ywew4g6st" path="res://examples/source_3d/assets/vendored/KayKit_MedievalHexagon/Assets/gltf/decoration/nature/tree_single_B.gltf" id="5_tree_b"]
+[ext_resource type="PackedScene" uid="uid://dh0lwxfpqrsjr" path="res://examples/source_3d/assets/vendored/KayKit_MedievalHexagon/Assets/gltf/decoration/nature/trees_A_medium.gltf" id="6_trees_a"]
+[ext_resource type="PackedScene" uid="uid://d2ayxjhtmnwhl" path="res://examples/source_3d/assets/vendored/KayKit_MedievalHexagon/Assets/gltf/decoration/nature/trees_B_medium.gltf" id="7_trees_b"]
+[ext_resource type="PackedScene" uid="uid://7ypqadumgpv7" path="res://examples/source_3d/assets/vendored/KayKit_MedievalHexagon/Assets/gltf/decoration/nature/trees_A_large.gltf" id="8_trees_a_large"]
+[ext_resource type="PackedScene" uid="uid://dkf7h10duiiy0" path="res://examples/source_3d/assets/vendored/KayKit_MedievalHexagon/Assets/gltf/decoration/nature/trees_B_large.gltf" id="9_trees_b_large"]
+[ext_resource type="PackedScene" uid="uid://cihhtig057tp" path="res://examples/source_3d/assets/vendored/KayKit_MedievalHexagon/Assets/gltf/decoration/nature/hills_A_trees.gltf" id="10_hills_a"]
+[ext_resource type="PackedScene" uid="uid://bwigiyvpdwh7j" path="res://examples/source_3d/assets/vendored/KayKit_MedievalHexagon/Assets/gltf/decoration/nature/hills_B_trees.gltf" id="11_hills_b"]
+[ext_resource type="PackedScene" uid="uid://dy36inhxcjj0y" path="res://examples/source_3d/assets/vendored/KayKit_MedievalHexagon/Assets/gltf/decoration/nature/hills_C_trees.gltf" id="12_hills_c"]
+[ext_resource type="PackedScene" uid="uid://bvvy30ep0m7q7" path="res://examples/source_3d/assets/vendored/KayKit_MedievalHexagon/Assets/gltf/decoration/nature/mountain_A_grass_trees.gltf" id="13_mountain_a"]
+[ext_resource type="PackedScene" uid="uid://behm35wdeqe0m" path="res://examples/source_3d/assets/vendored/KayKit_MedievalHexagon/Assets/gltf/decoration/nature/mountain_B_grass_trees.gltf" id="14_mountain_b"]
+[ext_resource type="PackedScene" uid="uid://d087dawybavav" path="res://examples/source_3d/assets/vendored/KayKit_MedievalHexagon/Assets/gltf/decoration/nature/mountain_C_grass_trees.gltf" id="15_mountain_c"]
+[ext_resource type="PackedScene" uid="uid://bckuquiob40gv" path="res://examples/source_3d/assets/vendored/KayKit_MedievalHexagon/Assets/gltf/decoration/nature/cloud_big.gltf" id="16_cloud_big"]
+[ext_resource type="PackedScene" uid="uid://cxeh5le7s6tgr" path="res://examples/source_3d/assets/vendored/KayKit_MedievalHexagon/Assets/gltf/decoration/nature/cloud_small.gltf" id="17_cloud_small"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_cloud"]
+albedo_color = Color(1, 0.98, 0.95, 1)
+roughness = 1.0
+disable_fog = true
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_outer"]
+size = Vector2(400, 400)
+
+[node name="MeadowBackdrop" type="Node3D"]
+script = ExtResource("1_script")
+grass_material = ExtResource("3_grass")
+tree_scenes = Array[PackedScene]([ExtResource("4_tree_a"), ExtResource("5_tree_b"), ExtResource("6_trees_a"), ExtResource("7_trees_b"), ExtResource("8_trees_a_large"), ExtResource("9_trees_b_large")])
+horizon_scenes = Array[PackedScene]([ExtResource("10_hills_a"), ExtResource("11_hills_b"), ExtResource("12_hills_c"), ExtResource("13_mountain_a"), ExtResource("14_mountain_b"), ExtResource("15_mountain_c")])
+cloud_scenes = Array[PackedScene]([ExtResource("16_cloud_big"), ExtResource("17_cloud_small")])
+cloud_material = SubResource("StandardMaterial3D_cloud")
+
+[node name="OuterGround" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.245, 0)
+cast_shadow = 0
+mesh = SubResource("PlaneMesh_outer")
+surface_material_override/0 = ExtResource("2_ground")
