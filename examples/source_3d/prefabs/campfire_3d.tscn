@@ -11,6 +11,7 @@
 [ext_resource type="PackedScene" uid="uid://b47vbopvhfo4s" path="res://examples/source_3d/assets/vendored/KayKit_MedievalHexagon/Assets/gltf/decoration/nature/rock_single_A.gltf" id="8_stone_a"]
 [ext_resource type="PackedScene" uid="uid://bajof728pdu54" path="res://examples/source_3d/assets/vendored/KayKit_MedievalHexagon/Assets/gltf/decoration/nature/rock_single_B.gltf" id="9_stone_b"]
 [ext_resource type="PackedScene" uid="uid://cbn5fgrvjwbwg" path="res://examples/source_3d/assets/vendored/KayKit_MedievalHexagon/Assets/gltf/decoration/nature/rock_single_C.gltf" id="10_stone_c"]
+[ext_resource type="FontVariation" uid="uid://s2dkgvgonw1bd" path="res://examples/shared/ui/scroll_font.tres" id="90_font"]
 
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_1"]
 height = 0.3
@@ -266,7 +267,11 @@ flame = NodePath("../Fire")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
 billboard = 1
 pixel_size = 0.01
-modulate = Color(1, 1, 1, 0.35)
+modulate = Color(1, 0.95, 0.82, 0.9)
+outline_modulate = Color(0.24, 0.14, 0.06, 0.85)
+outline_size = 10
+font = ExtResource("90_font")
+font_size = 36
 text = "Campfire (50%)"
 
 [node name="GdPAIObjectData" type="Node" parent="." unique_id=947345135 node_paths=PackedStringArray("entity", "interactable_attribs", "location_data")]

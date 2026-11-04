@@ -1,5 +1,5 @@
-extends Label3D
-## 3D version of [code]agent_debug_label.gd[/code] on a billboarded [Label3D].
+extends "res://examples/shared/ui/scroll_label_3d.gd"
+## 3D version of [code]agent_debug_label.gd[/code] on a billboarded [Label3D] scroll.
 
 ## The agent to display debug info for.
 @export var gdpai_agent: GdPAIAgent
@@ -14,7 +14,8 @@ func _format_value(value: Variant) -> String:
 	return str(value)
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	super(delta)
 	if not is_instance_valid(gdpai_agent):
 		return
 

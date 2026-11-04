@@ -7,6 +7,8 @@
 [ext_resource type="Script" path="res://examples/source_3d/assets/agent/nav_controller_3d.gd" id="5_yzabc"]
 [ext_resource type="Script" path="res://examples/source_3d/assets/agent/carry_visual_3d.gd" id="6_carry"]
 [ext_resource type="Script" path="res://examples/source_3d/assets/agent/agent_skin_3d.gd" id="7_skin"]
+[ext_resource type="FontVariation" uid="uid://s2dkgvgonw1bd" path="res://examples/shared/ui/scroll_font.tres" id="4_font"]
+[ext_resource type="Material" uid="uid://mdp4hfsli3816" path="res://examples/shared/ui/parchment_scroll_3d.tres" id="5_scroll"]
 
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_1"]
 radius = 0.5
@@ -31,13 +33,17 @@ entity = NodePath("..")
 [node name="Label3D" type="Label3D" parent="." node_paths=PackedStringArray("gdpai_agent") groups=["debug_text"]]
 text = "Agent"
 billboard = 1
-pixel_size = 0.01
-modulate = Color(1, 1, 1, 0.35)
+pixel_size = 0.0075
+modulate = Color(0.26, 0.15, 0.07, 1)
+outline_size = 0
+font = ExtResource("4_font")
+font_size = 36
 vertical_alignment = 2
 position = Vector3(0, 2.35, 0)
 script = ExtResource("3_wxyz")
 gdpai_agent = NodePath("../GdPAIAgent")
 debug_properties = Array[String](["hunger", "held_item"])
+scroll_material = ExtResource("5_scroll")
 
 [node name="CarrySocket" type="Node3D" parent="." node_paths=PackedStringArray("gdpai_agent")]
 position = Vector3(0, 1.95, 0)

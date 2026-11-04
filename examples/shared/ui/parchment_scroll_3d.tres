@@ -1,0 +1,9 @@
+[gd_resource type="ShaderMaterial" format=3 uid="uid://mdp4hfsli3816"]
+
+[ext_resource type="Shader" path="res://examples/shared/ui/parchment_scroll_3d.gdshader" id="1_shader"]
+
+[resource]
+shader = ExtResource("1_shader")
+shader_parameter/paper_color = Color(0.88, 0.78, 0.58, 1)
+shader_parameter/roll_color = Color(0.78, 0.62, 0.42, 1)
+shader_parameter/roll_width = 0.12
