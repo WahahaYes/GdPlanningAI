@@ -25,7 +25,7 @@ avoidance_enabled = false
 
 [node name="LogStack" parent="." instance=ExtResource("4_stack")]
 
-[node name="Label3D" type="Label3D" parent="." unique_id=1048973144]
+[node name="Label3D" type="Label3D" parent="." unique_id=1048973144 groups=["debug_text"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.8, 0)
 billboard = 1
 pixel_size = 0.01

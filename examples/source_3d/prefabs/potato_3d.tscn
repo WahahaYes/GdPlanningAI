@@ -34,7 +34,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.02, 0.12, 0.26)
 radius = 0.035
 material = SubResource("StandardMaterial3D_eye")
 
-[node name="Label3D" type="Label3D" parent="."]
+[node name="Label3D" type="Label3D" parent="." groups=["debug_text"]]
 text = "Potato"
 billboard = 1
 pixel_size = 0.01

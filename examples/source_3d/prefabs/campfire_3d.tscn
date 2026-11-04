@@ -262,7 +262,7 @@ omni_attenuation = 1.4
 script = ExtResource("7_flicker")
 flame = NodePath("../Fire")
 
-[node name="Label3D" type="Label3D" parent="." unique_id=14321593]
+[node name="Label3D" type="Label3D" parent="." unique_id=14321593 groups=["debug_text"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
 billboard = 1
 pixel_size = 0.01

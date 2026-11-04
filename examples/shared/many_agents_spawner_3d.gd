@@ -13,8 +13,6 @@ extends Node
 @export var spawn_min: Vector3 = Vector3(-16, 0.25, -16)
 ## Maximum corner of the spawn volume.
 @export var spawn_max: Vector3 = Vector3(16, 0.25, 16)
-## When true, hides each agent's Label3D to reduce clutter at scale.
-@export var hide_debug_labels: bool = false
 ## Character looks cycled over spawned agents by spawn index. Empty keeps prefab defaults.
 @export var skins: Array[PackedScene] = []
 ## Agents per home campfire, assigned in spawn order to the scene's campfires. 0 lets every
@@ -45,10 +43,6 @@ func _ready() -> void:
 			var skin: Node = agent.get_node_or_null("Skin")
 			if skin != null and skin.has_method("set_skin"):
 				skin.call("set_skin", skins[i % skins.size()])
-		if hide_debug_labels:
-			var label: Node = agent.get_node_or_null("Label3D")
-			if label != null:
-				label.set("visible", false)
 		agents.append(agent)
 	_assign_home_campfires(agents)
 	if camera_agent_index >= 0 and camera_agent_index < agents.size():

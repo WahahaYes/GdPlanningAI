@@ -28,7 +28,7 @@ neighbor_distance = 5.0
 script = ExtResource("7_skin")
 entity = NodePath("..")
 
-[node name="Label3D" type="Label3D" parent="." node_paths=PackedStringArray("gdpai_agent")]
+[node name="Label3D" type="Label3D" parent="." node_paths=PackedStringArray("gdpai_agent") groups=["debug_text"]]
 text = "Agent"
 billboard = 1
 pixel_size = 0.01

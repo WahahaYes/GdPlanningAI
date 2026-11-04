@@ -1,10 +1,13 @@
 extends Node3D
 ## Follow camera for the 3D demos: eases toward [member target] on a [SpringArm3D].
-## Drag right/middle mouse to orbit, wheel to zoom, R to reset, Tab / Shift+Tab to switch agent.
+## Drag right/middle mouse to orbit, wheel to zoom, R to reset, Tab / Shift+Tab to switch agent,
+## H to hide or show the debug text ([DebugText]).
 ## Input is read directly so no InputMap setup is needed. Presentation only.
 
 ## Controls guide text, below the "Following" line.
-const CONTROLS_TEXT: String = "Right/middle drag: orbit\nWheel: zoom\nR: reset view"
+const CONTROLS_TEXT: String = (
+	"Right/middle drag: orbit\nWheel: zoom\nR: reset view\n" + "H: hide debug text"
+)
 ## Guide line for agent switching, shown only when there is more than one agent.
 const SWITCH_TEXT: String = "Tab / Shift+Tab: switch agent"
 
@@ -33,6 +36,10 @@ const SWITCH_TEXT: String = "Tab / Shift+Tab: switch agent"
 @export var max_length: float = 14.0
 ## Shows the controls guide in the top-left corner.
 @export var show_controls: bool = true
+## Shows the debug text: this guide and the labels over agents and objects. False hides it
+## when the scene starts; code can also flip it through [DebugText].
+@export var show_debug_text: bool = true:
+	set = _set_show_debug_text
 
 ## Controls guide label, when shown.
 var _controls_label: Label
@@ -42,6 +49,9 @@ var _controls_label: Label
 func _ready() -> void:
 	if show_controls:
 		_build_controls()
+	# Code that hid the text before the scene loaded keeps it hidden.
+	DebugText.set_shown(get_tree(), show_debug_text and DebugText.is_shown(get_tree()))
+	get_tree().node_added.connect(_on_node_added)
 	if target == null:
 		var scene: Node = get_tree().current_scene
 		if scene != null:
@@ -78,6 +88,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 		elif key.keycode == KEY_TAB:
 			cycle_target(-1 if key.shift_pressed else 1)
+			get_viewport().set_input_as_handled()
+		elif key.keycode == KEY_H:
+			DebugText.toggle(get_tree())
 			get_viewport().set_input_as_handled()
 
 
@@ -155,10 +168,22 @@ func _set_target(value: Node3D) -> void:
 	_update_controls()
 
 
+## Labels that spawn later (agents, potatoes) follow the switch.
+func _on_node_added(node: Node) -> void:
+	DebugText.apply(node)
+
+
+func _set_show_debug_text(value: bool) -> void:
+	show_debug_text = value
+	if is_inside_tree():
+		DebugText.set_shown(get_tree(), value)
+
+
 ## Pins the controls guide to the top-left corner on its own canvas layer.
 func _build_controls() -> void:
 	var layer: CanvasLayer = CanvasLayer.new()
 	layer.name = "ControlsGuide"
+	layer.add_to_group(DebugText.GROUP)
 	add_child(layer)
 	_controls_label = Label.new()
 	_controls_label.position = Vector2(12.0, 10.0)
