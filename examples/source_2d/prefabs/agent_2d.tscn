@@ -5,11 +5,14 @@
 [ext_resource type="Script" uid="uid://bt7mjof754vo2" path="res://examples/shared/ui/agent_debug_label.gd" id="3_mnopq"]
 [ext_resource type="Resource" uid="uid://dx8k4mam2n5p2" path="res://examples/configs/campfire_agent_config.tres" id="4_nopqr"]
 [ext_resource type="Script" uid="uid://bgo110tgx4jqg" path="res://examples/source_2d/assets/agent/nav_controller.gd" id="5_pqrst"]
+[ext_resource type="FontVariation" uid="uid://s2dkgvgonw1bd" path="res://examples/shared/ui/scroll_font.tres" id="scroll_font"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_1"]
 radius = 16.0
 
 [sub_resource type="LabelSettings" id="LabelSettings_1"]
+font = ExtResource("scroll_font")
+font_color = Color(0.26, 0.15, 0.07, 1)
 font_size = 20
 
 [node name="Agent" type="RigidBody2D" unique_id=202757577]
@@ -32,7 +35,7 @@ offset_right = 12.0
 offset_bottom = 12.0
 color = Color(0, 0.501961, 1, 1)
 
-[node name="Label" type="Label" parent="." unique_id=740604716 node_paths=PackedStringArray("gdpai_agent")]
+[node name="Label" type="Label" parent="." unique_id=740604716 node_paths=PackedStringArray("gdpai_agent") groups=["debug_text"]]
 offset_left = -40.0
 offset_top = -40.0
 offset_right = 40.0

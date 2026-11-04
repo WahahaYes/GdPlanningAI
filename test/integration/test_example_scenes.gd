@@ -5,6 +5,7 @@ extends "res://test/shared/scene_smoke_base.gd"
 const CAMPFIRE_3D_SCENE: PackedScene = preload("res://examples/campfire_3d.tscn")
 const LARGE_SCENE: PackedScene = preload("res://examples/campfire_large_3d.tscn")
 const SHOWCASE_SCENE: PackedScene = preload("res://examples/agent_showcase_3d.tscn")
+const CAMPFIRE_2D_SCENE: PackedScene = preload("res://examples/campfire_2d.tscn")
 
 
 ## With a single agent the guide leaves out the agent-switching line.
@@ -85,6 +86,22 @@ func test_showcase_camera_stays_active() -> void:
 	var camera: Camera3D = scene.get_node_or_null("CameraRig/SpringArm3D/Camera3D") as Camera3D
 	assert_not_null(camera, "Scene should keep its rig camera")
 	assert_true(camera.current, "Rig camera should stay active")
+
+
+## A 2D example has the same debug-text switch: it hides the agent and object labels and
+## shows them again.
+func test_2d_switch_hides_labels() -> void:
+	var scene: Node2D = CAMPFIRE_2D_SCENE.instantiate() as Node2D
+	await _settle_example(scene)
+	var switch: DebugTextSwitch = scene.get_node("DebugTextSwitch") as DebugTextSwitch
+	var debug_nodes: Array[Node] = get_tree().get_nodes_in_group(DebugText.GROUP)
+	assert_gt(debug_nodes.size(), 5, "Agent, campfire, potato and wood pile labels")
+	switch.show_debug_text = false
+	for node in debug_nodes:
+		assert_false(node.get("visible"), "%s should hide" % node.name)
+	DebugText.toggle(get_tree())
+	for node in debug_nodes:
+		assert_true(node.get("visible"), "%s should show again" % node.name)
 
 
 func _guide_label(rig: Node) -> Label:
