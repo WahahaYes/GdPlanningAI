@@ -7,6 +7,7 @@
 [ext_resource type="Texture2D" uid="uid://b22ckbemud140" path="res://examples/source_2d/assets/vendored/TinySwordsPack/Units/Red Units/Monk/Idle.png" id="5_pks2p"]
 [ext_resource type="Texture2D" uid="uid://c42c4gc6885ib" path="res://examples/source_2d/assets/vendored/TinySwordsPack/Units/Red Units/Monk/Run.png" id="6_ap5rn"]
 [ext_resource type="Script" uid="uid://cqk6cr8e5xkto" path="res://examples/shared/ui/fps_counter.gd" id="7_qcwyv"]
+[ext_resource type="Script" uid="uid://dw5tvnymk2516" path="res://examples/shared/ui/debug_text_switch.gd" id="debug_text_switch"]
 
 [sub_resource type="Resource" id="Resource_mer3k"]
 script = ExtResource("2_ke3pc")
@@ -128,6 +129,9 @@ Avg: 0.0"
 label_settings = SubResource("LabelSettings_m5nv4")
 script = ExtResource("7_qcwyv")
 display_text = NodePath(".")
+
+[node name="DebugTextSwitch" type="Node" parent="."]
+script = ExtResource("debug_text_switch")
 
 [editable path="Agent"]
 [editable path="Agent2"]

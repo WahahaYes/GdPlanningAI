@@ -7,6 +7,7 @@
 [ext_resource type="PackedScene" uid="uid://d01m7o2q5s8t4" path="res://examples/source_2d/prefabs/agent_2d.tscn" id="5_defgh"]
 [ext_resource type="Script" uid="uid://b6narlglj2q5e" path="res://examples/shared/systems/potato_spawner/potato_spawner_2d.gd" id="6_efghi"]
 [ext_resource type="PackedScene" uid="uid://dyak5m0n3p6q2" path="res://examples/source_2d/prefabs/potato_2d.tscn" id="7_fghij"]
+[ext_resource type="Script" uid="uid://dw5tvnymk2516" path="res://examples/shared/ui/debug_text_switch.gd" id="debug_text_switch"]
 
 [sub_resource type="Resource" id="Resource_u0rx4"]
 script = ExtResource("2_abcde")
@@ -56,3 +57,6 @@ spawn_area = Rect2(-350, -250, 700, 500)
 
 [node name="Agent1" parent="." unique_id=1655664018 instance=ExtResource("5_defgh")]
 position = Vector2(-150, -150)
+
+[node name="DebugTextSwitch" type="Node" parent="."]
+script = ExtResource("debug_text_switch")

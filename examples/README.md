@@ -17,9 +17,9 @@ Read the scenes in this order; [docs/EXAMPLES.md](../docs/EXAMPLES.md) says what
 
 ## Debug Text
 
-The 3D examples show debug text: the controls guide in the top-left corner and a label over each agent and object. One switch hides it all, for screenshots or recordings:
+Every example shows debug text: a label over each agent and object, and in 3D the controls guide in the top-left corner. One switch hides it all, for screenshots or recordings:
 
-- In the editor: untick **Show Debug Text** on the scene's `CameraRig`.
+- In the editor: untick **Show Debug Text** on the scene's `CameraRig` (3D) or `DebugTextSwitch` (2D).
 - While running: press **H**.
 - From code, before or after the scene loads: `DebugText.set_shown(get_tree(), false)`. Labels spawned later follow the switch. A single label can still be shown or hidden through its own `visible`; the switch only touches labels when it changes or when they spawn.
 

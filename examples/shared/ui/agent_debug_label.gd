@@ -1,5 +1,5 @@
-extends Label
-## Shows a [GdPAIAgent]'s current goal, action and [member debug_properties] on a [Label].
+extends "res://examples/shared/ui/scroll_label_2d.gd"
+## Shows a [GdPAIAgent]'s current goal, action and [member debug_properties] on a parchment scroll.
 ## Presentation only; floats are shown to one decimal.
 
 ## The agent to display debug info for.
@@ -15,7 +15,8 @@ func _format_value(value: Variant) -> String:
 	return str(value)
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	super(delta)
 	if not is_instance_valid(gdpai_agent):
 		return
 

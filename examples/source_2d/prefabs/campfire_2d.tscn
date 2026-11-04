@@ -4,8 +4,12 @@
 [ext_resource type="Script" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_interactable.gd" id="2_hijkl"]
 [ext_resource type="Script" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_location_data.gd" id="3_ijklm"]
 [ext_resource type="Script" path="res://examples/objects/campfire/campfire_runtime.gd" id="4_jklmn"]
+[ext_resource type="FontVariation" uid="uid://s2dkgvgonw1bd" path="res://examples/shared/ui/scroll_font.tres" id="scroll_font"]
+[ext_resource type="Script" uid="uid://ghtl65tev4iq" path="res://examples/shared/ui/scroll_label_2d.gd" id="scroll_label"]
 
 [sub_resource type="LabelSettings" id="LabelSettings_1"]
+font = ExtResource("scroll_font")
+font_color = Color(0.26, 0.15, 0.07, 1)
 font_size = 16
 
 [node name="Campfire" type="Node2D" node_paths=PackedStringArray("campfire_object", "label_node", "fire_primitive")]
@@ -36,7 +40,7 @@ offset_bottom = 2.0
 rotation = 0.523599
 color = Color(0.360784, 0.227451, 0.117647, 1)
 
-[node name="Label" type="Label" parent="."]
+[node name="Label" type="Label" parent="." groups=["debug_text"]]
 offset_left = -48.0
 offset_top = -32.0
 offset_right = 48.0
@@ -44,6 +48,7 @@ offset_bottom = -16.0
 text = "Campfire (50%)"
 label_settings = SubResource("LabelSettings_1")
 horizontal_alignment = 1
+script = ExtResource("scroll_label")
 
 [node name="GdPAIObjectData" type="Node" parent="." node_paths=PackedStringArray("entity", "interactable_attribs", "location_data")]
 script = ExtResource("1_ghijk")
