@@ -12,7 +12,7 @@ func test_single_agent_guide_omits_switching() -> void:
 	var scene: Node3D = CAMPFIRE_3D_SCENE.instantiate() as Node3D
 	await _settle_example(scene)
 	var rig: Node3D = scene.find_child("CameraRig", true, false) as Node3D
-	var guide: Label = rig.get_node("ControlsGuide").get_child(0) as Label
+	var guide: Label = _guide_label(rig)
 	assert_string_contains(guide.text, "R: reset view")
 	assert_false(guide.text.contains("Tab"), "One agent: no switching controls")
 
@@ -37,9 +37,23 @@ func test_camera_rig_cycles_agents_and_shows_controls() -> void:
 		rig.target, bodies[posmod(bodies.find(start) - 1, bodies.size())], "Shift+Tab steps back"
 	)
 
-	var guide: Label = rig.get_node("ControlsGuide").get_child(0) as Label
+	var guide: Label = _guide_label(rig)
 	assert_string_contains(guide.text, "Following: %s" % rig.target.name)
 	assert_string_contains(guide.text, "Tab")
+	assert_string_contains(guide.text, "H: hide debug text")
+
+	# One switch hides the guide and every label, including ones spawned afterwards.
+	rig.show_debug_text = false
+	var late: Label3D = Label3D.new()
+	late.add_to_group(DebugText.GROUP)
+	scene.add_child(late)
+	var debug_nodes: Array[Node] = get_tree().get_nodes_in_group(DebugText.GROUP)
+	assert_gt(debug_nodes.size(), 6, "Guide plus agent and object labels")
+	for node in debug_nodes:
+		assert_false(node.get("visible"), "%s should hide" % node.name)
+	DebugText.toggle(get_tree())
+	for node in debug_nodes:
+		assert_true(node.get("visible"), "%s should show again" % node.name)
 
 
 ## Each campfire is home to exactly two agents, and every agent tends its own home fire.
@@ -71,3 +85,7 @@ func test_showcase_camera_stays_active() -> void:
 	var camera: Camera3D = scene.get_node_or_null("CameraRig/SpringArm3D/Camera3D") as Camera3D
 	assert_not_null(camera, "Scene should keep its rig camera")
 	assert_true(camera.current, "Rig camera should stay active")
+
+
+func _guide_label(rig: Node) -> Label:
+	return rig.get_node("ControlsGuide").find_children("*", "Label", true, false)[0] as Label

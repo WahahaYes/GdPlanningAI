@@ -148,7 +148,7 @@ Unit tier: the built-in precondition evaluator is an algorithmic kernel.
 
 ### `example-scenes-present`
 
-**Scenario:** Given a 3D example scene, when it runs, then the camera rig cycles agents and shows its controls, single-agent scenes omit switching, and a burnt-out flame is hidden.
+**Scenario:** Given a 3D example scene, when it runs, then the camera rig cycles agents and shows its controls, single-agent scenes omit switching, one debug-text switch hides the guide and every label, and a burnt-out flame is hidden.
 
 **Proved by:** `test/integration/test_example_scenes.gd`, `test/integration/test_campfire_flame_3d.gd`, `test/scenarios/scenes.cfg`
 

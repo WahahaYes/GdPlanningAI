@@ -222,7 +222,7 @@ ______________________________________________________________________
 - **Formatting and linting**: `make format-rust` (rustfmt), `make format-godot` (spacing fixer + gdformat), `make lint-godot` (gdlint), `make lint-style` (style linter over git-tracked `.gd`/`.rs` files: bans `:=`, checks borders, docstrings, and spacing).
 - **`scripts/`**: `fix_gd_spacing.py` (2 blank lines before top-level funcs), `lint_style.py` (style linter).
 - **Hooks** (`.pre-commit-config.yaml`, run with prek, commit stage only; tests are run by hand): pre-commit-hooks v5.0.0, cargo fmt/clippy (via the rust Makefile), gitleaks v8.24.0, mdformat 0.7.19 (`--wrap=no`, GFM tables), ruff v0.6.0 + ruff-format, gdformat, gdlint, `lint-style`, and `check-docs`.
-- **Third-party addons** (`addons.jsonc`): `gut` v9.6.0 (bitwes/Gut) + `GdTimeMachine` v0.1.1 (WahahaYes/GdTimeMachine), installed via GodotEnv, gitignored, cached under `.addons/`. All three editor plugins (GdPlanningAI, gut, GdTimeMachine) are enabled.
+- **Third-party addons** (`addons.jsonc`): `gut` v9.6.0 (bitwes/Gut) + `GdTimeMachine` main (WahahaYes/GdTimeMachine), installed via GodotEnv, gitignored, cached under `.addons/`. All three editor plugins (GdPlanningAI, gut, GdTimeMachine) are enabled.
 - **`project.godot`**: Godot 4.7, Forward Plus renderer, **no main scene** (run scenes directly). Autoloads: `GdPAIAutoload`, `GdTimeMachineGracefulStop`. Its `[dotnet]` section is written by the .NET build of the editor; the project has no C#.
 - **No CI**: there is no `.github/` and no GitHub Actions. Quality gates are the local Make targets and the pre-commit hooks.
 

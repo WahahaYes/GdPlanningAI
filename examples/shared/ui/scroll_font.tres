@@ -1,0 +1,6 @@
+[gd_resource type="FontVariation" format=3 uid="uid://s2dkgvgonw1bd"]
+
+[ext_resource type="FontFile" uid="uid://doqk5vmu08c67" path="res://examples/source_3d/assets/vendored/MedievalSharp/MedievalSharp.ttf" id="1_font"]
+
+[resource]
+base_font = ExtResource("1_font")

@@ -1,10 +1,17 @@
 extends Node3D
 ## Follow camera for the 3D demos: eases toward [member target] on a [SpringArm3D].
-## Drag right/middle mouse to orbit, wheel to zoom, R to reset, Tab / Shift+Tab to switch agent.
+## Drag right/middle mouse to orbit, wheel to zoom, R to reset, Tab / Shift+Tab to switch agent,
+## H to hide or show the debug text ([DebugText]).
 ## Input is read directly so no InputMap setup is needed. Presentation only.
 
 ## Controls guide text, below the "Following" line.
-const CONTROLS_TEXT: String = "Right/middle drag: orbit\nWheel: zoom\nR: reset view"
+const CONTROLS_TEXT: String = (
+	"Right/middle drag: orbit\nWheel: zoom\nR: reset view\n" + "H: hide debug text"
+)
+## Font of the controls guide, shared with the labels over agents.
+const GUIDE_FONT: Font = preload("res://examples/shared/ui/scroll_font.tres")
+## Parchment scroll drawn behind the guide.
+const PARCHMENT_SHADER: Shader = preload("res://examples/shared/ui/parchment_scroll_ui.gdshader")
 ## Guide line for agent switching, shown only when there is more than one agent.
 const SWITCH_TEXT: String = "Tab / Shift+Tab: switch agent"
 
@@ -33,6 +40,10 @@ const SWITCH_TEXT: String = "Tab / Shift+Tab: switch agent"
 @export var max_length: float = 14.0
 ## Shows the controls guide in the top-left corner.
 @export var show_controls: bool = true
+## Shows the debug text: this guide and the labels over agents and objects. False hides it
+## when the scene starts; code can also flip it through [DebugText].
+@export var show_debug_text: bool = true:
+	set = _set_show_debug_text
 
 ## Controls guide label, when shown.
 var _controls_label: Label
@@ -42,6 +53,9 @@ var _controls_label: Label
 func _ready() -> void:
 	if show_controls:
 		_build_controls()
+	# Code that hid the text before the scene loaded keeps it hidden.
+	DebugText.set_shown(get_tree(), show_debug_text and DebugText.is_shown(get_tree()))
+	get_tree().node_added.connect(_on_node_added)
 	if target == null:
 		var scene: Node = get_tree().current_scene
 		if scene != null:
@@ -78,6 +92,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 		elif key.keycode == KEY_TAB:
 			cycle_target(-1 if key.shift_pressed else 1)
+			get_viewport().set_input_as_handled()
+		elif key.keycode == KEY_H:
+			DebugText.toggle(get_tree())
 			get_viewport().set_input_as_handled()
 
 
@@ -155,19 +172,52 @@ func _set_target(value: Node3D) -> void:
 	_update_controls()
 
 
-## Pins the controls guide to the top-left corner on its own canvas layer.
+## Labels that spawn later (agents, potatoes) follow the switch.
+func _on_node_added(node: Node) -> void:
+	DebugText.apply(node)
+
+
+func _set_show_debug_text(value: bool) -> void:
+	show_debug_text = value
+	if is_inside_tree():
+		DebugText.set_shown(get_tree(), value)
+
+
+## Pins the controls guide to the top-left corner on its own canvas layer, on a parchment scroll.
 func _build_controls() -> void:
 	var layer: CanvasLayer = CanvasLayer.new()
 	layer.name = "ControlsGuide"
+	layer.add_to_group(DebugText.GROUP)
 	add_child(layer)
+	var panel: PanelContainer = PanelContainer.new()
+	panel.position = Vector2(10.0, 8.0)
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
+	layer.add_child(panel)
+	var paper: ColorRect = ColorRect.new()
+	var paper_material: ShaderMaterial = ShaderMaterial.new()
+	paper_material.shader = PARCHMENT_SHADER
+	paper.material = paper_material
+	paper.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	paper.resized.connect(_fit_parchment.bind(paper))
+	panel.add_child(paper)
+	var margin: MarginContainer = MarginContainer.new()
+	for side in ["left", "right"]:
+		margin.add_theme_constant_override("margin_" + side, 22)
+	for side in ["top", "bottom"]:
+		margin.add_theme_constant_override("margin_" + side, 20)
+	panel.add_child(margin)
 	_controls_label = Label.new()
-	_controls_label.position = Vector2(12.0, 10.0)
-	_controls_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.9))
-	_controls_label.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.8))
-	_controls_label.add_theme_constant_override("outline_size", 4)
-	_controls_label.add_theme_font_size_override("font_size", 14)
+	_controls_label.add_theme_font_override("font", GUIDE_FONT)
+	_controls_label.add_theme_font_size_override("font_size", 19)
+	_controls_label.add_theme_color_override("font_color", Color(0.26, 0.15, 0.07))
 	_controls_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	layer.add_child(_controls_label)
+	margin.add_child(_controls_label)
+
+
+## Tells the parchment shader its size in pixels, for even rolls and borders.
+func _fit_parchment(paper: ColorRect) -> void:
+	(paper.material as ShaderMaterial).set_shader_parameter("rect_size", paper.size)
 
 
 ## Refreshes the guide with the agent currently followed. The switch line only

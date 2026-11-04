@@ -15,6 +15,18 @@ Read the scenes in this order; [docs/EXAMPLES.md](../docs/EXAMPLES.md) says what
 1. `campfire_large_3d.tscn`: six agents, each pair tending its own fire.
 1. `agent_showcase_3d.tscn`: skins, animation and carried props; planning is off.
 
+## Debug Text
+
+The 3D examples show debug text: the controls guide in the top-left corner and a label over each agent and object. One switch hides it all, for screenshots or recordings:
+
+- In the editor: untick **Show Debug Text** on the scene's `CameraRig`.
+- While running: press **H**.
+- From code, before or after the scene loads: `DebugText.set_shown(get_tree(), false)`. Labels spawned later follow the switch. A single label can still be shown or hidden through its own `visible`; the switch only touches labels when it changes or when they spawn.
+
+## Look
+
+The 3D scenes share one environment (`source_3d/assets/environment/day_sky_3d.tres`) and a `MeadowBackdrop` prefab: shader grass that sways in the wind, a tree line, hills, mountains and clouds, generated from a seed on load (nothing collides; set its `play_area_size` to the walkable ground). Campfire flames, light and range follow the fuel level.
+
 ## Layout
 
 - `behaviors/`: goals, self actions, property updaters and behavior configs.

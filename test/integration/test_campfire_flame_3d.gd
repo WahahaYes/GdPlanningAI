@@ -21,4 +21,7 @@ func test_burnt_out_flame_is_hidden_not_zero_scaled() -> void:
 	await _pump_frames(2)
 	assert_true(flame.visible, "A fueled fire should show its flame")
 	assert_true(light.visible, "A fueled fire should light up again")
+	assert_lt(flame.scale.x, 0.45, "A refuelled flame swells rather than popping")
+	campfire.flame_smoothing = 0.0
+	await _pump_frames(2)
 	assert_almost_eq(flame.scale.x, 0.5, 0.05, "Flame scale follows fuel")

@@ -1,0 +1,8 @@
+[gd_resource type="ShaderMaterial" format=3 uid="uid://v6jw2323ygn48"]
+
+[ext_resource type="Shader" uid="uid://jpxuqlx1wk81" path="res://examples/source_3d/assets/environment/meadow_ground.gdshader" id="1_shader"]
+[ext_resource type="Texture2D" uid="uid://ikf3jzukyqars" path="res://examples/source_3d/assets/environment/meadow_noise_3d.tres" id="2_noise"]
+
+[resource]
+shader = ExtResource("1_shader")
+shader_parameter/meadow_noise = ExtResource("2_noise")

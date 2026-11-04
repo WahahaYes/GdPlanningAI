@@ -14,6 +14,11 @@ const MIN_FLAME_SCALE: float = 0.01
 @export var fire_primitive: Node
 ## Optional light, off while the fire is out.
 @export var fire_light: Node
+## Seconds the flame takes to swell or shrink to a new fuel level; 0 follows fuel at once.
+@export var flame_smoothing: float = 0.0
+
+## Fuel ratio the flame currently shows, eased towards the real one. -1 until first set.
+var _shown_ratio: float = -1.0
 
 
 func _process(delta: float) -> void:
@@ -25,7 +30,7 @@ func _process(delta: float) -> void:
 	)
 
 	_update_label()
-	_update_fire_visuals()
+	_update_fire_visuals(delta)
 
 
 func _update_label() -> void:
@@ -40,14 +45,18 @@ func _update_label() -> void:
 		label_node.text = "Campfire (%d%%)" % fuel_percent
 
 
-func _update_fire_visuals() -> void:
+func _update_fire_visuals(delta: float) -> void:
 	if not is_instance_valid(fire_primitive):
 		return
 
 	var fuel_ratio: float = campfire_object.current_fuel / 100.0
+	if _shown_ratio < 0.0 or flame_smoothing <= 0.0:
+		_shown_ratio = fuel_ratio
+	else:
+		_shown_ratio = lerpf(_shown_ratio, fuel_ratio, 1.0 - exp(-delta / flame_smoothing))
 	# Hide rather than scale to zero: a singular basis makes the renderer error every frame.
 	var lit: bool = fuel_ratio > MIN_FLAME_SCALE
-	var flame_scale: float = maxf(fuel_ratio, MIN_FLAME_SCALE)
+	var flame_scale: float = maxf(_shown_ratio, MIN_FLAME_SCALE)
 
 	if fire_primitive is Node3D:
 		var prim_3d: Node3D = fire_primitive as Node3D

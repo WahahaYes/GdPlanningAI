@@ -5,6 +5,13 @@
 [ext_resource type="Script" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_location_data.gd" id="3_uvwxy"]
 [ext_resource type="Script" path="res://examples/objects/campfire/campfire_runtime.gd" id="4_vwxyz"]
 [ext_resource type="PackedScene" uid="uid://bi2ovcpk86cvh" path="res://examples/source_3d/assets/vendored/KayKit_ResourceBits/Assets/gltf/Wood_Log_B.gltf" id="5_woodlog"]
+[ext_resource type="Shader" uid="uid://c4h86dfctq4lj" path="res://examples/source_3d/assets/environment/fire_particle_3d.gdshader" id="6_flame"]
+[ext_resource type="Shader" uid="uid://cutqyw65j5vg7" path="res://examples/source_3d/assets/environment/fire_flame_3d.gdshader" id="11_tongue"]
+[ext_resource type="Script" uid="uid://spcmsfx0xl1o" path="res://examples/source_3d/assets/environment/fire_light_flicker_3d.gd" id="7_flicker"]
+[ext_resource type="PackedScene" uid="uid://b47vbopvhfo4s" path="res://examples/source_3d/assets/vendored/KayKit_MedievalHexagon/Assets/gltf/decoration/nature/rock_single_A.gltf" id="8_stone_a"]
+[ext_resource type="PackedScene" uid="uid://bajof728pdu54" path="res://examples/source_3d/assets/vendored/KayKit_MedievalHexagon/Assets/gltf/decoration/nature/rock_single_B.gltf" id="9_stone_b"]
+[ext_resource type="PackedScene" uid="uid://cbn5fgrvjwbwg" path="res://examples/source_3d/assets/vendored/KayKit_MedievalHexagon/Assets/gltf/decoration/nature/rock_single_C.gltf" id="10_stone_c"]
+[ext_resource type="FontVariation" uid="uid://s2dkgvgonw1bd" path="res://examples/shared/ui/scroll_font.tres" id="90_font"]
 
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_1"]
 height = 0.3
@@ -13,74 +20,130 @@ radius = 0.6
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ember"]
 shading_mode = 0
 albedo_color = Color(1, 0.45, 0.1, 1)
+emission_enabled = true
+emission = Color(1, 0.4, 0.08, 1)
+emission_energy_multiplier = 3.0
 
-[sub_resource type="Gradient" id="Gradient_fire"]
-offsets = PackedFloat32Array(0, 0.5, 1)
-colors = PackedColorArray(1, 0.9, 0.4, 1, 1, 0.45, 0.1, 0.9, 0.6, 0.1, 0.05, 0)
+[sub_resource type="SphereMesh" id="SphereMesh_ember"]
+material = SubResource("StandardMaterial3D_ember")
+radius = 0.2
+height = 0.22
+radial_segments = 12
+rings = 6
 
-[sub_resource type="GradientTexture1D" id="GradientTexture1D_fire"]
-gradient = SubResource("Gradient_fire")
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_flame"]
+shader = ExtResource("6_flame")
 
-[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_fire"]
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_tongue"]
+shader = ExtResource("11_tongue")
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_tongue"]
+material = SubResource("ShaderMaterial_tongue")
+top_radius = 0.0
+bottom_radius = 0.42
+height = 0.95
+radial_segments = 5
+rings = 3
+cap_top = false
+
+[sub_resource type="Gradient" id="Gradient_ember"]
+offsets = PackedFloat32Array(0, 0.7, 1)
+colors = PackedColorArray(1, 0.8, 0.35, 1, 1, 0.4, 0.1, 1, 0.6, 0.1, 0.02, 0)
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_ember"]
+gradient = SubResource("Gradient_ember")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_sparks"]
 emission_shape = 1
 emission_sphere_radius = 0.2
 direction = Vector3(0, 1, 0)
-spread = 20.0
-initial_velocity_min = 1.2
+spread = 25.0
+initial_velocity_min = 1.0
 initial_velocity_max = 2.2
-gravity = Vector3(0, 1.5, 0)
-damping_min = 0.5
-damping_max = 1.0
-scale_min = 0.15
-scale_max = 0.35
-color_ramp = SubResource("GradientTexture1D_fire")
+gravity = Vector3(0, 0.4, 0)
+damping_min = 0.4
+damping_max = 0.8
+turbulence_enabled = true
+turbulence_noise_strength = 0.6
+turbulence_influence_min = 0.05
+turbulence_influence_max = 0.15
+scale_min = 0.6
+scale_max = 1.2
+color_ramp = SubResource("GradientTexture1D_ember")
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_fire"]
-transparency = 1
-shading_mode = 0
-vertex_color_use_as_albedo = true
-albedo_color = Color(1, 0.6, 0.2, 1)
-billboard_mode = 3
-
-[sub_resource type="QuadMesh" id="QuadMesh_fire"]
-material = SubResource("StandardMaterial3D_fire")
-size = Vector2(0.5, 0.5)
+[sub_resource type="QuadMesh" id="QuadMesh_spark"]
+material = SubResource("ShaderMaterial_flame")
+size = Vector2(0.07, 0.09)
 
 [sub_resource type="Gradient" id="Gradient_smoke"]
-colors = PackedColorArray(0.25, 0.22, 0.2, 0.45, 0.2, 0.2, 0.2, 0)
+colors = PackedColorArray(0.35, 0.32, 0.3, 0.35, 0.5, 0.5, 0.5, 0)
 
 [sub_resource type="GradientTexture1D" id="GradientTexture1D_smoke"]
 gradient = SubResource("Gradient_smoke")
+
+[sub_resource type="Curve" id="Curve_smoke_size"]
+_data = [Vector2(0, 0.4), 0.0, 1.0, 0, 0, Vector2(1, 1), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="CurveTexture_smoke_size"]
+curve = SubResource("Curve_smoke_size")
 
 [sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_smoke"]
 emission_shape = 1
 emission_sphere_radius = 0.15
 direction = Vector3(0, 1, 0)
 spread = 12.0
-initial_velocity_min = 0.8
-initial_velocity_max = 1.4
-gravity = Vector3(0, 1, 0)
-scale_min = 0.3
-scale_max = 0.6
+initial_velocity_min = 0.6
+initial_velocity_max = 1.0
+gravity = Vector3(0.15, 0.8, 0)
+scale_min = 0.6
+scale_max = 1.2
+scale_curve = SubResource("CurveTexture_smoke_size")
 color_ramp = SubResource("GradientTexture1D_smoke")
+
+[sub_resource type="Gradient" id="Gradient_soft"]
+offsets = PackedFloat32Array(0, 1)
+colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_soft"]
+gradient = SubResource("Gradient_soft")
+width = 64
+height = 64
+fill = 1
+fill_from = Vector2(0.5, 0.5)
+fill_to = Vector2(0.5, 0)
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_smoke"]
 transparency = 1
 shading_mode = 0
 vertex_color_use_as_albedo = true
-albedo_color = Color(0.3, 0.28, 0.27, 0.5)
+albedo_texture = SubResource("GradientTexture2D_soft")
 billboard_mode = 3
+billboard_keep_scale = true
 
 [sub_resource type="QuadMesh" id="QuadMesh_smoke"]
 material = SubResource("StandardMaterial3D_smoke")
-size = Vector2(0.6, 0.6)
+size = Vector2(0.8, 0.8)
 
-[node name="Campfire" type="Node3D" unique_id=1256060839 node_paths=PackedStringArray("campfire_object", "label_node", "fire_primitive", "fire_light")]
+[sub_resource type="Gradient" id="Gradient_ash"]
+offsets = PackedFloat32Array(0, 0.55, 1)
+colors = PackedColorArray(0.16, 0.12, 0.09, 0.95, 0.3, 0.22, 0.14, 0.7, 0.36, 0.27, 0.16, 0)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_ash"]
+gradient = SubResource("Gradient_ash")
+width = 128
+height = 128
+fill = 1
+fill_from = Vector2(0.5, 0.5)
+fill_to = Vector2(0.5, 0)
+
+[node name="Campfire" type="Node3D" unique_id=1256060839 node_paths=PackedStringArray("campfire_object", "label_node", "fire_primitive", "fire_light") groups=["meadow_clearing"]]
 script = ExtResource("4_vwxyz")
 campfire_object = NodePath("./GdPAIObjectData")
 label_node = NodePath("./Label3D")
 fire_primitive = NodePath("./Fire")
 fire_light = NodePath("./OmniLight3D")
+flame_smoothing = 0.7
 
 [node name="Body" type="StaticBody3D" parent="."]
 
@@ -105,36 +168,110 @@ transform = Transform3D(0.5, 0, -0.8660254, 0, 1, 0, 0.8660254, 0, 0.5, 0, 0.28,
 transform = Transform3D(-0.5, 0, -0.8660254, 0, 1, 0, 0.8660254, 0, -0.5, 0, 0.28, 0)
 
 [node name="Fire" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.55, 0)
 
-[node name="FireParticles" type="GPUParticles3D" parent="Fire"]
-amount = 32
-lifetime = 0.8
-preprocess = 0.8
-process_material = SubResource("ParticleProcessMaterial_fire")
-draw_pass_1 = SubResource("QuadMesh_fire")
+[node name="FlameOuter" type="MeshInstance3D" parent="Fire"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.47, 0)
+cast_shadow = 0
+instance_shader_parameters/flame_color = Color(1, 0.36, 0.06, 1)
+instance_shader_parameters/phase = 0.0
+mesh = SubResource("CylinderMesh_tongue")
 
-[node name="SmokeParticles" type="GPUParticles3D" parent="Fire"]
-amount = 12
-lifetime = 1.6
-preprocess = 1.6
+[node name="FlameLeft" type="MeshInstance3D" parent="Fire"]
+transform = Transform3D(0.3175, 0, 0.6238, 0, 0.7, 0, -0.6238, 0, 0.3175, -0.2, 0.3, 0.1)
+cast_shadow = 0
+instance_shader_parameters/flame_color = Color(1, 0.45, 0.08, 1)
+instance_shader_parameters/phase = 2.1
+mesh = SubResource("CylinderMesh_tongue")
+
+[node name="FlameRight" type="MeshInstance3D" parent="Fire"]
+transform = Transform3D(-0.4331, 0, 0.4847, 0, 0.65, 0, -0.4847, 0, -0.4331, 0.19, 0.28, -0.12)
+cast_shadow = 0
+instance_shader_parameters/flame_color = Color(1, 0.42, 0.07, 1)
+instance_shader_parameters/phase = 4.0
+mesh = SubResource("CylinderMesh_tongue")
+
+[node name="FlameCore" type="MeshInstance3D" parent="Fire"]
+transform = Transform3D(0.5117, 0, 0.3501, 0, 0.62, 0, -0.3501, 0, 0.5117, 0, 0.31, 0)
+cast_shadow = 0
+instance_shader_parameters/flame_color = Color(1, 0.82, 0.3, 1)
+instance_shader_parameters/phase = 1.3
+mesh = SubResource("CylinderMesh_tongue")
+
+[node name="Sparks" type="GPUParticles3D" parent="Fire"]
+amount = 10
+lifetime = 1.4
+preprocess = 1.4
+process_material = SubResource("ParticleProcessMaterial_sparks")
+draw_pass_1 = SubResource("QuadMesh_spark")
+
+[node name="SmokeParticles" type="GPUParticles3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
+amount = 10
+lifetime = 2.4
+preprocess = 2.4
 process_material = SubResource("ParticleProcessMaterial_smoke")
 draw_pass_1 = SubResource("QuadMesh_smoke")
 
-[node name="FireGlow" type="CSGSphere3D" parent="Fire"]
-radius = 0.22
-material = SubResource("StandardMaterial3D_ember")
+[node name="Embers" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.48, 0)
+cast_shadow = 0
+mesh = SubResource("SphereMesh_ember")
 
-[node name="OmniLight3D" type="OmniLight3D" parent="." unique_id=641049415]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
-light_color = Color(1, 0.647059, 0, 1)
+[node name="Stones" type="Node3D" parent="."]
+
+[node name="Stone1" parent="Stones" instance=ExtResource("8_stone_a")]
+transform = Transform3D(1.344, 0, 0.6659, 0, 1.5, 0, -0.6659, 0, 1.344, 0.647, 0, 0.131)
+
+[node name="Stone2" parent="Stones" instance=ExtResource("9_stone_b")]
+transform = Transform3D(-0.7718, 0, 1.43, 0, 1.625, 0, -1.43, 0, -0.7718, 0.411, 0, 0.516)
+
+[node name="Stone3" parent="Stones" instance=ExtResource("10_stone_c")]
+transform = Transform3D(-1.51, 0, -0.8844, 0, 1.75, 0, 0.8844, 0, -1.51, -0.017, 0, 0.660)
+
+[node name="Stone4" parent="Stones" instance=ExtResource("8_stone_a")]
+transform = Transform3D(0.8028, 0, -1.267, 0, 1.5, 0, 1.267, 0, 0.8028, -0.437, 0, 0.495)
+
+[node name="Stone5" parent="Stones" instance=ExtResource("9_stone_b")]
+transform = Transform3D(1.342, 0, 0.917, 0, 1.625, 0, -0.917, 0, 1.342, -0.653, 0, 0.098)
+
+[node name="Stone6" parent="Stones" instance=ExtResource("10_stone_c")]
+transform = Transform3D(-1.037, 0, 1.409, 0, 1.75, 0, -1.409, 0, -1.037, -0.563, 0, -0.344)
+
+[node name="Stone7" parent="Stones" instance=ExtResource("8_stone_a")]
+transform = Transform3D(-1.176, 0, -0.9308, 0, 1.5, 0, 0.9308, 0, -1.176, -0.210, 0, -0.626)
+
+[node name="Stone8" parent="Stones" instance=ExtResource("9_stone_b")]
+transform = Transform3D(1.052, 0, -1.238, 0, 1.625, 0, 1.238, 0, 1.052, 0.241, 0, -0.614)
+
+[node name="Stone9" parent="Stones" instance=ExtResource("10_stone_c")]
+transform = Transform3D(1.293, 0, 1.179, 0, 1.75, 0, -1.179, 0, 1.293, 0.580, 0, -0.315)
+
+[node name="Ash" type="Decal" parent="."]
+size = Vector3(2.4, 0.6, 2.4)
+texture_albedo = SubResource("GradientTexture2D_ash")
+upper_fade = 0.5
+lower_fade = 0.5
+
+[node name="OmniLight3D" type="OmniLight3D" parent="." unique_id=641049415 node_paths=PackedStringArray("flame")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+light_color = Color(1, 0.58, 0.25, 1)
+light_energy = 3.2
 shadow_enabled = true
+omni_range = 7.0
+omni_attenuation = 1.4
+script = ExtResource("7_flicker")
+flame = NodePath("../Fire")
 
-[node name="Label3D" type="Label3D" parent="." unique_id=14321593]
+[node name="Label3D" type="Label3D" parent="." unique_id=14321593 groups=["debug_text"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
 billboard = 1
 pixel_size = 0.01
-modulate = Color(1, 1, 1, 0.35)
+modulate = Color(1, 0.95, 0.82, 0.9)
+outline_modulate = Color(0.24, 0.14, 0.06, 0.85)
+outline_size = 10
+font = ExtResource("90_font")
+font_size = 36
 text = "Campfire (50%)"
 
 [node name="GdPAIObjectData" type="Node" parent="." unique_id=947345135 node_paths=PackedStringArray("entity", "interactable_attribs", "location_data")]

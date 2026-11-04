@@ -3,6 +3,7 @@
 [ext_resource type="Script" path="res://examples/objects/potato/potato_object.gd" id="1_pqrst"]
 [ext_resource type="Script" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_interactable.gd" id="2_qrstu"]
 [ext_resource type="Script" path="res://addons/GdPlanningAI/scripts/nodes/gdpai_location_data.gd" id="3_rstuv"]
+[ext_resource type="FontVariation" uid="uid://s2dkgvgonw1bd" path="res://examples/shared/ui/scroll_font.tres" id="90_font"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_skin"]
 albedo_color = Color(0.66, 0.51, 0.33, 1)
@@ -34,11 +35,15 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.02, 0.12, 0.26)
 radius = 0.035
 material = SubResource("StandardMaterial3D_eye")
 
-[node name="Label3D" type="Label3D" parent="."]
+[node name="Label3D" type="Label3D" parent="." groups=["debug_text"]]
 text = "Potato"
 billboard = 1
 pixel_size = 0.01
-modulate = Color(1, 1, 1, 0.35)
+modulate = Color(1, 0.95, 0.82, 0.9)
+outline_modulate = Color(0.24, 0.14, 0.06, 0.85)
+outline_size = 10
+font = ExtResource("90_font")
+font_size = 36
 position = Vector3(0, 0.5, 0)
 
 [node name="GdPAIObjectData" type="Node" parent="." node_paths=PackedStringArray("entity", "interactable_attribs", "location_data")]
