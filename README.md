@@ -2,7 +2,7 @@
 
 [![Godot Asset Library](https://img.shields.io/badge/Godot_Asset_Library-4156-blue.svg)](https://godotengine.org/asset-library/asset/4156) [![Godot Asset Store](https://img.shields.io/badge/Godot_Asset_Store-GdPlanningAI-blue.svg)](https://store.godotengine.org/asset/wahahayes/gdplanningai/) [![Coverage](https://codecov.io/gh/WahahaYes/GdPlanningAI/graph/badge.svg)](https://codecov.io/gh/WahahaYes/GdPlanningAI) [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://github.com/WahahaYes/GdPlanningAI/blob/main/LICENSE.txt)
 
-GdPlanningAI (**GdPAI**) is a planning AI addon for Godot 4.2 and newer. Instead of hand-writing state machines or behavior trees, you give each NPC goals and actions, and it works out its own plan at runtime: what to do, and in what order. The objects in your world tell NPCs what they can do with them, so a new object works with every NPC you already have.
+GdPlanningAI (**GdPAI**) is a planning AI addon for Godot (tested 4.2 and newer). Instead of hand-writing state machines or behavior trees, a suite of goals, actions, and the rules around them, are defined. NPCs then plan at runtime and decide what actions to take, driven by the situations around them. The objects in your world tell NPCs what they can do with them, so new, emergent behaviors come up as need feautres and objects are added, without hand tuning.
 
 1. [Why planning](#why-planning)
 1. [The world carries the behavior](#the-world-carries-the-behavior)
@@ -10,36 +10,33 @@ GdPlanningAI (**GdPAI**) is a planning AI addon for Godot 4.2 and newer. Instead
 1. [How it works](#how-it-works)
 1. [Installation](#installation)
 1. [Examples](#examples)
-1. [Debugging](#debugging)
 1. [Documentation](#documentation)
 1. [License](#license)
-1. [FAQ](#faq)
-1. [Contributing](#contributing)
 
 ## Why planning
 
 ![A state machine with every transition drawn by hand; the same states as a behavior tree; and GOAP's goal and actions, which the NPC chains itself: GoTo leaves it near food, Pickup leaves it holding food, EatHeldFood leaves it fed](https://raw.githubusercontent.com/WahahaYes/GdPlanningAI/refs/heads/main/media/readme-planning.svg)
 
-A state machine spells out every switch between states. A behavior tree organises those states into a tree, but you still hand-craft every decision. Goal Oriented Action Planning (GOAP) turns that around: you write the pieces, goals an NPC wants and actions it can take, each with preconditions and effects, and the NPC searches for a chain of actions that reaches its most rewarding goal. Because it searches, it finds combinations you never wrote down.
+A state machine spells out every switch between states. A behavior tree organises those states into a tree, but still requires developers to hand-craft every decision. Goal Oriented Action Planning (GOAP) uses the opposite principal. The developers write the pieces (goals for NPCs and actions they can take), each with preconditions and effects, and the NPC searches for a chain of actions that reaches its most rewarding goal. Because it searches, it finds combinations that were never explicitly written down.
 
-GOAP comes from Jeff Orkin's AI for F.E.A.R. (2005), and planners like it have run NPCs in Fallout 3, Tomb Raider (2013) and Middle-earth: Shadow of Mordor. GdPlanningAI keeps that core and builds out the planning around objects in the world.
+GOAP comes from Jeff Orkin's AI for F.E.A.R. (2005), and planners like it have driven the NPCs in Fallout 3, Tomb Raider (2013), Middle-earth: Shadow of Mordor, and many more. GdPlanningAI is a fresh reimagining of GOAP's core and builds out the planning around objects in the world.
 
 ## The world carries the behavior
 
 ![A settler beside an apple that offers pick up, a well that offers drink (it needs a bucket), and a tree that offers shake](https://raw.githubusercontent.com/WahahaYes/GdPlanningAI/refs/heads/main/media/readme-objects-offer.svg)
 
-Objects in your scene carry a `GdPAIObjectData` node that lists the actions they offer: a tree offers to be shaken, food offers to be picked up, a well offers a drink if you have a bucket. NPCs plan with whatever is around them, so they don't need to know about every object in the game. Drop a new object into a scene and NPCs can use it right away, with no changes to the NPCs.
+Objects in the scene carry a `GdPAIObjectData` node that lists the actions they offer. A tree offers to be shaken, food offers to be picked up, a well offers a drink, but only if you have a bucket. NPCs plan with whatever is around them, so they don't need to know about every object in the game. Drop a new object into a scene and NPCs can use it right away, with no changes to their behaviors.
 
-While planning, an NPC works on snapshots of its own and the world's state, so it can try actions out without touching the live scene.
+While planning, an NPC works on snapshots of its own and the world's state, planning in offloaded background threads, enabling them to try actions out without touching the live scene.
 
 ## Make your own
 
 ![The recipe on a settler scene: a Thirst goal that wants water more as thirst grows; GoTo, DrawWater and Drink actions, each with what it needs and gives; the well offering DrawWater; and a config putting the goal and actions on the settler](https://raw.githubusercontent.com/WahahaYes/GdPlanningAI/refs/heads/main/media/readme-recipe.svg)
 
-You write three kinds of things, all in plain GDScript:
+Developers incorprating GdPlanningAI only need to write three kinds of scripts, all in plain GDScript:
 
 - **Goals** say how much an NPC wants something right now (`compute_reward`) and when it's achieved (`get_desired_state`).
-- **Actions** have preconditions, an effect the planner simulates, and the code that really does it in your game.
+- **Actions** have preconditions, an effect the planner simulates, and the code that executes or calls out to game logic.
 - **Behavior configs** group related goals and actions, and an **agent config** combines them into an NPC type that its `GdPAIAgent` node uses.
 
 ```gdscript
@@ -78,7 +75,7 @@ func perform_action(agent: GdPAIAgent, _delta: float) -> Action.Status:
 	return Action.Status.SUCCESS
 ```
 
-The planner decides what to do next; your game decides what that looks like. Actions can call your animations, inventory, stats or signals. The `script_templates/` folder (installed with the addon) has a template for each class, and [docs/AUTHORING_GUIDE.md](https://github.com/WahahaYes/GdPlanningAI/blob/main/docs/AUTHORING_GUIDE.md) covers every hook and its timing rules. The built-in `GoToAction` handles walking: actions that happen at a place require the NPC to be there, and the planner adds the walk itself.
+The planner is a core algorithm that decides what to do next, but your game decides what logic actually gets executed. Actions can call your animations, inventory, stats or signals. The `script_templates/` folder (installed with the addon) has a template for each class, and [docs/AUTHORING_GUIDE.md](https://github.com/WahahaYes/GdPlanningAI/blob/main/docs/AUTHORING_GUIDE.md) covers every hook and its timing rules. The built-in `GoToAction` handles walking using Godot's built in navigation.
 
 ## How it works
 
@@ -86,13 +83,13 @@ The planner decides what to do next; your game decides what that looks like. Act
 
 Your NPCs, goals and actions live in GDScript. Each NPC and the world keep a blackboard of properties; when an NPC needs a plan, both are snapshotted and the job goes to a scheduler. A planner written in Rust searches on background threads, so the game keeps running while NPCs think.
 
-The search runs in two passes. It first works backward from the goal, matching what each step needs to what earlier actions provide, which is cheap. It then checks candidate plans forward, simulating every step on the snapshot. Along the way it calls back into your scripts for anything custom: an action's cost, its effect, a custom precondition. Planning is spread across frames in time slices, and an NPC whose plan failed backs off before trying again. [docs/ALGORITHM.md](https://github.com/WahahaYes/GdPlanningAI/blob/main/docs/ALGORITHM.md) explains the search in full.
-
-The trade-off is debuggability: you write far less behavior code, but when an NPC does something odd it takes more digging to see why. See [Debugging](#debugging).
+The search runs in two passes. It first works backward from the goal, matching what each step needs to what earlier actions provide. It then checks candidate plans forward, simulating every step on the snapshot. Along the way it calls back into your scripts for anything custom, such as computing an action's cost, its effect, or a custom precondition. Planning is spread across frames in time slices, and an NPC whose plan failed backs off before trying again. [docs/ALGORITHM.md](https://github.com/WahahaYes/GdPlanningAI/blob/main/docs/ALGORITHM.md) explains the search in full.
 
 ## Installation
 
-GdPlanningAI needs Godot 4.2 or newer. Installing copies `addons/GdPlanningAI` and `script_templates` into your project; then enable the plugin under **Project > Project Settings > Plugins**.
+GdPlanningAI needs Godot 4.2 or newer. Installation copies `addons/GdPlanningAI` and `script_templates` into your project. Enable the plugin under **Project > Project Settings > Plugins**.
+
+If installing from source rather than a release bundle, the rust binaries must be built for your OS or copied from the latest release. See [addons/GdPlanningAI/rust/](https://github.com/WahahaYes/GdPlanningAI/blob/main/addons/GdPlanningAI/rust).
 
 - **[Godot Asset Store](https://store.godotengine.org/asset/wahahayes/gdplanningai/)** or **[Asset Library](https://godotengine.org/asset-library/asset/4156)**: install from the editor.
 - **Release zip**: each [release](https://github.com/WahahaYes/GdPlanningAI/releases) attaches `GdPlanningAI-X.Y.Z.zip`, the addon with its library built for Linux, Windows and macOS. GitHub's own source archives don't contain the library, so use the zip.
@@ -108,10 +105,6 @@ The `examples/` folder in this repository has scenes you can run: open one and p
 - **`campfire_2d`** and **`campfire_3d`**: NPCs keep a fire fuelled with wood and cook potatoes on it, juggling two goals that depend on each other.
 - **`campfire_large_3d`**: six NPCs in a larger scene, each pair tending its own fire.
 - **`agent_showcase_3d`**: character skins, animations and carried items, with planning off.
-
-## Debugging
-
-Every plan logs a one-line `RESULT` summary, and `log_level` in `addons/GdPlanningAI/plugin.cfg` (0 to 3) sets how much the planner logs. At level 3 it records each search, and `GdPAIPlanScheduler.get_debug_tree(agent)` prints the NPC's last one, with the need that rejected each branch. The examples show each NPC's current goal and action over its head; press **H** to toggle the labels. The interactive debugger from 0.2.0 was removed with the Rust rewrite and hasn't come back yet.
 
 ## Documentation
 
@@ -141,23 +134,3 @@ Licensed under the Apache License, Version 2.0: see [LICENSE.txt](https://github
 - Label font: MedievalSharp, SIL Open Font License 1.1.
 
 The README's illustrations use the Caveat font (SIL Open Font License 1.1), embedded in each image.
-
-## FAQ
-
-<details>
-<summary><b>How is this different from behavior tree addons like Beehave or LimboAI?</b></summary>
-
-All of them structure NPC and enemy AI. A behavior tree encodes your decisions as rules: it reacts to the current state, and it's your job to say which action is right in each situation, which takes more oversight as it grows. A planner searches instead: you give an NPC goals and actions and it finds its own sequence, which can produce combinations you didn't anticipate. That suits games with many possible interactions. The cost is more complex machinery, more computation, and less direct control over how an NPC reaches its goal.
-
-</details>
-
-<details>
-<summary><b>Do I need to know Rust?</b></summary>
-
-No. The planner is a compiled library that ships with the addon; everything you write is GDScript. Rust is only needed to build the library from source.
-
-</details>
-
-## Contributing
-
-GdPlanningAI is stable for building planning NPCs and still growing. Feedback and contributions are welcome: open an [issue](https://github.com/WahahaYes/GdPlanningAI/issues) for bugs or feature requests, or fork the repository and send a pull request. On the list: bringing back the interactive debugger, icons for the custom nodes, more example scenes and more ready-made actions.
