@@ -1,12 +1,8 @@
-<p align="center"><img src="https://raw.githubusercontent.com/WahahaYes/GdPlanningAI/refs/heads/main/media/gdpai_banner.png" width="768" alt="GdPlanningAI banner: three smiling figures above the project name"></p>
-
 # GdPlanningAI
 
 [![Godot Asset Library](https://img.shields.io/badge/Godot_Asset_Library-4156-blue.svg)](https://godotengine.org/asset-library/asset/4156) [![Godot Asset Store](https://img.shields.io/badge/Godot_Asset_Store-GdPlanningAI-blue.svg)](https://store.godotengine.org/asset/wahahayes/gdplanningai/) [![Coverage](https://codecov.io/gh/WahahaYes/GdPlanningAI/graph/badge.svg)](https://codecov.io/gh/WahahaYes/GdPlanningAI) [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://github.com/WahahaYes/GdPlanningAI/blob/main/LICENSE.txt)
 
 GdPlanningAI (**GdPAI**) is a planning AI addon for Godot 4.2 and newer. Instead of hand-writing state machines or behavior trees, you give each NPC goals and actions, and it works out its own plan at runtime: what to do, and in what order. The objects in your world tell NPCs what they can do with them, so a new object works with every NPC you already have.
-
-![The hunger_multi_agent_2d example: NPCs wander, shake trees and eat the fruit that falls](https://raw.githubusercontent.com/WahahaYes/GdPlanningAI/refs/heads/main/media/2d_demo.gif)
 
 1. [Why planning](#why-planning)
 1. [The world carries the behavior](#the-world-carries-the-behavior)
