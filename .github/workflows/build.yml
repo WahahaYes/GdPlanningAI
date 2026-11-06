@@ -301,8 +301,20 @@ jobs:
           path: addons/GdPlanningAI/bin/${{ matrix.artifact }}/*
           if-no-files-found: error
           retention-days: 14
+      # A nonzero exit after a finished import (editor layout loaded, class and extension
+      # caches written) warns; one before that fails. GUT runs on that cache next.
       - name: Import
-        run: godot --headless --import
+        run: |
+          status=0
+          godot --headless --import 2>&1 | tee "$RUNNER_TEMP/import.log" || status=$?
+          [ "$status" = 0 ] && exit 0
+          if grep -qE 'DONE.*loading_editor_layout' "$RUNNER_TEMP/import.log" &&
+            [ -s .godot/global_script_class_cache.cfg ] && [ -s .godot/extension_list.cfg ]; then
+            echo "::warning title=Godot exited nonzero after import::exit $status after a finished import"
+            exit 0
+          fi
+          echo "::error::import failed (exit $status) before it finished"
+          exit 1
       - name: GUT
         run: make test-godot-verbose
       # A minute per scene with agents planning live; scene logic is the same on every OS.

@@ -62,9 +62,8 @@ EOF
 
 echo "compat-smoke: $("$godot" --version) against compatibility_minimum $min" >&2
 # The first editor pass registers the extension and builds the global class cache. A second
-# pass catches what the first one only queued. Their exit status is ignored (errors in the
-# log still fail): Godot 4.7 aborts on exit after a project's first import with the
-# extension loaded, once the import itself is done.
+# pass catches what the first one only queued. Their exit status is ignored; errors in the
+# log still fail.
 for _ in 1 2; do
 	timeout 300 "$godot" --headless --path "$proj" --editor --quit >"$work/import.log" 2>&1 || true
 done
