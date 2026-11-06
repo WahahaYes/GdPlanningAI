@@ -127,10 +127,6 @@ The docs live in this repository; installing the addon copies only the addon and
 | [BEHAVIORS.md](https://github.com/WahahaYes/GdPlanningAI/blob/main/docs/BEHAVIORS.md)                               | What the addon promises, each behavior with the tests that prove it. |
 | [DOCUMENTATION_GUIDELINES.md](https://github.com/WahahaYes/GdPlanningAI/blob/main/docs/DOCUMENTATION_GUIDELINES.md) | Comment and docstring style for contributors.                        |
 
-How the project started, and the making of its first versions, is in this devlog:
-
-[![Link to a "making of" devlog video](https://img.youtube.com/vi/cm5Jxo31plw/0.jpg)](https://www.youtube.com/watch?v=cm5Jxo31plw)
-
 ## License
 
 GdPlanningAI, Copyright 2025 Ethan Wilson
