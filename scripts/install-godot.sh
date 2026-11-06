@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# Install the Godot version pinned in global.json (headless use) into DIR and
-# print DIR, which then holds a `godot` executable. Verifies the download
-# against the release's SHA512-SUMS.txt. Linux, macOS and Windows (Git Bash).
-# Usage: scripts/install-godot.sh [DIR]   (default: $RUNNER_TEMP/godot or ./.godot-bin)
+# Install the Godot version pinned in global.json (headless use), or GODOT_VERSION when set
+# (the compat smoke test's oldest supported version, e.g. 4.2), into DIR and print DIR, which
+# then holds a `godot` executable. Verifies the download against the release's
+# SHA512-SUMS.txt. Linux, macOS and Windows (Git Bash).
+# Usage: [GODOT_VERSION=X.Y] scripts/install-godot.sh [DIR]   (default: $RUNNER_TEMP/godot or ./.godot-bin)
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
-version=$(make --no-print-directory godot-version)
+version=${GODOT_VERSION:-$(make --no-print-directory godot-version)}
 dir=${1:-${RUNNER_TEMP:-$PWD/.godot-bin}/godot}
 mkdir -p "$dir"
 dir=$(cd "$dir" && pwd)

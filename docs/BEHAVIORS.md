@@ -165,3 +165,9 @@ Unit tier: the built-in precondition evaluator is an algorithmic kernel.
 **Scenario:** Given the addon and its Rust library, when the autoload starts, then the library's version equals `plugin.cfg`, so a stale binary is caught.
 
 **Proved by:** `test/unit/test_engine_version.gd`
+
+### `runs-on-oldest-godot`
+
+**Scenario:** Given the addon laid out as the release zip ships it, when it runs on the oldest Godot in `compatibility_minimum`, then the library loads and an agent plans and runs a two-step chain (one native effect spec, one GDScript effect) to its goal with no errors logged.
+
+**Proved by:** `test/compat/smoke.gd` (run by make test-compat; the godot-floor necro rule keeps compatibility_minimum equal to the godot crate's api-4-N feature)

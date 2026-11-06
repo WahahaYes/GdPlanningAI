@@ -117,6 +117,11 @@ test-godot-pipe-output: ## Run Godot integration tests with full output to file
 	@rm -f test_output.log
 	@godot --headless -s --path . addons/gut/gut_cmdln.gd -gexit > test_output.log 2>&1
 
+.PHONY: test-compat
+test-compat: ## Smoke-test the built library on the oldest supported Godot (Linux; downloads that editor)
+	@dir=$$(GODOT_VERSION=$$("$(MAKE)" --no-print-directory godot-min-version) scripts/install-godot.sh .godot-bin/compat) && \
+		scripts/compat-smoke.sh "$$dir/godot"
+
 ##@ Formatting
 
 .PHONY: format
@@ -228,6 +233,10 @@ godot-pin-version: ## Pin specific Godot version (usage: make godot-pin-version 
 .PHONY: godot-version
 godot-version: ## Print the pinned Godot version (global.json, the one source CI and godotenv read)
 	@uv run --no-project python -c "import json; print(json.load(open('global.json'))['msbuild-sdks']['Godot.NET.Sdk'])"
+
+.PHONY: godot-min-version
+godot-min-version: ## Print the oldest supported Godot (compatibility_minimum in the .gdextension)
+	@sed -n 's/^compatibility_minimum *= *"\([^"]*\)".*/\1/p' addons/GdPlanningAI/gdplanningai.gdextension
 
 .PHONY: godot-install-pinned
 godot-install-pinned: ## Install the pinned Godot version (uses godotenv)
