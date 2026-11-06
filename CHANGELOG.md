@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Godot 4.2 and newer.** The library is built against the Godot 4.2 API, so the addon now loads on Godot 4.2 through the latest; it used to claim 4.5. Without this, the godot-rust 0.5 update would have built it for 4.6, and it would no longer have loaded on 4.5. CI now runs the addon on Godot 4.2 for every change.
 - **Built libraries are no longer in the repository.** The Linux and Windows libraries that used to sit under `addons/GdPlanningAI/bin` are gone, and a hook in `.pre-commit-config.yaml` and CI reject new ones. Releases carry working binaries in `GdPlanningAI-X.Y.Z.zip`; anyone using the GitHub source builds the library for their platform with `make -C addons/GdPlanningAI/rust build-release`.
 - **Plan verification makes fewer main-thread calls.** Verifying a plan reuses the first step that discovery already simulated from the agent's current state, so a plan's first action is no longer simulated twice.
 - **Freed-object callback notices log at debug.** The `ObjectRef(id): object was freed before callback` notice is expected contention in multi-agent scenes (another agent picked up or used the item while a search still referred to it), so it no longer warns at the default log level.
