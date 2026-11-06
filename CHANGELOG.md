@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### For contributors
+
+- **Style checks come from necronomicon's packs.** necro 0.5 runs its `rust`, `rust-style`, `gdscript` and `gdscript-style` packs (gdformat, gdlint, `.gd.uid` tracking, the style guide) beside this repo's own rules; `scripts/lint_style.py` and the gdtoolkit wrapper are gone, and `make lint-style` is now `make lint-necro`. The hook runs `necro --fix` on the changed files, so gdformat fixes are applied and the commit fails until they're re-staged.
+
 ## 0.4.0 - 2026-11-06
 
 - **Plan delivery for turn-based games.** `GdPAIAgent` emits `plan_delivered(result)` whenever a plan result is installed, and adds `get_current_action()` and `is_waiting_for_plan()`.

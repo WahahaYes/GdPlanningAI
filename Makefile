@@ -144,12 +144,12 @@ format-godot: ## Format tracked GDScript files with gdformat (requires gdtoolkit
 ##@ Linting
 
 .PHONY: lint
-lint: lint-style lint-godot ## Run every linter: GDScript/Rust style, gdlint, Rust clippy; warnings fail
+lint: lint-necro ## Run every linter: necro (house rules, GDScript/Rust style, gdformat, gdlint), Rust clippy; warnings fail
 	"$(MAKE)" -C addons/GdPlanningAI/rust lint
 
-.PHONY: lint-style
-lint-style: ## Check GDScript and Rust files for style-guide violations
-	uv run scripts/lint_style.py
+.PHONY: lint-necro
+lint-necro: ## Run necro over every file: house rules plus the rust, rust-style, gdscript and gdscript-style packs
+	uv run --frozen necro
 
 .PHONY: lint-godot
 lint-godot: ## Lint tracked GDScript files with gdlint (gdtoolkit defaults)

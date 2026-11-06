@@ -38,17 +38,26 @@ repos:
         require_serial: true
         pass_filenames: false
 
-  # Necro gate: enforcing. Runs from the project env via pyproject
-  # (`uv run --frozen necro`): a released wheel with the rust pack.
-  # Keep this entry bare so hits fail the hook.
+  # Necro gate: house rules plus the rust, rust-style, gdscript and
+  # gdscript-style packs (gdformat, gdlint, style), from the project env
+  # (`uv run --frozen`). Given the changed files, it runs what concerns them;
+  # --fix applies gdformat and fails the commit until the result is re-staged.
+  # The spacing fixer runs first, since the packs only report spacing.
   - repo: local
     hooks:
+      - id: gd-spacing
+        name: GDScript spacing (fix_gd_spacing.py)
+        entry: uv run scripts/fix_gd_spacing.py
+        language: system
+        types: [gdscript]
+        require_serial: true
+        pass_filenames: false
       - id: necro
         name: necro
-        entry: uv run --frozen necro
+        entry: uv run --frozen necro --fix
         language: system
         always_run: true
-        pass_filenames: false
+        require_serial: true
         verbose: true
 
   # Secret detection
@@ -85,33 +94,6 @@ repos:
         types: [python]
       - id: ruff-format
         types: [python]
-
-  # GDScript formatting and style checks via Makefile
-  - repo: local
-    hooks:
-      - id: gdformat
-        name: GDScript format (via make)
-        entry: make format-godot
-        language: system
-        types: [gdscript]
-        require_serial: true
-        pass_filenames: false
-
-      - id: gdlint
-        name: GDScript lint (via make)
-        entry: make lint-godot
-        language: system
-        types: [gdscript]
-        require_serial: true
-        pass_filenames: false
-
-      - id: gdlint-style
-        name: GDScript/Rust style check (via make)
-        entry: make lint-style
-        language: system
-        types_or: [gdscript, rust]
-        require_serial: true
-        pass_filenames: false
 
   # Built libraries stay out of git: devs build them, releases ship them in the zip.
   - repo: local
