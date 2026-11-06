@@ -2,7 +2,7 @@
 
 [![Godot Asset Library](https://img.shields.io/badge/Godot_Asset_Library-4156-blue.svg)](https://godotengine.org/asset-library/asset/4156) [![Godot Asset Store](https://img.shields.io/badge/Godot_Asset_Store-GdPlanningAI-blue.svg)](https://store.godotengine.org/asset/wahahayes/gdplanningai/) [![Coverage](https://codecov.io/gh/WahahaYes/GdPlanningAI/graph/badge.svg)](https://codecov.io/gh/WahahaYes/GdPlanningAI) [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://github.com/WahahaYes/GdPlanningAI/blob/main/LICENSE.txt)
 
-GdPlanningAI (**GdPAI**) is a planning AI addon for Godot (tested 4.2 and newer). Instead of hand-writing state machines or behavior trees, a suite of goals, actions, and the rules around them, are defined. NPCs then plan at runtime and decide what actions to take, driven by the situations around them. The objects in your world tell NPCs what they can do with them, so new, emergent behaviors come up as need feautres and objects are added, without hand tuning.
+GdPlanningAI (**GdPAI**) is a planning AI addon for Godot (tested 4.2 and newer). Instead of hand-writing state machines or behavior trees, a suite of goals, actions, and the rules around them are defined. NPCs then plan at runtime and decide what actions to take, driven by the situations around them. The objects in your world tell NPCs what they can do with them, so new, emergent behaviors come up as new features and objects are added, without hand tuning.
 
 1. [Why planning](#why-planning)
 1. [The world carries the behavior](#the-world-carries-the-behavior)
@@ -17,7 +17,7 @@ GdPlanningAI (**GdPAI**) is a planning AI addon for Godot (tested 4.2 and newer)
 
 ![A state machine with every transition drawn by hand; the same states as a behavior tree; and GOAP's goal and actions, which the NPC chains itself: GoTo leaves it near food, Pickup leaves it holding food, EatHeldFood leaves it fed](https://raw.githubusercontent.com/WahahaYes/GdPlanningAI/refs/heads/main/media/readme-planning.svg)
 
-A state machine spells out every switch between states. A behavior tree organises those states into a tree, but still requires developers to hand-craft every decision. Goal Oriented Action Planning (GOAP) uses the opposite principal. The developers write the pieces (goals for NPCs and actions they can take), each with preconditions and effects, and the NPC searches for a chain of actions that reaches its most rewarding goal. Because it searches, it finds combinations that were never explicitly written down.
+A state machine spells out every switch between states. A behavior tree organises those states into a tree, but still requires developers to hand-craft every decision. Goal Oriented Action Planning (GOAP) uses the opposite principle. The developers write the pieces (goals for NPCs and actions they can take), each with preconditions and effects, and the NPC searches for a chain of actions that reaches its most rewarding goal. Because it searches, it finds combinations that were never explicitly written down.
 
 GOAP comes from Jeff Orkin's AI for F.E.A.R. (2005), and planners like it have driven the NPCs in Fallout 3, Tomb Raider (2013), Middle-earth: Shadow of Mordor, and many more. GdPlanningAI is a fresh reimagining of GOAP's core and builds out the planning around objects in the world.
 
@@ -33,7 +33,7 @@ While planning, an NPC works on snapshots of its own and the world's state, plan
 
 ![The recipe on a settler scene: a Thirst goal that wants water more as thirst grows; GoTo, DrawWater and Drink actions, each with what it needs and gives; the well offering DrawWater; and a config putting the goal and actions on the settler](https://raw.githubusercontent.com/WahahaYes/GdPlanningAI/refs/heads/main/media/readme-recipe.svg)
 
-Developers incorprating GdPlanningAI only need to write three kinds of scripts, all in plain GDScript:
+Developers incorporating GdPlanningAI only need to write three kinds of scripts, all in plain GDScript:
 
 - **Goals** say how much an NPC wants something right now (`compute_reward`) and when it's achieved (`get_desired_state`).
 - **Actions** have preconditions, an effect the planner simulates, and the code that executes or calls out to game logic.
@@ -75,7 +75,7 @@ func perform_action(agent: GdPAIAgent, _delta: float) -> Action.Status:
 	return Action.Status.SUCCESS
 ```
 
-The planner is a core algorithm that decides what to do next, but your game decides what logic actually gets executed. Actions can call your animations, inventory, stats or signals. The `script_templates/` folder (installed with the addon) has a template for each class, and [docs/AUTHORING_GUIDE.md](https://github.com/WahahaYes/GdPlanningAI/blob/main/docs/AUTHORING_GUIDE.md) covers every hook and its timing rules. The built-in `GoToAction` handles walking using Godot's built in navigation.
+The planner is a core algorithm that decides what to do next, but your game decides what logic actually gets executed. Actions can call your animations, inventory, stats or signals. The `script_templates/` folder (installed with the addon) has a template for each class, and [docs/AUTHORING_GUIDE.md](https://github.com/WahahaYes/GdPlanningAI/blob/main/docs/AUTHORING_GUIDE.md) covers every hook and its timing rules. The built-in `GoToAction` handles walking using Godot's built-in navigation.
 
 ## How it works
 
