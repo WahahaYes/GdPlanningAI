@@ -4,7 +4,7 @@ What GdPlanningAI users rely on, one entry per behavior. Each entry has a slug, 
 
 A bug fix adds a case to the test of the behavior it broke. If no entry fits, add the entry first.
 
-`make check-behaviors` (a hook in `.pre-commit-config.yaml`) fails when a listed path is gone, or a test file, fixture or scene case has no entry.
+necro's `behavior-catalog` rule (`make necro`, and the necro hook) fails when a listed path is gone, or a test file, fixture or scene case has no entry.
 
 ## Planning results
 

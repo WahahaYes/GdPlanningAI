@@ -1,32 +1,30 @@
-# Advisory trial: rust pack plus repo rules, all non-blocking (the
-# hook entry wraps `necro` to always pass). Per-rule keep/disable/baseline
-# decisions land with the follow-up review; the enforcing flip (bare `necro`
-# failing the hook) needs explicit approval.
+# GdPlanningAI's house rules, run by necronomicon (the necro hook in
+# .pre-commit-config.yaml, with --fix). The packs carry the GDScript and Rust
+# style and gdtoolkit; the rules below are this repo's own.
 version: 0
-include: [necro:rust]
+include: [necro:rust, necro:rust-style, necro:gdscript, necro:gdscript-style]
 rules:
-  gdtoolkit:
-    command: uv run --script scripts/necro_gdtoolkit.py
-    message: GDScript file fails gdformat or gdlint
-    why: gdformat and gdlint are the repo's GDScript formatting and lint baseline (make format-godot, make lint-godot); drift breaks the hooks gate.
-    fix: Run `make format-godot`, then clear what `uv run gdlint <file>` still reports.
-  gdscript-style:
-    command: uv run scripts/lint_style.py
-    message: Style-guide violation (explicit types, spacing, docstrings)
-    why: The style guide keeps GDScript explicit (no `:=`), consistently spaced, and documented so generated bindings and hand-written scenes read the same.
-    fix: Read the [rule] tag on the hit and `make lint-style`; the checker's docstring defines every tag.
+  effect-spec:
+    command: uv run scripts/check_effect_spec.py
+    files: '\.gd$'
+    message: An example Action has no native effect spec
+    why: Example scenes must plan on the native effect IR; an Action under examples/ (or goto_action.gd) that overrides simulate_effect without a non-empty get_effect_spec silently falls back to GDScript callbacks.
+    fix: Override get_effect_spec with the effects simulate_effect applies; a conditional `return []` for a freed object is fine, an unconditional one isn't.
   behavior-catalog:
+    # No files: filter: it must notice a deleted test, which a narrowed run drops.
     command: uv run scripts/check_behaviors.py
     message: Behavior catalog and tests disagree
     why: docs/BEHAVIORS.md is the contract between documented behavior and its proof; a dangling slug or path means a behavior with no test or a test with no entry.
-    fix: Add the missing `**Proved by:**` entry or the missing test/fixture, then `make check-behaviors`.
+    fix: Add the missing `**Proved by:**` entry or the missing test/fixture, then `make necro`.
   godot-floor:
     command: uv run scripts/check_godot_floor.py
+    files: '^addons/GdPlanningAI/(rust/Cargo\.toml|gdplanningai\.gdextension)$'
     message: The oldest supported Godot is not pinned in one place
     why: The library loads only on the Godot API it was built for and newer; an unpinned godot crate follows godot-rust's default (0.5 moved it to 4.6), so the shipped library can stop loading on a version compatibility_minimum still claims.
     fix: Give the godot dependency one api-4-N feature and set compatibility_minimum to the same version; `make test-compat` checks it on that Godot.
   readme-safety:
     command: uv run scripts/check_readme_safety.py
+    files: '^(addons/GdPlanningAI/)?README\.md$'
     message: README is not safe to paste into the asset listings
     why: The README is pasted by hand into the Asset Store and Asset Library descriptions, where relative links break and over-long text gets rejected.
     fix: Use absolute repo URLs and keep it under the limit; `uv run scripts/check_readme_safety.py --explain <code>` shows the rule in full.
