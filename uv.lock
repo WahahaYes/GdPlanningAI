@@ -25,16 +25,14 @@ name = "gdplanningai-scripts"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
-    { name = "gdtoolkit" },
-    { name = "necronomicon" },
+    { name = "necronomicon", extra = ["gdscript"] },
     { name = "prek" },
     { name = "ruff" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "gdtoolkit", specifier = ">=4.0" },
-    { name = "necronomicon", specifier = "==0.3.0" },
+    { name = "necronomicon", extras = ["gdscript"], specifier = "==0.5.0" },
     { name = "prek", specifier = "==0.5.9" },
     { name = "ruff", specifier = ">=0.16.0" },
 ]
@@ -83,15 +81,20 @@ wheels = [
 
 [[package]]
 name = "necronomicon"
-version = "0.3.0"
+version = "0.5.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/4d/c4/dd312849b305c4dff0b37b55879c3bacc592d9a85666e8a5a8e6ab5023bf/necronomicon-0.3.0.tar.gz", hash = "sha256:fb3e5c66c4486cb2e280df08dfe385007826fdf300348d4f76ac78e969082bd1", size = 42956, upload-time = "2026-11-02T02:06:43.691Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ce/60/1ad6c3d10481cfae90571c9ca2dfa2d33302c9dc543991e309e4db29b382/necronomicon-0.5.0.tar.gz", hash = "sha256:34367c5b0dc7c91a7d093e1b952dde2c7e1c554c20f6744138c11149c4c8ed6d", size = 82543, upload-time = "2026-11-06T20:43:18.271Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/80/d5/46598e8d67e620a25ebbf69bb9460eb2d2c2fdd3df66cd05bf0a1f66d406/necronomicon-0.3.0-py3-none-macosx_10_12_x86_64.whl", hash = "sha256:4a9bf94502e652901b04695ffa0be485c714890bdcd59e077d7ba845bc0696cd", size = 1195374, upload-time = "2026-11-02T02:06:36.5Z" },
-    { url = "https://files.pythonhosted.org/packages/9e/7e/485d8d846075f8d3d2ae307632acf33e6c305027eb427486501a347882a9/necronomicon-0.3.0-py3-none-macosx_11_0_arm64.whl", hash = "sha256:37421c09233a2d1152c76db38639d8e90c761fc55805c30872ab66260bc88540", size = 1123944, upload-time = "2026-11-02T02:06:38.179Z" },
-    { url = "https://files.pythonhosted.org/packages/c1/b9/4820bff5d286a7df1aac7edfa1a72c35dffea9c1f43f58cf82cc3017836c/necronomicon-0.3.0-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:7739b532821672302d751f4fa4dec3b6707659897a59b5996af6325178d8f558", size = 1186085, upload-time = "2026-11-02T02:06:39.545Z" },
-    { url = "https://files.pythonhosted.org/packages/57/c1/47cd627dc89c81d2bec5297ddf45834ef75045f6bb85872f5f1731cade1f/necronomicon-0.3.0-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:5c9f571952af2463bca4185881652931387e67a420dae4d3a016751ed75252aa", size = 1274519, upload-time = "2026-11-02T02:06:40.894Z" },
-    { url = "https://files.pythonhosted.org/packages/98/8d/40a8cb1f4b3cfdecc911dc7768784a7e820380179c8e6674f18c9a44a7b4/necronomicon-0.3.0-py3-none-win_amd64.whl", hash = "sha256:b8e054c6ab9c7d7a77924d518b2a02c116c86f2dace88416025fa8b03497084c", size = 1178483, upload-time = "2026-11-02T02:06:42.259Z" },
+    { url = "https://files.pythonhosted.org/packages/4b/0e/420ec155e6a651a2209e48e867d3fbb510c4c003dbda94f24551c27b9fb2/necronomicon-0.5.0-py3-none-macosx_10_12_x86_64.whl", hash = "sha256:9816617006819a86a62c8d28e401ea925dc75bcdb699b08177e2a5913d3c24e6", size = 1556901, upload-time = "2026-11-06T20:43:09.476Z" },
+    { url = "https://files.pythonhosted.org/packages/c3/90/318abf0430539f9f4c1e8a4fc4263d98f1f197a310ab188c46975216d610/necronomicon-0.5.0-py3-none-macosx_11_0_arm64.whl", hash = "sha256:18aba705a216be7f10825c37975b65d6c7b82b533d590db2a1086d880989fb00", size = 1465373, upload-time = "2026-11-06T20:43:11.022Z" },
+    { url = "https://files.pythonhosted.org/packages/d1/0e/8a1c15d17df3b4d86d4616e1b8bc9ce4830bf678a316350b9e33e2ff5264/necronomicon-0.5.0-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:afadc4f83070a364ba1f4ba70322428ef67bb9aea7a75a2afd8159e6b431530d", size = 1528998, upload-time = "2026-11-06T20:43:12.828Z" },
+    { url = "https://files.pythonhosted.org/packages/52/c8/2d7f5b65385328a8ee4ffd63ec5d6a11fdaaef8c0077a8cd69766e49cb22/necronomicon-0.5.0-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:10dbdda49da9d2c864b887234a78d61727aad1bd191c6c18b0b90e49dc5feb24", size = 1642439, upload-time = "2026-11-06T20:43:14.715Z" },
+    { url = "https://files.pythonhosted.org/packages/2a/81/0739e30a30b2c10159921c63e0e88bc97b8d09a9857c3a33eef5b2532894/necronomicon-0.5.0-py3-none-win_amd64.whl", hash = "sha256:24de66a85d0ab66c24fe14363bcdf38fa6f4bd1044d6b3d63e927797cbcbc133", size = 1542566, upload-time = "2026-11-06T20:43:16.649Z" },
+]
+
+[package.optional-dependencies]
+gdscript = [
+    { name = "gdtoolkit" },
 ]
 
 [[package]]
