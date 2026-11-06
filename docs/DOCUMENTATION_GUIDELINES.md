@@ -42,7 +42,7 @@ Keep comments purposeful. Use docstrings for documentation, simple comments for 
 
 Docs should be simple; names and types should carry most of the meaning. Say what a reader cannot see from the signature (contracts, gotchas, why), not what the code already says. Skip docs that only restate a name.
 
-necro enforces hard limits on each contiguous doc block, code examples included (`gdscript-style/doc-length` and `rust-style/doc-length`; `make lint-necro` runs them):
+necro enforces hard limits on each contiguous doc block, code examples included (`gdscript-style/doc-length` and `rust-style/doc-length`; `make necro` runs them):
 
 - **10 lines** for a file, class or type header (`##` after `extends`, `//!`, or `///` on a struct/enum/trait).
 - **6 lines** for anything else (functions, members, variants).

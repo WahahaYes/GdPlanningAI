@@ -125,35 +125,30 @@ test-compat: ## Smoke-test the built library on the oldest supported Godot (Linu
 ##@ Formatting
 
 .PHONY: format
-format: format-rust format-godot ## Format all source files (Rust + GDScript)
+format: format-rust necro-fix ## Format all source files: rustfmt, then the GDScript spacing fixer and necro --fix (gdformat)
 
 .PHONY: format-check
-format-check: ## Check formatting without rewriting: Rust (rustfmt) and GDScript (gdformat --check)
+format-check: ## Check Rust formatting without rewriting (rustfmt); necro checks GDScript's
 	"$(MAKE)" -C addons/GdPlanningAI/rust format-check
-	@out=$$(git ls-files -z '*.gd' | xargs -0 -r uv run gdformat --check 2>&1) || { echo "$$out"; exit 1; }
 
 .PHONY: format-rust
 format-rust: ## Format Rust source files with rustfmt
 	"$(MAKE)" -C addons/GdPlanningAI/rust format
 
-.PHONY: format-godot
-format-godot: ## Format tracked GDScript files with gdformat (requires gdtoolkit); fails on parse errors
-	@out=$$(uv run scripts/fix_gd_spacing.py 2>&1) || { echo "$$out"; exit 1; }
-	@out=$$(git ls-files -z '*.gd' | xargs -0 -r uv run gdformat 2>&1) || { echo "$$out"; exit 1; }
-
 ##@ Linting
 
 .PHONY: lint
-lint: lint-necro ## Run every linter: necro (house rules, GDScript/Rust style, gdformat, gdlint), Rust clippy; warnings fail
+lint: necro ## Run every linter: necro, then Rust clippy; warnings fail
 	"$(MAKE)" -C addons/GdPlanningAI/rust lint
 
-.PHONY: lint-necro
-lint-necro: ## Run necro over every file: house rules plus the rust, rust-style, gdscript and gdscript-style packs
+.PHONY: necro
+necro: ## Check every file against necro.yaml: house rules (behavior catalog, README safety, Godot floor, effect specs) and the rust, rust-style, gdscript and gdscript-style packs (gdformat, gdlint, style)
 	uv run --frozen necro
 
-.PHONY: lint-godot
-lint-godot: ## Lint tracked GDScript files with gdlint (gdtoolkit defaults)
-	@out=$$(git ls-files -z '*.gd' | xargs -0 -r uv run gdlint 2>&1) || { echo "$$out"; exit 1; }
+.PHONY: necro-fix
+necro-fix: ## Fix what can be fixed: the GDScript spacing fixer, then necro --fix (gdformat); reports what's left
+	@uv run scripts/fix_gd_spacing.py
+	uv run --frozen necro --fix
 
 ##@ Checks
 
@@ -177,14 +172,6 @@ clean-cache: clean ## Also remove caches (.godot/, Rust target/); addons and bin
 	@echo "clean-cache: removed .godot/ and the Rust target/ cache"
 
 ##@ Documentation
-
-.PHONY: check-behaviors
-check-behaviors: ## Check that docs/BEHAVIORS.md and the test files point at each other
-	@uv run scripts/check_behaviors.py
-
-.PHONY: check-readme-safety
-check-readme-safety: ## Check README is safe to paste into asset store descriptions
-	@uv run scripts/check_readme_safety.py
 
 .PHONY: check-docs
 check-docs: ## Check consistency of README and LICENSE between root and addon directory

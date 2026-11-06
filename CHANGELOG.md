@@ -4,7 +4,7 @@
 
 ### For contributors
 
-- **Style checks come from necronomicon's packs.** necro 0.5 runs its `rust`, `rust-style`, `gdscript` and `gdscript-style` packs (gdformat, gdlint, `.gd.uid` tracking, the style guide) beside this repo's own rules; `scripts/lint_style.py` and the gdtoolkit wrapper are gone, and `make lint-style` is now `make lint-necro`. The hook runs `necro --fix` on the changed files, so gdformat fixes are applied and the commit fails until they're re-staged.
+- **Style checks come from necronomicon's packs.** necro 0.5 runs its `rust`, `rust-style`, `gdscript` and `gdscript-style` packs (gdformat, gdlint, `.gd.uid` tracking, the style guide) beside this repo's own rules; `scripts/lint_style.py` and the gdtoolkit wrapper are gone, and the Makefile's GDScript, style and catalog targets fold into `make necro` (check) and `make necro-fix` (spacing fixer, then `necro --fix`). The hook runs `necro --fix` on the changed files, so gdformat fixes are applied and the commit fails until they're re-staged.
 
 ## 0.4.0 - 2026-11-06
 

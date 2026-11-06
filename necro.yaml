@@ -15,7 +15,7 @@ rules:
     command: uv run scripts/check_behaviors.py
     message: Behavior catalog and tests disagree
     why: docs/BEHAVIORS.md is the contract between documented behavior and its proof; a dangling slug or path means a behavior with no test or a test with no entry.
-    fix: Add the missing `**Proved by:**` entry or the missing test/fixture, then `make check-behaviors`.
+    fix: Add the missing `**Proved by:**` entry or the missing test/fixture, then `make necro`.
   godot-floor:
     command: uv run scripts/check_godot_floor.py
     files: '^addons/GdPlanningAI/(rust/Cargo\.toml|gdplanningai\.gdextension)$'

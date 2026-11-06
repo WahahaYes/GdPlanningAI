@@ -1,6 +1,6 @@
 # CI for the addon. Every job step is one local command (see Makefile):
 #   uv run prek run --all-files       hooks (formatters, lints, secrets)
-#   make format-check; make -C addons/GdPlanningAI/rust lint; make coverage   format (Rust + GDScript), clippy, tests instrumented
+#   make format-check; make -C addons/GdPlanningAI/rust lint; make coverage   Rust format, clippy, tests instrumented (GDScript format is necro's, in the hooks)
 #   make godot-version                      the Godot pin (global.json)
 #   make test-godot-verbose                 the GUT suite, full log, nonzero on failure
 #   make test-e2e                           end-to-end example scenes (Linux leg only)
