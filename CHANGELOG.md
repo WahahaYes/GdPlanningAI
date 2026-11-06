@@ -2,11 +2,15 @@
 
 ## Unreleased
 
-- **Godot 4.2 and newer.** The library is built against the Godot 4.2 API, so the addon now loads on Godot 4.2 through the latest; it used to claim 4.5. Without this, the godot-rust 0.5 update would have built it for 4.6, and it would no longer have loaded on 4.5. CI now runs the addon on Godot 4.2 for every change.
-- **Built libraries are no longer in the repository.** The Linux and Windows libraries that used to sit under `addons/GdPlanningAI/bin` are gone, and a hook in `.pre-commit-config.yaml` and CI reject new ones. Releases carry working binaries in `GdPlanningAI-X.Y.Z.zip`; anyone using the GitHub source builds the library for their platform with `make -C addons/GdPlanningAI/rust build-release`.
-- **Plan verification makes fewer main-thread calls.** Verifying a plan reuses the first step that discovery already simulated from the agent's current state, so a plan's first action is no longer simulated twice.
-- **Freed-object callback notices log at debug.** The `ObjectRef(id): object was freed before callback` notice is expected contention in multi-agent scenes (another agent picked up or used the item while a search still referred to it), so it no longer warns at the default log level.
-- **Blackboard effects run natively when actions declare a spec.** Effect application rebuilds only dirty blackboard properties instead of full snapshots, roughly halving hunger-class scenes in the Phase-1 bench. Actions declaring `get_effect_spec` run set/inc/dec/clamp/copy in Rust (~10-25us/effect); actions without a spec still fall back to GDScript `simulate_effect`, with zero fallback callbacks and identical plans on the `campfire_large_3d` bench. Snapshots share structure across the planner boundary instead of cloning, and each search caps GDScript effect fallbacks via `GdPAIAgentConfig.max_effect_fallbacks` (default 128) with warn-and-count. The follow-up cleanup removed ~630 lines of capture/debug scaffolding and accepts spec arrays typed or untyped; reference after the train is Hunger mean ~117ms and Maintain Fire ~81ms on `campfire_large_3d` with same plans and costs.
+## 0.4.0 - 2026-11-06
+
+- **Plan delivery for turn-based games.** `GdPAIAgent` emits `plan_delivered(result)` whenever a plan result is installed, and adds `get_current_action()` and `is_waiting_for_plan()`.
+- **Godot 4.2 and newer.** The library is built with godot-rust 0.5 against the Godot 4.2 API, so the addon loads on 4.2 and later (it claimed 4.5); CI tests it on 4.2.
+- **Built libraries are no longer in the repository.** Install from the release zip `GdPlanningAI-X.Y.Z.zip`, or build from source with `make -C addons/GdPlanningAI/rust build-release`.
+- **Faster planning.** Actions that declare `get_effect_spec` apply their effects in Rust, snapshots are shared instead of copied, and a plan's first step is no longer simulated twice. `GdPAIAgentConfig.max_effect_fallbacks` (default 128) caps GDScript effect calls per search.
+- **Clearer logs.** Malformed spec entries now warn instead of being dropped silently, and the freed-object callback notice moved to debug.
+- **Objects on a blackboard are read-only in simulation.** Changing one in `simulate_effect` changes the real object for every NPC; see [docs/AUTHORING_GUIDE.md](docs/AUTHORING_GUIDE.md).
+- **Example scenes.** The 3D examples get a visual pass (heavier on the GPU), and one switch hides every debug label: `show_debug_text`, the H key or `DebugText.set_shown()`. It replaces `ManyAgentsSpawner3D.hide_debug_labels`.
 
 ## 0.3.0 - 2026-10-18
 
