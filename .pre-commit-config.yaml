@@ -61,7 +61,7 @@ repos:
 
   # Shell scripts
   - repo: https://github.com/shellcheck-py/shellcheck-py
-    rev: v0.11.0.1
+    rev: v0.11.0.1-1
     hooks:
       - id: shellcheck
         args: ["--severity=warning"]
@@ -78,7 +78,7 @@ repos:
 
   # Python formatting/linting for scripts
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.17.1
+    rev: v0.17.4
     hooks:
       - id: ruff-check
         args: ["--fix"]
