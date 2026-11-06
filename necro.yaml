@@ -20,6 +20,11 @@ rules:
     message: Behavior catalog and tests disagree
     why: docs/BEHAVIORS.md is the contract between documented behavior and its proof; a dangling slug or path means a behavior with no test or a test with no entry.
     fix: Add the missing `**Proved by:**` entry or the missing test/fixture, then `make check-behaviors`.
+  godot-floor:
+    command: uv run scripts/check_godot_floor.py
+    message: The oldest supported Godot is not pinned in one place
+    why: The library loads only on the Godot API it was built for and newer; an unpinned godot crate follows godot-rust's default (0.5 moved it to 4.6), so the shipped library can stop loading on a version compatibility_minimum still claims.
+    fix: Give the godot dependency one api-4-N feature and set compatibility_minimum to the same version; `make test-compat` checks it on that Godot.
   readme-safety:
     command: uv run scripts/check_readme_safety.py
     message: README is not safe to paste into the asset listings
