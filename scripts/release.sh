@@ -180,6 +180,11 @@ watch_publish() {
     gh run watch "$RUN" --exit-status --interval 60 >/dev/null \
         || explain_failed "$RUN" "fix it on main and release a new version: v$VER is tagged and tags cannot move"
     say "published $(gh release view "v$VER" --json url --jq .url)"
+    # The listings carry the minimum Godot too, set by hand with each upload.
+    git -C "$ROOT" fetch --quiet origin "refs/tags/v$VER:refs/tags/v$VER" 2>/dev/null || true
+    min=$(git -C "$ROOT" show "v$VER:addons/GdPlanningAI/gdplanningai.gdextension" 2>/dev/null |
+        sed -n 's/^compatibility_minimum *= *"\([^"]*\)".*/\1/p')
+    say "Asset Library and Asset Store: upload GdPlanningAI-$VER.zip with minimum Godot ${min:-(see gdplanningai.gdextension)}"
 }
 
 VER="${1:-}"; shift || usage; version "$VER"

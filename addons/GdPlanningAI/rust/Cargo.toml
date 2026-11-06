@@ -8,7 +8,7 @@ rust-version = "1.99.1"
 crate-type = ["cdylib", "lib"]
 
 [dependencies]
-godot = "0.5.5"
+godot = { version = "0.5.5", features = ["api-4-2"] }
 serde = { version = "1.0", features = ["derive"] }
 rayon = "1.8"
 

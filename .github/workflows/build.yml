@@ -4,6 +4,7 @@
 #   make godot-version                      the Godot pin (global.json)
 #   make test-godot-verbose                 the GUT suite, full log, nonzero on failure
 #   make test-e2e                           end-to-end example scenes (Linux leg only)
+#   make test-compat                        smoke test on the oldest supported Godot (compat job)
 #   make -C addons/GdPlanningAI/rust build-instrumented / coverage-behavioral-report   GUT and e2e coverage (Linux leg)
 # Coverage goes to Codecov (flags rust-tests, behavioral) as a signal: a failed upload is a
 # warning, never a failure, and codecov.yml keeps its statuses informational.
@@ -337,16 +338,63 @@ jobs:
             ~/.cargo/bin/cargo-llvm-cov*
           key: rust-setup-${{ runner.os }}-${{ hashFiles('addons/GdPlanningAI/rust/rust-toolchain.toml', 'addons/GdPlanningAI/rust/Makefile') }}
 
+  # The addon on the oldest Godot it claims (compatibility_minimum, kept equal to the godot
+  # crate's api-4-N feature by the godot-floor necro rule): a release build in a throwaway
+  # project laid out like the release zip, one agent planning and running a two-step plan.
+  # Linux only: the floor is an API level, the same on every OS.
+  compat:
+    needs: [changes, precommit]
+    if: needs.changes.outputs.godot == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Rust setup cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.rustup/toolchains
+            ~/.rustup/settings.toml
+            ~/.cargo/bin/cargo-llvm-cov*
+          key: rust-setup-${{ runner.os }}-${{ hashFiles('addons/GdPlanningAI/rust/rust-toolchain.toml', 'addons/GdPlanningAI/rust/Makefile') }}
+      - name: Rust toolchain (rust-toolchain.toml)
+        working-directory: addons/GdPlanningAI/rust
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: addons/GdPlanningAI/rust
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - name: Oldest Godot cache
+        id: godot-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/godot-compat
+          key: godot-compat-${{ runner.os }}-${{ hashFiles('addons/GdPlanningAI/gdplanningai.gdextension') }}
+      - name: Oldest Godot (compatibility_minimum)
+        if: steps.godot-cache.outputs.cache-hit != 'true'
+        run: GODOT_VERSION=$(make --no-print-directory godot-min-version) scripts/install-godot.sh "$HOME/.cache/godot-compat"
+      - name: Oldest Godot cache save
+        if: github.ref == 'refs/heads/main' && steps.godot-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/godot-compat
+          key: godot-compat-${{ runner.os }}-${{ hashFiles('addons/GdPlanningAI/gdplanningai.gdextension') }}
+      - name: Build the Rust binary
+        run: make -C addons/GdPlanningAI/rust build-release
+      - name: Smoke test on the oldest Godot
+        run: scripts/compat-smoke.sh "$HOME/.cache/godot-compat/godot" "$RUNNER_TEMP/compat"
+
   # The only required check. A skipped job counts as pass.
   ci:
     runs-on: ubuntu-24.04
-    needs: [changes, precommit, rust, godot]
+    needs: [changes, precommit, rust, godot, compat]
     if: always()
     steps:
       - name: Gate
         run: |
           fail=0
-          for r in "${{ needs.precommit.result }}" "${{ needs.rust.result }}" "${{ needs.godot.result }}" "${{ needs.changes.result }}"; do
+          for r in "${{ needs.precommit.result }}" "${{ needs.rust.result }}" "${{ needs.godot.result }}" "${{ needs.compat.result }}" "${{ needs.changes.result }}"; do
             echo "result: $r"
             case "$r" in success|skipped) ;; *) fail=1 ;; esac
           done
@@ -357,7 +405,7 @@ jobs:
   # Main seeds the caches PRs read; drop everything else once main is built.
   purge_caches:
     runs-on: ubuntu-24.04
-    needs: [rust, godot]
+    needs: [rust, godot, compat]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       actions: write

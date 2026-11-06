@@ -48,7 +48,7 @@ addons/GdPlanningAI/
 
 - `plugin.gd` is `@tool extends EditorPlugin`. Its only job is to register the `GdPAIAutoload` autoload in `_enter_tree`.
 - `gdpai_autoload.gd` creates the `GdPAIPlanScheduler` in `_ready` and calls `_scheduler.process_callbacks()` every frame in `_process`. This call passes results and callback requests between the background planner threads and the main thread. It also applies the log level from `plugin.cfg`.
-- `gdplanningai.gdextension` declares the entry symbol `gdext_rust_init`, `compatibility_minimum "4.5"`, and loads the platform shared library from `addons/GdPlanningAI/bin/{linux,macos,windows}/`.
+- `gdplanningai.gdextension` declares the entry symbol `gdext_rust_init`, `compatibility_minimum` (the oldest supported Godot, equal to the godot crate's `api-4-N` feature: the godot-floor necro rule checks it and `make test-compat` runs on it), and loads the platform shared library from `addons/GdPlanningAI/bin/{linux,macos,windows}/`.
 - The Rust-exposed classes (`GdPAIBlackboard`, `SimObjectProxy`, `GdPAIPlanScheduler`) are registered via the `.gdextension`; they have no `.gd` file.
 
 ______________________________________________________________________
@@ -63,7 +63,7 @@ Everything under `scripts/` is the user-facing API. Users subclass `Action`, `Go
 
 ### 3.2 Rust planning engine
 
-The Rust crate lives in `addons/GdPlanningAI/rust/`. Crate `gdplanningai-rust`, edition 2024, `crate-type = ["cdylib", "lib"]`. It depends on `godot` 0.4.5 (gdext) and `rayon` 1.8 for its thread pool. The GDExtension entry point `GdPlanningAIExt` calls `logger::init_log_channel()` at `InitLevel::Servers`.
+The Rust crate lives in `addons/GdPlanningAI/rust/`. Crate `gdplanningai-rust`, edition 2024, `crate-type = ["cdylib", "lib"]`. It depends on `godot` (gdext), built against the API of the oldest supported Godot through an `api-4-N` feature, and `rayon` for its thread pool. The GDExtension entry point `GdPlanningAIExt` calls `logger::init_log_channel()` at `InitLevel::Servers`.
 
 Module map of `rust/src/`:
 
@@ -202,7 +202,9 @@ ______________________________________________________________________
 
 ## 7. Testing
 
-Two independent suites. Each test proves a behavior listed in [BEHAVIORS.md](BEHAVIORS.md).
+Two independent suites, plus a smoke test on the oldest supported Godot. Each test proves a behavior listed in [BEHAVIORS.md](BEHAVIORS.md).
+
+`make test-compat` (Linux; the compat job in CI) installs the Godot in `compatibility_minimum`, lays the addon out as the release zip does in a throwaway project, and runs `test/compat/smoke.gd`: one agent plans and runs a two-step chain. GUT is not used there, since it needs a newer Godot.
 
 ### GDScript suite (GUT)
 
