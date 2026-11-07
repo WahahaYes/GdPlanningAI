@@ -38,8 +38,8 @@ test-rust: ## Run Rust tests only (propagates cargo test exit code)
 test-rust-verbose: ## Run Rust tests with cargo's full output and exit code (CI)
 	"$(MAKE)" -C addons/GdPlanningAI/rust test-verbose
 
-.PHONY: coverage
-coverage: ## Rust test coverage report (make setup installs the tools)
+.PHONY: test-rust-coverage
+test-rust-coverage: ## Run the Rust tests instrumented (CI): summary, HTML and LCOV coverage in target/llvm-cov (make setup installs the tools)
 	"$(MAKE)" -C addons/GdPlanningAI/rust coverage
 
 .PHONY: test-verbose
