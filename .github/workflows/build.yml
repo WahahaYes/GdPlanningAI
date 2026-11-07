@@ -1,6 +1,6 @@
 # CI for the addon. Every job step is one local command (see Makefile):
 #   uv run prek run --all-files       hooks (formatters, lints, secrets)
-#   make format-check; make -C addons/GdPlanningAI/rust lint; make coverage   Rust format, clippy, tests instrumented (GDScript format is necro's, in the hooks)
+#   make test-rust-coverage                 Rust tests, instrumented for coverage
 #   make godot-version                      the Godot pin (global.json)
 #   make test-godot-verbose                 the GUT suite, full log, nonzero on failure
 #   make test-e2e                           end-to-end example scenes (Linux leg only)
@@ -63,7 +63,7 @@ jobs:
               - 'scripts/**'
               - '.github/workflows/**'
 
-  # Every hook in .pre-commit-config.yaml except clippy (the rust job runs it), as the first
+  # Every hook in .pre-commit-config.yaml, as the first
   # and cheapest gate: the other jobs wait for it. Formatters rewrite files,
   # so a hook that changes anything fails here.
   precommit:
@@ -88,7 +88,7 @@ jobs:
             ~/.rustup/settings.toml
             ~/.cargo/bin/cargo-llvm-cov*
           key: rust-setup-${{ runner.os }}-${{ hashFiles('addons/GdPlanningAI/rust/rust-toolchain.toml', 'addons/GdPlanningAI/rust/Makefile') }}
-      - name: Rust toolchain (rustfmt, from rust-toolchain.toml)
+      - name: Rust toolchain (for necro's rust rules, from rust-toolchain.toml)
         working-directory: addons/GdPlanningAI/rust
         run: rustup toolchain install
       - name: Prek environments cache
@@ -101,7 +101,7 @@ jobs:
         # gitleaks scans staged changes, which CI has none of; it runs below
         # over the pushed commits instead.
         env:
-          SKIP: gitleaks,cargo-clippy
+          SKIP: gitleaks
         run: uv run prek run --all-files --show-diff-on-failure
       - name: Prek environments cache save
         if: github.ref == 'refs/heads/main' && steps.prek-cache.outputs.cache-hit != 'true'
@@ -147,7 +147,7 @@ jobs:
             uv run prek run no-ai-attribution --hook-stage commit-msg --commit-msg-filename "$RUNNER_TEMP/msg" || { echo "bad message in $sha"; exit 1; }
           done
 
-  # Rust checks run once, on Linux, in debug (the tests also pass under --release). The tests run
+  # The Rust tests run once, on Linux, in debug (the tests also pass under --release). The tests run
   # instrumented, so the same run gives the rust-tests coverage.
   rust:
     needs: [changes, precommit]
@@ -173,7 +173,6 @@ jobs:
           workspaces: addons/GdPlanningAI/rust
           # Main seeds caches every PR reads; PR runs never write their own.
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
       - name: Coverage tools (llvm-tools, pinned cargo-llvm-cov)
         run: make -C addons/GdPlanningAI/rust setup
       - name: Rust setup cache save
@@ -185,9 +184,7 @@ jobs:
             ~/.rustup/settings.toml
             ~/.cargo/bin/cargo-llvm-cov*
           key: rust-setup-${{ runner.os }}-${{ hashFiles('addons/GdPlanningAI/rust/rust-toolchain.toml', 'addons/GdPlanningAI/rust/Makefile') }}
-      - run: make format-check
-      - run: make -C addons/GdPlanningAI/rust lint
-      - run: make coverage
+      - run: make test-rust-coverage
       - name: Upload rust-tests coverage
         id: upload
         continue-on-error: true

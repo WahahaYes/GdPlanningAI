@@ -152,18 +152,6 @@ coverage-behavioral: build-instrumented ## Behavioral coverage in one go: instru
 	@cd $(ROOT_DIR) && godot --headless --import > /dev/null && $(MAKE) test-godot && $(MAKE) test-e2e
 	@$(MAKE) coverage-behavioral-report
 
-.PHONY: format
-format: ## Format code using rustfmt
-	@cargo fmt
-
-.PHONY: format-check
-format-check: ## Check formatting with rustfmt (no rewrite)
-	@cargo fmt --check
-
-.PHONY: lint
-lint: ## Run clippy; warnings fail
-	@cargo clippy --all-targets --message-format=short -- -D warnings
-
 .PHONY: clean-cache
 clean-cache: ## Remove the cargo target/ cache (per generated-files.md tiers, this is a cache, not intermediates)
 	@du -sh $(TARGET_DIR) 2>/dev/null || true

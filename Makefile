@@ -38,8 +38,8 @@ test-rust: ## Run Rust tests only (propagates cargo test exit code)
 test-rust-verbose: ## Run Rust tests with cargo's full output and exit code (CI)
 	"$(MAKE)" -C addons/GdPlanningAI/rust test-verbose
 
-.PHONY: coverage
-coverage: ## Rust test coverage report (make setup installs the tools)
+.PHONY: test-rust-coverage
+test-rust-coverage: ## Run the Rust tests instrumented (CI): summary, HTML and LCOV coverage in target/llvm-cov (make setup installs the tools)
 	"$(MAKE)" -C addons/GdPlanningAI/rust coverage
 
 .PHONY: test-verbose
@@ -122,32 +122,14 @@ test-compat: ## Smoke-test the built library on the oldest supported Godot (Linu
 	@dir=$$(GODOT_VERSION=$$("$(MAKE)" --no-print-directory godot-min-version) scripts/install-godot.sh .godot-bin/compat) && \
 		scripts/compat-smoke.sh "$$dir/godot"
 
-##@ Formatting
-
-.PHONY: format
-format: format-rust necro-fix ## Format all source files: rustfmt, then the GDScript spacing fixer and necro --fix (gdformat)
-
-.PHONY: format-check
-format-check: ## Check Rust formatting without rewriting (rustfmt); necro checks GDScript's
-	"$(MAKE)" -C addons/GdPlanningAI/rust format-check
-
-.PHONY: format-rust
-format-rust: ## Format Rust source files with rustfmt
-	"$(MAKE)" -C addons/GdPlanningAI/rust format
-
-##@ Linting
-
-.PHONY: lint
-lint: necro ## Run every linter: necro, then Rust clippy; warnings fail
-	"$(MAKE)" -C addons/GdPlanningAI/rust lint
+##@ Formatting and linting
 
 .PHONY: necro
-necro: ## Check every file against necro.yaml: house rules (behavior catalog, README safety, Godot floor, effect specs) and the rust, rust-style, gdscript and gdscript-style packs (gdformat, gdlint, style)
+necro: ## Check every file against necro.yaml: house rules (behavior catalog, README safety, Godot floor, effect specs) and the rust, rust-style, gdscript and gdscript-style packs (rustfmt, clippy, gdformat, gdlint, style)
 	uv run --frozen necro
 
 .PHONY: necro-fix
-necro-fix: ## Fix what can be fixed: the GDScript spacing fixer, then necro --fix (gdformat); reports what's left
-	@uv run scripts/fix_gd_spacing.py
+necro-fix: ## Fix what can be fixed with necro --fix (rustfmt, gdformat, GDScript spacing); reports what's left
 	uv run --frozen necro --fix
 
 ##@ Checks

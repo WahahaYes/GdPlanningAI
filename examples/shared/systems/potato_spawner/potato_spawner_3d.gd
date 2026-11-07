@@ -36,7 +36,8 @@ func _ready() -> void:
 ## Prunes freed potatoes and replaces one when the respawn timer allows. The timer runs only
 ## while a potato is missing, so a dug potato always takes [member respawn_time] to return.
 func _process(delta: float) -> void:
-	_active_potatoes = _active_potatoes.filter(func(p): return is_instance_valid(p))
+	var is_live: Callable = func(p): return is_instance_valid(p)
+	_active_potatoes = _active_potatoes.filter(is_live)
 	if _active_potatoes.size() >= max_potatoes:
 		_respawn_timer = 0.0
 		return

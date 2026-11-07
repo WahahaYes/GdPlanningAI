@@ -78,6 +78,8 @@ func _check_run(case_id: String, cases: ConfigFile, section: String, scene: Node
 
 	var stats: Dictionary = {}  # agent -> per-agent stats
 	var completed: Dictionary = {}  # action title -> true
+	var is_done: Callable = func(t: String) -> bool: return completed.has(t)
+	var is_missing: Callable = func(t: String) -> bool: return not completed.has(t)
 	var fires: Dictionary = {}  # CampfireObject -> fuel seen in the second half
 	var seconds: float = cases.get_value(section, "seconds")
 	var start: int = Time.get_ticks_msec()
@@ -89,11 +91,11 @@ func _check_run(case_id: String, cases: ConfigFile, section: String, scene: Node
 		if observe and Time.get_ticks_msec() > start + int(seconds * 500.0):
 			for fire in scene.find_children("*", "CampfireObject", true, false):
 				fires[fire] = fires.get(fire, false) or fire.current_fuel > 0.0
-		if not observe and required.all(func(t: String) -> bool: return completed.has(t)):
+		if not observe and required.all(is_done):
 			break
 
 	_accept_warnings()
-	var missing: Array = required.filter(func(t: String) -> bool: return not completed.has(t))
+	var missing: Array = required.filter(is_missing)
 	assert_eq(missing, [], "%s: every listed action completes" % case_id)
 	if not observe:
 		return
