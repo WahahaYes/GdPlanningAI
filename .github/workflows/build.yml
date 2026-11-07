@@ -1,6 +1,6 @@
 # CI for the addon. Every job step is one local command (see Makefile):
 #   uv run prek run --all-files       hooks (formatters, lints, secrets)
-#   make format-check; make -C addons/GdPlanningAI/rust lint; make coverage   Rust format, clippy, tests instrumented (GDScript format is necro's, in the hooks)
+#   make coverage                     Rust tests, instrumented (rustfmt and clippy are necro's, in the hooks)
 #   make godot-version                      the Godot pin (global.json)
 #   make test-godot-verbose                 the GUT suite, full log, nonzero on failure
 #   make test-e2e                           end-to-end example scenes (Linux leg only)
@@ -63,7 +63,7 @@ jobs:
               - 'scripts/**'
               - '.github/workflows/**'
 
-  # Every hook in .pre-commit-config.yaml except clippy (the rust job runs it), as the first
+  # Every hook in .pre-commit-config.yaml, necro's rustfmt and clippy among them, as the first
   # and cheapest gate: the other jobs wait for it. Formatters rewrite files,
   # so a hook that changes anything fails here.
   precommit:
@@ -88,7 +88,7 @@ jobs:
             ~/.rustup/settings.toml
             ~/.cargo/bin/cargo-llvm-cov*
           key: rust-setup-${{ runner.os }}-${{ hashFiles('addons/GdPlanningAI/rust/rust-toolchain.toml', 'addons/GdPlanningAI/rust/Makefile') }}
-      - name: Rust toolchain (rustfmt, from rust-toolchain.toml)
+      - name: Rust toolchain (rustfmt and clippy, from rust-toolchain.toml)
         working-directory: addons/GdPlanningAI/rust
         run: rustup toolchain install
       - name: Prek environments cache
@@ -101,7 +101,7 @@ jobs:
         # gitleaks scans staged changes, which CI has none of; it runs below
         # over the pushed commits instead.
         env:
-          SKIP: gitleaks,cargo-clippy
+          SKIP: gitleaks
         run: uv run prek run --all-files --show-diff-on-failure
       - name: Prek environments cache save
         if: github.ref == 'refs/heads/main' && steps.prek-cache.outputs.cache-hit != 'true'
@@ -185,8 +185,6 @@ jobs:
             ~/.rustup/settings.toml
             ~/.cargo/bin/cargo-llvm-cov*
           key: rust-setup-${{ runner.os }}-${{ hashFiles('addons/GdPlanningAI/rust/rust-toolchain.toml', 'addons/GdPlanningAI/rust/Makefile') }}
-      - run: make format-check
-      - run: make -C addons/GdPlanningAI/rust lint
       - run: make coverage
       - name: Upload rust-tests coverage
         id: upload
