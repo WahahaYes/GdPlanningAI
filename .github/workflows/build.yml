@@ -1,6 +1,6 @@
 # CI for the addon. Every job step is one local command (see Makefile):
 #   uv run prek run --all-files       hooks (formatters, lints, secrets)
-#   make coverage                     Rust tests, instrumented (rustfmt and clippy are necro's, in the hooks)
+#   make coverage                           Rust tests, instrumented
 #   make godot-version                      the Godot pin (global.json)
 #   make test-godot-verbose                 the GUT suite, full log, nonzero on failure
 #   make test-e2e                           end-to-end example scenes (Linux leg only)
@@ -63,7 +63,7 @@ jobs:
               - 'scripts/**'
               - '.github/workflows/**'
 
-  # Every hook in .pre-commit-config.yaml, necro's rustfmt and clippy among them, as the first
+  # Every hook in .pre-commit-config.yaml, as the first
   # and cheapest gate: the other jobs wait for it. Formatters rewrite files,
   # so a hook that changes anything fails here.
   precommit:
@@ -88,7 +88,7 @@ jobs:
             ~/.rustup/settings.toml
             ~/.cargo/bin/cargo-llvm-cov*
           key: rust-setup-${{ runner.os }}-${{ hashFiles('addons/GdPlanningAI/rust/rust-toolchain.toml', 'addons/GdPlanningAI/rust/Makefile') }}
-      - name: Rust toolchain (rustfmt and clippy, from rust-toolchain.toml)
+      - name: Rust toolchain (for necro's rust rules, from rust-toolchain.toml)
         working-directory: addons/GdPlanningAI/rust
         run: rustup toolchain install
       - name: Prek environments cache
