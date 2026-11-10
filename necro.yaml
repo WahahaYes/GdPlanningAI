@@ -2,7 +2,8 @@
 # .pre-commit-config.yaml, with --fix). The packs carry the GDScript and Rust
 # style and gdtoolkit; the rules below are this repo's own.
 version: 0
-include: [necro:rust, necro:rust-style, necro:gdscript, necro:gdscript-style]
+include: [necro:rust, necro:rust-style, necro:gdscript, necro:gdscript-style, necro:godot-arch]
+disable: [gdscript/tilemap-legacy]
 rules:
   effect-spec:
     command: uv run scripts/check_effect_spec.py

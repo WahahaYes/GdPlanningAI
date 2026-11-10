@@ -125,7 +125,7 @@ test-compat: ## Smoke-test the built library on the oldest supported Godot (Linu
 ##@ Formatting and linting
 
 .PHONY: necro
-necro: ## Check every file against necro.yaml: house rules (behavior catalog, README safety, Godot floor, effect specs) and the rust, rust-style, gdscript and gdscript-style packs (rustfmt, clippy, gdformat, gdlint, style)
+necro: ## Check every file against necro.yaml: house rules (behavior catalog, README safety, Godot floor, effect specs) and the rust, rust-style, gdscript, gdscript-style and godot-arch packs (rustfmt, clippy, gdformat, gdlint, style, arch)
 	uv run --frozen necro
 
 .PHONY: necro-fix

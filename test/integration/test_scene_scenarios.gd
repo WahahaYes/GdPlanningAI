@@ -169,4 +169,5 @@ func _report(case_id: String, agents: Array[Node], stats: Dictionary) -> void:
 
 
 func _label(node: Node) -> String:
-	return String(node.get_parent().name) if node.get_parent() else String(node.name)
+	var parent: Node = node.get_parent()
+	return String(parent.name) if parent != null else String(node.name)
