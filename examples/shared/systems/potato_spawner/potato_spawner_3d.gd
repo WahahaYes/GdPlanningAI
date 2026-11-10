@@ -59,11 +59,11 @@ func _spawn_potato() -> void:
 	if potato is Node3D:
 		potato.position = random_pos
 
-	get_parent().add_child(potato)
+	add_child(potato)
 	_active_potatoes.append(potato)
 
 
-## Like [method _spawn_potato] but safe to call while the parent is still in setup.
+## Like [method _spawn_potato] but deferred, so [method _ready] stays light.
 func _spawn_potato_deferred() -> void:
 	if not potato_scene:
 		return
@@ -74,7 +74,7 @@ func _spawn_potato_deferred() -> void:
 	if potato is Node3D:
 		potato.position = random_pos
 
-	get_parent().call_deferred("add_child", potato)
+	call_deferred("add_child", potato)
 	_active_potatoes.append(potato)
 
 

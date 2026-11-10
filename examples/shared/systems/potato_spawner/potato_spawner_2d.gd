@@ -1,8 +1,8 @@
 class_name PotatoSpawner2D
 extends Node
 ## Keeps up to [member max_potatoes] potatoes in [member spawn_area], replacing dug ones every
-## [member respawn_time] seconds. Initial potatoes are added deferred, since the parent is
-## still setting up during [method _ready].
+## [member respawn_time] seconds. Potatoes join the spawner itself, so it can be reparented
+## freely; initial potatoes are added deferred to keep [method _ready] light.
 
 ## Potato scene instantiated by this spawner.
 @export var potato_scene: PackedScene
@@ -52,11 +52,11 @@ func _spawn_potato() -> void:
 	if potato is Node2D:
 		potato.position = random_pos
 
-	get_parent().add_child(potato)
+	add_child(potato)
 	_active_potatoes.append(potato)
 
 
-## Like [method _spawn_potato] but safe to call while the parent is still in setup.
+## Like [method _spawn_potato] but deferred, so [method _ready] stays light.
 func _spawn_potato_deferred() -> void:
 	if not potato_scene:
 		return
@@ -70,5 +70,5 @@ func _spawn_potato_deferred() -> void:
 	if potato is Node2D:
 		potato.position = random_pos
 
-	get_parent().call_deferred("add_child", potato)
+	call_deferred("add_child", potato)
 	_active_potatoes.append(potato)
