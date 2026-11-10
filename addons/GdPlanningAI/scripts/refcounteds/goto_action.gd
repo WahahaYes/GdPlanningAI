@@ -178,11 +178,10 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	set_state(agent, "nav_agent", nav_agent)
 	set_state(agent, "dist_check", dist_check)
 	set_state(agent, "agent_location", agent_location_data)
-	set_state(agent, "target_set", false)
-	set_state(agent, "target_reached", false)
 	set_state(agent, "time_elapsed", 0.0)
 	set_state(agent, "prior_positions", [])
-	set_state(agent, "target_orig_position", target_location.position)
+	# Begin walking now; the first perform_action frame only steps the arrival check.
+	nav_agent.target_position = target_location.position
 
 	return Action.Status.SUCCESS
 
@@ -196,7 +195,6 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 	var nav_agent: Node = get_state(agent, "nav_agent")
 	var agent_location_data: GdPAILocationData = get_state(agent, "agent_location")
 	var dist_check: float = get_state(agent, "dist_check")
-	var target_orig_position = get_state(agent, "target_orig_position")
 
 	# Keep track of how long we've been actively pursuing this target.
 	var time_elapsed: float = get_state(agent, "time_elapsed")
@@ -209,11 +207,6 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 	while prior_positions.size() > 1 and time_elapsed - prior_positions[1][0] >= STUCK_WINDOW:
 		prior_positions.pop_front()
 	set_state(agent, "prior_positions", prior_positions)
-
-	# Begin walking to the target on the first action frame.
-	if not get_state(agent, "target_set"):
-		nav_agent.target_position = target_location.position
-		set_state(agent, "target_set", true)
 
 	# Terminating conditions.
 	if nav_agent.is_navigation_finished():
@@ -238,14 +231,13 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 
 ## Stops navigation and returns [param status].
 func _finish(
-	agent: GdPAIAgent,
+	_agent: GdPAIAgent,
 	nav_agent: Node,
 	agent_location_data: GdPAILocationData,
 	status: Action.Status,
 ) -> Action.Status:
 	# post_perform_action only runs when the whole plan ends, so stop walking now.
 	nav_agent.target_position = agent_location_data.position
-	set_state(agent, "target_reached", status == Action.Status.SUCCESS)
 	return status
 
 
@@ -268,11 +260,8 @@ func post_perform_action(agent: GdPAIAgent) -> Action.Status:
 	erase_state(agent, "nav_agent")
 	erase_state(agent, "dist_check")
 	erase_state(agent, "agent_location")
-	erase_state(agent, "target_set")
-	erase_state(agent, "target_reached")
 	erase_state(agent, "time_elapsed")
 	erase_state(agent, "prior_positions")
-	erase_state(agent, "target_orig_position")
 
 	if target_location == null or not is_instance_valid(target_location):
 		return Action.Status.FAILURE

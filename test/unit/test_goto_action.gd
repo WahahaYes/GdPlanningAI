@@ -69,7 +69,11 @@ func test_blocked_far_from_target_fails() -> void:
 		Vector3.ONE * 0.01,
 		"Navigation should stop where the agent stands"
 	)
-	assert_false(action.get_state(world.agent, "target_reached"))
+	await get_tree().physics_frame
+	assert_true(
+		(world.nav_agent as NavigationAgent3D).is_navigation_finished(),
+		"Navigation finishes when the failed walk stops"
+	)
 
 
 ## Blocked just short of the destination: as close as it gets, so the action succeeds.
@@ -79,4 +83,8 @@ func test_blocked_near_target_arrives() -> void:
 	var action: GoToAction = GoToAction.new(_make_target(Vector3(1.5, 0, 0)))
 	var status: Action.Status = await _drive(action, world.agent)
 	assert_eq(status, Action.Status.SUCCESS, "Within the stuck arrival radius counts as arrived")
-	assert_true(action.get_state(world.agent, "target_reached"))
+	await get_tree().physics_frame
+	assert_true(
+		(world.nav_agent as NavigationAgent3D).is_navigation_finished(),
+		"Navigation finishes on arrival"
+	)

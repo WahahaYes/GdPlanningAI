@@ -9,6 +9,9 @@ extends Node
 ## Emitted when a finished plan is installed, successful or not; check the result's success flag.
 signal plan_delivered(result: Dictionary)
 
+## Plan step meaning "pre-perform phase": the plan is installed but pre actions have not run.
+const PRE_PHASE: int = -1
+
 ## Top-level node of the controlled entity. Object data below it joins the agent's own state.
 @export var entity: Node
 ## Planning settings, starting blackboard and behaviors. Read once in [code]_ready[/code].
@@ -33,7 +36,7 @@ var _current_action_chain: Array[Action] = []
 ## Bindings for each chain position, keyed by position.
 var _current_bindings_by_position: Dictionary = {}
 ## The current step within a plan.  Also used to control flow for pre/post actions.
-var _current_plan_step: int = -1
+var _current_plan_step: int = PRE_PHASE
 ## Planning strategy for this agent.
 var _planning_strategy: GdPAIAgentConfig.PlanningStrategy = (
 	GdPAIAgentConfig.PlanningStrategy.CONTINUOUS
@@ -85,10 +88,7 @@ func _process(delta: float) -> void:
 		and _failure_backoff_left == 0.0
 	):
 		# Check if a new plan is needed.
-		var plan_done: bool = (
-			_current_action_chain.is_empty() or _current_plan_step > _current_action_chain.size()
-		)
-		if plan_done and not _waiting_for_plan:
+		if not _is_plan_active() and not _waiting_for_plan:
 			_start_plan_async()
 
 	_execute_plan(delta)
@@ -104,7 +104,7 @@ func get_current_plan() -> Array[Action]:
 	return _current_action_chain
 
 
-## Returns the executing step; [code]-1[/code] before the pre-perform phase.
+## Returns the executing step; [constant PRE_PHASE] before the pre-perform phase.
 func get_current_plan_step() -> int:
 	return _current_plan_step
 
@@ -114,6 +114,14 @@ func get_current_action() -> Action:
 	if _current_plan_step < 0 or _current_plan_step >= _current_action_chain.size():
 		return null
 	return _current_action_chain[_current_plan_step]
+
+
+## True while there is a plan still to run: the chain is non-empty and the step
+## has not advanced past its end.
+func _is_plan_active() -> bool:
+	return not (
+		_current_action_chain.is_empty() or _current_plan_step > _current_action_chain.size()
+	)
 
 
 ## True while a background plan request is in flight.
@@ -212,7 +220,7 @@ func _on_plan_ready(result: Dictionary) -> void:
 	if _inflight_generation != _plan_generation:
 		return
 	_retire_current_chain()
-	_current_plan_step = -1
+	_current_plan_step = PRE_PHASE
 	if result.get("success", false):
 		_failure_backoff_left = 0.0
 		var deserialized: Dictionary = _bridge.deserialize_plan_result(
@@ -247,7 +255,8 @@ func _retire_current_chain() -> void:
 		if is_instance_valid(action):
 			action.chain_position = i
 			_inject_bindings_for_position(i, action)
-			action.post_perform_action(self)
+			if action.post_perform_action(self) == Action.Status.FAILURE:
+				push_warning("GdPAIAgent: post_perform_action reported FAILURE during retire")
 			action.chain_position = -1
 	for action: Action in _current_action_chain:
 		if is_instance_valid(action):
@@ -264,10 +273,7 @@ func _on_planning_timer_timeout() -> void:
 	if _planning_strategy == GdPAIAgentConfig.PlanningStrategy.ON_INTERVAL_FORCED:
 		_start_plan_async()
 	elif _planning_strategy == GdPAIAgentConfig.PlanningStrategy.ON_INTERVAL:
-		var plan_done: bool = (
-			_current_action_chain.is_empty() or _current_plan_step > _current_action_chain.size()
-		)
-		if plan_done and not _waiting_for_plan:
+		if not _is_plan_active() and not _waiting_for_plan:
 			_start_plan_async()
 	_planning_timer.start()
 
@@ -288,8 +294,7 @@ func _inject_bindings_for_position(chain_position: int, action: Action) -> void:
 			elif val != null:
 				# Already an object or other variant
 				object_refs.append(val)
-		if action.has_method("inject_binding"):
-			action.inject_binding(fact_name, object_refs)
+		action.inject_binding(fact_name, object_refs)
 
 
 ## Executes the currently selected plan based on the current step.
@@ -298,7 +303,7 @@ func _execute_plan(delta: float) -> void:
 		return
 	var action_chain: Array[Action] = _current_action_chain
 	# Pre actions.
-	if _current_plan_step == -1:
+	if _current_plan_step == PRE_PHASE:
 		for i in range(action_chain.size()):
 			var action: Action = action_chain[i]
 			if not is_instance_valid(action):
@@ -312,7 +317,7 @@ func _execute_plan(delta: float) -> void:
 				_current_plan_step = action_chain.size()
 				break
 		# Progress to actions if we passed through the preaction stage.
-		if _current_plan_step == -1:
+		if _current_plan_step == PRE_PHASE:
 			_current_plan_step += 1
 
 	# Actions.
@@ -345,7 +350,10 @@ func _execute_plan(delta: float) -> void:
 			if is_instance_valid(action):
 				action.chain_position = i
 				_inject_bindings_for_position(i, action)
-				action.post_perform_action(self)
+				if action.post_perform_action(self) == Action.Status.FAILURE:
+					push_warning(
+						"GdPAIAgent: post_perform_action reported FAILURE during post phase"
+					)
 				action.erase_position_state(self, i)
 				action.chain_position = -1
 		_current_plan_step += 1

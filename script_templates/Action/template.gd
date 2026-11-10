@@ -54,6 +54,13 @@ func get_provisions() -> Array[ProvisionSpec]:
 
 
 # Override
+func inject_binding(_fact_name: String, _value: Array) -> void:
+	# Receives the planner's bindings for a wildcard provision in get_provisions.
+	# Store them with set_state() for pre_perform_action to use.
+	pass
+
+
+# Override
 func clone_for_plan() -> Action:
 	# Return a copy if the action keeps mutable members; one instance may appear several times.
 	return self

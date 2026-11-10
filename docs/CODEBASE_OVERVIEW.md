@@ -71,7 +71,7 @@ Module map of `rust/src/`:
 | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `lib.rs`                | Crate root, module declarations, GDExtension entry.                                                                                    |
 | `planner/mod.rs`        | Public surface (`PlannerEngine`, `EngineInputs`, `EngineConfig`, `TerminationStrategy`); the Dijkstra priority.                        |
-| `planner/engine.rs`     | `PlannerEngine`, the search state machine (`step_search`, `process_simulation`).                                                       |
+| `planner/engine.rs`     | `PlannerEngine`, the resumable search loop (`step_search`, `process_simulation`).                                                      |
 | `planner/expander.rs`   | Candidate discovery (`find_candidates`, `lookup_or_start_discovery`).                                                                  |
 | `planner/simulation.rs` | `StepResult`/`SimResult`, `eval_precondition`, `simulate_action`.                                                                      |
 | `planner/types.rs`      | `PlanBranch`, `SearchNode`, `PriorityNode`, `SearchContext`, insertion logic.                                                          |
