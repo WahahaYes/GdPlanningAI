@@ -1,10 +1,10 @@
 # Architecture
 
-The full single-file diagram is kept for backwards compatibility: [architecture.mmd](generated/architecture.mmd) (170 lines, one classDiagram covering runtime, config, authoring, and spec hierarchies). It is the most complete picture but is dense to read, so the layered diagrams below split it by concern. For exact method signatures, params, and return types see [api-spec.json](generated/api-spec.json), which is the normative signature reference; the diagrams here intentionally show shortened names for readability.
+The diagrams below are generated from `docs/generated/*.mmd` and embedded here. For exact method signatures, params, and return types see [api-spec.json](generated/api-spec.json); the diagrams show shortened names for readability.
 
 ## Overview — [architecture-overview.mmd](generated/architecture-overview.mmd)
 
-Start here for the 10,000-foot view: 9 boxes (Scheduler, Agent, WorldNode, Blackboard, ObjectData base, Action base, Goal, and the AgentConfig plus BehaviorConfig chain) with one relation per pair and no members. Read this when onboarding or when you need to name which subsystem owns what before diving deeper.
+Shows the main classes and how they relate, without methods. Use it to see which subsystem owns what before reading the detailed diagrams.
 
 ```mermaid
 classDiagram
@@ -22,7 +22,7 @@ classDiagram
 
 ## Runtime — [architecture-runtime.mmd](generated/architecture-runtime.mmd)
 
-Read this when tracing a live planning loop: Scheduler held by Agent, Agent reading WorldNode and Blackboard, the internal RustBridge payload path, and the Autoload plus Plugin bootstrap. It shows key methods only (submit_plan, get_world_state, get_scheduler, 5-6 max per class); check [api-spec.json](generated/api-spec.json) for full signatures.
+Shows the planning loop: how Agent, Scheduler, WorldNode, Blackboard, and the Rust bridge connect, with key methods only. Use it when tracing a live plan; see [api-spec.json](generated/api-spec.json) for full signatures.
 
 ```mermaid
 classDiagram
@@ -76,7 +76,7 @@ classDiagram
 
 ## Authoring — [architecture-authoring.mmd](generated/architecture-authoring.mmd)
 
-Read this when writing game content: the ObjectData hierarchy (Interactable, LocationData), Action plus GoTo, Goal, PropertyUpdater, and how BehaviorConfig.\_populate wires them to an agent. Classes you subclass are marked \<<extension point>>; check [api-spec.json](generated/api-spec.json) for which hooks are override points.
+Shows the content classes (ObjectData, Action, Goal, PropertyUpdater) and how BehaviorConfig wires them to an agent. Use it when writing game content; classes marked \<<extension point>> are meant to be subclassed.
 
 ```mermaid
 classDiagram
@@ -155,7 +155,7 @@ classDiagram
 
 ## Specs — [architecture-specs.mmd](generated/architecture-specs.mmd)
 
-Read this when declaring planner constraints: the Precondition, RequirementSpec, and ProvisionSpec hierarchies plus the to_bridge_dict wire kinds (parens form, e.g. to_bridge_dict() kind binding_exists). It covers what Action.get_preconditions, get_requirements, and get_provisions return and what crosses the Rust bridge; see [api-spec.json](generated/api-spec.json) for exact bridge string shapes.
+Shows the Precondition, RequirementSpec, and ProvisionSpec hierarchies and what each to_bridge_dict sends across the Rust bridge. Use it when declaring planner constraints; see [api-spec.json](generated/api-spec.json) for exact bridge string shapes.
 
 ```mermaid
 classDiagram
