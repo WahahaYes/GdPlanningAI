@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Development helper scripts for GdPlanningAI."
 requires-python = ">=3.13"
 dependencies = [
-    "necronomicon[gdscript]==0.5.1",
+    "necronomicon[gdscript]==0.5.2",
     "prek==0.5.10",
     "ruff>=0.16.0",
 ]

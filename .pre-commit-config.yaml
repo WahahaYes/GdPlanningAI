@@ -19,9 +19,9 @@ repos:
       - id: mixed-line-ending
         args: ['--fix=lf']
 
-  # Necro gate: house rules plus the rust, rust-style, gdscript and
-  # gdscript-style packs (rustfmt, clippy, gdformat, gdlint, style), from the
-  # project env (`uv run --frozen`). Given the changed files, it runs what
+  # Necro gate: house rules plus the rust, rust-style, gdscript,
+  # gdscript-style and godot-arch packs (rustfmt, clippy, gdformat, gdlint,
+  # style, arch), from the project env (`uv run --frozen`). Given the changed files, it runs what
   # concerns them; --fix applies rustfmt, gdformat and the GDScript spacing,
   # and fails the commit until the result is re-staged.
   - repo: local
