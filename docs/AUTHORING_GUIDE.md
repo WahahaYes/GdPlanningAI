@@ -67,7 +67,7 @@ All hooks run on the main thread.
 
 ## World Objects
 
-A `GdPAIObjectData` subclass lives on a scene node, holds `@export` references to its `GdPAIInteractable` and `GdPAILocationData` children, and returns actions from `get_provided_actions()` that capture `self`. Its `get_sim_properties()` dictionary defines the snapshot the planner works with; properties like `current_fuel` or `hunger_value`. Groups returned by `get_group_labels()` enable `WorldObjectProxy` preconditions: `"CampfireObject"` lets a goal check `current_fuel` on any campfire; `"Food"` lets an action find anything edible.
+A `GdPAIObjectData` subclass lives on a scene node, exposes the object's top-level node via `@export var entity: Node`, and returns actions from `get_provided_actions()` that capture `self`. Its `get_sim_properties()` dictionary defines the snapshot the planner works with; properties like `current_fuel` or `hunger_value`. Groups returned by `get_group_labels()` enable `WorldObjectProxy` preconditions: `"CampfireObject"` lets a goal check `current_fuel` on any campfire; `"Food"` lets an action find anything edible.
 
 Actions provided by the object typically require `at_target` (via the object's location data) and provide `held_item` bindings plus `is_food` facts. The object's own runtime script (separate from the data class) handles visual updates, cooldowns, and actual `queue_free()` of picked-up items; the action's `perform_action` mirrors this but operates on the live scene.
 

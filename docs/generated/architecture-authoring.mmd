@@ -1,0 +1,72 @@
+classDiagram
+    GdPAIObjectData <|-- GdPAIInteractable
+    GdPAIObjectData <|-- GdPAILocationData
+    Action <|-- GoToAction
+    GdPAIObjectData --> Action : get_provided_actions
+    GdPAIBehaviorConfig --> Action : registers via _populate
+    GdPAIBehaviorConfig --> Goal : registers via _populate
+    GdPAIBehaviorConfig --> PropertyUpdater : registers via _populate
+    GoToAction --> ProvisionSpecFactWildcard : provisions at_target
+
+    class GdPAIObjectData {
+        <<extension point>>
+        +entity
+        +get_group_labels()
+        +get_provided_actions()
+        +get_sim_properties()
+    }
+    class GdPAIInteractable {
+        +max_interaction_distance
+        +max_drift_from_plan
+    }
+    class GdPAILocationData {
+        +location_node_2d
+        +location_node_3d
+        +get_position()
+        +get_rotation()
+    }
+    class Action {
+        <<extension point>>
+        +Status FAILURE
+        +Status RUNNING
+        +Status SUCCESS
+        +chain_position
+        +get_validity_checks()
+        +get_action_cost()
+        +get_preconditions()
+        +get_requirements()
+        +get_provisions()
+        +inject_binding()
+        +simulate_effect()
+        +get_effect_spec()
+        +pre_perform_action()
+        +perform_action()
+        +post_perform_action()
+        +clone_for_plan()
+        +get_title()
+        +get_description()
+    }
+    class GoToAction {
+        +target_location
+        +provisions fact_wildcard at_target
+        +effect_spec copies at_target to agent position
+    }
+    class Goal {
+        <<extension point>>
+        +compute_reward()
+        +get_desired_state()
+        +get_title()
+        +get_description()
+    }
+    class PropertyUpdater {
+        <<extension point>>
+        +update_properties()
+        +initialize()
+    }
+    class GdPAIBehaviorConfig {
+        +apply_to_agent()
+        +_populate(goals, actions, updaters)
+    }
+    class ProvisionSpecFactWildcard {
+        +to_bridge_dict() kind (fact_wildcard)
+    }

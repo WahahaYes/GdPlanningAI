@@ -191,7 +191,7 @@ The planner runs on a Rayon worker thread while GDScript callables must run on t
 
 ### Snapshots and the main thread
 
-Godot values are not thread-safe, so the worker only sees `BlackboardSnapshot`s, converted on the main thread in both directions. A `VariantSnapshot` stores primitives directly, live objects (resources included) as instance-id handles, and everything else as `var_to_bytes` blobs. A handle whose object was freed converts back to `null`. Callables stay in a per-job registry on the main thread; specs carry only indices.
+Godot values are not thread-safe, so the worker only sees `BlackboardSnapshot`s, converted on the main thread in both directions. A `VariantSnapshot` stores primitives directly, live objects (resources included) as instance-id handles, and everything else as `var_to_bytes` blobs. A handle whose object was freed converts back to `null`. Live `Callable`s cross the boundary inside the bridge dictionaries (converted on the main thread like any other value); the scheduler registers each into a per-job `callable_registry`, and the Send-safe engine specs carry only the resulting ids.
 
 ### The callback protocol
 
@@ -261,7 +261,7 @@ The actions involved, as declared by the author:
 | `PickupAction`      | object valid          | `held_item == ""`                    | `fact("at_target", [banana_location])`               | `binding("held_item", item_id)`; `fact("is_food", [])` (banana is in the Food group) |
 | `GoToAction`        | entity, location data | none                                 | none                                                 | `fact_wildcard("at_target")`                                                         |
 
-The `HungerGoal` has reward `max(0, hunger)` and a desired state that hunger be lower than `max(0, current - 15)`, say `agent_property_less_than("hunger", 45)`.
+The `HungerGoal` has reward `max(0, hunger)` and a desired state that hunger be lower than `max(15, current - 15)` (`max(sated_hunger, current - hunger_drop)`, both 15.0 by default), say `agent_property_less_than("hunger", 45)`.
 
 **Backward phase.** The engine initializes a branch with the initial snapshots. The desired state is not yet true, so `agent_property_less_than("hunger", 45)` becomes an open precondition at position 0. The expander finds `EatHeldFoodAction` through the non-wildcard set: its validity checks pass and its simulation shows hunger dropping, so it is a candidate. Its own needs are added at position 0: `binding_exists("held_item")` and `fact("is_food", [])`.
 

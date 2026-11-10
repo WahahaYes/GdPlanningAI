@@ -1,0 +1,11 @@
+classDiagram
+    GdPAIPlanScheduler -- GdPAIAgent : schedules plans for
+    GdPAIAgent -- GdPAIWorldNode : reads world state from
+    GdPAIWorldNode -- GdPAIBlackboard : holds world state in
+    GdPAIAgent -- GdPAIBlackboard : holds agent state in
+    GdPAIBlackboard -- GdPAIObjectData : tracks entities via
+    GdPAIObjectData -- Action : provides actions via
+    GdPAIAgent -- Action : plans and executes
+    GdPAIAgent -- Goal : pursues
+    GdPAIAgent -- GdPAIAgentConfig : configured by
+    GdPAIAgentConfig -- GdPAIBehaviorConfig : bundles behaviors via

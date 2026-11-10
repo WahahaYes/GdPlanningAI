@@ -1,0 +1,47 @@
+classDiagram
+    GdPAIPlanScheduler <-- GdPAIAgent : submits plan to
+    GdPAIAgent --> GdPAIWorldNode : reads via get_world_state
+    GdPAIWorldNode --> GdPAIBlackboard : holds world state
+    GdPAIAgent --> GdPAIBlackboard : holds agent blackboard
+    GdPAIAgent --> GdPAIRustBridge : uses internally
+    GdPAIRustBridge --> GdPAIPlanScheduler : serialized payloads
+    GdPAIAutoload --> GdPAIPlanScheduler : get_scheduler
+    GdPlanningAIPlugin --> GdPAIAutoload : registers singleton
+
+    class GdPAIAgent {
+        +signal plan_delivered(result)
+        +get_current_goal()
+        +get_current_plan()
+        +manually_start_plan()
+        +set_planning_strategy()
+    }
+    class GdPAIPlanScheduler {
+        +submit_plan()
+        +process_callbacks()
+        +cancel_agent_jobs()
+        +cancel_all_jobs()
+        +get_pool_status()
+        +get_engine_version()
+    }
+    class GdPAIWorldNode {
+        +blackboard_plan
+        +get_world_state()
+    }
+    class GdPAIBlackboard {
+        +get_property()
+        +set_property()
+        +has_property()
+        +erase_property()
+        +clone_for_simulation()
+    }
+    class GdPAIRustBridge {
+        +serialize_actions()
+        +serialize_goals()
+        +deserialize_plan_result()
+    }
+    class GdPAIAutoload {
+        +get_scheduler()
+    }
+    class GdPlanningAIPlugin {
+        <<EditorPlugin>>
+    }
