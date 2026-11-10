@@ -59,9 +59,9 @@ All hooks run on the main thread.
 | `get_action_cost`, `simulate_effect`, custom preconditions                   | Many times per search                                           | No: snapshots only, no `await` |
 | `pre_perform_action`                                                         | Once per action when a plan starts, before any `perform_action` | Yes                            |
 | `perform_action`                                                             | Every frame while the action is current                         | Yes                            |
-| `post_perform_action`                                                        | Once per action when the whole plan ends                        | Yes                            |
+| `post_perform_action`                                                        | Once per action when the plan ends or is replaced               | Yes                            |
 
-- `post_perform_action` does not run when a single action finishes, nor when a new plan replaces a running one. Stop per-action work (like navigation) in `perform_action`.
+- `post_perform_action` does not run when a single action finishes, but it does run for every action in the old chain when a new plan replaces a running one. Stop per-action work (like navigation) in `perform_action`.
 - Keep per-run data in `set_state`, keyed by instance and chain position. If the action has mutable members, return a copy from `clone_for_plan()`.
 - An action may define `inject_binding(fact_name, values)` to receive the objects the planner bound to its wildcard provisions.
 
