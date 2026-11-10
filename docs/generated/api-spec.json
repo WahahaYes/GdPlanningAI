@@ -1,0 +1,505 @@
+{
+  "spec_version": "1.0",
+  "project": "GdPlanningAI",
+  "note": "Read-only map merged from the orchestrator interface dump. Callable/Variant/Dictionary values crossing the Rust bridge are serialized, so they are documented here as String-typed with examples. See per-class notes.",
+  "bridge_conventions": {
+    "Callable": "String-typed bridge shape. Example: \"callable:MyUpdaters:update_hunger\"",
+    "Variant_property_value": "String-typed bridge shape. Example: \"variant:int:3\" or \"variant:Vector2(1, 2)\"",
+    "Dictionary_bridge_dict": "String-typed bridge shape. Example: \"{\\\"kind\\\": \\\"fact\\\", \\\"fact\\\": \\\"at_target\\\"}\"",
+    "fact_value_array": "String-typed bridge shape. Example: \"[\\\"loc_kitchen\\\"]\""
+  },
+  "classes": [
+    {
+      "class": "GdPAIAgent",
+      "file": "scripts/nodes/gdpai_agent.gd",
+      "extends": "Node",
+      "enums": [],
+      "signals": [
+        { "name": "plan_delivered", "params": [{ "name": "result", "type": "Dictionary" }] }
+      ],
+      "exports": [
+        { "name": "entity", "type": "Node", "default": null },
+        { "name": "config", "type": "GdPAIAgentConfig", "default": "GdPAIAgentConfig.new()" }
+      ],
+      "methods": [
+        { "name": "get_current_goal", "params": [], "return": "Goal", "override_point": false },
+        { "name": "get_current_plan", "params": [], "return": "Array[Action]", "override_point": false },
+        { "name": "get_current_plan_step", "params": [], "return": "int", "override_point": false },
+        { "name": "get_current_action", "params": [], "return": "Action", "override_point": false },
+        { "name": "is_waiting_for_plan", "params": [], "return": "bool", "override_point": false },
+        { "name": "set_planning_strategy", "params": [{ "name": "strategy", "type": "GdPAIAgentConfig.PlanningStrategy" }, { "name": "interval", "type": "float", "default": "0.5" }], "return": "void", "override_point": false },
+        { "name": "manually_start_plan", "params": [], "return": "void", "override_point": false },
+        { "name": "_on_plan_ready", "params": [{ "name": "result", "type": "Dictionary" }], "return": "void", "override_point": false }
+      ],
+      "notes": "Plans with goals+actions, executes the action chain. Aliases in dump: get_current_goal/plan/step/action map to get_current_goal/get_current_plan/get_current_plan_step/get_current_action. Needs a GdPAIWorldNode in the scene; planning runs via GdPAIPlanScheduler in the background."
+    },
+    {
+      "class": "GdPAIWorldNode",
+      "file": "scripts/nodes/gdpai_world_node.gd",
+      "extends": "Node",
+      "enums": [],
+      "signals": [],
+      "exports": [
+        { "name": "blackboard_plan", "type": "GdPAIBlackboardPlan", "default": "GdPAIBlackboardPlan.new()" }
+      ],
+      "methods": [
+        { "name": "get_world_state", "params": [], "return": "GdPAIBlackboard", "override_point": false }
+      ],
+      "notes": "Scene-level world state holder. Agent collects worldly actions from GDPAI_OBJECTS on this blackboard."
+    },
+    {
+      "class": "GdPAIObjectData",
+      "file": "scripts/nodes/gdpai_object_data.gd",
+      "extends": "Node",
+      "enums": [],
+      "signals": [],
+      "exports": [
+        { "name": "entity", "type": "Node", "default": null }
+      ],
+      "methods": [
+        { "name": "get_group_labels", "params": [], "return": "Array[String]", "override_point": true },
+        { "name": "get_provided_actions", "params": [], "return": "Array[Action]", "override_point": true },
+        { "name": "get_sim_properties", "params": [], "return": "Dictionary", "override_point": true }
+      ],
+      "notes": "<<extension point>> base for world/agent objects. get_group_labels/get_provided_actions/get_sim_properties are override hooks. get_sim_properties returns a Dictionary bridge shape, documented as String-typed. Example: \"{\\\"health\\\": \\\"variant:int:100\\\"}\"."
+    },
+    {
+      "class": "GdPAIInteractable",
+      "file": "scripts/nodes/gdpai_interactable.gd",
+      "extends": "GdPAIObjectData",
+      "enums": [],
+      "signals": [],
+      "exports": [
+        { "name": "entity", "type": "Node", "default": null },
+        { "name": "max_interaction_distance", "type": "float", "default": "2" },
+        { "name": "max_drift_from_plan", "type": "float", "default": "-1" }
+      ],
+      "methods": [
+        { "name": "get_group_labels", "params": [], "return": "Array[String]", "override_point": true },
+        { "name": "get_provided_actions", "params": [], "return": "Array[Action]", "override_point": true },
+        { "name": "get_sim_properties", "params": [], "return": "Dictionary", "override_point": true }
+      ],
+      "notes": "GdPAIObjectData override. max_drift_from_plan=-1 means no drift limit."
+    },
+    {
+      "class": "GdPAILocationData",
+      "file": "scripts/nodes/gdpai_location_data.gd",
+      "extends": "GdPAIObjectData",
+      "enums": [],
+      "signals": [],
+      "exports": [
+        { "name": "entity", "type": "Node", "default": null },
+        { "name": "location_node_2d", "type": "Node2D", "default": null },
+        { "name": "location_node_3d", "type": "Node3D", "default": null }
+      ],
+      "methods": [
+        { "name": "get_group_labels", "params": [], "return": "Array[String]", "override_point": true },
+        { "name": "get_provided_actions", "params": [], "return": "Array[Action]", "override_point": true },
+        { "name": "get_sim_properties", "params": [], "return": "Dictionary", "override_point": true },
+        { "name": "get_position", "params": [], "return": "Variant", "override_point": false },
+        { "name": "get_rotation", "params": [], "return": "Variant", "override_point": false }
+      ],
+      "notes": "GdPAIObjectData override. Position/rotation getters resolve from location_node_2d/3d. Variant returns cross the bridge as String-typed. Example: \"variant:Vector2(1, 2)\"."
+    },
+    {
+      "class": "Action",
+      "file": "scripts/refcounteds/action.gd",
+      "extends": "RefCounted",
+      "enums": [
+        { "name": "Status", "values": ["FAILURE", "RUNNING", "SUCCESS"] }
+      ],
+      "signals": [],
+      "exports": [],
+      "members": [
+        { "name": "chain_position", "type": "int", "default": "-1" }
+      ],
+      "methods": [
+        { "name": "get_validity_checks", "params": [], "return": "Array[Precondition]", "override_point": true },
+        { "name": "get_action_cost", "params": [{ "name": "_agent_blackboard", "type": "GdPAIBlackboard" }, { "name": "_world_state", "type": "GdPAIBlackboard" }], "return": "float", "override_point": true },
+        { "name": "get_preconditions", "params": [], "return": "Array[Precondition]", "override_point": true },
+        { "name": "get_requirements", "params": [], "return": "Array[RequirementSpec]", "override_point": true },
+        { "name": "get_provisions", "params": [], "return": "Array[ProvisionSpec]", "override_point": true },
+        { "name": "inject_binding", "params": [{ "name": "_fact_name", "type": "String" }, { "name": "_value", "type": "Array" }], "return": "void", "override_point": true },
+        { "name": "simulate_effect", "params": [{ "name": "_agent_blackboard", "type": "GdPAIBlackboard" }, { "name": "_world_state", "type": "GdPAIBlackboard" }], "return": "void", "override_point": true },
+        { "name": "get_effect_spec", "params": [], "return": "Array", "override_point": true },
+        { "name": "pre_perform_action", "params": [{ "name": "_agent", "type": "GdPAIAgent" }], "return": "Status", "override_point": true },
+        { "name": "perform_action", "params": [{ "name": "_agent", "type": "GdPAIAgent" }, { "name": "_delta", "type": "float" }], "return": "Status", "override_point": true },
+        { "name": "post_perform_action", "params": [{ "name": "_agent", "type": "GdPAIAgent" }], "return": "Status", "override_point": true },
+        { "name": "clone_for_plan", "params": [], "return": "Action", "override_point": true },
+        { "name": "get_title", "params": [], "return": "String", "override_point": true },
+        { "name": "get_description", "params": [], "return": "String", "override_point": true },
+        { "name": "set_state", "params": [{ "name": "agent", "type": "GdPAIAgent" }, { "name": "key", "type": "String" }, { "name": "value", "type": "String", "bridge": "Variant as String", "example": "variant:int:3" }], "return": "void", "override_point": false },
+        { "name": "get_state", "params": [{ "name": "agent", "type": "GdPAIAgent" }, { "name": "key", "type": "String" }], "return": "String", "override_point": false },
+        { "name": "erase_state", "params": [{ "name": "agent", "type": "GdPAIAgent" }, { "name": "key", "type": "String" }], "return": "void", "override_point": false },
+        { "name": "has_state", "params": [{ "name": "agent", "type": "GdPAIAgent" }, { "name": "key", "type": "String" }], "return": "bool", "override_point": false }
+      ],
+      "notes": "<<extension point>>. Declarative hooks (get_*) describe the action to the planner; planning hooks (get_action_cost/simulate_effect) run on simulated blackboards; execution hooks (*_perform_action) run on the main thread. get_state/set_state Variant payloads are String-typed bridge shapes."
+    },
+    {
+      "class": "GoToAction",
+      "file": "scripts/refcounteds/goto_action.gd",
+      "extends": "Action",
+      "enums": [],
+      "signals": [],
+      "exports": [],
+      "members": [
+        { "name": "target_location", "type": "GdPAILocationData", "default": null }
+      ],
+      "methods": [
+        { "name": "get_provisions", "params": [], "return": "Array[ProvisionSpec]", "override_point": true },
+        { "name": "get_effect_spec", "params": [], "return": "Array", "override_point": true },
+        { "name": "inject_binding", "params": [{ "name": "_fact_name", "type": "String" }, { "name": "_value", "type": "Array" }], "return": "void", "override_point": true },
+        { "name": "clone_for_plan", "params": [], "return": "Action", "override_point": true }
+      ],
+      "notes": "Action subclass. Provisions [fact_wildcard at_target]. Effect spec [{op:copy at_target->agent position}]: [{ \"op\": \"copy\", \"from\": \"at_target\", \"to\": \"agent:position\" }], serialized as String-typed Dictionary bridge shape."
+    },
+    {
+      "class": "Goal",
+      "file": "scripts/refcounteds/goal.gd",
+      "extends": "RefCounted",
+      "enums": [],
+      "signals": [],
+      "exports": [],
+      "methods": [
+        { "name": "compute_reward", "params": [{ "name": "agent_blackboard", "type": "GdPAIBlackboard" }, { "name": "world_state", "type": "GdPAIBlackboard" }], "return": "float", "override_point": true },
+        { "name": "get_desired_state", "params": [], "return": "Dictionary", "override_point": true },
+        { "name": "get_title", "params": [], "return": "String", "override_point": true },
+        { "name": "get_description", "params": [], "return": "String", "override_point": true }
+      ],
+      "notes": "<<extension point>>. get_desired_state returns a Dictionary bridge shape, documented String-typed. Example: \"{\\\"at_target\\\": \\\"variant:Array[loc_kitchen]\\\"}\"."
+    },
+    {
+      "class": "Precondition",
+      "file": "scripts/refcounteds/precondition.gd",
+      "extends": "RefCounted",
+      "enums": [],
+      "signals": [],
+      "exports": [],
+      "methods": [
+        { "name": "to_bridge_dict", "params": [], "return": "String", "override_point": true }
+      ],
+      "notes": "<<extension point>> abstract base. to_bridge_dict returns a Dictionary bridge shape documented as String-typed. Example: \"{\\\"kind\\\": \\\"builtin\\\", \\\"target\\\": \\\"AGENT\\\"}\". Factories construct builtin/custom/with-deps subtypes."
+    },
+    {
+      "class": "PreconditionBuiltin",
+      "file": "scripts/refcounteds/precondition_builtin.gd",
+      "extends": "Precondition",
+      "enums": [
+        { "name": "Target", "values": ["AGENT", "WORLD_STATE", "WORLD_OBJECT_PROXY"] },
+        { "name": "Op", "values": ["HAS_PROPERTY", "EQUAL", "NOT_EQUAL", "GT", "GTE", "LT", "LTE"] }
+      ],
+      "signals": [],
+      "exports": [],
+      "methods": [
+        { "name": "to_bridge_dict", "params": [], "return": "String", "override_point": true }
+      ],
+      "notes": "Precondition subtype. Compared Variant value serialized as String-typed bridge shape. Example: \"{\\\"kind\\\":\\\"builtin\\\",\\\"op\\\":\\\"EQUAL\\\",\\\"value\\\":\\\"variant:int:3\\\"}\"."
+    },
+    {
+      "class": "PreconditionCustom",
+      "file": "scripts/refcounteds/precondition_custom.gd",
+      "extends": "Precondition",
+      "enums": [],
+      "signals": [],
+      "exports": [],
+      "members": [
+        { "name": "eval_func", "type": "String", "bridge": "Callable as String", "example": "callable:MyChecks:is_hungry" }
+      ],
+      "methods": [
+        { "name": "to_bridge_dict", "params": [], "return": "String", "override_point": true }
+      ],
+      "notes": "Precondition subtype holding a Callable, documented String-typed with example above."
+    },
+    {
+      "class": "PreconditionCustomWithDeps",
+      "file": "scripts/refcounteds/precondition_custom_with_deps.gd",
+      "extends": "PreconditionCustom",
+      "enums": [],
+      "signals": [],
+      "exports": [],
+      "members": [
+        { "name": "dependent_objects", "type": "Array", "default": "[]" }
+      ],
+      "methods": [
+        { "name": "to_bridge_dict", "params": [], "return": "String", "override_point": true }
+      ],
+      "notes": "WithDeps subtype: PreconditionCustom plus dependent_objects."
+    },
+    {
+      "class": "RequirementSpec",
+      "file": "scripts/refcounteds/requirement_spec.gd",
+      "extends": "RefCounted",
+      "enums": [],
+      "signals": [],
+      "exports": [],
+      "methods": [
+        { "name": "binding_exists", "params": [{ "name": "fact", "type": "String" }], "return": "RequirementSpec", "override_point": false },
+        { "name": "binding_equals", "params": [{ "name": "fact", "type": "String" }, { "name": "value", "type": "String", "bridge": "Variant as String", "example": "variant:int:3" }], "return": "RequirementSpec", "override_point": false },
+        { "name": "binding_in_set", "params": [{ "name": "fact", "type": "String" }, { "name": "values", "type": "String", "bridge": "Array as String", "example": "[\"a\", \"b\"]" }], "return": "RequirementSpec", "override_point": false },
+        { "name": "fact", "params": [{ "name": "fact", "type": "String" }, { "name": "values", "type": "String", "bridge": "Array as String", "example": "[\"loc_kitchen\"]" }], "return": "RequirementSpec", "override_point": false },
+        { "name": "to_bridge_dict", "params": [], "return": "String", "override_point": true }
+      ],
+      "notes": "<<extension point>> base with factories for 4 subtypes. Each to_bridge_dict emits {kind,...} as a String-typed Dictionary bridge shape. Example: \"{\\\"kind\\\": \\\"fact\\\", \\\"fact\\\": \\\"at_target\\\"}\"."
+    },
+    {
+      "class": "RequirementSpecBindingExists",
+      "file": "scripts/refcounteds/requirement_spec_binding_exists.gd",
+      "extends": "RequirementSpec",
+      "enums": [],
+      "signals": [],
+      "exports": [],
+      "methods": [
+        { "name": "to_bridge_dict", "params": [], "return": "String", "override_point": true }
+      ],
+      "notes": "RequirementSpec subtype {kind:binding_exists,...}."
+    },
+    {
+      "class": "RequirementSpecBindingEquals",
+      "file": "scripts/refcounteds/requirement_spec_binding_equals.gd",
+      "extends": "RequirementSpec",
+      "enums": [],
+      "signals": [],
+      "exports": [],
+      "methods": [
+        { "name": "to_bridge_dict", "params": [], "return": "String", "override_point": true }
+      ],
+      "notes": "RequirementSpec subtype {kind:binding_equals,...}."
+    },
+    {
+      "class": "RequirementSpecBindingInSet",
+      "file": "scripts/refcounteds/requirement_spec_binding_in_set.gd",
+      "extends": "RequirementSpec",
+      "enums": [],
+      "signals": [],
+      "exports": [],
+      "methods": [
+        { "name": "to_bridge_dict", "params": [], "return": "String", "override_point": true }
+      ],
+      "notes": "RequirementSpec subtype {kind:binding_in_set,...}."
+    },
+    {
+      "class": "RequirementSpecFact",
+      "file": "scripts/refcounteds/requirement_spec_fact.gd",
+      "extends": "RequirementSpec",
+      "enums": [],
+      "signals": [],
+      "exports": [],
+      "methods": [
+        { "name": "to_bridge_dict", "params": [], "return": "String", "override_point": true }
+      ],
+      "notes": "RequirementSpec subtype {kind:fact,...}."
+    },
+    {
+      "class": "ProvisionSpec",
+      "file": "scripts/refcounteds/provision_spec.gd",
+      "extends": "RefCounted",
+      "enums": [],
+      "signals": [],
+      "exports": [],
+      "methods": [
+        { "name": "binding", "params": [{ "name": "fact", "type": "String" }, { "name": "value", "type": "String", "bridge": "Variant as String", "example": "variant:int:3" }], "return": "ProvisionSpec", "override_point": false },
+        { "name": "fact", "params": [{ "name": "fact", "type": "String" }, { "name": "values", "type": "String", "bridge": "Array as String", "example": "[\"loc_kitchen\"]" }], "return": "ProvisionSpec", "override_point": false },
+        { "name": "fact_wildcard", "params": [{ "name": "fact", "type": "String" }], "return": "ProvisionSpec", "override_point": false },
+        { "name": "to_bridge_dict", "params": [], "return": "String", "override_point": true }
+      ],
+      "notes": "<<extension point>> base with factories for 3 subtypes. Each to_bridge_dict emits {kind,...} as String-typed Dictionary bridge shape."
+    },
+    {
+      "class": "ProvisionSpecBinding",
+      "file": "scripts/refcounteds/provision_spec_binding.gd",
+      "extends": "ProvisionSpec",
+      "enums": [],
+      "signals": [],
+      "exports": [],
+      "methods": [
+        { "name": "to_bridge_dict", "params": [], "return": "String", "override_point": true }
+      ],
+      "notes": "ProvisionSpec subtype {kind:binding,...}."
+    },
+    {
+      "class": "ProvisionSpecFact",
+      "file": "scripts/refcounteds/provision_spec_fact.gd",
+      "extends": "ProvisionSpec",
+      "enums": [],
+      "signals": [],
+      "exports": [],
+      "methods": [
+        { "name": "to_bridge_dict", "params": [], "return": "String", "override_point": true }
+      ],
+      "notes": "ProvisionSpec subtype {kind:fact,...}."
+    },
+    {
+      "class": "ProvisionSpecFactWildcard",
+      "file": "scripts/refcounteds/provision_spec_fact_wildcard.gd",
+      "extends": "ProvisionSpec",
+      "enums": [],
+      "signals": [],
+      "exports": [],
+      "methods": [
+        { "name": "to_bridge_dict", "params": [], "return": "String", "override_point": true }
+      ],
+      "notes": "ProvisionSpec subtype {kind:fact_wildcard,...}. Used by GoToAction for at_target."
+    },
+    {
+      "class": "PropertyUpdater",
+      "file": "scripts/refcounteds/property_updater.gd",
+      "extends": "RefCounted",
+      "enums": [],
+      "signals": [],
+      "exports": [],
+      "methods": [
+        { "name": "update_properties", "params": [{ "name": "agent", "type": "GdPAIAgent" }, { "name": "delta", "type": "float" }], "return": "void", "override_point": true },
+        { "name": "initialize", "params": [{ "name": "agent", "type": "GdPAIAgent" }], "return": "void", "override_point": true }
+      ],
+      "notes": "<<extension point>>. Runs every frame from GdPAIAgent._process."
+    },
+    {
+      "class": "GdPAIBehaviorConfig",
+      "file": "scripts/resources/gdpai_behavior_config.gd",
+      "extends": "Resource",
+      "enums": [],
+      "signals": [],
+      "exports": [],
+      "methods": [
+        { "name": "apply_to_agent", "params": [{ "name": "agent", "type": "GdPAIAgent" }], "return": "void", "override_point": false },
+        { "name": "_populate", "params": [{ "name": "goals", "type": "Array[Goal]" }, { "name": "actions", "type": "Array[Action]" }, { "name": "updaters", "type": "Array[PropertyUpdater]" }], "return": "void", "override_point": true }
+      ],
+      "notes": "apply_to_agent calls the <<extension point>> _populate(goals, actions, updaters) override point to supply the agent's behaviors."
+    },
+    {
+      "class": "GdPAIAgentConfig",
+      "file": "scripts/resources/gdpai_agent_config.gd",
+      "extends": "Resource",
+      "enums": [
+        { "name": "PlanningStrategy", "values": ["CONTINUOUS", "ON_INTERVAL", "ON_DEMAND", "ON_INTERVAL_FORCED"] }
+      ],
+      "signals": [],
+      "exports": [
+        { "name": "planning_strategy", "type": "PlanningStrategy", "default": "CONTINUOUS" },
+        { "name": "planning_interval", "type": "float", "default": "0.5" },
+        { "name": "failure_backoff", "type": "float", "default": "0.0" },
+        { "name": "max_recursion", "type": "int", "default": "100" },
+        { "name": "iteration_budget", "type": "int", "default": "20000" },
+        { "name": "time_slice_ms", "type": "int", "default": "10" },
+        { "name": "max_effect_fallbacks", "type": "int", "default": "128" },
+        { "name": "blackboard_plan", "type": "GdPAIBlackboardPlan", "default": "GdPAIBlackboardPlan.new()" },
+        { "name": "behavior_configs", "type": "Array[GdPAIBehaviorConfig]", "default": "[]" }
+      ],
+      "methods": [],
+      "notes": "Per-agent settings assigned to GdPAIAgent.config; read once in _ready."
+    },
+    {
+      "class": "GdPAIBlackboardPlan",
+      "file": "scripts/gdpai_blackboard_plan.gd",
+      "extends": "Resource",
+      "enums": [],
+      "signals": [],
+      "exports": [
+        { "name": "blackboard_backend", "type": "Dictionary", "default": "{}" }
+      ],
+      "methods": [
+        { "name": "generate_blackboard", "params": [], "return": "GdPAIBlackboard", "override_point": false }
+      ],
+      "notes": "Starting contents of agent/world blackboards. blackboard_backend Dictionary values are String-typed Variant bridge shapes. Example: \"{\\\"hunger\\\": \\\"variant:int:0\\\"}\"."
+    },
+    {
+      "class": "GdPAIRustBridge",
+      "file": "scripts/gdpai_rust_bridge.gd",
+      "extends": "RefCounted",
+      "enums": [],
+      "signals": [],
+      "exports": [],
+      "methods": [
+        { "name": "serialize_actions", "params": [{ "name": "actions", "type": "Array[Action]" }], "return": "String", "override_point": false },
+        { "name": "serialize_goals", "params": [{ "name": "goals", "type": "Array[Goal]" }, { "name": "agent", "type": "GdPAIAgent" }], "return": "String", "override_point": false },
+        { "name": "deserialize_plan_result", "params": [{ "name": "result", "type": "Dictionary" }, { "name": "actions", "type": "Array[Action]" }], "return": "Dictionary", "override_point": false }
+      ],
+      "notes": "Internal (not for game code). Converts GDScript declarative hooks to String-typed bridge payloads for GdPAIPlanScheduler and rebuilds the action chain + bindings_by_position from the plan result."
+    },
+    {
+      "class": "GdPAIPlanScheduler",
+      "file": "rust: GdPAIPlanScheduler (GDExtension Node)",
+      "extends": "Node",
+      "enums": [],
+      "signals": [],
+      "exports": [
+        { "name": "max_threads", "type": "int", "default": null }
+      ],
+      "methods": [
+        { "name": "submit_plan", "params": [{ "name": "agent", "type": "GdPAIAgent" }, { "name": "agent_blackboard", "type": "GdPAIBlackboard" }, { "name": "world_state", "type": "GdPAIBlackboard" }, { "name": "actions", "type": "String", "bridge": "Array as String", "example": "\"[{\\\"title\\\": \\\"GoTo\\\"}]\"" }, { "name": "goals", "type": "String", "bridge": "Array as String", "example": "\"[{\\\"title\\\": \\\"BeAt\\\"}]\"" }, { "name": "max_recursion", "type": "int" }, { "name": "iteration_budget", "type": "int" }, { "name": "time_slice_ms", "type": "int" }, { "name": "max_effect_fallbacks", "type": "int" }], "return": "void", "override_point": false },
+        { "name": "process_callbacks", "params": [], "return": "void", "override_point": false },
+        { "name": "active_job_count", "params": [], "return": "int", "override_point": false },
+        { "name": "cancel_agent_jobs", "params": [{ "name": "agent", "type": "GdPAIAgent" }], "return": "void", "override_point": false },
+        { "name": "cancel_all_jobs", "params": [], "return": "void", "override_point": false },
+        { "name": "clear_active_jobs", "params": [], "return": "void", "override_point": false },
+        { "name": "get_pool_status", "params": [], "return": "Dictionary", "override_point": false },
+        { "name": "get_effect_dispatch_stats", "params": [], "return": "Dictionary", "override_point": false },
+        { "name": "get_engine_version", "params": [], "return": "String", "override_point": false },
+        { "name": "set_log_level", "params": [{ "name": "level", "type": "String", "example": "\"info\"" }], "return": "void", "override_point": false },
+        { "name": "get_debug_tree", "params": [], "return": "String", "override_point": false }
+      ],
+      "notes": "Rust background planner. Serialized actions/goals arrive as String-typed bridge shapes. Result delivered async to GdPAIAgent._on_plan_ready."
+    },
+    {
+      "class": "GdPAIBlackboard",
+      "file": "rust: GdPAIBlackboard (GDExtension RefCounted)",
+      "extends": "RefCounted",
+      "enums": [],
+      "signals": [],
+      "exports": [],
+      "methods": [
+        { "name": "get_property", "params": [{ "name": "key", "type": "String" }], "return": "String", "override_point": false },
+        { "name": "set_property", "params": [{ "name": "key", "type": "String" }, { "name": "value", "type": "String", "bridge": "Variant as String", "example": "variant:int:3" }], "return": "void", "override_point": false },
+        { "name": "has_property", "params": [{ "name": "key", "type": "String" }], "return": "bool", "override_point": false },
+        { "name": "erase_property", "params": [{ "name": "key", "type": "String" }], "return": "void", "override_point": false },
+        { "name": "get_dict", "params": [], "return": "Dictionary", "override_point": false },
+        { "name": "set_dict", "params": [{ "name": "dict", "type": "String", "bridge": "Dictionary as String", "example": "\"{\\\"hunger\\\": \\\"variant:int:0\\\"}\"" }], "return": "void", "override_point": false },
+        { "name": "get_proxies", "params": [], "return": "Array[SimObjectProxy]", "override_point": false },
+        { "name": "get_proxy", "params": [{ "name": "obj", "type": "Object" }], "return": "SimObjectProxy", "override_point": false },
+        { "name": "get_node", "params": [{ "name": "proxy", "type": "SimObjectProxy" }], "return": "Node", "override_point": false },
+        { "name": "get_nodes_in_group", "params": [{ "name": "group", "type": "String" }], "return": "Array[Node]", "override_point": false },
+        { "name": "get_object_for", "params": [{ "name": "proxy", "type": "SimObjectProxy" }], "return": "Object", "override_point": false },
+        { "name": "clone_for_simulation", "params": [], "return": "GdPAIBlackboard", "override_point": false }
+      ],
+      "notes": "Rust blackboard. Property Variant values cross as String-typed bridge shapes. get_dict/set_dict Dictionary payloads likewise String-typed."
+    },
+    {
+      "class": "SimObjectProxy",
+      "file": "rust: SimObjectProxy (GDExtension RefCounted)",
+      "extends": "RefCounted",
+      "enums": [],
+      "signals": [],
+      "exports": [],
+      "methods": [
+        { "name": "is_in_group", "params": [{ "name": "group", "type": "String" }], "return": "bool", "override_point": false },
+        { "name": "get_groups", "params": [], "return": "Array[String]", "override_point": false },
+        { "name": "get_property", "params": [{ "name": "key", "type": "String" }], "return": "String", "override_point": false },
+        { "name": "set_property", "params": [{ "name": "key", "type": "String" }, { "name": "value", "type": "String", "bridge": "Variant as String", "example": "variant:int:3" }], "return": "void", "override_point": false },
+        { "name": "has_property", "params": [{ "name": "key", "type": "String" }], "return": "bool", "override_point": false }
+      ],
+      "notes": "Rust sim proxy for a world object. Property Variant values are String-typed bridge shapes."
+    },
+    {
+      "class": "GdPAIAutoload",
+      "file": "gdpai_autoload.gd",
+      "extends": "Node",
+      "enums": [],
+      "signals": [],
+      "exports": [],
+      "methods": [
+        { "name": "get_scheduler", "params": [], "return": "GdPAIPlanScheduler", "override_point": false }
+      ],
+      "notes": "Node singleton registered by plugin.gd (EditorPlugin). Entry point to the shared GdPAIPlanScheduler."
+    },
+    {
+      "class": "GdPlanningAIPlugin",
+      "file": "plugin.gd",
+      "extends": "EditorPlugin",
+      "enums": [],
+      "signals": [],
+      "exports": [],
+      "methods": [],
+      "notes": "EditorPlugin that registers GdPAIAutoload as a singleton."
+    }
+  ]
+}

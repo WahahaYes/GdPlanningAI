@@ -352,7 +352,7 @@ submit_plan(agent, agent_bb, world_bb, actions, goals, max_recursion, iteration_
     // new() builds SearchContext (caches, provision_index, non_wildcard_actions) and the
     // channel the main thread answers on; termination defaults to BestCost
     engine = PlannerEngine::new(
-        EngineInputs{action_specs, snap_agent, snap_world, initial_provisions, request_tx, cancel_flag},
+        EngineInputs{actions, agent, world, initial_provisions, request_tx, cancel_flag},
         EngineConfig{max_depth, budget, time_slice_ms, ..default})
     spawn first step on Rayon pool (the worker owns the engine until it sends it back)
 

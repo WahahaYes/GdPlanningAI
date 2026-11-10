@@ -169,6 +169,14 @@ sync-docs: ## Copy README and LICENSE from root to addon directory
 	@cp LICENSE.txt addons/GdPlanningAI/LICENSE.txt
 	@echo "Documentation synced successfully"
 
+.PHONY: docs
+docs: ## Re-embed docs/generated/*.mmd into docs/ARCHITECTURE.md and refresh the api-spec.json header stub
+	python3 scripts/generate_docs.py
+
+.PHONY: docs-check
+docs-check: ## Fail when docs/ARCHITECTURE.md drifts from docs/generated/ (CI runs this)
+	python3 scripts/generate_docs.py --check
+
 ##@ Editor
 
 .PHONY: launch-editor

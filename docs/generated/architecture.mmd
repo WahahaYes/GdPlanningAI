@@ -1,0 +1,170 @@
+classDiagram
+    %% Runtime: Scheduler <- Agent -> WorldNode -> Blackboard
+    GdPAIPlanScheduler <-- GdPAIAgent : submits plan to
+    GdPAIAgent --> GdPAIWorldNode : reads via get_world_state
+    GdPAIWorldNode --> GdPAIBlackboard : holds world state
+    GdPAIAgent --> GdPAIBlackboard : holds agent blackboard
+    GdPAIAgent --> GdPAIRustBridge : uses internally
+    GdPAIRustBridge --> GdPAIPlanScheduler : serialized payloads
+    GdPAIAutoload --> GdPAIPlanScheduler : get_scheduler
+    GdPlanningAIPlugin --> GdPAIAutoload : registers singleton
+
+    %% Config chain
+    GdPAIAgent --> GdPAIAgentConfig : config
+    GdPAIAgentConfig --> GdPAIBehaviorConfig : behavior_configs
+    GdPAIAgentConfig --> GdPAIBlackboardPlan : blackboard_plan
+    GdPAIWorldNode --> GdPAIBlackboardPlan : blackboard_plan
+    GdPAIBehaviorConfig --> GdPAIAgent : apply_to_agent
+    GdPAIBlackboardPlan --> GdPAIBlackboard : generate_blackboard
+
+    %% ObjectData hierarchy
+    GdPAIObjectData <|-- GdPAIInteractable
+    GdPAIObjectData <|-- GdPAILocationData
+    GdPAIObjectData --> Action : get_provided_actions
+    GdPAIBlackboard --> SimObjectProxy : get_proxies
+
+    %% Action hierarchy
+    Action <|-- GoToAction
+    GdPAIAgent --> Action : plans + executes
+    Action --> Precondition : get_validity_checks / get_preconditions
+    Action --> RequirementSpec : get_requirements
+    Action --> ProvisionSpec : get_provisions
+
+    %% Goal / specs / updaters
+    GdPAIAgent --> Goal : pursues
+    GdPAIAgent --> PropertyUpdater : ticks update_properties
+    Precondition <|-- PreconditionBuiltin
+    Precondition <|-- PreconditionCustom
+    PreconditionCustom <|-- PreconditionCustomWithDeps
+    RequirementSpec <|-- RequirementSpecBindingExists
+    RequirementSpec <|-- RequirementSpecBindingEquals
+    RequirementSpec <|-- RequirementSpecBindingInSet
+    RequirementSpec <|-- RequirementSpecFact
+    ProvisionSpec <|-- ProvisionSpecBinding
+    ProvisionSpec <|-- ProvisionSpecFact
+    ProvisionSpec <|-- ProvisionSpecFactWildcard
+    GoToAction --> ProvisionSpecFactWildcard : provisions at_target
+
+    class GdPAIAgent {
+        +signal plan_delivered(result: Dictionary)
+        +entity: Node
+        +config: GdPAIAgentConfig
+        +get_current_goal()
+        +get_current_plan()
+        +set_planning_strategy()
+        +manually_start_plan()
+        +_on_plan_ready()
+    }
+    class GdPAIWorldNode {
+        +blackboard_plan
+        +get_world_state() GdPAIBlackboard
+    }
+    class GdPAIBlackboard {
+        +get/set/has/erase_property()
+        +get/set_dict()
+        +get_proxies/proxy/node/nodes_in_group()
+        +clone_for_simulation()
+    }
+    class GdPAIPlanScheduler {
+        +max_threads
+        +submit_plan()
+        +process_callbacks()
+        +cancel_agent_jobs() / cancel_all_jobs()
+        +get_pool_status() / get_engine_version()
+    }
+    class GdPAIRustBridge {
+        <<internal>>
+        +serialize_actions/goals()
+        +deserialize_plan_result()
+    }
+    class GdPAIObjectData {
+        <<extension point>>
+        +entity
+        +get_group_labels()*
+        +get_provided_actions()*
+        +get_sim_properties()*
+    }
+    class GdPAIInteractable {
+        +max_interaction_distance = 2
+        +max_drift_from_plan = -1
+    }
+    class GdPAILocationData {
+        +location_node_2d / location_node_3d
+        +get_position() / get_rotation()
+    }
+    class Action {
+        <<extension point>>
+        +Status FAILURE/RUNNING/SUCCESS
+        +chain_position
+        +get_validity_checks()* / get_action_cost()*
+        +get_preconditions()* / get_requirements()* / get_provisions()*
+        +inject_binding()* / simulate_effect()*
+        +get_effect_spec()*
+        +pre/perform/post_perform_action()*
+        +clone_for_plan()* / get_title()* / get_description()*
+    }
+    class GoToAction {
+        +target_location
+        +provisions fact_wildcard at_target
+        +effect_spec copy at_target->agent position
+    }
+    class Goal {
+        <<extension point>>
+        +compute_reward()*
+        +get_desired_state()*
+        +get_title()* / get_description()*
+    }
+    class Precondition {
+        <<extension point>>
+        +to_bridge_dict()*
+    }
+    class PreconditionBuiltin {
+        +Target AGENT/WORLD_STATE/WORLD_OBJECT_PROXY
+        +Op HAS_PROPERTY/EQUAL/NOT_EQUAL/GT/GTE/LT/LTE
+    }
+    class PreconditionCustom {
+        +eval_func: Callable
+    }
+    class PreconditionCustomWithDeps {
+        +dependent_objects
+    }
+    class RequirementSpec {
+        <<extension point>>
+        +binding_exists()/equals()/in_set()/fact()
+        +to_bridge_dict()
+    }
+    class ProvisionSpec {
+        <<extension point>>
+        +binding()/fact()/fact_wildcard()
+        +to_bridge_dict()
+    }
+    class PropertyUpdater {
+        <<extension point>>
+        +update_properties()*
+        +initialize()*
+    }
+    class GdPAIBehaviorConfig {
+        +apply_to_agent()
+        +_populate(goals, actions, updaters)*
+    }
+    class GdPAIAgentConfig {
+        +PlanningStrategy CONTINUOUS/ON_INTERVAL/ON_DEMAND/ON_INTERVAL_FORCED
+        +planning_interval = 0.5
+        +max_recursion = 100 / iteration_budget = 20000
+        +time_slice_ms = 10 / max_effect_fallbacks = 128
+    }
+    class GdPAIBlackboardPlan {
+        +blackboard_backend: Dictionary
+        +generate_blackboard()
+    }
+    class SimObjectProxy {
+        +is_in_group()/get_groups()
+        +get/set/has_property()
+    }
+    class GdPAIAutoload {
+        +get_scheduler()
+    }
+    class GdPlanningAIPlugin {
+        <<EditorPlugin>>
+        +registers GdPAIAutoload
+    }

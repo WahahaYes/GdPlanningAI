@@ -75,7 +75,7 @@ func perform_action(agent: GdPAIAgent, _delta: float) -> Action.Status:
 	return Action.Status.SUCCESS
 ```
 
-The planner is a core algorithm that decides what to do next, but your game decides what logic actually gets executed. Actions can call your animations, inventory, stats or signals. The `script_templates/` folder (installed with the addon) has a template for each class, and [docs/AUTHORING_GUIDE.md](https://github.com/WahahaYes/GdPlanningAI/blob/main/docs/AUTHORING_GUIDE.md) covers every hook and its timing rules. The built-in `GoToAction` handles walking using Godot's built-in navigation.
+The planner is a core algorithm that decides what to do next, but your game decides what logic actually gets executed. Actions can call your animations, inventory, stats or signals. The `script_templates/` folder (installed with the addon) has a template for each authorable base class (`Action`, `Goal`, `PropertyUpdater`, `GdPAIObjectData`, `GdPAIBehaviorConfig`), and [docs/AUTHORING_GUIDE.md](https://github.com/WahahaYes/GdPlanningAI/blob/main/docs/AUTHORING_GUIDE.md) covers every hook and its timing rules. The built-in `GoToAction` handles walking using Godot's built-in navigation.
 
 ## How it works
 

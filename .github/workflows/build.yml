@@ -1,5 +1,6 @@
 # CI for the addon. Every job step is one local command (see Makefile):
 #   uv run prek run --all-files       hooks (formatters, lints, secrets)
+#   make docs-check                       ARCHITECTURE.md vs docs/generated drift
 #   make test-rust-coverage                 Rust tests, instrumented for coverage
 #   make godot-version                      the Godot pin (global.json)
 #   make test-godot-verbose                 the GUT suite, full log, nonzero on failure
@@ -103,6 +104,8 @@ jobs:
         env:
           SKIP: gitleaks
         run: uv run prek run --all-files --show-diff-on-failure
+      - name: Docs drift (ARCHITECTURE.md vs docs/generated)
+        run: make docs-check
       - name: Prek environments cache save
         if: github.ref == 'refs/heads/main' && steps.prek-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
