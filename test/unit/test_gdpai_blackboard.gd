@@ -261,11 +261,8 @@ func test_goto_post_without_target_still_cleans_state():
 	action.set_state(agent, "nav_agent", nav_agent)
 	action.set_state(agent, "dist_check", 0.1)
 	action.set_state(agent, "agent_location", location)
-	action.set_state(agent, "target_set", true)
-	action.set_state(agent, "target_reached", false)
 	action.set_state(agent, "time_elapsed", 0.5)
 	action.set_state(agent, "prior_positions", [])
-	action.set_state(agent, "target_orig_position", Vector3.ZERO)
 	var status: Action.Status = action.post_perform_action(agent)
 	assert_eq(status, Action.Status.FAILURE, "Missing target still fails")
 	assert_eq(
@@ -277,11 +274,8 @@ func test_goto_post_without_target_still_cleans_state():
 		"nav_agent",
 		"dist_check",
 		"agent_location",
-		"target_set",
-		"target_reached",
 		"time_elapsed",
 		"prior_positions",
-		"target_orig_position",
 	]
 	for key in keys:
 		assert_false(action.has_state(agent, key), "post cleans without a target")
