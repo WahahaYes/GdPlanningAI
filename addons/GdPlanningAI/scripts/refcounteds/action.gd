@@ -56,6 +56,12 @@ func get_provisions() -> Array[ProvisionSpec]:
 	return []
 
 
+## Receives the planner's bindings for a wildcard provision at execution time.
+## The default ignores them; [GoToAction] takes its [code]at_target[/code] target here.
+func inject_binding(_fact_name: String, _value: Array) -> void:
+	pass
+
+
 # Override
 ## Applies this action's effect to the simulated blackboards in place. Must match what
 ## [method perform_action] really does: the planner trusts it.
