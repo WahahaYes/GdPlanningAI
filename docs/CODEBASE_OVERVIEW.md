@@ -55,7 +55,7 @@ addons/GdPlanningAI/
 
 The addon's supported floor is Godot 4.2. `addons/GdPlanningAI/rust/Cargo.toml` builds against the `api-4-2` feature and `gdplanningai.gdextension` sets `compatibility_minimum = "4.2"`; the `godot-floor` necro rule (`scripts/check_godot_floor.py`) keeps the two equal. `make test-compat` and the CI `compat` job run `test/compat/smoke.gd` on that 4.2 editor, so the shipped library and the GDScript it calls are exercised at the floor.
 
-The repository around the addon is not 4.2. `global.json` pins the development and test engine (4.7.2), `project.godot` carries its 4.7 features (and 4.4+ UID paths), GUT and GdTimeMachine need a newer editor, and the 2D example prefabs use `TileMapLayer` (Godot 4.3+). Those are dev-only: the addon copied into a user's project, and `script_templates/`, keep to the 4.2 API. The `godot` CI matrix runs the pinned 4.7 on Linux, Windows and macOS; the `compat` job is the 4.2 leg.
+The repository around the addon is not 4.2. `global.json` pins the development and test engine (4.7.2) and says so in its `$comment`; `project.godot` carries its 4.7 features (and 4.4+ UID paths), GUT and GdTimeMachine need a newer editor, and the 2D example prefabs (`examples/source_2d/prefabs/scenery.tscn` and `huge_scenery.tscn`) use `TileMapLayer` (Godot 4.3+) in format-4 scenes (4.4+). Those are dev-only: the addon copied into a user's project, and `script_templates/`, keep to the 4.2 API. The `godot` CI matrix runs the pinned 4.7 on Linux, Windows and macOS; the `compat` job is the 4.2 leg.
 
 ______________________________________________________________________
 
