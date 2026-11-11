@@ -4,6 +4,9 @@ extends "res://test/shared/scene_smoke_base.gd"
 ## cases run only when [code]GDPAI_E2E=1[/code] ([code]make test-e2e[/code]).
 
 const CASES_PATH: String = "res://test/scenarios/scenes.cfg"
+## Parameter name used when the case file cannot be read, so the test still runs and fails
+## with a clear message instead of silently skipping every case.
+const MISSING_CASES: String = "missing-scenes-cfg::missing-scenes-cfg"
 
 
 func after_each() -> void:
@@ -13,8 +16,14 @@ func after_each() -> void:
 
 
 func test_scene_scenario(case_id: String = use_parameters(_case_names())) -> void:
+	if case_id == MISSING_CASES:
+		fail_test("cannot read any case from %s" % CASES_PATH)
+		return
 	var cases: ConfigFile = _cases()
 	var section: String = case_id.get_slice("::", 1)
+	if not cases.has_section(section):
+		fail_test("%s: no such case in %s" % [case_id, CASES_PATH])
+		return
 	var scene: Node = (load(cases.get_value(section, "scene")) as PackedScene).instantiate()
 	match cases.get_value(section, "mode"):
 		"settle":
@@ -25,21 +34,23 @@ func test_scene_scenario(case_id: String = use_parameters(_case_names())) -> voi
 			fail_test("%s: unknown mode %s" % [case_id, mode])
 
 
-## Case names to run: the end-to-end ones only when asked for.
+## Case names to run: the end-to-end ones only when asked for. A missing or empty file still
+## yields one name, so [method test_scene_scenario] runs and fails loudly.
 func _case_names() -> Array:
-	var cases: ConfigFile = _cases()
+	var cases: ConfigFile = ConfigFile.new()
+	if cases.load(CASES_PATH) != OK or cases.get_sections().is_empty():
+		return [MISSING_CASES]
 	var e2e: bool = OS.get_environment("GDPAI_E2E") == "1"
 	var names: Array = []
 	for section in cases.get_sections():
 		if cases.get_value(section, "e2e", false) == e2e:
 			names.append("%s::%s" % [cases.get_value(section, "slug"), section])
-	return names
+	return names if not names.is_empty() else [MISSING_CASES]
 
 
 func _cases() -> ConfigFile:
 	var cases: ConfigFile = ConfigFile.new()
-	if cases.load(CASES_PATH) != OK:
-		push_error("cannot read %s" % CASES_PATH)
+	assert_eq(cases.load(CASES_PATH), OK, "read %s" % CASES_PATH)
 	return cases
 
 
@@ -56,11 +67,6 @@ func _check_settled(case_id: String, cases: ConfigFile, section: String, scene: 
 
 ## Runs the scene with agents planning, then checks what they did.
 func _check_run(case_id: String, cases: ConfigFile, section: String, scene: Node) -> void:
-	# Fixed seed so spawn layouts (potatoes, fruit) are identical every run.
-	# The global RNG is randomized per process, and without this the walk
-	# distances vary run to run, which swings the campfire fuel burn-down
-	# race against plan timing on slower machines.
-	seed(20261025)
 	var required: Array = cases.get_value(section, "completes", [])
 	var observe: bool = cases.get_value(section, "observe", false)
 	add_child_autofree(scene)
@@ -94,7 +100,7 @@ func _check_run(case_id: String, cases: ConfigFile, section: String, scene: Node
 		if not observe and required.all(is_done):
 			break
 
-	_accept_warnings()
+	_accept_warnings(case_id, cases.get_value(section, "warnings", []))
 	var missing: Array = required.filter(is_missing)
 	assert_eq(missing, [], "%s: every listed action completes" % case_id)
 	if not observe:
@@ -147,13 +153,19 @@ func _track(agent: GdPAIAgent, stats: Dictionary, completed: Dictionary) -> void
 		s.max_hunger = maxf(s.max_hunger, float(hunger))
 
 
-## Marks engine warnings logged during a live run as expected; errors still fail the case. GUT
-## counts the addon's warnings (Rust [code]godot_warn![/code]) as engine errors, and live agents
-## warn by design, e.g. when another agent frees an item a search still refers to.
-func _accept_warnings() -> void:
+## Marks only the exact warnings listed by the case as handled; any other warning, and every
+## error, still fails. GUT counts warnings as engine errors, and live agents warn by design,
+## e.g. when another agent frees an item a search still refers to.
+func _accept_warnings(case_id: String, expected: Array) -> void:
+	var unexpected: Array = []
 	for error in gut.error_tracker.get_errors_for_test():
-		if error.error_type == Logger.ERROR_TYPE_WARNING:
+		if error.error_type != Logger.ERROR_TYPE_WARNING:
+			continue
+		if expected.has(error.code):
 			error.handled = true
+		else:
+			unexpected.append(error.code)
+	assert_eq(unexpected, [], "%s: no unexpected warnings" % case_id)
 
 
 ## Prints per-agent results of an observed run, for calibrating its expectations.
