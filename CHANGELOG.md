@@ -4,6 +4,7 @@
 
 ### For contributors
 
+- **Godot 4.2 floor documented.** The addon's floor stays 4.2 (the `api-4-2` crate feature and `compatibility_minimum`, smoke-tested by `make test-compat`); the repository's own project, tests and examples use the pinned Godot 4.7, and the docs now say so.
 - **Style checks come from necronomicon's packs.** necro 0.5 runs its `rust`, `rust-style`, `gdscript` and `gdscript-style` packs (gdformat, gdlint, `.gd.uid` tracking, the style guide) beside this repo's own rules; `scripts/lint_style.py` and the gdtoolkit wrapper are gone, and the Makefile's GDScript, style and catalog targets fold into `make necro` (check) and `make necro-fix` (spacing fixer, then `necro --fix`). The hook runs `necro --fix` on the changed files, so gdformat fixes are applied and the commit fails until they're re-staged.
 
 ## 0.4.0 - 2026-11-06

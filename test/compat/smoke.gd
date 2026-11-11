@@ -3,7 +3,9 @@ extends Node
 ## throwaway project that holds the addon as the release zip lays it out. One agent must plan a
 ## two-step chain (one native effect spec, one GDScript effect) and run it to the goal. Prints
 ## [code]COMPAT-SMOKE-OK[/code] and exits 0, or prints [code]COMPAT-SMOKE-FAILED: <why>[/code] and
-## exits 1. Built in code, with no scenes, so it never depends on a scene format.
+## exits 1. Built in code, with no scenes, so it never depends on a scene format. Uses only the
+## Godot 4.2 API: this script is the floor's test, so a newer class here would raise the version
+## it claims to check.
 
 ## Frames to wait for the plan to be delivered and run.
 const TIMEOUT_FRAMES: int = 600

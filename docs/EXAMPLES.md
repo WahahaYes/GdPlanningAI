@@ -6,7 +6,7 @@ The `examples/` folder ships seven runnable demo scenes. This page covers how to
 
 The project has no main scene set, so demos are launched individually with Play Scene.
 
-1. Open the repository root as a project in Godot 4.x.
+1. Open the repository root as a project in Godot 4.7, the version pinned in `global.json`. The examples use `TileMapLayer` (Godot 4.3+), so they are not part of the addon's 4.2 floor.
 1. Enable the addon: Project → Project Settings → Plugins, then toggle "GdPlanningAI" on.
 1. In the FileSystem dock, open `examples/`. The demo scenes sit at the top level.
 1. Double-click a scene and press **Play Scene** (F6). The main Play button (F5) won't start anything, since no main scene is configured.
