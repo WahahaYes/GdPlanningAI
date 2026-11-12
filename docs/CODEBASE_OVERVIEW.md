@@ -20,7 +20,7 @@ The top-level of the repo:
 | `test/`             | GUT GDScript test suite (`test/unit/`, `test/integration/`).                                                                 |
 | `media/`            | Demo assets used by the README (banner, gifs, screenshots).                                                                  |
 
-Other files of note at the root: `Makefile` (see [section 6](#6-build-system)), `project.godot` (Godot 4.7 project, no main scene), `addons.jsonc` (third-party addon manifest, `gut` v9.6.0 + `GdTimeMachine` tracking `main`), and `.pre-commit-config.yaml` (hooks config, run with prek).
+Other files of note at the root: `Makefile` (see [section 6](#6-build-system)), `project.godot` (the dev project, on the pinned Godot 4.7; the addon floor is 4.2, see [section 2.1](#21-godot-version-floor)), `addons.jsonc` (third-party addon manifest, `gut` v9.6.0 + `GdTimeMachine` tracking `main`), and `.pre-commit-config.yaml` (hooks config, run with prek).
 
 ______________________________________________________________________
 
@@ -50,6 +50,12 @@ addons/GdPlanningAI/
 - `gdpai_autoload.gd` creates the `GdPAIPlanScheduler` in `_ready` and calls `_scheduler.process_callbacks()` every frame in `_process`. This call passes results and callback requests between the background planner threads and the main thread. It also applies the log level from `plugin.cfg`.
 - `gdplanningai.gdextension` declares the entry symbol `gdext_rust_init`, `compatibility_minimum` (the oldest supported Godot, equal to the godot crate's `api-4-N` feature: the godot-floor necro rule checks it and `make test-compat` runs on it), and loads the platform shared library from `addons/GdPlanningAI/bin/{linux,macos,windows}/`.
 - The Rust-exposed classes (`GdPAIBlackboard`, `SimObjectProxy`, `GdPAIPlanScheduler`) are registered via the `.gdextension`; they have no `.gd` file.
+
+### 2.1 Godot version floor
+
+The addon's supported floor is Godot 4.2. `addons/GdPlanningAI/rust/Cargo.toml` builds against the `api-4-2` feature and `gdplanningai.gdextension` sets `compatibility_minimum = "4.2"`; both are set to 4.2. `make test-compat` and the CI `compat` job run `test/compat/smoke.gd` on that 4.2 editor, so the shipped library and the GDScript it calls are exercised at the floor.
+
+The repository around the addon is not 4.2. `global.json` pins the development and test engine (4.7.2); `project.godot` carries its 4.7 features (and 4.4+ UID paths), GUT and GdTimeMachine need a newer editor, and the 2D example prefabs (`examples/source_2d/prefabs/scenery.tscn` and `huge_scenery.tscn`) use `TileMapLayer` (Godot 4.3+) in format-4 scenes (4.4+). Those are dev-only: the addon copied into a user's project, and `script_templates/`, keep to the 4.2 API. The `godot` CI matrix runs the pinned 4.7 on Linux, Windows and macOS; the `compat` job is the 4.2 leg.
 
 ______________________________________________________________________
 
@@ -227,7 +233,7 @@ ______________________________________________________________________
 - **`scripts/`**: `check_effect_spec.py`, `check_behaviors.py`, `check_godot_floor.py`, `check_readme_safety.py` (house rules necro runs).
 - **Hooks** (`.pre-commit-config.yaml`, run with prek, commit stage only; tests are run by hand): pre-commit-hooks v6.0.0, gitleaks v8.30.1, mdformat 1.0.0 (`--wrap=no`, plus mdformat-gfm for tables), ruff v0.17.4 (`ruff-check --fix` + `ruff-format`), shellcheck, necro (`--fix`: house rules and packs, rustfmt, clippy, gdformat and gdlint among them), `check-docs` (README/LICENSE drift), `no-built-binaries` (rejects committed `.so`/`.dll`/`.dylib`), and `no-ai-attribution` (commit-msg stage).
 - **Third-party addons** (`addons.jsonc`): `gut` v9.6.0 (bitwes/Gut) + `GdTimeMachine` main (WahahaYes/GdTimeMachine), installed via GodotEnv, gitignored, cached under `.addons/`. All three editor plugins (GdPlanningAI, gut, GdTimeMachine) are enabled.
-- **`project.godot`**: Godot 4.7, Forward Plus renderer, **no main scene** (run scenes directly). Autoloads: `GdPAIAutoload`, `GdTimeMachineGracefulStop`. Its `[dotnet]` section is written by the .NET build of the editor; the project has no C#.
+- **`project.godot`**: the dev project, on the pinned Godot 4.7 ([section 2.1](#21-godot-version-floor)), Forward Plus renderer, **no main scene** (run scenes directly). Autoloads: `GdPAIAutoload`, `GdTimeMachineGracefulStop`. Its `[dotnet]` section is written by the .NET build of the editor; the project has no C#.
 - **CI** (`.github/workflows/`): `build.yml` runs on pushes to `main` and pull requests, path-filtered into rust/godot legs. A `precommit` job runs the prek hooks over all files plus `make docs-check`, gitleaks over the pushed commits, and the commit-message attribution check; a `rust` job runs `make test-rust-coverage` (coverage uploads to Codecov as a signal, never a gate); a `godot` job with a linux/windows/macos matrix builds the per-OS library and runs `make test-godot-verbose` (the Linux leg also runs `make test-e2e` and reports behavioral coverage); and a `compat` job runs `make test-compat`, a smoke test on the oldest supported Godot. `release.yml` calls `build.yml` on `vX.Y.Z` tags and publishes `GdPlanningAI-X.Y.Z.zip` with the freshly built libraries; `pr-cache-cleanup.yml` drops a closed PR's caches.
 
 ______________________________________________________________________
