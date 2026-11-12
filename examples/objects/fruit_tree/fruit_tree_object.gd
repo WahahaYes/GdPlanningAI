@@ -46,7 +46,10 @@ func drop_fruit() -> void:
 	var amt: int = randi_range(drop_min_amount, drop_max_amount)
 	for i in range(amt):
 		var fruit_obj: Node = fruit_prefab.instantiate()
-		get_tree().root.add_child(fruit_obj)
+		# Parent under the tree itself so uneaten fruit dies with the scene. Never
+		# the tree root: it outlives the scene, leaking every leftover as an
+		# ObjectDB orphan at exit.
+		add_child(fruit_obj)
 		if fruit_obj is Node2D:
 			fruit_obj.global_position = (
 				location_data.position

@@ -79,16 +79,24 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 		var random_dir_3d: Vector3 = Vector3(random_dir.x, 0, random_dir.y)
 		target_pos = location_data.position + random_dir_3d * wander_distance
 
+	# Drop any previous target left behind without cleanup (a replan can orphan
+	# one when post_perform_action never ran for it).
+	_discard_wander_target()
+
 	# Create temporary node for the target location
 	if target_pos is Vector2:
 		_wander_target_node = Node2D.new()
-		(_wander_target_node as Node2D).position = target_pos
 	else:
 		_wander_target_node = Node3D.new()
-		(_wander_target_node as Node3D).position = target_pos
 
-	# Add to scene tree so GdPAILocationData can reference it
-	agent.entity.get_tree().root.add_child(_wander_target_node)
+	# Parent under the agent's entity so the target dies with the scene even if
+	# cleanup never runs (e.g. the run ends mid-wander). Never the tree root: it
+	# outlives the scene, leaking every orphaned target at exit.
+	agent.entity.add_child(_wander_target_node)
+	if target_pos is Vector2:
+		(_wander_target_node as Node2D).global_position = target_pos
+	else:
+		(_wander_target_node as Node3D).global_position = target_pos
 
 	# Create location data for the temporary node
 	_wander_target_location = GdPAILocationData.new()
@@ -96,6 +104,12 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 		_wander_target_location.location_node_2d = _wander_target_node as Node2D
 	else:
 		_wander_target_location.location_node_3d = _wander_target_node as Node3D
+	_wander_target_node.add_child(_wander_target_location)
+	# A tree-resident GdPAILocationData would join world snapshots through its
+	# GdPAIObjectData groups; this one is a private navigation target, not a
+	# world object.
+	_wander_target_location.remove_from_group("GdPAILocationData")
+	_wander_target_location.remove_from_group("GdPAIObjectData")
 	target_location = _wander_target_location
 
 	# Call parent to handle navigation setup
@@ -110,14 +124,29 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 
 # Override
 func post_perform_action(agent: GdPAIAgent) -> Action.Status:
-	# Clean up temporary node and location data
-	if _wander_target_node != null and is_instance_valid(_wander_target_node):
-		_wander_target_node.queue_free()
+	# Cleanup is idempotent: the retire path re-posts finished chains, and a
+	# target freed by the first cleanup would fail the validity check in
+	# GoToAction and log a spurious FAILURE.
+	if _wander_target_node == null or not is_instance_valid(_wander_target_node):
 		_wander_target_node = null
+		_wander_target_location = null
+		return Action.Status.SUCCESS
+	# Clean up temporary node and location data. The location rides along as a
+	# child of the target, so freeing the target frees both.
+	_wander_target_node.queue_free()
+	_wander_target_node = null
 	_wander_target_location = null
 
 	# Call parent to handle navigation cleanup
 	return super(agent)
+
+
+## Drops the current wander target, if any, without waiting for the tree.
+func _discard_wander_target() -> void:
+	if _wander_target_node != null and is_instance_valid(_wander_target_node):
+		_wander_target_node.queue_free()
+	_wander_target_node = null
+	_wander_target_location = null
 
 
 # Override
