@@ -14,8 +14,6 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 
 [application]
 
-; The addon's supported floor is Godot 4.2 (see addons/GdPlanningAI/gdplanningai.gdextension);
-; this repository's own project and tooling use the pinned Godot 4.7 in global.json.
 config/name="GdPlanningAI"
 config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.svg"

@@ -1,5 +1,3 @@
-; Dev-only example: TileMapLayer needs Godot 4.3+ and this scene uses format 4 (Godot 4.4+);
-; the addon's supported floor is 4.2, tested by test/compat/smoke.gd.
 [gd_scene format=4 uid="uid://d2lr7clv3whwy"]
 
 [ext_resource type="TileSet" uid="uid://d584e3ie52c3" path="res://examples/source_2d/assets/world/tileset.tres" id="1_tmjos"]

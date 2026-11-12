@@ -97,7 +97,7 @@ If installing from source rather than a release bundle, the rust binaries must b
 
 ## Examples
 
-The `examples/` folder in this repository has scenes you can run: open one and press **Run Current Scene** (F6). [docs/EXAMPLES.md](https://github.com/WahahaYes/GdPlanningAI/blob/main/docs/EXAMPLES.md) says what each one shows and which scripts to read. The examples run on the pinned Godot 4.7 and use `TileMapLayer` (Godot 4.3+); the addon itself supports Godot 4.2 and newer.
+The `examples/` folder in this repository has scenes you can run: open one and press **Run Current Scene** (F6). [docs/EXAMPLES.md](https://github.com/WahahaYes/GdPlanningAI/blob/main/docs/EXAMPLES.md) says what each one shows and which scripts to read.
 
 - **`hunger_basic_2d`**: one NPC that wanders, and shakes a tree and eats when it gets hungry. Start here.
 - **`hunger_multi_agent_2d`**: several NPCs sharing the same trees.

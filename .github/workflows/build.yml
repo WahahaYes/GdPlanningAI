@@ -2,7 +2,7 @@
 #   uv run prek run --all-files       hooks (formatters, lints, secrets)
 #   make docs-check                       ARCHITECTURE.md vs docs/generated drift
 #   make test-rust-coverage                 Rust tests, instrumented for coverage
-#   make godot-version                      the Godot pin (global.json), the dev/test engine
+#   make godot-version                      the Godot pin (global.json)
 #   make test-godot-verbose                 the GUT suite, full log, nonzero on failure
 #   make test-e2e                           end-to-end example scenes (Linux leg only)
 #   make test-compat                        smoke test on the oldest supported Godot (compat job)
@@ -202,10 +202,9 @@ jobs:
         if: steps.upload.outcome == 'failure'
         run: echo "::warning title=Coverage not uploaded::rust-tests coverage did not reach Codecov (no CODECOV_TOKEN, or Codecov unavailable). Tests passed; coverage is informational."
 
-  # The GUT suite on each OS against a binary built here for that OS, on the pinned Godot
-  # (global.json): the dev/test engine, newer than the addon's 4.2 floor. Outside releases the
-  # Linux leg builds an instrumented library instead, so its GUT and e2e runs give the behavioral
-  # coverage; release runs (release.yml calls this workflow) build the shipped binary there.
+  # The GUT suite on each OS against a binary built here for that OS. Outside releases the Linux leg
+  # builds an instrumented library instead, so its GUT and e2e runs give the behavioral coverage;
+  # release runs (release.yml calls this workflow) build the shipped binary there.
   godot:
     needs: [changes, precommit]
     if: needs.changes.outputs.godot == 'true'
@@ -354,8 +353,7 @@ jobs:
   # The addon on the oldest Godot it claims (compatibility_minimum, kept equal to the godot
   # crate's api-4-N feature by the godot-floor necro rule): a release build in a throwaway
   # project laid out like the release zip, one agent planning and running a two-step plan.
-  # This is the 4.2 floor leg; the godot matrix above runs the pinned 4.7. Linux only: the floor
-  # is an API level, the same on every OS.
+  # Linux only: the floor is an API level, the same on every OS.
   compat:
     needs: [changes, precommit]
     if: needs.changes.outputs.godot == 'true'

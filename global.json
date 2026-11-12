@@ -1,5 +1,4 @@
 {
-  "$comment": "Godot.NET.Sdk is the development and test engine; the addon's supported floor is Godot 4.2 in addons/GdPlanningAI/gdplanningai.gdextension.",
   "msbuild-sdks": {
     "Godot.NET.Sdk": "4.7.2"
   }
