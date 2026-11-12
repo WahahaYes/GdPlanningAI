@@ -43,10 +43,13 @@ func _process(delta: float) -> void:
 ## Spawns a random number of fruit in a radius around the tree and starts the cooldown.
 func drop_fruit() -> void:
 	is_on_cooldown = true
+	if entity == null or not is_instance_valid(entity):
+		push_error("FruitTreeObject: entity not set, cannot spawn fruit")
+		return
 	var amt: int = randi_range(drop_min_amount, drop_max_amount)
 	for i in range(amt):
 		var fruit_obj: Node = fruit_prefab.instantiate()
-		add_child(fruit_obj)
+		entity.add_child(fruit_obj)
 		if fruit_obj is Node2D:
 			fruit_obj.global_position = (
 				location_data.position
