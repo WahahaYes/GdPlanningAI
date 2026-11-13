@@ -1,7 +1,13 @@
 extends "res://test/shared/scene_smoke_base.gd"
 ## Example scenes as data: one parameterized test runs every case in [constant CASES_PATH]
-## (format in its header) and reports it as [code]<slug>::<scene>.<case>[/code]. End-to-end
-## cases run only when [code]GDPAI_E2E=1[/code] ([code]make test-e2e[/code]).
+## and reports it as [code]<slug>::<scene>.<case>[/code]. End-to-end
+## cases run only when [code]GDPAI_E2E=1[/code] ([code]make test-e2e[/code]). Case format:
+## [code]<scene>.<case>[/code] sections naming the docs/BEHAVIORS.md slug they prove.
+## Settle cases park agents and check nodes/counts; run cases plan at time_scale and
+## pass once every [code]completes[/code] action finishes, failing at [code]seconds[/code]
+## (generous budgets cost time only on failure). Observe runs also check
+## max_hunger_below, min_finished and fires_burn. [code]warnings[/code] lists exact
+## push_warning texts the run may log; anything else fails the case.
 
 const CASES_PATH: String = "res://test/scenarios/scenes.cfg"
 ## Parameter name used when the case file cannot be read, so the test still runs and fails
@@ -155,7 +161,9 @@ func _track(agent: GdPAIAgent, stats: Dictionary, completed: Dictionary) -> void
 
 ## Marks only the exact warnings listed by the case as handled; any other warning, and every
 ## error, still fails. GUT counts warnings as engine errors, and live agents warn by design,
-## e.g. when another agent frees an item a search still refers to.
+## e.g. when another agent frees an item a search still refers to. Allowlisted
+## post_perform_action FAILUREs are benign: GoTo's post cleanup reports FAILURE once its
+## target item is freed by the same successful chain, and again on retire re-post.
 func _accept_warnings(case_id: String, expected: Array) -> void:
 	var unexpected: Array = []
 	for error in gut.error_tracker.get_errors_for_test():
