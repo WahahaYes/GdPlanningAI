@@ -42,7 +42,7 @@ Each emitted candidate is inserted *before its earliest consumer* (last, when it
 1. The current action's builtin preconditions are re-checked against the simulated state; a failure invalidates the branch.
 1. One open precondition at this position is evaluated per step, and the node is re-queued, so custom-precondition callbacks are serviced between steps.
 1. The action's requirements are checked against the current state (`requirement_holds_in_state`, section 3).
-1. The action is simulated: its cost is the one recorded at discovery, and its effect comes from an `ApplyEffect` callback (identity when the action has no effect). Effects are deterministic and branches share snapshots, so a step already simulated from the same state with the same action and bindings is reused, and branches reaching it together wait on one request.
+1. The action is simulated: its cost is the one recorded at discovery, and its effect is applied (section 4). Effects are deterministic and branches share snapshots, so a step already simulated from the same state with the same action and bindings is reused (the first step reuses its discovery result), and branches reaching it together wait on one request.
 1. At the end of the chain every need has been checked, the goal's last, and the branch is recorded as the best plan if it is the cheapest so far.
 
 ______________________________________________________________________
@@ -80,7 +80,7 @@ An `Action` declares **requirements** (the causal links it depends on) and **pro
 
 | Requirement              | Holds when                                                                       |
 | ------------------------ | -------------------------------------------------------------------------------- |
-| `BindingExists(n)`       | `n` is bound, or the agent property `n` is non-null                              |
+| `BindingExists(n)`       | `n` is bound, or the agent property `n` is neither null nor an empty string      |
 | `BindingEquals(n, v)`    | `n` is bound to `v`, or the agent property `n` equals `v`                        |
 | `BindingInSet(n, set)`   | `n`'s first bound value (or the agent property) is a world object in group `set` |
 | `Fact("at_target", [t])` | the agent's location equals target `t`'s in the world (falling back to bindings) |
@@ -94,9 +94,9 @@ ______________________________________________________________________
 
 **Preconditions.** A *builtin* precondition is a comparison over the agent or world blackboard, e.g. `agent_property_less_than("hunger", 15)`, evaluated synchronously in the engine. A *custom* one wraps a GDScript callable that must run on the main thread. Custom preconditions run during discovery (against the state the action would produce from the initial state, cached per `(action, precondition, bindings)`) and again during verification (against the simulated state, not cached). A goal's desired state is a list of preconditions; the unmet ones become the root branch's open preconditions.
 
-**Costs.** `get_action_cost()` returns a float, evaluated against the **initial** state during discovery; that cost seeds the branch, so a plan's cost is the sum of initial-state costs. Lookups go: the branch's recorded cost, a `GetCost` response in hand, the per-run discovery cache, and only then a fresh `GetCost` request. An action with no cost callable costs 1.0. A non-numeric result coerces to `INFINITY`, which makes the action unusable: it never becomes a candidate, and an infinite cost in verification invalidates the branch. Actions gate themselves this way: `AddFuelAction` returns `INFINITY` when the campfire is full.
+**Costs.** `get_action_cost()` returns a float, evaluated against the **initial** state during discovery; that cost seeds the branch, so a plan's cost is the sum of initial-state costs. Lookups go: the branch's recorded cost, a `GetCost` response in hand, the per-run discovery cache, and only then a fresh `GetCost` request. Since every inserted action carries its discovery cost, verification in practice never calls the cost callable again. An action with no cost callable costs 1.0. An int or float is accepted; anything else coerces to `INFINITY`, which makes the action unusable: it never becomes a candidate, and an infinite cost in verification invalidates the branch. Actions gate themselves this way: `AddFuelAction` returns `INFINITY` when the campfire is full.
 
-**Effects.** `apply_effects()` runs through `ApplyEffect` and returns updated agent and world snapshots; an action without one simulates as the identity. Effects only touch simulated copies; the live scene is never touched while planning. Effects may be *optimistic*: an action can report a plausible post-state before every binding is concrete (the examples' `optimistic_unbound_restore` fallback), and the real value resolves when the plan runs. This lets GoTo chain in front of an interaction before its target is known.
+**Effects.** An action declares its effect as data in `get_effect_spec()`, which the engine applies to the snapshots natively, with no callback. Only an action without a usable spec falls back to `simulate_effect()` through an `ApplyEffect` callback, and those fallbacks are capped per job by `max_effect_fallbacks` (default 128): past the cap the branch is dropped and one warning is logged. An action with neither simulates as the identity. Effects only touch simulated copies; the live scene is never touched while planning. Effects may be *optimistic*: an action can report a plausible post-state before every binding is concrete (the examples' `optimistic_unbound_restore` fallback), and the real value resolves when the plan runs. This lets GoTo chain in front of an interaction before its target is known.
 
 ______________________________________________________________________
 
@@ -117,7 +117,7 @@ ______________________________________________________________________
 
 **Threads.** The engine runs on a Rayon worker; GDScript callables must run on the Godot main thread. Godot values are not thread-safe, so the worker only sees `BlackboardSnapshot`s, converted on the main thread both ways: a `VariantSnapshot` stores primitives directly, live objects as instance-id handles (`null` once freed) and everything else as `var_to_bytes` blobs. The scheduler registers each `Callable` in a per-job `callable_registry`, and the engine's specs carry only the ids. The engine is moved, never shared: a worker step takes it and sends it back with its result.
 
-**Callbacks.** When the engine needs a callable, it sends a `CallbackRequest` and returns `Pending(id)`, parking the node. Each frame the main thread dispatches pending requests and answers on the job's channel (section 9). A parked job resumes only when it can progress: always for the `Pending(0)` sentinel, otherwise once its response has arrived. A finished job is reaped a frame later, and its engine is dropped on a background thread, since freeing a large search can take about a second.
+**Callbacks.** When the engine needs a callable, it sends a `CallbackRequest` and returns `Pending(id)`, parking the node. Each frame the main thread dispatches pending requests and answers on the job's channel (section 9). A parked job resumes only when it can progress: always for the `Pending(0)` sentinel, otherwise when a response for it was dispatched this frame or is already in `completed_request_ids`. A finished job is reaped a frame later, and its engine is dropped on a background thread, since freeing a large search can take up to about 1.5 s.
 
 **Cancellation.** Each job has a cancel flag, set on re-submission and by `cancel_agent_jobs`, `clear_active_jobs` and `cancel_all_jobs`, and checked at three points in `step_search`. A cancelled job returns `Complete(None)` without a plan; its engine is still recovered so the debug tree can be read.
 
@@ -130,7 +130,7 @@ ______________________________________________________________________
 Conceptual types (see the source for exact ones):
 
 ```
-ActionSpec     { name, cost_fn?, effect_fn?, preconditions[], validity_checks[], requirements[], provisions[], dependent_objects[] }
+ActionSpec     { name, cost_fn?, effect_spec?, effect_fn?, preconditions[], validity_checks[], requirements[], provisions[], dependent_objects[] }
 GoalSpec       { name, reward, desired_state[PreconditionSpec], original_index }
 Precondition   { Builtin(target, op, property, value?) | Custom(callable_id, deps[]) }
 PlanBranch     { action_chain[], action_costs[], action_bindings[(pos,name,values)], open_preconditions[(pos,spec)],
@@ -163,8 +163,7 @@ function step_search(goals):
         if not resumed and state == Searching:
             if visited[fingerprint(branch)] <= branch.cost: continue
             visited[fingerprint(branch)] = branch.cost
-        if resumed: expanded_candidates.clear()
-        resumed = false
+        resumed = false          // a resumed node keeps expanded_candidates, so it skips what it already added
         if branch.cost >= best_cost: continue
         if time_slice_ms > 0 and iterations % 128 == 0 and elapsed >= time_slice: enqueue(node); return Pending(0)
 
@@ -190,7 +189,8 @@ function step_search(goals):
         Verifying:
             match process_simulation(node):
                 Ready -> enqueue; Pending(id) -> park; Invalid -> discard
-                Complete -> if FirstComplete and best_plan: return Complete(best_plan); else keep searching
+                Complete -> if FirstComplete and best_plan (unless it is empty and goals remain): return Complete(best_plan)
+                            else keep searching
 
     if parked_nodes: return Pending(any parked id)
     if more goals and (no best_plan or best_plan is empty): reset best; advance to next goal; return Pending(0)
@@ -224,8 +224,8 @@ function find_candidates(branch, ctx) -> {ready[], pending_id?}:
             reqs = each open requirement matched by some provision (once per requirement)
             res = discovery(idx, [])
             if res pending: mark pending; continue
-            pre = open preconditions true in res                 // a pending custom check still emits, without its credit
-            if reqs or pre: emit {idx, reqs, pre, []}
+            pre = open preconditions true in res (custom: cache, else request and stop checking)
+            if no custom check is still pending and (reqs or pre): emit {idx, reqs, pre, []}
     return {ready, pending_id if any pending}
 
 function begin_verification(branch, goal):
@@ -241,10 +241,12 @@ function process_simulation(node) -> Ready | Pending(id) | Invalid | Complete:
         false -> Invalid; true -> remove it, return Ready
     if simulation_index < action_chain.len:
         for req of action: if not requirement_holds_in_state(req, current_agent, current_world, bindings): Invalid
-        key = (current_agent, current_world, action, bindings)
+        key = (current_agent, current_world, action, bindings)        // snapshots compared by identity
         if cost known and step_cache[key]: take it
+        elif simulation_index == 0 and discovery holds this step: take the discovery result
         elif cost known and step_pending[key] = id and no response: return Pending(id)   // share the request
-        else: simulate(action) -> cost (section 4), INFINITY -> Invalid; effect from response or ApplyEffect request
+        else: simulate(action) -> cost (section 4), INFINITY -> Invalid; effect_spec natively, else the response
+              or an ApplyEffect request (within max_effect_fallbacks, else Invalid)
         advance current_agent, current_world; simulation_index += 1; recalculate_cost(); return Ready
     if branch.cost < best_cost: best_cost = branch.cost; best_plan = branch
     return Complete
@@ -260,13 +262,14 @@ Engine -> main:  CallbackRequest { request_id, callable_id, kind, bindings[], re
 Main -> engine:  PlannerCallback { request_id, Float(f64) | Bool(bool) | UpdatedSnapshots(agent,world) }
 
 dispatch_callback (main thread): rebuild blackboards, inject bindings (agent only, values[0]), call the callable;
-    GetCost -> f64 (non-numeric -> INFINITY); ApplyEffect -> re-snapshot; EvalCustomPrecond -> bool (non-bool -> false)
+    GetCost -> f64 (non-numeric -> INFINITY); ApplyEffect -> simulate_effect, re-snapshot; EvalCustomPrecond -> bool (non-bool -> false)
 
 submit_plan(agent, agent_bb, world_bb, actions, goals, max_recursion, iteration_budget, time_slice_ms, max_effect_fallbacks):
     cancel the agent's existing jobs
     snapshot both blackboards; initial_provisions = from agent + world
     build action and goal specs (registering callables -> ids)
-    drop goals satisfied on the live blackboards, remembering the highest-reward one; sort the rest by reward desc
+    drop goals already satisfied (builtin conditions on the snapshots, custom ones on the live blackboards),
+        remembering the highest-reward one; sort the rest by reward desc
     PlannerEngine::new(inputs, config)                     // termination BestCost by default
     run the first step on the Rayon pool
 
@@ -278,7 +281,7 @@ process_callbacks()  // each frame
     4. reap finished jobs a frame later, dropping their engines on a background thread
 ```
 
-**Logging.** One process-wide level (`plugin.cfg` `log_level`, default 2 = Info, set by the autoload; `GdPAIPlanScheduler.set_log_level` changes it at runtime, up to 3 = Debug). Info prints the `submit_plan` summary, `Plan complete`, one `RESULT goal='…' success=… Branches: … | Time: …` line per searched run, and warnings. Debug adds search transitions (`Pending` / `Resuming`), one `NOT resuming` notice per stall, `FWD [FAIL]` requirement failures, and records the full search tree (fetch it with `get_debug_tree(agent)`; it is never printed). A branch counter always runs so `RESULT` reports search size; time-slice yields are not logged.
+**Logging.** One process-wide level (`plugin.cfg` `log_level`, default 2 = Info, set by the autoload; `GdPAIPlanScheduler.set_log_level` changes it at runtime, up to 3 = Debug). Info prints the `submit_plan` summary, `Plan complete`, one `RESULT goal='…' success=… actions=… cost=… Branches: … | Time: …ms` line per searched run, and warnings (among them "Search budget exceeded" on every budget yield). Debug adds search transitions (`Pending` / `Resuming`) and one `NOT resuming` notice per stall, and records the full search tree, fetched with `get_debug_tree(agent)` and never printed; its dump marks failed verification steps (requirements and preconditions) as `FWD [FAIL]`. A branch counter always runs so `RESULT` reports search size; time-slice yields are not logged.
 
 ______________________________________________________________________
 
@@ -294,7 +297,7 @@ In the campfire scene this chain satisfies hunger. Suppose the agent is hungry (
 
 `HungerGoal` has reward `max(0, hunger)` and wants hunger below `max(sated_hunger, current - hunger_drop)` (both 15.0 by default): here `agent_property_less_than("hunger", 45)`.
 
-**Backward.** The goal's precondition is open at position 0 (the end of the empty chain). `EatHeldFoodAction` comes in through the non-wildcard set: it passes validity and its simulation lowers hunger. It adds `binding_exists("held_item")` and `fact("is_food", [])`. `PickupAction` provides both; its `held_item == ""` precondition already holds initially, so only `fact("at_target", [banana_location])` is added. Being a `Fact`, it pulls in the `FactWildcard` provider `GoToAction`, bound to the banana's location and inserted first. GoTo needs nothing, so the chain is complete:
+**Backward.** The goal's precondition is open at position 0 (the end of the empty chain). `EatHeldFoodAction` comes in through the non-wildcard set: it passes validity and its simulation lowers hunger. It adds `binding_exists("held_item")`, `fact("is_food", [])` and its custom "is holding food" precondition (custom preconditions are never assumed true initially). `PickupAction` provides both requirements, and its simulated effect satisfies the custom check; its `held_item == ""` precondition already holds initially, so only `fact("at_target", [banana_location])` is added. Being a `Fact`, it pulls in the `FactWildcard` provider `GoToAction`, bound to the banana's location and inserted first. GoTo needs nothing, so the chain is complete:
 
 ```
 goal: hunger < 45
