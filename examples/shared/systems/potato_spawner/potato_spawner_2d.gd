@@ -17,10 +17,10 @@ var _active_potatoes: Array[Node] = []
 var _respawn_timer: float = 0.0
 
 
-## Spawns the starting set of potatoes.
+## Spawns the starting set of potatoes, deferred to keep [method _ready] light.
 func _ready() -> void:
 	for i in range(max_potatoes):
-		_spawn_potato_deferred()
+		_spawn_potato(true)
 
 
 ## Prunes freed potatoes and replaces one when the respawn timer allows. The timer runs only
@@ -38,8 +38,9 @@ func _process(delta: float) -> void:
 		_respawn_timer = 0.0
 
 
-## Adds one potato at a random point in the area.
-func _spawn_potato() -> void:
+## Adds one potato at a random point in the area. When [param deferred] is true the
+## potato joins the tree deferred, so [method _ready] stays light.
+func _spawn_potato(deferred: bool = false) -> void:
 	if not potato_scene:
 		return
 
@@ -52,23 +53,8 @@ func _spawn_potato() -> void:
 	if potato is Node2D:
 		potato.position = random_pos
 
-	add_child(potato)
-	_active_potatoes.append(potato)
-
-
-## Like [method _spawn_potato] but deferred, so [method _ready] stays light.
-func _spawn_potato_deferred() -> void:
-	if not potato_scene:
-		return
-
-	var potato: Node = potato_scene.instantiate()
-	var random_pos: Vector2 = Vector2(
-		randf_range(spawn_area.position.x, spawn_area.position.x + spawn_area.size.x),
-		randf_range(spawn_area.position.y, spawn_area.position.y + spawn_area.size.y),
-	)
-
-	if potato is Node2D:
-		potato.position = random_pos
-
-	call_deferred("add_child", potato)
+	if deferred:
+		call_deferred("add_child", potato)
+	else:
+		add_child(potato)
 	_active_potatoes.append(potato)
