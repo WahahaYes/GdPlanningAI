@@ -111,4 +111,4 @@ The docs live in this repository; the addon install copies only the addon and it
 
 GdPlanningAI, Copyright 2025 Ethan Wilson. Licensed under the Apache License, Version 2.0: see [LICENSE.txt](https://github.com/WahahaYes/GdPlanningAI/blob/main/LICENSE.txt).
 
-The example scenes use [Tiny Swords](https://pixelfrog-assets.itch.io/tiny-swords) by Pixel Frog (2D), KayKit Adventurers, Resource Bits and Medieval Hexagon Pack by Kay Lousberg (3D, CC0, [kaylousberg.com](https://www.kaylousberg.com)) and the MedievalSharp font (SIL OFL 1.1); their licences are in `examples/licenses/`. The README's art uses the Caveat font (SIL OFL 1.1), embedded in each image.
+The example scenes use [Tiny Swords](https://pixelfrog-assets.itch.io/tiny-swords) by Pixel Frog (2D), KayKit Adventurers, Resource Bits and Medieval Hexagon Pack by Kay Lousberg (3D, CC0, [kaylousberg.com](https://www.kaylousberg.com)) and the MedievalSharp font (SIL OFL 1.1); their licenses are in `examples/licenses/`. The README's art uses the Caveat font (SIL OFL 1.1), embedded in each image.
