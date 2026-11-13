@@ -70,7 +70,10 @@ func _assign_home_campfires(agents: Array[Node3D]) -> void:
 			return
 		var group: String = "HomeCampfire%d" % (home + 1)
 		campfires[home].add_to_group(group)
-		for agent_node in agents[i].find_children("*", "GdPAIAgent", true, false):
-			for goal in (agent_node as GdPAIAgent).goals:
+		var agent_node: GdPAIAgent = (
+			GdPAIUTILS.get_child_of_type(agents[i], GdPAIAgent) as GdPAIAgent
+		)
+		if agent_node != null:
+			for goal in agent_node.goals:
 				if goal is MaintainFireGoal:
 					(goal as MaintainFireGoal).campfire_group = group
