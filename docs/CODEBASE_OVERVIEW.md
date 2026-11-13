@@ -2,7 +2,7 @@
 
 Where things live in the GdPlanningAI repository, for contributors: the folder layout, the addon's files, how the Rust engine and the GDScript code work together, the classes, what happens at runtime, and how to build and test.
 
-For the search algorithm itself, see [docs/ALGORITHM.md](ALGORITHM.md) and [docs/PLANNER_PSEUDOCODE.md](PLANNER_PSEUDOCODE.md). For authoring actions and goals, see [docs/AUTHORING_GUIDE.md](AUTHORING_GUIDE.md). For the demo scenes, see [docs/EXAMPLES.md](EXAMPLES.md).
+For the search itself, see [ALGORITHM.md](ALGORITHM.md); for class diagrams, [ARCHITECTURE.md](ARCHITECTURE.md); for authoring, [AUTHORING_GUIDE.md](AUTHORING_GUIDE.md).
 
 ______________________________________________________________________
 
@@ -18,7 +18,7 @@ The top-level of the repo:
 | `script_templates/` | Godot script templates for subclassing `Action`, `Goal`, `GdPAIObjectData`, and others.                                      |
 | `scripts/`          | Developer scripts (necro checks, docs generation, addon packaging, release tooling, Godot/addon install, compat smoke test). |
 | `test/`             | GUT GDScript test suite (`test/unit/`, `test/integration/`).                                                                 |
-| `media/`            | Demo assets used by the README (banner, gifs, screenshots).                                                                  |
+| `media/`            | The README's illustrations and the brand logos.                                                                              |
 
 Other files of note at the root: `Makefile` (see [section 6](#6-build-system)), `project.godot` (the dev project, on the pinned Godot 4.7; the addon floor is 4.2, see [section 2.1](#21-godot-version-floor)), `addons.jsonc` (third-party addon manifest, `gut` v9.6.0 + `GdTimeMachine` tracking `main`), and `.pre-commit-config.yaml` (hooks config, run with prek).
 
@@ -94,15 +94,7 @@ Module map of `rust/src/`:
 
 ### 3.3 How the two languages communicate
 
-Planning runs on a Rayon worker thread, but GDScript callables can only run on the main thread. The two sides exchange requests and responses over channels:
-
-1. `GdPAIRustBridge.serialize_actions()` and `serialize_goals()` turn GDScript `Action`/`Goal` objects into `Array[Dictionary]` payloads that embed live `Callable`s (`cost_callable`, `effect_callable`, custom-precondition `eval_callable`) alongside the preconditions, requirements, and provisions as bridge dictionaries. On the Rust side, `submit_plan` registers each callable into a per-job `callable_registry`; the engine's `ActionSpec`/`PreconditionSpec` values then carry only the resulting callable **ids**.
-1. `GdPAIPlanScheduler.submit_plan(agent, agent_bb, world_bb, actions, goals, max_recursion, iteration_budget, time_slice_ms, max_effect_fallbacks)` snapshots the blackboards into `BlackboardSnapshot`s, builds a `SearchContext` and a `PlannerEngine` (wired with the iteration budget and `time_slice_ms`), and spawns the worker. `time_slice_ms` is the wall-clock budget in milliseconds per search step; the worker yields `Pending(0)` and resumes later once the slice elapses (checked every 128 pops), and `0` disables time-slicing.
-1. When the worker needs a GDScript callable, it sends a `CallbackRequest { request_id, callable_id, kind, bindings, response_tx }` over the job's request channel and parks the node. `CallbackKind` is one of `GetCost | ApplyEffect | EvalCustomPrecond`.
-1. On the main thread, `GdPAIAutoload._process()` calls `scheduler.process_callbacks()` every frame. It recovers finished engines, delivers `Complete` results to `agent._on_plan_ready(dict)`, drains the request channel, looks up each callable in the registry, and dispatches it via `dispatch_callback`. The response goes back on the request's `response_tx` as a `PlannerCallback` (`Float`, `Bool`, or `UpdatedSnapshots`).
-1. Bindings are injected into the agent blackboard **only** (`inject_bindings_into_agent`, using `values[0]`). The next `step_search` resume cycle re-queues parked nodes whose responses arrived this frame.
-
-The send-safe `VariantSnapshot` has three tiers: Tier 1 primitives, Tier 2 `var_to_bytes` blobs (vectors, colors, dictionaries), and Tier 3 `ObjectRef(i64)` handles for any `Object`. Conversion must happen on the main thread; `BlackboardSnapshot` is what actually crosses thread boundaries.
+`GdPAIRustBridge.serialize_actions()` and `serialize_goals()` turn GDScript actions and goals into dictionaries that embed their `Callable`s; `GdPAIPlanScheduler.submit_plan` registers those callables, snapshots the blackboards and runs the search on a Rayon worker. Each frame, `GdPAIAutoload._process()` calls `scheduler.process_callbacks()`, which answers the worker's callback requests on the main thread and delivers finished plans to `agent._on_plan_ready(dict)`. [ALGORITHM.md](ALGORITHM.md) sections 6 and 9 cover the protocol, snapshots and threading.
 
 ______________________________________________________________________
 
@@ -161,7 +153,7 @@ The agent lifecycle, from configuration to execution:
 
 1. **Config to blackboard**: `GdPAIAgent._ready()` builds the agent blackboard from `config.blackboard_plan`, sets `entity` and the `GDPAI_OBJECTS` entry (children in the `GdPAIObjectData` group under the entity), applies each behavior config via `apply_to_agent` (which appends goals/self actions and calls `initialize` on property updaters), finds the world node, and creates the Rust bridge.
 1. **Per-frame updates**: `_process(delta)` runs property updaters (hunger decay, stamina regen), checks the planning strategy, and drives plan execution.
-1. **Plan submit**: `_start_plan_async()` refreshes `GDPAI_OBJECTS`, collects `self_actions + world-provided actions`, bumps a generation counter, and calls `scheduler.submit_plan(...)` with the serialized actions/goals and the config limits from `GdPAIAgentConfig` (`max_recursion`, `iteration_budget`, `time_slice_ms`, default 10ms wall-clock per search step, `0` disables time-slicing, `max_effect_fallbacks`, default 128, `0` drops all fallbacks). The search runs on a background thread.
+1. **Plan submit**: `_start_plan_async()` refreshes `GDPAI_OBJECTS`, collects `self_actions + world-provided actions`, bumps a generation counter, and calls `scheduler.submit_plan(...)` with the serialized actions and goals and the limits from `GdPAIAgentConfig` (`max_recursion`, `iteration_budget`, `time_slice_ms`, `max_effect_fallbacks`). The search runs on a background thread.
 1. **Plan ready**: `_on_plan_ready(result)` is generation-guarded so stale results from a superseded submission are discarded. It deserializes the plan into `{action_chain, bindings_by_position}`, sets the current goal from `result.goal_index`, and clones the actions via `clone_for_plan()`.
 1. **Execution**: plans run in three phases. **Pre**: every action's `pre_perform_action` runs; any FAILURE aborts the plan. **Action**: the current action's `perform_action(agent, delta)` returns SUCCESS (advance), RUNNING (stay), or FAILURE (abort). **Post**: every action's `post_perform_action` runs as guaranteed cleanup.
 
@@ -223,7 +215,9 @@ Configured by `.gutconfig.json` (`dirs ["res://test"]`, `include_subdirs true`).
 
 ### Rust suite
 
-In `addons/GdPlanningAI/rust/tests/` (plus `common/mod.rs` helpers). Run with `make test-rust` (`cargo test`). Integration tests build engines through `PlannerEngine::new`, as the scheduler does, and answer callbacks with `common`'s responder thread, so no Godot runtime is needed. `make test-rust-coverage` runs them instrumented, prints per-file coverage of `src/` and writes HTML and LCOV under `addons/GdPlanningAI/rust/target/llvm-cov/` (never committed); `make setup` installs the pinned toolchain and `cargo-llvm-cov`. `make -C addons/GdPlanningAI/rust coverage-behavioral` (Linux) measures the same `src/` under the GUT and e2e suites against an instrumented library, which it leaves in `bin/` until the next `build-release`. CI gets both from runs it makes anyway: the rust job runs its tests through `make test-rust-coverage`, and the godot job's Linux leg tests an instrumented library (`build-instrumented`, then `coverage-behavioral-report`). It uploads them to Codecov (flags `rust-tests` and `behavioral`) as a signal, never a gate; a failed upload is a warning. Planner cases are data: `tests/scenarios/<slug>.toml` fixtures, one file per behavior in BEHAVIORS.md, run by `tests/scenarios.rs` (format in `tests/scenarios/README.md`). The remaining test files cover what fixtures cannot express: time slices, budgets, cancellation, callback counts, logging and the debug tree. Tests outside `src/` reach the planner only through `PlannerEngine::new` and `plan`; the few states that entry point cannot produce (shared effect requests, a goal switch with stale nodes queued, partial discovery passes) are white-box `#[cfg(test)]` modules beside the code, each saying why.
+In `addons/GdPlanningAI/rust/tests/` (plus `common/mod.rs` helpers), run with `make test-rust`. Tests build engines through `PlannerEngine::new`, as the scheduler does, and answer callbacks from `common`'s responder thread, so no Godot runtime is needed. Planner cases are data: `tests/scenarios/<slug>.toml`, one per behavior in BEHAVIORS.md, run by `tests/scenarios.rs` (format in `tests/scenarios/README.md`); the other test files cover what fixtures can't express (time slices, budgets, cancellation, callback counts, logging, the debug tree). The few states `PlannerEngine::new` can't reach are white-box `#[cfg(test)]` modules beside the code.
+
+Coverage: `make test-rust-coverage` measures `src/` under the Rust tests, and `make -C addons/GdPlanningAI/rust coverage-behavioral` (Linux) under the GUT and e2e suites against an instrumented library. CI uploads both to Codecov (flags `rust-tests`, `behavioral`) as a signal, never a gate.
 
 ______________________________________________________________________
 
@@ -231,7 +225,7 @@ ______________________________________________________________________
 
 - **Formatting and linting**: `make necro-fix` (`necro --fix`: rustfmt, gdformat, GDScript spacing), `make necro` (house rules plus the rust, rust-style, gdscript and gdscript-style packs: rustfmt, clippy with warnings failing, and for GDScript a `:=` ban, borders, docstrings, spacing, gdformat and gdlint).
 - **`scripts/`**: `check_effect_spec.py`, `check_behaviors.py`, `check_godot_floor.py`, `check_readme_safety.py` (house rules necro runs).
-- **Hooks** (`.pre-commit-config.yaml`, run with prek, commit stage only; tests are run by hand): pre-commit-hooks v6.0.0, gitleaks v8.30.1, mdformat 1.0.0 (`--wrap=no`, plus mdformat-gfm for tables), ruff v0.17.4 (`ruff-check --fix` + `ruff-format`), shellcheck, necro (`--fix`: house rules and packs, rustfmt, clippy, gdformat and gdlint among them), `check-docs` (README/LICENSE drift), `no-built-binaries` (rejects committed `.so`/`.dll`/`.dylib`), and `no-ai-attribution` (commit-msg stage).
+- **Hooks** (`.pre-commit-config.yaml`, run with prek at commit; tests are run by hand): the standard pre-commit hooks, gitleaks, mdformat (`--wrap=no`), ruff, shellcheck, necro, `check-docs` (README/LICENSE drift), `no-built-binaries` and `no-ai-attribution` (commit-msg).
 - **Third-party addons** (`addons.jsonc`): `gut` v9.6.0 (bitwes/Gut) + `GdTimeMachine` main (WahahaYes/GdTimeMachine), installed via GodotEnv, gitignored, cached under `.addons/`. All three editor plugins (GdPlanningAI, gut, GdTimeMachine) are enabled.
 - **`project.godot`**: the dev project, on the pinned Godot 4.7 ([section 2.1](#21-godot-version-floor)), Forward Plus renderer, **no main scene** (run scenes directly). Autoloads: `GdPAIAutoload`, `GdTimeMachineGracefulStop`. Its `[dotnet]` section is written by the .NET build of the editor; the project has no C#.
 - **CI** (`.github/workflows/`): `build.yml` runs on pushes to `main` and pull requests, path-filtered into rust/godot legs. A `precommit` job runs the prek hooks over all files plus `make docs-check`, gitleaks over the pushed commits, and the commit-message attribution check; a `rust` job runs `make test-rust-coverage` (coverage uploads to Codecov as a signal, never a gate); a `godot` job with a linux/windows/macos matrix builds the per-OS library and runs `make test-godot-verbose` (the Linux leg also runs `make test-e2e` and reports behavioral coverage); and a `compat` job runs `make test-compat`, a smoke test on the oldest supported Godot. `release.yml` calls `build.yml` on `vX.Y.Z` tags and publishes `GdPlanningAI-X.Y.Z.zip` with the freshly built libraries; `pr-cache-cleanup.yml` drops a closed PR's caches.
@@ -240,14 +234,15 @@ ______________________________________________________________________
 
 ## 9. Documentation map
 
-| Doc                                | Purpose                                                                                       |
-| ---------------------------------- | --------------------------------------------------------------------------------------------- |
-| `README.md`                        | What GdPlanningAI is, installation, the demo scenes, the main classes, credits, FAQ.          |
-| `docs/CODEBASE_OVERVIEW.md`        | This file: where things live in the repo.                                                     |
-| `docs/PLANNER_PSEUDOCODE.md`       | High-level pseudocode for the planning search.                                                |
-| `docs/ALGORITHM.md`                | How the Rust engine searches for a plan.                                                      |
-| `docs/AUTHORING_GUIDE.md`          | How to write actions, goals, preconditions, and object data for your own agents.              |
-| `docs/EXAMPLES.md`                 | What each demo scene shows and which scripts to read.                                         |
-| `docs/DOCUMENTATION_GUIDELINES.md` | Code documentation style: no decorative headers, docstring conventions for GDScript and Rust. |
+| Doc                                | Purpose                                                              |
+| ---------------------------------- | -------------------------------------------------------------------- |
+| `README.md`                        | What GdPlanningAI is, installation, examples, credits.               |
+| `docs/AUTHORING_GUIDE.md`          | How to write actions, goals, preconditions and object data.          |
+| `docs/EXAMPLES.md`                 | What each demo scene shows and which scripts to read.                |
+| `docs/ALGORITHM.md`                | How the planner searches, with pseudocode of the engine.             |
+| `docs/ARCHITECTURE.md`             | Class diagrams, generated from `docs/generated/` (`make docs`).      |
+| `docs/BEHAVIORS.md`                | What the addon promises, each behavior with the tests that prove it. |
+| `docs/CODEBASE_OVERVIEW.md`        | This file: where things live, building and testing.                  |
+| `docs/DOCUMENTATION_GUIDELINES.md` | Comment and docstring style.                                         |
 
-A good reading order for a new contributor: this file, then `docs/ALGORITHM.md`, then `docs/EXAMPLES.md` for a concrete end-to-end picture.
+A good reading order for a new contributor: this file, then ALGORITHM.md, then EXAMPLES.md for a concrete end-to-end picture.
