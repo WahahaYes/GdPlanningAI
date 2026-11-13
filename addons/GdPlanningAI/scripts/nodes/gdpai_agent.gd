@@ -137,8 +137,11 @@ func set_planning_strategy(
 	_planning_strategy = strategy
 
 	if _planning_timer:
-		# Stop first: a queue_freed timer lives until the end of the frame and could still fire.
+		# Stop and disconnect first: a queue_freed timer lives until the end of
+		# the frame and could still deliver a timeout for the old strategy.
 		_planning_timer.stop()
+		if _planning_timer.timeout.is_connected(_on_planning_timer_timeout):
+			_planning_timer.timeout.disconnect(_on_planning_timer_timeout)
 		_planning_timer.queue_free()
 		_planning_timer = null
 
@@ -150,12 +153,13 @@ func set_planning_strategy(
 		]
 	):
 		_planning_timer = Timer.new()
+		_planning_timer.wait_time = interval
 		_planning_timer.timeout.connect(_on_planning_timer_timeout)
 		add_child(_planning_timer)
 
-		# Add randomized delay before starting planning
-		var random_delay: float = randf_range(0.0, interval)
-		_planning_timer.start(random_delay)
+		# Stagger the first tick; start(arg) overwrites wait_time, so restore
+		# the interval for the repeating cadence.
+		_planning_timer.start(randf_range(0.0, interval))
 		_planning_timer.wait_time = interval
 
 
@@ -274,7 +278,8 @@ func _retire_current_chain() -> void:
 
 ## Timer callback for interval planning.
 func _on_planning_timer_timeout() -> void:
-	# A timer replaced by set_planning_strategy can still deliver a timeout; ignore it.
+	# The replaced timer disconnects on teardown, but a timeout already queued
+	# for this frame can still arrive after the switch; ignore it.
 	if _planning_timer == null:
 		return
 	if goals.size() == 0 or _failure_backoff_left > 0.0:
@@ -284,7 +289,8 @@ func _on_planning_timer_timeout() -> void:
 	elif _planning_strategy == GdPAIAgentConfig.PlanningStrategy.ON_INTERVAL:
 		if not _is_plan_active() and not _waiting_for_plan:
 			_start_plan_async()
-	_planning_timer.start()
+	if _planning_timer != null:
+		_planning_timer.start()
 
 
 ## Injects the planner bindings for a specific chain position into the action instance.

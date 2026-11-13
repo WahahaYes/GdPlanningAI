@@ -40,4 +40,8 @@ func _process(delta: float) -> void:
 			prop_strings.append("%s: %s" % [prop_name, _format_value(value)])
 		props_text = "\n" + "\n".join(prop_strings)
 
-	text = "Goal: %s\nAction: %s%s" % [goal_text, action_text, props_text]
+	# Per-frame assignment reshapes the label and refits the scroll even when
+	# nothing changed; only rewrite on value change, like the scroll fit guard.
+	var new_text: String = "Goal: %s\nAction: %s%s" % [goal_text, action_text, props_text]
+	if text != new_text:
+		text = new_text
