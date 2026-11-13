@@ -59,7 +59,11 @@ func _assign_home_campfires(agents: Array[Node3D]) -> void:
 	var scene: Node = owner if owner != null else get_tree().current_scene
 	if scene == null:
 		return
-	var campfires: Array[Node] = scene.find_children("*", "CampfireObject", true, false)
+	var campfires: Array[CampfireObject] = []
+	for node in GdPAIUTILS.get_children_in_group(scene, "CampfireObject"):
+		var campfire: CampfireObject = node as CampfireObject
+		if campfire != null:
+			campfires.append(campfire)
 	for i in agents.size():
 		var home: int = i / agents_per_campfire
 		if home >= campfires.size():

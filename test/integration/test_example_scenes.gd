@@ -61,7 +61,11 @@ func test_camera_rig_cycles_agents_and_shows_controls() -> void:
 func test_agents_pair_up_on_home_campfires() -> void:
 	var scene: Node3D = LARGE_SCENE.instantiate() as Node3D
 	await _settle_example(scene)
-	var campfires: Array[Node] = scene.find_children("*", "CampfireObject", true, false)
+	var campfires: Array[CampfireObject] = []
+	for node in GdPAIUTILS.get_children_in_group(scene, "CampfireObject"):
+		var campfire: CampfireObject = node as CampfireObject
+		if campfire != null:
+			campfires.append(campfire)
 	assert_eq(campfires.size(), 3, "Large scene keeps three campfires")
 	var tenders: Dictionary = {}
 	for agent_node in scene.find_children("*", "GdPAIAgent", true, false):

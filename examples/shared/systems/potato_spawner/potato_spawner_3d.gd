@@ -30,7 +30,7 @@ var _campfire_positions: Array[Vector3] = []
 func _ready() -> void:
 	_gather_campfire_positions()
 	for i in range(max_potatoes):
-		_spawn_potato_deferred()
+		_spawn_potato(true)
 
 
 ## Prunes freed potatoes and replaces one when the respawn timer allows. The timer runs only
@@ -48,8 +48,9 @@ func _process(delta: float) -> void:
 		_respawn_timer = 0.0
 
 
-## Adds one potato at a clear point in the area.
-func _spawn_potato() -> void:
+## Adds one potato at a clear point in the area. When [param deferred] is true the
+## potato joins the tree deferred, so [method _ready] stays light.
+func _spawn_potato(deferred: bool = false) -> void:
 	if not potato_scene:
 		return
 
@@ -59,36 +60,26 @@ func _spawn_potato() -> void:
 	if potato is Node3D:
 		potato.position = random_pos
 
-	add_child(potato)
-	_active_potatoes.append(potato)
-
-
-## Like [method _spawn_potato] but deferred, so [method _ready] stays light.
-func _spawn_potato_deferred() -> void:
-	if not potato_scene:
-		return
-
-	var potato: Node = potato_scene.instantiate()
-	var random_pos: Vector3 = _random_spawn_position()
-
-	if potato is Node3D:
-		potato.position = random_pos
-
-	call_deferred("add_child", potato)
+	if deferred:
+		call_deferred("add_child", potato)
+	else:
+		add_child(potato)
 	_active_potatoes.append(potato)
 
 
 ## Collects every campfire position in the scene for spawn exclusion.
 func _gather_campfire_positions() -> void:
 	_campfire_positions.clear()
-	var top: Node = self
-	while top.get_parent() != null and not (top.get_parent() is Window):
-		top = top.get_parent()
-	for node in top.find_children("*", "CampfireObject", true, false):
-		var campfire_node: Node = node as Node
-		var entity: Node3D = campfire_node.get("entity") as Node3D
+	var scene: Node = owner if owner != null else get_tree().current_scene
+	if scene == null:
+		return
+	for node in GdPAIUTILS.get_children_in_group(scene, "CampfireObject"):
+		var campfire: CampfireObject = node as CampfireObject
+		if campfire == null:
+			continue
+		var entity: Node3D = campfire.entity as Node3D
 		if entity == null:
-			entity = campfire_node.get_parent() as Node3D
+			entity = campfire.get_parent() as Node3D
 		if entity != null:
 			_campfire_positions.append(entity.global_position)
 
