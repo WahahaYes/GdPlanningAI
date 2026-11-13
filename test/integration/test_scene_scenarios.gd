@@ -95,7 +95,7 @@ func _check_run(case_id: String, cases: ConfigFile, section: String, scene: Node
 		for agent: GdPAIAgent in agents:
 			_track(agent, stats, completed)
 		if observe and Time.get_ticks_msec() > start + int(seconds * 500.0):
-			for fire in scene.find_children("*", "CampfireObject", true, false):
+			for fire in GdPAIUTILS.get_children_in_group(scene, "CampfireObject"):
 				fires[fire] = fires.get(fire, false) or fire.current_fuel > 0.0
 		if not observe and required.all(is_done):
 			break
