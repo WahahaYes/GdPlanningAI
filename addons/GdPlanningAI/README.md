@@ -101,8 +101,7 @@ The docs live in this repository; the addon install copies only the addon and it
 | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
 | [AUTHORING_GUIDE.md](https://github.com/WahahaYes/GdPlanningAI/blob/main/docs/AUTHORING_GUIDE.md)                   | Writing goals, actions, preconditions and world objects.             |
 | [EXAMPLES.md](https://github.com/WahahaYes/GdPlanningAI/blob/main/docs/EXAMPLES.md)                                 | What each example scene shows and which scripts to read.             |
-| [ALGORITHM.md](https://github.com/WahahaYes/GdPlanningAI/blob/main/docs/ALGORITHM.md)                               | How the planner finds a plan.                                        |
-| [PLANNER_PSEUDOCODE.md](https://github.com/WahahaYes/GdPlanningAI/blob/main/docs/PLANNER_PSEUDOCODE.md)             | Pseudocode of the planner, for working on the Rust engine.           |
+| [ALGORITHM.md](https://github.com/WahahaYes/GdPlanningAI/blob/main/docs/ALGORITHM.md)                               | How the planner finds a plan, with pseudocode of the engine.         |
 | [CODEBASE_OVERVIEW.md](https://github.com/WahahaYes/GdPlanningAI/blob/main/docs/CODEBASE_OVERVIEW.md)               | Where things live, how Rust and GDScript talk, building, testing.    |
 | [BEHAVIORS.md](https://github.com/WahahaYes/GdPlanningAI/blob/main/docs/BEHAVIORS.md)                               | What the addon promises, each behavior with the tests that prove it. |
 | [DOCUMENTATION_GUIDELINES.md](https://github.com/WahahaYes/GdPlanningAI/blob/main/docs/DOCUMENTATION_GUIDELINES.md) | Comment and docstring style for contributors.                        |
