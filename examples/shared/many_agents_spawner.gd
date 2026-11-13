@@ -19,7 +19,7 @@ func _ready() -> void:
 		push_error("ManyAgentsSpawner: agent_scene is not set.")
 		return
 	for i in agent_count:
-		var agent: Node = agent_scene.instantiate()
+		var agent: RigidBody2D = agent_scene.instantiate() as RigidBody2D
 		agent.position = Vector2(
 			randf_range(spawn_rect.position.x, spawn_rect.end.x),
 			randf_range(spawn_rect.position.y, spawn_rect.end.y),

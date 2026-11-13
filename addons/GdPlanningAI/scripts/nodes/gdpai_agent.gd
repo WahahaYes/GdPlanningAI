@@ -288,8 +288,8 @@ func _inject_bindings_for_position(chain_position: int, action: Action) -> void:
 		var object_refs = []
 		for val in values:
 			if val is int:
-				var obj = instance_from_id(val)
-				if obj != null:
+				var obj: Object = instance_from_id(val)
+				if is_instance_valid(obj):
 					object_refs.append(obj)
 			elif val != null:
 				# Already an object or other variant

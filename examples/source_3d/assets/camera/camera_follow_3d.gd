@@ -159,7 +159,7 @@ func follow_candidates() -> Array[Node3D]:
 	var scene: Node = get_tree().current_scene if get_tree().current_scene != null else get_parent()
 	if scene == null:
 		return bodies
-	for agent in scene.find_children("*", "GdPAIAgent", true, false):
+	for agent: Node in scene.find_children("*", "GdPAIAgent", true, false):
 		var body: Node3D = agent.get_parent() as Node3D
 		if body != null and not bodies.has(body):
 			bodies.append(body)

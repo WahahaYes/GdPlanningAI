@@ -208,7 +208,7 @@ func _mesh_parts(scene: PackedScene) -> Array:
 	var parts: Array = []
 	if scene == null:
 		return parts
-	var root: Node = scene.instantiate()
+	var root: Node = scene.instantiate() as Node
 	for node in root.find_children("*", "MeshInstance3D", true, false):
 		var mi: MeshInstance3D = node as MeshInstance3D
 		var offset: Transform3D = Transform3D.IDENTITY
