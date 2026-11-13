@@ -4,7 +4,11 @@
 
 GdPlanningAI (**GdPAI**) is a planning AI addon for Godot 4.2 and newer. Instead of hand-writing state machines or behavior trees, you write goals and actions, and NPCs plan at runtime what to do and in what order. The objects in your world tell NPCs what they can do with them, so new behaviors emerge as you add objects, without hand tuning.
 
-[![The GdPlanningAI intro video on YouTube](https://img.youtube.com/vi/ANOevQ_9mPg/maxresdefault.jpg)](https://www.youtube.com/watch?v=ANOevQ_9mPg)
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=ANOevQ_9mPg">
+    <img src="https://img.youtube.com/vi/ANOevQ_9mPg/maxresdefault.jpg" alt="The GdPlanningAI intro video on YouTube" width="50%">
+  </a>
+</p>
 
 **[Watch the 10-minute intro on YouTube](https://www.youtube.com/watch?v=ANOevQ_9mPg)**: what GdPlanningAI is, NPCs planning in 2D and 3D, and how to use it.
 
