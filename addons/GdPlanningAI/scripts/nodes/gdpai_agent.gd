@@ -174,17 +174,16 @@ func _start_plan_async() -> void:
 		push_warning("GdPAIAgent: entity is not assigned; skipping plan submission")
 		return
 
-	var agent_objects: Array = GdPAIUTILS.get_children_in_group(entity, "GdPAIObjectData")
-	blackboard.set_property("GDPAI_OBJECTS", agent_objects)
-
-	var all_actions: Array[Action] = []
-	all_actions.append_array(self_actions)
-	all_actions.append_array(_collect_worldly_actions())
-
-	_last_submitted_actions = all_actions
+	# Count the request up front: a skipped submission still retires any in-flight
+	# plan through the generation check in _on_plan_ready.
 	_plan_generation += 1
 	_inflight_generation = _plan_generation
 	_waiting_for_plan = true
+
+	if world_node == null:
+		_waiting_for_plan = false
+		push_warning("GdPAIAgent: no GdPAIWorldNode found in scene")
+		return
 
 	var scheduler: GdPAIPlanScheduler = GdPAIAutoload.get_scheduler()
 	if scheduler == null:
@@ -192,17 +191,27 @@ func _start_plan_async() -> void:
 		push_error("GdPAIAgent: scheduler not available; async planning is required")
 		return
 
-	if world_node == null:
+	var agent_objects: Array = GdPAIUTILS.get_children_in_group(entity, "GdPAIObjectData")
+	blackboard.set_property("GDPAI_OBJECTS", agent_objects)
+
+	var ws: GdPAIBlackboard = world_node.get_world_state()
+	if ws == null:
 		_waiting_for_plan = false
-		push_warning("GdPAIAgent: no GdPAIWorldNode found in scene")
+		push_warning("GdPAIAgent: world state is not available; skipping plan submission")
 		return
+
+	var all_actions: Array[Action] = []
+	all_actions.append_array(self_actions)
+	all_actions.append_array(_collect_worldly_actions(ws))
+
+	_last_submitted_actions = all_actions
 
 	(
 		scheduler
 		. submit_plan(
 			self,
 			blackboard,
-			world_node.get_world_state(),
+			ws,
 			_bridge.serialize_actions(all_actions),
 			_bridge.serialize_goals(goals, self),
 			config.max_recursion,
@@ -362,11 +371,10 @@ func _execute_plan(delta: float) -> void:
 
 ## Collects actions provided by world objects. Validity filtering is handled
 ## by the Rust engine during planning search.
-func _collect_worldly_actions() -> Array[Action]:
-	if world_node == null:
-		return [] as Array[Action]
-	var ws: GdPAIBlackboard = world_node.get_world_state()
+func _collect_worldly_actions(ws: GdPAIBlackboard) -> Array[Action]:
 	var actions: Array[Action] = []
+	if ws == null:
+		return actions
 	var raw_objects = ws.get_property("GDPAI_OBJECTS")
 	if raw_objects == null:
 		return actions
