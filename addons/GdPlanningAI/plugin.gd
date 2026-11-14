@@ -11,8 +11,7 @@ func _init() -> void:
 
 
 # Override
-## Registers the [code]GdPAIAutoload[/code] autoload when the plugin is enabled. Not done in
-## [code]_enter_tree[/code], which runs on every editor launch and would leave an unsaved change.
+## Registers the [code]GdPAIAutoload[/code] autoload when the plugin is enabled.
 func _enable_plugin() -> void:
 	add_autoload_singleton("GdPAIAutoload", "gdpai_autoload.gd")
 
