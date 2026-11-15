@@ -88,3 +88,45 @@ func test_blocked_near_target_arrives() -> void:
 		(world.nav_agent as NavigationAgent3D).is_navigation_finished(),
 		"Navigation finishes on arrival"
 	)
+
+
+## A chain's Go Tos all run their pre phase first: the running one steers, not the last one.
+func test_running_goto_steers() -> void:
+	var world: Dictionary = _make_world()
+	await get_tree().physics_frame
+	var first: GoToAction = GoToAction.new(_make_target(Vector3(10, 0, 0)))
+	var second: GoToAction = GoToAction.new(_make_target(Vector3(-10, 0, 0)))
+	first.chain_position = 0
+	second.chain_position = 1
+	assert_eq(first.pre_perform_action(world.agent), Action.Status.SUCCESS)
+	assert_eq(second.pre_perform_action(world.agent), Action.Status.SUCCESS)
+	first.chain_position = 0
+	first.perform_action(world.agent, 1.0 / 60.0)
+	assert_almost_eq(
+		(world.nav_agent as NavigationAgent3D).target_position,
+		Vector3(10, 0, 0),
+		Vector3.ONE * 0.01,
+		"The first Go To walks to its own target"
+	)
+
+
+## Circling far from the target keeps moving but never gets closer: the action fails.
+func test_moving_without_progress_fails() -> void:
+	var world: Dictionary = _make_world()
+	await get_tree().physics_frame
+	var body: Node3D = (world.agent as GdPAIAgent).entity
+	var nav_agent: NavigationAgent3D = world.nav_agent
+	var action: GoToAction = GoToAction.new(_make_target(Vector3(10, 0, 0)))
+	action.chain_position = 0
+	assert_eq(action.pre_perform_action(world.agent), Action.Status.SUCCESS)
+	var step: float = 0.05
+	var status: Action.Status = Action.Status.RUNNING
+	var t: float = 0.0
+	while status == Action.Status.RUNNING and t < 3.0 * GoToAction.PROGRESS_WINDOW:
+		t += step
+		body.global_position = Vector3(cos(PI * t), 0, sin(PI * t))
+		nav_agent.get_next_path_position()
+		status = action.perform_action(world.agent, step)
+		await get_tree().physics_frame
+	assert_eq(status, Action.Status.FAILURE, "An agent circling 9-11 m out has not arrived")
+	assert_lt(t, 2.0 * GoToAction.PROGRESS_WINDOW, "It gives up within about a progress window")

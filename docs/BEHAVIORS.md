@@ -122,7 +122,7 @@ Unit tier: the built-in precondition evaluator is an algorithmic kernel.
 
 ### `goto-arrives-or-replans`
 
-**Scenario:** Given an agent walking to a target with Go To, when it gets stuck, then it counts as arrived near the end of its path and fails otherwise, so the agent replans.
+**Scenario:** Given an agent walking to a target with Go To, when it gets stuck (stops moving, or keeps moving without its path getting shorter), then it counts as arrived near the end of its path and fails otherwise, so the agent replans. In a plan with several Go Tos, each walks to its own target when its step runs.
 
 **Proved by:** `test/unit/test_goto_action.gd`
 
