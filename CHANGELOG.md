@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **No save prompt after a clean editor start.** The plugin registers its autoload only when enabled, not on every launch ([#106](https://github.com/WahahaYes/GdPlanningAI/issues/106)).
+
 ### For contributors
 
 - **Godot 4.2 floor documented.** The addon's floor stays 4.2 (the `api-4-2` crate feature and `compatibility_minimum`, smoke-tested by `make test-compat`); the repository's own project, tests and examples use the pinned Godot 4.7, and the docs now say so.
