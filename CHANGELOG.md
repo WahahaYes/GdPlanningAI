@@ -6,6 +6,7 @@
 
 ### For contributors
 
+- **No comments in Godot data files.** A necro rule rejects `;` comments in scenes, resources and config files.
 - **Failed CI jobs upload their step logs** (artifact `logs-<job>`).
 - **The Godot test targets import first.** `make godot-import` refreshes the class-name cache, so a new `class_name` or a fresh clone no longer leaves GUT running nothing.
 - **Godot 4.2 floor documented.** The addon's floor stays 4.2 (the `api-4-2` crate feature and `compatibility_minimum`, smoke-tested by `make test-compat`); the repository's own project, tests and examples use the pinned Godot 4.7, and the docs now say so.

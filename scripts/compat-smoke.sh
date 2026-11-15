@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Smoke-test the addon on the oldest Godot it claims to support (compatibility_minimum in
-# gdplanningai.gdextension, kept equal to the godot crate's api-4-N feature by the godot-floor
-# necro rule). Lays the addon out as the release zip does (git archive of HEAD per
+# gdplanningai.gdextension, equal to the godot crate's api-4-N feature). Lays the addon out as the release zip does (git archive of HEAD per
 # .gitattributes, plus the Linux library from addons/GdPlanningAI/bin/linux), adds
 # test/compat/smoke.gd as the main scene's script, imports, and runs it headless. Fails on a
 # smoke failure, a timeout, or any error in Godot's log. Linux only.

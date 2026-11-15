@@ -361,9 +361,9 @@ jobs:
             ~/.cargo/bin/cargo-llvm-cov*
           key: rust-setup-${{ runner.os }}-${{ hashFiles('addons/GdPlanningAI/rust/rust-toolchain.toml', 'addons/GdPlanningAI/rust/Makefile') }}
 
-  # The addon on the oldest Godot it claims (compatibility_minimum, kept equal to the godot
-  # crate's api-4-N feature by the godot-floor necro rule): a release build in a throwaway
-  # project laid out like the release zip, one agent planning and running a two-step plan.
+  # The addon on the oldest Godot it claims (compatibility_minimum, equal to the godot crate's
+  # api-4-N feature): a release build in a throwaway project laid out like the release zip,
+  # one agent planning and running a two-step plan.
   # Linux only: the floor is an API level, the same on every OS.
   compat:
     needs: [changes, precommit]

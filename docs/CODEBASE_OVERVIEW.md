@@ -48,7 +48,7 @@ addons/GdPlanningAI/
 
 - `plugin.gd` is `@tool extends EditorPlugin`. Its only job is to register the `GdPAIAutoload` autoload in `_enter_tree`.
 - `gdpai_autoload.gd` creates the `GdPAIPlanScheduler` in `_ready` and calls `_scheduler.process_callbacks()` every frame in `_process`. This call passes results and callback requests between the background planner threads and the main thread. It also applies the log level from `plugin.cfg`.
-- `gdplanningai.gdextension` declares the entry symbol `gdext_rust_init`, `compatibility_minimum` (the oldest supported Godot, equal to the godot crate's `api-4-N` feature: the godot-floor necro rule checks it and `make test-compat` runs on it), and loads the platform shared library from `addons/GdPlanningAI/bin/{linux,macos,windows}/`.
+- `gdplanningai.gdextension` declares the entry symbol `gdext_rust_init`, `compatibility_minimum` (the oldest supported Godot, equal to the godot crate's `api-4-N` feature; `make test-compat` runs on it), and loads the platform shared library from `addons/GdPlanningAI/bin/{linux,macos,windows}/`.
 - The Rust-exposed classes (`GdPAIBlackboard`, `SimObjectProxy`, `GdPAIPlanScheduler`) are registered via the `.gdextension`; they have no `.gd` file.
 
 ### 2.1 Godot version floor
@@ -224,7 +224,7 @@ ______________________________________________________________________
 ## 8. Developer tooling
 
 - **Formatting and linting**: `make necro-fix` (`necro --fix`: rustfmt, gdformat, GDScript spacing), `make necro` (house rules plus the rust, rust-style, gdscript and gdscript-style packs: rustfmt, clippy with warnings failing, and for GDScript a `:=` ban, borders, docstrings, spacing, gdformat and gdlint).
-- **`scripts/`**: `check_effect_spec.py`, `check_behaviors.py`, `check_godot_floor.py`, `check_readme_safety.py` (house rules necro runs).
+- **`scripts/`**: `check_effect_spec.py`, `check_behaviors.py`, `check_godot_floor.py`, `check_godot_comments.py`, `check_readme_safety.py` (house rules necro runs).
 - **Hooks** (`.pre-commit-config.yaml`, run with prek at commit; tests are run by hand): the standard pre-commit hooks, gitleaks, mdformat (`--wrap=no`), ruff, shellcheck, necro, `check-docs` (README/LICENSE drift), `no-built-binaries` and `no-ai-attribution` (commit-msg).
 - **Third-party addons** (`addons.jsonc`): `gut` v9.6.0 (bitwes/Gut) + `GdTimeMachine` main (WahahaYes/GdTimeMachine), installed via GodotEnv, gitignored, cached under `.addons/`. All three editor plugins (GdPlanningAI, gut, GdTimeMachine) are enabled.
 - **`project.godot`**: the dev project, on the pinned Godot 4.7 ([section 2.1](#21-godot-version-floor)), Forward Plus renderer, **no main scene** (run scenes directly). Autoloads: `GdPAIAutoload`, `GdTimeMachineGracefulStop`. Its `[dotnet]` section is written by the .NET build of the editor; the project has no C#.
