@@ -2,6 +2,10 @@
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
+# A step's log file: $(CI_LOGS)/<name>.log when CI_LOGS is set (CI uploads it from a failed job),
+# else a new temp file.
+log_path = $(if $(CI_LOGS),$$(mkdir -p "$(CI_LOGS)" && echo "$(CI_LOGS)/$(1).log"),$$(mktemp /tmp/$(1).XXXXXX))
+
 ##@ Setup
 
 .PHONY: setup
@@ -16,7 +20,7 @@ setup: addons-install ## Install addons, the pinned Rust toolchain, and the libr
 
 .PHONY: godot-import
 godot-import: ## Refresh the .godot import and class-name cache; every GUT target depends on it (~4 s when nothing changed)
-	@scripts/godot-import.sh
+	@scripts/godot-import.sh "$(call log_path,godot-import)"
 
 .PHONY: test
 test: ## Run all tests (Rust + Godot); exits nonzero if any sub-suite fails
@@ -83,7 +87,7 @@ test-godot: godot-import ## Run Godot integration tests (GUT headless); concise 
 
 .PHONY: test-godot-verbose
 test-godot-verbose: godot-import ## Run the GUT suite with its full output and a real exit code (CI; test-godot is quiet on purpose)
-	@LOG=$$(mktemp /tmp/gut-verbose.XXXXXX); \
+	@LOG=$(call log_path,gut); \
 	godot --headless -s --path . addons/gut/gut_cmdln.gd -gexit 2>&1 | tee $$LOG; \
 	STATUS=$${PIPESTATUS[0]}; \
 	OK=1; \
@@ -107,7 +111,7 @@ test-godot-verbose: godot-import ## Run the GUT suite with its full output and a
 
 .PHONY: test-e2e
 test-e2e: godot-import ## Run the end-to-end example-scene cases (e2e=true in test/scenarios/scenes.cfg), one after another; a minute each
-	@LOG=$$(mktemp /tmp/gut-e2e.XXXXXX); \
+	@LOG=$(call log_path,e2e); \
 	GDPAI_E2E=1 godot --headless -s --path . addons/gut/gut_cmdln.gd -gselect=test_scene_scenarios -gexit 2>&1 | tee $$LOG; \
 	STATUS=$${PIPESTATUS[0]}; \
 	if [ $$STATUS -ne 0 ] || grep -qE "SCRIPT ERROR|^Failing Tests" $$LOG; then \
