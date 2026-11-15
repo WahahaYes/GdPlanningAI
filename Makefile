@@ -2,6 +2,10 @@
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
+# A step's log file: $(CI_LOGS)/<name>.log when CI_LOGS is set (CI uploads it from a failed job),
+# else a new temp file.
+log_path = $(if $(CI_LOGS),$$(mkdir -p "$(CI_LOGS)" && echo "$(CI_LOGS)/$(1).log"),$$(mktemp /tmp/$(1).XXXXXX))
+
 ##@ Setup
 
 .PHONY: setup
@@ -13,6 +17,10 @@ setup: addons-install ## Install addons, the pinned Rust toolchain, and the libr
 	fi
 
 ##@ Testing
+
+.PHONY: godot-import
+godot-import: ## Refresh the .godot import and class-name cache; every GUT target depends on it (~4 s when nothing changed)
+	@scripts/godot-import.sh "$(call log_path,godot-import)"
 
 .PHONY: test
 test: ## Run all tests (Rust + Godot); exits nonzero if any sub-suite fails
@@ -46,7 +54,7 @@ test-rust-coverage: ## Run the Rust tests instrumented (CI): summary, HTML and L
 test-verbose: test-rust-verbose test-godot-verbose ## Run both suites with full output (CI); stops at the first failing suite
 
 .PHONY: test-godot
-test-godot: ## Run Godot integration tests (GUT headless); concise output, exits 0
+test-godot: godot-import ## Run Godot integration tests (GUT headless); concise output, exits 0
 	@echo "Running tests..."
 	@LOG=$$(mktemp /tmp/gut-XXXXXX.log); \
 	godot --headless -s --path . addons/gut/gut_cmdln.gd -gexit > $$LOG 2>&1; \
@@ -70,7 +78,7 @@ test-godot: ## Run Godot integration tests (GUT headless); concise output, exits
 		FAIL=$$(grep -E "^Failing Tests" $$LOG | awk '{print $$NF}'); \
 		[ -z "$$FAIL" ] && FAIL=0; \
 		if [ -z "$$PASS" ] || [ "$$PASS" = 0 ]; then \
-			echo "GUT-SUITE-FAILED: no tests ran (is the .godot import cache missing?); see $$LOG"; \
+			echo "GUT-SUITE-FAILED: no tests ran; see $$LOG"; \
 		else \
 			echo "GUT-SUITE-OK ($$PASS passing, $$FAIL failing)"; \
 		fi; \
@@ -78,8 +86,8 @@ test-godot: ## Run Godot integration tests (GUT headless); concise output, exits
 	exit 0
 
 .PHONY: test-godot-verbose
-test-godot-verbose: ## Run the GUT suite with its full output and a real exit code (CI; test-godot is quiet on purpose)
-	@LOG=$$(mktemp /tmp/gut-verbose.XXXXXX); \
+test-godot-verbose: godot-import ## Run the GUT suite with its full output and a real exit code (CI; test-godot is quiet on purpose)
+	@LOG=$(call log_path,gut); \
 	godot --headless -s --path . addons/gut/gut_cmdln.gd -gexit 2>&1 | tee $$LOG; \
 	STATUS=$${PIPESTATUS[0]}; \
 	OK=1; \
@@ -95,15 +103,15 @@ test-godot-verbose: ## Run the GUT suite with its full output and a real exit co
 	fi; \
 	PASS=$$(grep -E "^Passing Tests" $$LOG | awk '{print $$NF}'); \
 	if [ -z "$$PASS" ] || [ "$$PASS" = 0 ]; then \
-		echo "GUT-SUITE-FAILED: no tests ran (is the .godot import cache missing?)"; \
+		echo "GUT-SUITE-FAILED: no tests ran"; \
 		OK=0; \
 	fi; \
 	[ $$OK -eq 1 ] && echo "GUT-SUITE-OK ($$PASS passing)"; \
 	[ $$OK -eq 1 ]
 
 .PHONY: test-e2e
-test-e2e: ## Run the end-to-end example-scene cases (e2e=true in test/scenarios/scenes.cfg), one after another; a minute each
-	@LOG=$$(mktemp /tmp/gut-e2e.XXXXXX); \
+test-e2e: godot-import ## Run the end-to-end example-scene cases (e2e=true in test/scenarios/scenes.cfg), one after another; a minute each
+	@LOG=$(call log_path,e2e); \
 	GDPAI_E2E=1 godot --headless -s --path . addons/gut/gut_cmdln.gd -gselect=test_scene_scenarios -gexit 2>&1 | tee $$LOG; \
 	STATUS=$${PIPESTATUS[0]}; \
 	if [ $$STATUS -ne 0 ] || grep -qE "SCRIPT ERROR|^Failing Tests" $$LOG; then \
@@ -112,7 +120,7 @@ test-e2e: ## Run the end-to-end example-scene cases (e2e=true in test/scenarios/
 	echo "E2E-OK"
 
 .PHONY: test-godot-pipe-output
-test-godot-pipe-output: ## Run Godot integration tests with full output to file
+test-godot-pipe-output: godot-import ## Run Godot integration tests with full output to file
 	@echo "Running tests with full output to test_output.log..."
 	@rm -f test_output.log
 	@godot --headless -s --path . addons/gut/gut_cmdln.gd -gexit > test_output.log 2>&1
