@@ -11,6 +11,8 @@
 # Coverage goes to Codecov (flags rust-tests, behavioral) as a signal: a failed upload is a
 # warning, never a failure, and codecov.yml keeps its statuses informational.
 # The quiet make test, test-rust and test-godot are for agents' context; CI reads the verbose ones.
+# Each test job writes a log per build and test step to $CI_LOGS and uploads them when it fails
+# (artifact logs-<job>).
 # Toolchains are pinned in the repo: addons/GdPlanningAI/rust/rust-toolchain.toml
 # and global.json. Checkouts skip LFS: binaries are built in the job, never pulled.
 # Runner tooling CI assumes preinstalled: git, curl, bash, rustup and gh ship
@@ -188,7 +190,18 @@ jobs:
             ~/.rustup/settings.toml
             ~/.cargo/bin/cargo-llvm-cov*
           key: rust-setup-${{ runner.os }}-${{ hashFiles('addons/GdPlanningAI/rust/rust-toolchain.toml', 'addons/GdPlanningAI/rust/Makefile') }}
-      - run: make test-rust-coverage
+      - name: Log folder
+        run: mkdir -p "$RUNNER_TEMP/ci-logs" && echo "CI_LOGS=$RUNNER_TEMP/ci-logs" >> "$GITHUB_ENV"
+      - name: Rust tests
+        shell: bash
+        run: make test-rust-coverage 2>&1 | tee "$CI_LOGS/rust-tests.log"
+      - name: Upload step logs
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: logs-rust
+          path: ${{ runner.temp }}/ci-logs/*.log
+          if-no-files-found: ignore
       - name: Upload rust-tests coverage
         id: upload
         continue-on-error: true
@@ -285,14 +298,16 @@ jobs:
             addons/gut
             addons/GdTimeMachine
           key: addons-${{ runner.os }}-${{ hashFiles('addons.jsonc') }}
+      - name: Log folder
+        run: mkdir -p "$RUNNER_TEMP/ci-logs" && echo "CI_LOGS=$RUNNER_TEMP/ci-logs" >> "$GITHUB_ENV"
       - name: Build the Rust binary over the LFS pointer
         if: env.COVERAGE != 'true'
-        run: make -C addons/GdPlanningAI/rust build-release
+        run: make -C addons/GdPlanningAI/rust build-release 2>&1 | tee "$CI_LOGS/build.log"
       - name: Build an instrumented binary over the LFS pointer
         if: env.COVERAGE == 'true'
         run: |
-          make -C addons/GdPlanningAI/rust setup
-          make -C addons/GdPlanningAI/rust build-instrumented
+          make -C addons/GdPlanningAI/rust setup 2>&1 | tee "$CI_LOGS/build.log"
+          make -C addons/GdPlanningAI/rust build-instrumented 2>&1 | tee -a "$CI_LOGS/build.log"
       # The release workflow packages these; an instrumented build is never one of them.
       - name: Upload the binary
         if: env.COVERAGE != 'true'
@@ -310,6 +325,13 @@ jobs:
       - name: E2E scenes
         if: matrix.artifact == 'linux'
         run: make test-e2e
+      - name: Upload step logs
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: logs-godot-${{ matrix.artifact }}
+          path: ${{ runner.temp }}/ci-logs/*.log
+          if-no-files-found: ignore
       - name: Behavioral coverage report
         if: env.COVERAGE == 'true'
         run: make -C addons/GdPlanningAI/rust coverage-behavioral-report
@@ -381,10 +403,22 @@ jobs:
         with:
           path: ~/.cache/godot-compat
           key: godot-compat-${{ runner.os }}-${{ hashFiles('addons/GdPlanningAI/gdplanningai.gdextension') }}
+      - name: Log folder
+        run: mkdir -p "$RUNNER_TEMP/ci-logs" && echo "CI_LOGS=$RUNNER_TEMP/ci-logs" >> "$GITHUB_ENV"
       - name: Build the Rust binary
-        run: make -C addons/GdPlanningAI/rust build-release
+        shell: bash
+        run: make -C addons/GdPlanningAI/rust build-release 2>&1 | tee "$CI_LOGS/build.log"
       - name: Smoke test on the oldest Godot
-        run: scripts/compat-smoke.sh "$HOME/.cache/godot-compat/godot" "$RUNNER_TEMP/compat"
+        run: scripts/compat-smoke.sh "$HOME/.cache/godot-compat/godot" "$CI_LOGS/compat"
+      - name: Upload step logs
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: logs-compat
+          path: |
+            ${{ runner.temp }}/ci-logs/*.log
+            ${{ runner.temp }}/ci-logs/compat/*.log
+          if-no-files-found: ignore
 
   # The only required check. A skipped job counts as pass.
   ci:

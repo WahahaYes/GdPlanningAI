@@ -2,9 +2,10 @@
 # Refreshes the project's .godot import and class-name caches with a headless import.
 # A nonzero exit after a finished import (editor layout loaded, class and extension caches
 # written) warns; one before that fails and prints the log. Run from the project root.
+# Usage: scripts/godot-import.sh [LOG]   (LOG: where the import output goes; default a temp file)
 set -uo pipefail
 
-log=$(mktemp "${TMPDIR:-/tmp}/godot-import.XXXXXX")
+log=${1:-$(mktemp "${TMPDIR:-/tmp}/godot-import.XXXXXX")}
 status=0
 godot --headless --path . --import >"$log" 2>&1 || status=$?
 [ "$status" = 0 ] && exit 0
