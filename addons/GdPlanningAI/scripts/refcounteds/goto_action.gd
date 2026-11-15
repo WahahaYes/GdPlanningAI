@@ -8,7 +8,8 @@ extends Action
 ## Sets its navigation target on its first [method perform_action] frame. Succeeds when navigation
 ## finishes, or when the agent is stuck within [constant STUCK_ARRIVAL_FACTOR] x
 ## [code]target_desired_distance[/code] of its path end; stuck further away, it fails and the agent
-## replans. Stuck: moved less than the arrival threshold over [constant STUCK_WINDOW].
+## replans. Stuck: moved less than the arrival threshold over [constant STUCK_WINDOW], or its
+## remaining path shrank by less than that over [constant PROGRESS_WINDOW].
 
 ## Minimum movement (pixels) per [constant STUCK_WINDOW] before a 2D agent counts as stuck.
 const ARRIVAL_THRESHOLD_2D: float = 8.0
@@ -16,6 +17,8 @@ const ARRIVAL_THRESHOLD_2D: float = 8.0
 const ARRIVAL_THRESHOLD_3D: float = 0.1
 ## Seconds of movement history used to detect being stuck.
 const STUCK_WINDOW: float = 1.0
+## Seconds the remaining path may go without shrinking before the agent counts as stuck.
+const PROGRESS_WINDOW: float = 3.0
 ## How many [code]target_desired_distance[/code]s from the path end still count as arrived.
 const STUCK_ARRIVAL_FACTOR: float = 2.0
 
@@ -181,6 +184,8 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	set_state(agent, "time_elapsed", 0.0)
 	set_state(agent, "prior_positions", [])
 	set_state(agent, "target_set", false)
+	set_state(agent, "best_remaining", INF)
+	set_state(agent, "best_time", 0.0)
 
 	return Action.Status.SUCCESS
 
@@ -211,16 +216,25 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 	if not get_state(agent, "target_set"):
 		nav_agent.target_position = target_location.position
 		set_state(agent, "target_set", true)
+		set_state(agent, "best_time", time_elapsed)
 		return Action.Status.RUNNING
 
 	# Terminating conditions.
 	if nav_agent.is_navigation_finished():
 		return _finish(agent, nav_agent, agent_location_data, Action.Status.SUCCESS)
 
+	var remaining: float = _remaining_path(nav_agent, agent_location_data.position)
+	if remaining < get_state(agent, "best_remaining") - dist_check:
+		set_state(agent, "best_remaining", remaining)
+		set_state(agent, "best_time", time_elapsed)
+
 	var oldest: Array = prior_positions[0]
 	var stuck: bool = (
-		time_elapsed - oldest[0] >= STUCK_WINDOW
-		and (agent_location_data.position - oldest[1]).length() < dist_check
+		(
+			time_elapsed - oldest[0] >= STUCK_WINDOW
+			and (agent_location_data.position - oldest[1]).length() < dist_check
+		)
+		or time_elapsed - get_state(agent, "best_time") >= PROGRESS_WINDOW
 	)
 	if stuck:
 		# Blocked (by another agent, or an obstacle the navmesh does not carve). Only count it
@@ -232,6 +246,18 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 
 	# Continue navigating.
 	return Action.Status.RUNNING
+
+
+## Length of [param nav_agent]'s path still ahead of [param from], or [constant INF] with no path.
+func _remaining_path(nav_agent: Node, from: Variant) -> float:
+	var path: Variant = nav_agent.get_current_navigation_path()
+	var index: int = nav_agent.get_current_navigation_path_index()
+	if index < 0 or index >= path.size():
+		return INF
+	var length: float = from.distance_to(path[index])
+	for i in range(index, path.size() - 1):
+		length += path[i].distance_to(path[i + 1])
+	return length
 
 
 ## Stops navigation and returns [param status].
@@ -268,6 +294,8 @@ func post_perform_action(agent: GdPAIAgent) -> Action.Status:
 	erase_state(agent, "time_elapsed")
 	erase_state(agent, "prior_positions")
 	erase_state(agent, "target_set")
+	erase_state(agent, "best_remaining")
+	erase_state(agent, "best_time")
 
 	if target_location == null or not is_instance_valid(target_location):
 		return Action.Status.FAILURE
