@@ -1,8 +1,7 @@
 """Effect-spec check for GdPlanningAI's example Actions, a necro rule (necro.yaml).
 
 Prints one necro hit-line per violation, ``path:line: message``, and exits 0;
-necro decides pass or fail. The style checks this script once held now come
-from necronomicon's packs (necro:gdscript-style, necro:rust-style).
+necro decides pass or fail.
 """
 
 import re
