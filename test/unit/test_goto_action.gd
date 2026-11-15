@@ -88,3 +88,23 @@ func test_blocked_near_target_arrives() -> void:
 		(world.nav_agent as NavigationAgent3D).is_navigation_finished(),
 		"Navigation finishes on arrival"
 	)
+
+
+## A chain's Go Tos all run their pre phase first: the running one steers, not the last one.
+func test_running_goto_steers() -> void:
+	var world: Dictionary = _make_world()
+	await get_tree().physics_frame
+	var first: GoToAction = GoToAction.new(_make_target(Vector3(10, 0, 0)))
+	var second: GoToAction = GoToAction.new(_make_target(Vector3(-10, 0, 0)))
+	first.chain_position = 0
+	second.chain_position = 1
+	assert_eq(first.pre_perform_action(world.agent), Action.Status.SUCCESS)
+	assert_eq(second.pre_perform_action(world.agent), Action.Status.SUCCESS)
+	first.chain_position = 0
+	first.perform_action(world.agent, 1.0 / 60.0)
+	assert_almost_eq(
+		(world.nav_agent as NavigationAgent3D).target_position,
+		Vector3(10, 0, 0),
+		Vector3.ONE * 0.01,
+		"The first Go To walks to its own target"
+	)

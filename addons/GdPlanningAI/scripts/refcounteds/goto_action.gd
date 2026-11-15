@@ -5,10 +5,10 @@ extends Action
 ## Provides the wildcard fact [code]at_target[/code]: any action requiring
 ## [code]RequirementSpec.fact("at_target", [location])[/code] gets a GoTo step planned before
 ## it.[br]
-## Succeeds when navigation finishes, or when the agent is stuck (moved less than the arrival
-## threshold over [constant STUCK_WINDOW]) within [constant STUCK_ARRIVAL_FACTOR] x
-## [code]target_desired_distance[/code] of its path end. Stuck further away, it fails and the agent
-## replans.
+## Sets its navigation target on its first [method perform_action] frame. Succeeds when navigation
+## finishes, or when the agent is stuck within [constant STUCK_ARRIVAL_FACTOR] x
+## [code]target_desired_distance[/code] of its path end; stuck further away, it fails and the agent
+## replans. Stuck: moved less than the arrival threshold over [constant STUCK_WINDOW].
 
 ## Minimum movement (pixels) per [constant STUCK_WINDOW] before a 2D agent counts as stuck.
 const ARRIVAL_THRESHOLD_2D: float = 8.0
@@ -180,8 +180,7 @@ func pre_perform_action(agent: GdPAIAgent) -> Action.Status:
 	set_state(agent, "agent_location", agent_location_data)
 	set_state(agent, "time_elapsed", 0.0)
 	set_state(agent, "prior_positions", [])
-	# Begin walking now; the first perform_action frame only steps the arrival check.
-	nav_agent.target_position = target_location.position
+	set_state(agent, "target_set", false)
 
 	return Action.Status.SUCCESS
 
@@ -207,6 +206,12 @@ func perform_action(agent: GdPAIAgent, delta: float) -> Action.Status:
 	while prior_positions.size() > 1 and time_elapsed - prior_positions[1][0] >= STUCK_WINDOW:
 		prior_positions.pop_front()
 	set_state(agent, "prior_positions", prior_positions)
+
+	# Every GoTo in a chain runs its pre phase before step 0, so only the running one may steer.
+	if not get_state(agent, "target_set"):
+		nav_agent.target_position = target_location.position
+		set_state(agent, "target_set", true)
+		return Action.Status.RUNNING
 
 	# Terminating conditions.
 	if nav_agent.is_navigation_finished():
@@ -262,6 +267,7 @@ func post_perform_action(agent: GdPAIAgent) -> Action.Status:
 	erase_state(agent, "agent_location")
 	erase_state(agent, "time_elapsed")
 	erase_state(agent, "prior_positions")
+	erase_state(agent, "target_set")
 
 	if target_location == null or not is_instance_valid(target_location):
 		return Action.Status.FAILURE
