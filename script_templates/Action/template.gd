@@ -24,7 +24,7 @@ func get_description() -> String:
 # Override
 func get_validity_checks() -> Array[Precondition]:
 	# Gates checked once against the initial state; a failing check drops the action.
-	# e.g. Precondition.check_is_object_valid(target)
+	# e.g. Precondition.object_is_valid(target)
 	return []
 
 

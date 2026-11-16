@@ -48,7 +48,7 @@ func get_action_cost(
 func get_validity_checks() -> Array[Precondition]:
 	var checks: Array[Precondition] = []
 	checks.append(Precondition.agent_has_property("hunger"))
-	checks.append(Precondition.check_is_object_valid(fruit_tree))
+	checks.append(Precondition.object_is_valid(fruit_tree))
 	checks.append(Precondition.agent_property_greater_than("hunger", 0.0))
 
 	# The cooldown is live scene state, so a custom check reads the node.

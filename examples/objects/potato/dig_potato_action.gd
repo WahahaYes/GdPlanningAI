@@ -28,10 +28,10 @@ func _init(
 # Override
 func get_validity_checks() -> Array[Precondition]:
 	return [
-		Precondition.check_is_object_valid(potato_ref),
-		Precondition.check_is_object_valid(potato_ref.entity),
-		Precondition.check_is_object_valid(object_location),
-		Precondition.check_is_object_valid(interactable_attribs),
+		Precondition.object_is_valid(potato_ref),
+		Precondition.object_is_valid(potato_ref.entity),
+		Precondition.object_is_valid(object_location),
+		Precondition.object_is_valid(interactable_attribs),
 	]
 
 

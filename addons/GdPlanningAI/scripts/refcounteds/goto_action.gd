@@ -106,7 +106,7 @@ func get_validity_checks() -> Array[Precondition]:
 	checks.append(Precondition.agent_has_object_data_of_group("GdPAILocationData"))
 	# Only check target_location validity if it's set (during execution, not planning)
 	if target_location != null:
-		checks.append(Precondition.check_is_object_valid(target_location))
+		checks.append(Precondition.object_is_valid(target_location))
 	return checks
 
 

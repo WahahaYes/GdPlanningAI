@@ -71,7 +71,7 @@ static func agent_property_greater_than(
 
 ## Instantiate a precondition that checks whether a property in the agent blackboard is greater
 ## or equal than a specified value.
-static func agent_property_geq_than(
+static func agent_property_at_least(
 	prop: String,
 	value: Variant,
 ) -> Precondition:
@@ -93,7 +93,7 @@ static func agent_property_less_than(
 
 ## Instantiate a precondition that checks whether a property in the agent blackboard is less
 ## than or equal to a specified value.
-static func agent_property_leq_than(
+static func agent_property_at_most(
 	prop: String,
 	value: Variant,
 ) -> Precondition:
@@ -133,7 +133,7 @@ static func world_state_property_greater_than(
 
 ## Instantiate a precondition that checks whether a property in the world state is greater
 ## or equal than a specified value.
-static func world_state_property_geq_than(
+static func world_state_property_at_least(
 	prop: String,
 	value: Variant,
 ) -> Precondition:
@@ -155,7 +155,7 @@ static func world_state_property_less_than(
 
 ## Instantiate a precondition that checks whether a property in the world state is less
 ## than or equal to a specified value.
-static func world_state_property_leq_than(
+static func world_state_property_at_most(
 	prop: String,
 	value: Variant,
 ) -> Precondition:
@@ -172,6 +172,17 @@ static func world_state_property_equal_to(
 ) -> Precondition:
 	return _create_property_precondition(
 		PreconditionBuiltin.Target.WORLD_STATE, prop, PreconditionBuiltin.Op.EQUAL, value
+	)
+
+
+## Instantiate a precondition that checks whether a property in the world state is not equal to
+## a specified value.
+static func world_state_property_not_equal_to(
+	prop: String,
+	value: Variant,
+) -> Precondition:
+	return _create_property_precondition(
+		PreconditionBuiltin.Target.WORLD_STATE, prop, PreconditionBuiltin.Op.NOT_EQUAL, value
 	)
 
 
@@ -222,7 +233,7 @@ static func world_object_property_greater_than(
 
 ## Check if any object in a group in the world state has a property greater than or equal to
 ## the given value.
-static func world_object_property_geq_than(
+static func world_object_property_at_least(
 	group: String,
 	property: String,
 	value: Variant,
@@ -253,7 +264,7 @@ static func world_object_property_less_than(
 
 ## Check if any object in a group in the world state has a property less than or equal to the
 ## given value.
-static func world_object_property_leq_than(
+static func world_object_property_at_most(
 	group: String,
 	property: String,
 	value: Variant,
@@ -294,7 +305,7 @@ static func world_state_has_object_data_of_group(group: String) -> Precondition:
 
 
 ## True while [param object] has not been freed. Typical in [method Action.get_validity_checks].
-static func check_is_object_valid(object: Variant) -> Precondition:
+static func object_is_valid(object: Variant) -> Precondition:
 	var deps: Array[Object] = []
 	if is_instance_valid(object) and object is Object:
 		deps.append(object)

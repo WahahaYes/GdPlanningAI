@@ -10,7 +10,7 @@ You describe **what matters** (goals, state changes) not **how to sequence**. Th
 
 A goal has two jobs: compute a reward that scales with urgency, and declare the state that counts as "satisfied." The reward function runs once per planning request when the agent submits a new plan. A hunger goal returns the current hunger value (0–100), so a starving agent prioritizes eating over wandering. A fire-maintenance goal returns a fixed reward when any campfire's fuel drops below a threshold, otherwise zero, so the agent ignores the fire when it's healthy.
 
-The desired state uses preconditions. For agent-internal properties like hunger, use `agent_property_less_than("hunger", 15)`. For world-object properties like campfire fuel, use `world_object_property_geq_than("CampfireObject", "current_fuel", 60)`. This built-in lets the planner evaluate the condition directly on simulated `SimObjectProxy` snapshots during search, so it can discover that `AddFuelAction` (which increments `current_fuel` in its simulation) satisfies the goal. No custom callable needed.
+The desired state uses preconditions. For agent-internal properties like hunger, use `agent_property_less_than("hunger", 15)`. For world-object properties like campfire fuel, use `world_object_property_at_least("CampfireObject", "current_fuel", 60)`. This built-in lets the planner evaluate the condition directly on simulated `SimObjectProxy` snapshots during search, so it can discover that `AddFuelAction` (which increments `current_fuel` in its simulation) satisfies the goal. No custom callable needed.
 
 If you need logic that no built-in expresses, e.g. a compound condition across multiple unrelated properties, use `Precondition.custom(callable)` sparingly. For object-dependent checks that must survive the object being freed, use `Precondition.custom_with_deps(callable, [object_refs])` so the planner validates liveness before invoking.
 
@@ -18,7 +18,7 @@ If you need logic that no built-in expresses, e.g. a compound condition across m
 
 An action declares six things for planning, plus the code that runs it:
 
-**Validity checks** run once against the starting state while the planner looks for candidate actions: does the target exist, does the agent have the property. They do not participate in backward chaining. Use `Precondition.check_is_object_valid(ref)` for object liveness; avoid custom callables here.
+**Validity checks** run once against the starting state while the planner looks for candidate actions: does the target exist, does the agent have the property. They do not participate in backward chaining. Use `Precondition.object_is_valid(ref)` for object liveness; avoid custom callables here.
 
 **Preconditions** are dynamic needs the planner *chains backward* to satisfy. If an action needs stamina > 20, declare `agent_property_greater_than("stamina", 20)` and the planner will search for a predecessor that restores stamina. Keep these to built-ins matching property names your simulation writes.
 
@@ -97,11 +97,11 @@ The examples demonstrate concrete implementations (HungerBehaviorConfig, WanderB
 
 **Navigation**: `GoToAction` provides `fact_wildcard("at_target")`. Every interaction action requires `fact("at_target", [my_location])`. One navigation action serves all interactions.
 
-**Object State Goals**: Use `world_object_property_geq_than(group, property, threshold)` in the goal's desired state. The matching action modifies that property in `simulate_effect`. Planner discovers the chain without custom code.
+**Object State Goals**: Use `world_object_property_at_least(group, property, threshold)` in the goal's desired state. The matching action modifies that property in `simulate_effect`. Planner discovers the chain without custom code.
 
 **Optimistic Simulation**: When an action's requirement isn't bound yet during backward search, simulate a conservative effect (e.g., fixed hunger reduction) so the planner sees relevance. Forward validation will reject the plan if the real bound value doesn't match.
 
-**Instance-Specific Validity**: Use `check_is_object_valid(ref)` in validity checks. For property checks on a specific instance (not any in a group), you currently need a custom precondition with deps; `WorldObjectProxy` is group-based.
+**Instance-Specific Validity**: Use `object_is_valid(ref)` in validity checks. For property checks on a specific instance (not any in a group), you currently need a custom precondition with deps; `WorldObjectProxy` is group-based.
 
 ## Debugging
 
@@ -117,13 +117,13 @@ The interactive debugger tab was removed as part of the Rust rewrite and hasn't 
 
 ## Quick Reference: Built-in Preconditions
 
-| Target                   | Operations                                                                                                |
-| ------------------------ | --------------------------------------------------------------------------------------------------------- |
-| Agent                    | `has_property`, `equal`, `not_equal`, `greater_than`, `geq_than`, `less_than`, `leq_than`                 |
-| WorldState               | `has_property`, `equal`, `greater_than`, `geq_than`, `less_than`, `leq_than` (no `not_equal` constructor) |
-| WorldObjectProxy (group) | All of the above, evaluated on each object in the group; succeeds if ANY matches                          |
+| Target                   | Operations                                                                                     |
+| ------------------------ | ---------------------------------------------------------------------------------------------- |
+| Agent                    | `has_property`, `equal_to`, `not_equal_to`, `greater_than`, `at_least`, `less_than`, `at_most` |
+| WorldState               | The same                                                                                       |
+| WorldObjectProxy (group) | All of the above, evaluated on each object in the group; succeeds if ANY matches               |
 
-Construct via `Precondition.agent_property_less_than("hunger", 15)`, `Precondition.world_object_property_geq_than("CampfireObject", "current_fuel", 60)`, etc.
+Construct via `Precondition.agent_property_less_than("hunger", 15)`, `Precondition.world_object_property_at_least("CampfireObject", "current_fuel", 60)`, etc.
 
 ## Quick Reference: Requirement / Provision Constructors
 

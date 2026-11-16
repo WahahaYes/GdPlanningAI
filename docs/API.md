@@ -227,26 +227,27 @@ static func custom_with_deps(fn: Callable, deps: Array[Object]) -> Precondition
 static func agent_has_property(prop: String) -> Precondition
 static func agent_property_not_equal_to(prop: String, value: Variant) -> Precondition
 static func agent_property_greater_than(prop: String, value: Variant) -> Precondition
-static func agent_property_geq_than(prop: String, value: Variant) -> Precondition
+static func agent_property_at_least(prop: String, value: Variant) -> Precondition
 static func agent_property_less_than(prop: String, value: Variant) -> Precondition
-static func agent_property_leq_than(prop: String, value: Variant) -> Precondition
+static func agent_property_at_most(prop: String, value: Variant) -> Precondition
 static func agent_property_equal_to(prop: String, value: Variant) -> Precondition
 static func world_state_has_property(prop: String) -> Precondition
 static func world_state_property_greater_than(prop: String, value: Variant) -> Precondition
-static func world_state_property_geq_than(prop: String, value: Variant) -> Precondition
+static func world_state_property_at_least(prop: String, value: Variant) -> Precondition
 static func world_state_property_less_than(prop: String, value: Variant) -> Precondition
-static func world_state_property_leq_than(prop: String, value: Variant) -> Precondition
+static func world_state_property_at_most(prop: String, value: Variant) -> Precondition
 static func world_state_property_equal_to(prop: String, value: Variant) -> Precondition
+static func world_state_property_not_equal_to(prop: String, value: Variant) -> Precondition
 static func world_object_property_equal_to(group: String, property: String, value: Variant) -> Precondition
 static func world_object_property_not_equal_to(group: String, property: String, value: Variant) -> Precondition
 static func world_object_property_greater_than(group: String, property: String, value: Variant) -> Precondition
-static func world_object_property_geq_than(group: String, property: String, value: Variant) -> Precondition
+static func world_object_property_at_least(group: String, property: String, value: Variant) -> Precondition
 static func world_object_property_less_than(group: String, property: String, value: Variant) -> Precondition
-static func world_object_property_leq_than(group: String, property: String, value: Variant) -> Precondition
+static func world_object_property_at_most(group: String, property: String, value: Variant) -> Precondition
 static func world_object_has_property(group: String, property: String) -> Precondition
 static func agent_has_object_data_of_group(group: String) -> Precondition
 static func world_state_has_object_data_of_group(group: String) -> Precondition
-static func check_is_object_valid(object: Variant) -> Precondition
+static func object_is_valid(object: Variant) -> Precondition
 ```
 
 ### PreconditionBuiltin
