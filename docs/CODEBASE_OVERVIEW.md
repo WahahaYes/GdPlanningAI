@@ -224,7 +224,7 @@ ______________________________________________________________________
 ## 8. Developer tooling
 
 - **Formatting and linting**: `make necro-fix` (`necro --fix`: rustfmt, gdformat, GDScript spacing), `make necro` (house rules plus the rust, rust-style, gdscript and gdscript-style packs: rustfmt, clippy with warnings failing, and for GDScript a `:=` ban, borders, docstrings, spacing, gdformat and gdlint).
-- **`scripts/`**: `check_effect_spec.py`, `check_behaviors.py`, `check_godot_floor.py`, `check_readme_safety.py` (house rules necro runs).
+- **`scripts/`**: `check_effect_spec.py`, `check_behaviors.py`, `check_godot_floor.py`, `check_readme_safety.py`, `api_surface.py` (house rules necro runs; `make api` rewrites `docs/API.md` with the last).
 - **`necro/header.txt`**: the license, copyright and repo link every source file (`.gd`, `.rs`, `.gdshader`, `.py`, `.sh`, script templates included) opens with; `make necro-fix` writes it, and editing it updates every header.
 - **Hooks** (`.pre-commit-config.yaml`, run with prek at commit; tests are run by hand): the standard pre-commit hooks, gitleaks, mdformat (`--wrap=no`), ruff, shellcheck, necro, `check-docs` (README/LICENSE drift), `no-built-binaries` and `no-ai-attribution` (commit-msg).
 - **Third-party addons** (`addons.jsonc`): `gut` v9.6.0 (bitwes/Gut) + `GdTimeMachine` main (WahahaYes/GdTimeMachine), installed via GodotEnv, gitignored, cached under `.addons/`. All three editor plugins (GdPlanningAI, gut, GdTimeMachine) are enabled.
@@ -241,6 +241,7 @@ ______________________________________________________________________
 | `docs/AUTHORING_GUIDE.md`          | How to write actions, goals, preconditions and object data.          |
 | `docs/EXAMPLES.md`                 | What each demo scene shows and which scripts to read.                |
 | `docs/ALGORITHM.md`                | How the planner searches, with pseudocode of the engine.             |
+| `docs/API.md`                      | The public API: every class and signature, generated (`make api`).   |
 | `docs/ARCHITECTURE.md`             | Class diagrams, generated from `docs/generated/` (`make docs`).      |
 | `docs/BEHAVIORS.md`                | What the addon promises, each behavior with the tests that prove it. |
 | `docs/CODEBASE_OVERVIEW.md`        | This file: where things live, building and testing.                  |

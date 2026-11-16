@@ -5,17 +5,15 @@
 """Keep docs/ARCHITECTURE.md and docs/generated/ in sync.
 
 The four layered diagrams live in ``docs/generated/architecture-*.mmd`` and are
-embedded verbatim as fenced `````mermaid`` blocks in ``docs/ARCHITECTURE.md``;
-``docs/generated/api-spec.json`` carries a canonical header stub in front of
-the ``classes`` array. This script validates the sources and rewrites the
-derived copies, so ARCHITECTURE.md never drifts from the .mmd files.
+embedded verbatim as fenced `````mermaid`` blocks in ``docs/ARCHITECTURE.md``.
+This script validates the sources and rewrites the derived copies, so
+ARCHITECTURE.md never drifts from the .mmd files.
 
 Exit code 0 - sources valid (and derived copies rewritten, unless --check).
 Exit code 1 - an invalid source, or drift when run with --check.
 """
 
 import argparse
-import json
 import re
 import sys
 from pathlib import Path
@@ -23,26 +21,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 GENERATED = ROOT / "docs" / "generated"
 ARCH = ROOT / "docs" / "ARCHITECTURE.md"
-SPEC = GENERATED / "api-spec.json"
-
-HEADER = {
-    "spec_version": "1.0",
-    "project": "GdPlanningAI",
-    "note": "Read-only map merged from the orchestrator interface dump. "
-    "Callable/Variant/Dictionary values crossing the Rust bridge are "
-    "serialized, so they are documented here as String-typed with examples. "
-    "See per-class notes.",
-    "bridge_conventions": {
-        "Callable": "String-typed bridge shape. "
-        'Example: "callable:MyUpdaters:update_hunger"',
-        "Variant_property_value": "String-typed bridge shape. "
-        'Example: "variant:int:3" or "variant:Vector2(1, 2)"',
-        "Dictionary_bridge_dict": "String-typed bridge shape. "
-        'Example: "{\\"kind\\": \\"fact\\", \\"fact\\": \\"at_target\\"}"',
-        "fact_value_array": 'String-typed bridge shape. Example: "[\\"loc_kitchen\\"]"',
-    },
-}
-
 # Section title in ARCHITECTURE.md -> diagram file in docs/generated/.
 SECTIONS = {
     "Overview": "architecture-overview.mmd",
@@ -50,11 +28,6 @@ SECTIONS = {
     "Authoring": "architecture-authoring.mmd",
     "Specs": "architecture-specs.mmd",
 }
-
-
-def canonical_head() -> str:
-    """The expected text of api-spec.json from ``{`` through the header stub."""
-    return json.dumps(HEADER, indent=2, ensure_ascii=True)[:-2] + ","
 
 
 def validate_mmd(path: Path, errors: list[str]) -> str | None:
@@ -134,25 +107,6 @@ def main() -> int:
         return 1
 
     try:
-        raw = SPEC.read_text(encoding="utf-8")
-        data = json.loads(raw)
-    except (OSError, json.JSONDecodeError) as exc:
-        print(f"error: {SPEC} unreadable: {exc}")
-        print("generate_docs: 1 error(s).", file=sys.stderr)
-        return 1
-    if not isinstance(data.get("classes"), list) or not data["classes"]:
-        print(f"error: {SPEC} misses a non-empty 'classes' array")
-        print("generate_docs: 1 error(s).", file=sys.stderr)
-        return 1
-    anchor = '\n  "classes":'
-    idx = raw.find(anchor)
-    if idx < 0:
-        print(f"error: {SPEC} has no top-level 'classes' key")
-        print("generate_docs: 1 error(s).", file=sys.stderr)
-        return 1
-    head_drift = raw[:idx] != canonical_head()
-
-    try:
         arch = ARCH.read_text(encoding="utf-8")
     except OSError as exc:
         print(f"error: {ARCH} unreadable: {exc}")
@@ -164,19 +118,15 @@ def main() -> int:
             print(f"error: {problem}")
         print(f"generate_docs: {len(errors)} error(s).", file=sys.stderr)
         return 1
-    if head_drift:
-        drifts.append(f"{SPEC.name} header stub differs from canonical form")
 
     if check and drifts:
         for drift in drifts:
             print(f"drift: {drift}")
         print(f"generate_docs: {len(drifts)} drift(s) found.", file=sys.stderr)
         return 1
-    if head_drift:
-        SPEC.write_text(canonical_head() + raw[idx:], encoding="utf-8")
     if updated != arch:
         ARCH.write_text(updated, encoding="utf-8")
-    if head_drift or updated != arch:
+    if updated != arch:
         print("generate_docs: rewrote drifted file(s).", file=sys.stderr)
     else:
         print("generate_docs: docs and generated sources agree.", file=sys.stderr)

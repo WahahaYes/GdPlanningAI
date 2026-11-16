@@ -178,8 +178,12 @@ sync-docs: ## Copy README and LICENSE from root to addon directory
 	@echo "Documentation synced successfully"
 
 .PHONY: docs
-docs: ## Re-embed docs/generated/*.mmd into docs/ARCHITECTURE.md and refresh the api-spec.json header stub
+docs: ## Re-embed docs/generated/*.mmd into docs/ARCHITECTURE.md
 	python3 scripts/generate_docs.py
+
+.PHONY: api
+api: ## Rewrite docs/API.md, the public surface, from the code (necro fails while it is stale)
+	uv run --frozen scripts/api_surface.py
 
 .PHONY: docs-check
 docs-check: ## Fail when docs/ARCHITECTURE.md drifts from docs/generated/ (CI runs this)

@@ -104,6 +104,7 @@ The docs live in this repository; the addon install copies only the addon and it
 | Doc                                                                                                                 | What it covers                                                       |
 | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
 | [AUTHORING_GUIDE.md](https://github.com/WahahaYes/GdPlanningAI/blob/main/docs/AUTHORING_GUIDE.md)                   | Writing goals, actions, preconditions and world objects.             |
+| [API.md](https://github.com/WahahaYes/GdPlanningAI/blob/main/docs/API.md)                                           | Every public class, member and signature.                            |
 | [EXAMPLES.md](https://github.com/WahahaYes/GdPlanningAI/blob/main/docs/EXAMPLES.md)                                 | What each example scene shows and which scripts to read.             |
 | [ALGORITHM.md](https://github.com/WahahaYes/GdPlanningAI/blob/main/docs/ALGORITHM.md)                               | How the planner finds a plan, with pseudocode of the engine.         |
 | [CODEBASE_OVERVIEW.md](https://github.com/WahahaYes/GdPlanningAI/blob/main/docs/CODEBASE_OVERVIEW.md)               | Where things live, how Rust and GDScript talk, building, testing.    |
