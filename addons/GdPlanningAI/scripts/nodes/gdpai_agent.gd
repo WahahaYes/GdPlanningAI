@@ -10,8 +10,10 @@ extends Node
 ## then step the current plan. Planning runs in the background; a finished plan replaces the
 ## current one. See [Action] for the hook order.
 
-## Emitted when a finished plan is installed, successful or not; check the result's success flag.
-signal plan_delivered(result: Dictionary)
+## Emitted when a finished plan is installed, successful or not. On success, [param goal] is the
+## goal it serves, [param plan] the action chain about to run and [param cost] its total cost; a
+## failure carries [code]null[/code], an empty plan and [code]0.0[/code].
+signal plan_delivered(success: bool, goal: Goal, plan: Array[Action], cost: float)
 
 ## Plan step meaning "pre-perform phase": the plan is installed but pre actions have not run.
 const PRE_PHASE: int = -1
@@ -238,7 +240,9 @@ func _on_plan_ready(result: Dictionary) -> void:
 		return
 	_retire_current_chain()
 	_current_plan_step = PRE_PHASE
+	var cost: float = 0.0
 	if result.get("success", false):
+		cost = result.get("total_cost", 0.0)
 		_failure_backoff_left = 0.0
 		var deserialized: Dictionary = _bridge.deserialize_plan_result(
 			result, _last_submitted_actions
@@ -261,7 +265,7 @@ func _on_plan_ready(result: Dictionary) -> void:
 		_current_bindings_by_position = {}
 		_current_goal = null
 		_failure_backoff_left = config.failure_backoff
-	plan_delivered.emit(result)
+	plan_delivered.emit(result.get("success", false), _current_goal, _current_action_chain, cost)
 
 
 ## Runs the guaranteed cleanup phase for the outgoing chain before it is replaced. Posts run

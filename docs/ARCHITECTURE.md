@@ -36,7 +36,7 @@ classDiagram
     GdPlanningAIPlugin --> GdPAIAutoload : registers singleton
 
     class GdPAIAgent {
-        +signal plan_delivered(result)
+        +signal plan_delivered(success, goal, plan, cost)
         +get_current_goal()
         +get_current_plan()
         +manually_start_plan()

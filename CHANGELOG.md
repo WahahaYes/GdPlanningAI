@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Breaking: `plan_delivered` passes the plan, not the planner's result.** The signal is now `plan_delivered(success: bool, goal: Goal, plan: Array[Action], cost: float)`; handlers that read `result["success"]` take the arguments instead, and a failure passes `null`, an empty plan and `0.0`.
 - **Go To gives up when the agent stops getting closer.** An agent that keeps moving without shortening its path for `GoToAction.PROGRESS_WINDOW` (3 s), for example jostled near a crowded target, now arrives if it is near the path's end and otherwise fails and replans, instead of walking forever.
 - **No save prompt after a clean editor start.** The plugin registers its autoload only when enabled, not on every launch ([#106](https://github.com/WahahaYes/GdPlanningAI/issues/106)).
 

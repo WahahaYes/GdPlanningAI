@@ -9,7 +9,7 @@ extends GutTest
 
 const FAILED: Dictionary = {"success": false}
 
-## Results handed to the listener, oldest first.
+## Deliveries handed to the listener, oldest first: success, goal, plan and cost.
 var _delivered: Array[Dictionary] = []
 
 
@@ -18,9 +18,9 @@ func after_each() -> void:
 	_cancel_jobs()
 
 
-## Collects a delivered plan result.
-func _on_plan_delivered(result: Dictionary) -> void:
-	_delivered.append(result)
+## Collects a delivered plan.
+func _on_plan_delivered(success: bool, goal: Goal, plan: Array[Action], cost: float) -> void:
+	_delivered.append({"success": success, "goal": goal, "plan": plan, "cost": cost})
 
 
 ## Builds a goal-holding agent with an entity and a world node, so a request really is in flight;
@@ -77,8 +77,12 @@ func test_successful_plan_is_delivered() -> void:
 	_answer(agent, result)
 
 	assert_eq(_delivered.size(), 1, "One delivery per installed plan")
-	assert_true(_delivered[0]["success"], "The result reports the success")
-	assert_eq(_delivered[0]["action_chain"], [0, 1], "The planner chain travels unchanged")
+	assert_true(_delivered[0]["success"], "The delivery reports the success")
+	assert_eq(_delivered[0]["goal"], agent.goals[0], "The goal the plan serves")
+	assert_eq(
+		_delivered[0]["plan"], agent._last_submitted_actions, "The chain as the submitted actions"
+	)
+	assert_eq(_delivered[0]["cost"], 3.0, "The plan's total cost")
 	assert_eq(agent.get_current_plan().size(), 2, "The chain is installed before the signal")
 	assert_eq(agent.get_current_plan_step(), -1, "The installed plan has not started")
 
@@ -90,7 +94,9 @@ func test_failed_plan_is_delivered() -> void:
 	_answer(agent, FAILED)
 
 	assert_eq(_delivered.size(), 1, "A failure is delivered")
-	assert_false(_delivered[0]["success"], "The result reports the failure")
+	assert_false(_delivered[0]["success"], "The delivery reports the failure")
+	assert_null(_delivered[0]["goal"], "A failure serves no goal")
+	assert_true(_delivered[0]["plan"].is_empty(), "A failure delivers no plan")
 	assert_null(agent.get_current_action(), "A failed plan has no current action")
 	assert_true(agent.get_current_plan().is_empty(), "A failed plan installs no chain")
 

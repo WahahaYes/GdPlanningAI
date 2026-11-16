@@ -40,7 +40,7 @@ func get_description() -> String
 
 ```gdscript
 extends Node
-signal plan_delivered(result: Dictionary)
+signal plan_delivered(success: bool, goal: Goal, plan: Array[Action], cost: float)
 const PRE_PHASE: int = -1
 @export var entity: Node
 @export var config: GdPAIAgentConfig = GdPAIAgentConfig.new()

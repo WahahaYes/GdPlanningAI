@@ -107,8 +107,8 @@ func _ready() -> void:
 
 
 ## Keeps the delivered plan result.
-func _on_plan_delivered(result: Dictionary) -> void:
-	_delivered = result
+func _on_plan_delivered(success: bool, _goal: Goal, plan: Array[Action], _cost: float) -> void:
+	_delivered = {"success": success, "steps": plan.size()}
 
 
 ## Waits for the plan, then for the agent to run it.
