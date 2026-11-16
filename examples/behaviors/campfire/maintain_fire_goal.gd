@@ -36,7 +36,7 @@ func tended_group() -> String:
 
 
 # Override
-func compute_reward(agent: GdPAIAgent) -> float:
+func get_reward(agent: GdPAIAgent) -> float:
 	if agent.world_node == null:
 		return reward_value
 	var world_state: GdPAIBlackboard = agent.world_node.get_world_state()

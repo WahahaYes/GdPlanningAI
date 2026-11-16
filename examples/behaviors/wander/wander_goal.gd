@@ -10,7 +10,7 @@ extends Goal
 
 
 # Override
-func compute_reward(_agent: GdPAIAgent) -> float:
+func get_reward(_agent: GdPAIAgent) -> float:
 	return 5.0
 
 

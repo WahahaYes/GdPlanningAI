@@ -14,7 +14,7 @@ use std::collections::{HashMap, HashSet};
 ///
 /// Created from [code]GdPAIObjectData.get_sim_properties()[/code] at the start of
 /// planning. Use [method get_property] and [method set_property] to read and
-/// mutate state within [code]simulate_effect[/code] or [code]get_action_cost[/code].
+/// mutate state within [code]simulate_effect[/code] or [code]get_cost[/code].
 /// Changes made to a proxy during simulation are isolated to that branch and
 /// never affect the live scene object.
 #[derive(GodotClass)]

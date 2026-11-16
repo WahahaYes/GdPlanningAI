@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Breaking: `Action.get_action_cost()` is `get_cost()` and `Goal.compute_reward()` is `get_reward()`.** Rename the overrides in your actions and goals.
 - **Breaking: `GdPAIAgent.manually_start_plan()` is `request_plan()`.**
 - **Breaking: `GdPAIUTILS` is `GdPAIUtils`.**
 - **Breaking: precondition constructors renamed.** `*_geq_than` is now `*_at_least` and `*_leq_than` is `*_at_most` (agent, world state and world object), and `check_is_object_valid` is `object_is_valid`. `world_state_property_not_equal_to` is new, so every target has the full set.

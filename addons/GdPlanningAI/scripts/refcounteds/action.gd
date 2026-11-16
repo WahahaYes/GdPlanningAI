@@ -7,7 +7,7 @@ extends RefCounted
 ## Base class for everything an agent can do. Extend it to write a new action.[br]
 ## [b]Declarative hooks[/b] ([code]get_*[/code]) describe the action to the planner; they are read
 ## once per plan request.[br]
-## [b]Planning hooks[/b] ([method get_action_cost], [method simulate_effect]) run on simulated
+## [b]Planning hooks[/b] ([method get_cost], [method simulate_effect]) run on simulated
 ## blackboards: no scene tree access, no [code]await[/code].[br]
 ## [b]Execution hooks[/b] ([code]*_perform_action[/code]) run the chosen plan on the main
 ## thread.[br]
@@ -36,7 +36,7 @@ func get_validity_checks() -> Array[Precondition]:
 
 # Override
 ## Returns the cost of this action in the simulated state; [code]INF[/code] rules it out.
-func get_action_cost(
+func get_cost(
 	_agent_blackboard: GdPAIBlackboard,
 	_world_state: GdPAIBlackboard,
 ) -> float:

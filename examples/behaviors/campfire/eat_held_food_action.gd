@@ -58,7 +58,7 @@ func _is_holding_food(agent: GdPAIBlackboard, _world: GdPAIBlackboard) -> bool:
 
 
 # Override
-func get_action_cost(
+func get_cost(
 	_agent_blackboard: GdPAIBlackboard,
 	_world_state: GdPAIBlackboard,
 ) -> float:

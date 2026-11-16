@@ -7,7 +7,7 @@ extends Node
 ##[br]
 ## It creates the scheduler, applies the log level from [code]plugin.cfg[/code], and calls the
 ## scheduler's [code]process_callbacks[/code] every frame. That per-frame call is what runs the
-## planning-time hooks ([method Action.get_action_cost], [method Action.simulate_effect], custom
+## planning-time hooks ([method Action.get_cost], [method Action.simulate_effect], custom
 ## preconditions) on the main thread and delivers finished plans to their agents. Agents reach the
 ## scheduler through [method get_scheduler]; user code rarely needs to touch this class.
 

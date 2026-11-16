@@ -63,7 +63,7 @@ func inject_binding(fact_name: String, value: Array) -> void:
 
 # Override
 ## Returns the straight-line distance to the target / 100, or [code]1.0[/code] while unbound.
-func get_action_cost(
+func get_cost(
 	agent_blackboard: GdPAIBlackboard,
 	world_state: GdPAIBlackboard,
 ) -> float:

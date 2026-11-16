@@ -35,7 +35,7 @@ func get_validity_checks() -> Array[Precondition]:
 
 
 # Override
-func get_action_cost(
+func get_cost(
 	_agent_blackboard: GdPAIBlackboard,
 	_world_state: GdPAIBlackboard,
 ) -> float:

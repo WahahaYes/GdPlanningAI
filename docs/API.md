@@ -13,7 +13,7 @@ extends RefCounted
 enum Status { FAILURE, RUNNING, SUCCESS }
 var chain_position: int
 func get_validity_checks() -> Array[Precondition]
-func get_action_cost(_agent_blackboard: GdPAIBlackboard, _world_state: GdPAIBlackboard) -> float
+func get_cost(_agent_blackboard: GdPAIBlackboard, _world_state: GdPAIBlackboard) -> float
 func get_preconditions() -> Array[Precondition]
 func get_requirements() -> Array[RequirementSpec]
 func get_provisions() -> Array[ProvisionSpec]
@@ -180,7 +180,7 @@ func get_world_state() -> GdPAIBlackboard
 
 ```gdscript
 extends RefCounted
-func compute_reward(_agent: GdPAIAgent) -> float
+func get_reward(_agent: GdPAIAgent) -> float
 func get_desired_state(_agent: GdPAIAgent) -> Array[Precondition]
 func get_title() -> String
 func get_description() -> String
@@ -202,7 +202,7 @@ static func find_nav_agent(entity: Node) -> Node
 func _init(p_target_location: GdPAILocationData = null) -> void
 func clone_for_plan() -> Action
 func inject_binding(fact_name: String, value: Array) -> void
-func get_action_cost(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard) -> float
+func get_cost(agent_blackboard: GdPAIBlackboard, world_state: GdPAIBlackboard) -> float
 func get_validity_checks() -> Array[Precondition]
 func get_provisions() -> Array[ProvisionSpec]
 func get_requirements() -> Array[RequirementSpec]

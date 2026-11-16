@@ -56,7 +56,7 @@ func get_provisions() -> Array[ProvisionSpec]:
 
 
 # Override
-func get_action_cost(
+func get_cost(
 	_agent_blackboard: GdPAIBlackboard,
 	world_state: GdPAIBlackboard,
 ) -> float:

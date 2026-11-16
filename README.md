@@ -32,7 +32,7 @@ Objects carry a `GdPAIObjectData` node listing the actions they offer: a tree of
 
 You write three kinds of scripts, all in plain GDScript:
 
-- **Goals** say how much an NPC wants something right now (`compute_reward`) and when it's achieved (`get_desired_state`).
+- **Goals** say how much an NPC wants something right now (`get_reward`) and when it's achieved (`get_desired_state`).
 - **Actions** have preconditions, an effect the planner simulates, and the code that runs it in your game.
 - **Behavior configs** group related goals and actions, and an **agent config** combines them into an NPC type for its `GdPAIAgent` node.
 
@@ -41,7 +41,7 @@ class_name ThirstGoal
 extends Goal
 
 # The thirstier the NPC, the more it wants this.
-func compute_reward(agent: GdPAIAgent) -> float:
+func get_reward(agent: GdPAIAgent) -> float:
 	return agent.blackboard.get_property("thirst")
 
 # Done once thirst is low again.

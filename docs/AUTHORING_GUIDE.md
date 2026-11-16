@@ -56,7 +56,7 @@ All hooks run on the main thread.
 | Hook                                                                         | When                                                            | Scene tree?                    |
 | ---------------------------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------ |
 | `get_*` on actions, goal hooks, `get_provided_actions`, `get_sim_properties` | Once per plan request                                           | Yes, keep cheap                |
-| `get_action_cost`, `simulate_effect`, custom preconditions                   | Many times per search                                           | No: snapshots only, no `await` |
+| `get_cost`, `simulate_effect`, custom preconditions                          | Many times per search                                           | No: snapshots only, no `await` |
 | `pre_perform_action`                                                         | Once per action when a plan starts, before any `perform_action` | Yes                            |
 | `perform_action`                                                             | Every frame while the action is current                         | Yes                            |
 | `post_perform_action`                                                        | Once per action when the plan ends or is replaced               | Yes                            |

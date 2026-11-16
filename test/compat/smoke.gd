@@ -26,7 +26,7 @@ class GetFood:
 	func get_effect_spec() -> Array:
 		return [{"op": "set", "target": "agent", "prop": "has_food", "value": true}]
 
-	func get_action_cost(_agent_bb: GdPAIBlackboard, _world_state: GdPAIBlackboard) -> float:
+	func get_cost(_agent_bb: GdPAIBlackboard, _world_state: GdPAIBlackboard) -> float:
 		return 1.0
 
 	func perform_action(agent: GdPAIAgent, _delta: float) -> Action.Status:
@@ -44,7 +44,7 @@ class Eat:
 	func get_preconditions() -> Array[Precondition]:
 		return [Precondition.agent_property_equal_to("has_food", true)]
 
-	func get_action_cost(_agent_bb: GdPAIBlackboard, _world_state: GdPAIBlackboard) -> float:
+	func get_cost(_agent_bb: GdPAIBlackboard, _world_state: GdPAIBlackboard) -> float:
 		return 1.0
 
 	func simulate_effect(agent_bb: GdPAIBlackboard, _world_state: GdPAIBlackboard) -> void:
@@ -62,7 +62,7 @@ class Eat:
 class BeFed:
 	extends Goal
 
-	func compute_reward(_agent: GdPAIAgent) -> float:
+	func get_reward(_agent: GdPAIAgent) -> float:
 		return 1.0
 
 	func get_desired_state(_agent: GdPAIAgent) -> Array[Precondition]:
