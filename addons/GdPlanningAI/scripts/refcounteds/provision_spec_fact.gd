@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name ProvisionSpecFact
 extends ProvisionSpec
 ## Provision of a fact called [member fact_name] with specific [member args]. Create it with

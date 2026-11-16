@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 """Check that docs/BEHAVIORS.md and the tests point at each other.
 
 Catalog to tests: every path an entry's ``**Proved by:**`` line names is a tracked file.

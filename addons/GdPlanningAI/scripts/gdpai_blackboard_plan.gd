@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name GdPAIBlackboardPlan
 extends Resource
 ## Starting contents of a blackboard, for an agent ([member GdPAIAgentConfig.blackboard_plan]) or

@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 """README paste-safety for the asset store and asset library listings.
 
 The README is pasted by hand into the Asset Store and Asset Library

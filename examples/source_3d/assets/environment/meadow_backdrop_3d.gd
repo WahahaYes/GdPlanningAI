@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 @tool
 extends Node3D
 ## Scenery around a rectangular play area: wind-blown grass over it, a tree line just outside

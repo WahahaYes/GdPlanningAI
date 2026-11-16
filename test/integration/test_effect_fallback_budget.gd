@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 extends GutTest
 ## Per-scene effect-fallback budget: the agent config default, a custom budget that
 ## lets a fallback-only action plan, and a zero cap that drops the branch live.

@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name Action
 extends RefCounted
 ## Base class for everything an agent can do. Extend it to write a new action.[br]

@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2025 Ethan Wilson
+// https://github.com/WahahaYes/GdPlanningAI
+
 // Additive, camera-facing flame puff for GPUParticles3D. The particle colour (from the process
 // material's colour ramp) is boosted past 1 so the environment's glow blooms it.
 shader_type spatial;

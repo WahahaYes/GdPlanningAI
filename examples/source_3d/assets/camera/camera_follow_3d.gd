@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 extends Node3D
 ## Follow camera for the 3D demos: eases toward [member target] on a [SpringArm3D].
 ## Drag right/middle mouse to orbit, wheel to zoom, R to reset, Tab / Shift+Tab to switch agent,

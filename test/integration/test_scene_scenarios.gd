@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 extends "res://test/shared/scene_smoke_base.gd"
 ## Example scenes as data: one parameterized test runs every case in [constant CASES_PATH]
 ## and reports it as [code]<slug>::<scene>.<case>[/code]. End-to-end

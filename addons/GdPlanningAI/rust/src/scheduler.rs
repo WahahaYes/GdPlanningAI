@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2025 Ethan Wilson
+// https://github.com/WahahaYes/GdPlanningAI
+
 //! Plan scheduler exposed to GDScript: owns a Rayon pool and one [`PlannerEngine`] per job.
 //!
 //! `submit_plan` (main thread) converts GDScript data into Send-safe specs. The engine is moved

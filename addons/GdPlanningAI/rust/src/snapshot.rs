@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2025 Ethan Wilson
+// https://github.com/WahahaYes/GdPlanningAI
+
 //! Send-safe, plain-data mirrors of Godot state ([`VariantSnapshot`], [`SimObjectData`],
 //! [`BlackboardSnapshot`]) so planning can run off the main thread.
 //!

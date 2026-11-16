@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2025 Ethan Wilson
+// https://github.com/WahahaYes/GdPlanningAI
+
 //! GdPlanningAI's Rust extension: a backward-chaining GOAP planner exposed to Godot.
 //!
 //! Flow: GDScript calls `submit_plan` on [`scheduler::GdPAIPlanScheduler`], which snapshots

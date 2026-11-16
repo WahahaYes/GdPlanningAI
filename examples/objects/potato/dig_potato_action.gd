@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name DigPotatoAction
 extends Action
 ## Digs up a raw potato into the agent's single held-item slot, freeing the potato. Start of

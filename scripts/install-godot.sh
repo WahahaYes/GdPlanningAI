@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 # Install the Godot version pinned in global.json (headless use), or GODOT_VERSION when set
 # (the compat smoke test's oldest supported version, e.g. 4.2), into DIR and print DIR, which
 # then holds a `godot` executable. Verifies the download against the release's

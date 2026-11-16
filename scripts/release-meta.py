@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 """Release metadata shared by scripts/release.sh and the release workflow.
 
   release-meta.py version       print the version in addons/GdPlanningAI/plugin.cfg

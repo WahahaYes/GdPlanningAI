@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name PotatoSpawner2D
 extends Node
 ## Keeps up to [member max_potatoes] potatoes in [member spawn_area], replacing dug ones every

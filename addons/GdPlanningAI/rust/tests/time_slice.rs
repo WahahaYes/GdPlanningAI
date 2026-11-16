@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2025 Ethan Wilson
+// https://github.com/WahahaYes/GdPlanningAI
+
 //! Regression test for wall-clock time-slicing preserving plan results.
 //!
 //! Verifies that planning with time-slicing disabled (`time_slice_ms = 0`)

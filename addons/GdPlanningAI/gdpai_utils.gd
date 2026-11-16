@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name GdPAIUTILS
 extends Object
 ## Static scene-tree helpers used throughout the addon. Safe to use from your own scripts, but

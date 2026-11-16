@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name PreconditionBuiltin
 extends Precondition
 ## Property comparison the engine evaluates natively. Create it with the static constructors on

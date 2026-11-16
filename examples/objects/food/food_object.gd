@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name FoodObject
 extends HoldableObject
 ## A pickupable food item. Its [code]Food[/code] group makes [PickupAction] also provide

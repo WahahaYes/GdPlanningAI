@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name HungerGoal
 extends Goal
 ## Seek food when hungry. Reward is the hunger value (0 to 100), so it eventually outranks

@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2025 Ethan Wilson
+// https://github.com/WahahaYes/GdPlanningAI
+
 //! Blackboard that holds agent and world state during planning.
 //!
 //! A [`GdPAIBlackboard`] stores named scalar properties and a map of

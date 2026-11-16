@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2025 Ethan Wilson
+// https://github.com/WahahaYes/GdPlanningAI
+
 //! Requirements and provisions: the symbolic causal links of the backward search.
 //!
 //! [`provision_satisfies_requirement`] matches them while building a chain;

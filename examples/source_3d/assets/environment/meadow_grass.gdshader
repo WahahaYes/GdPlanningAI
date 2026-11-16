@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2025 Ethan Wilson
+// https://github.com/WahahaYes/GdPlanningAI
+
 // Grass blades for a MultiMesh: sway in gusting wind, root colour matches the ground below.
 // The blade mesh stores height (0 root, 1 tip) in UV.y.
 shader_type spatial;

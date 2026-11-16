@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name PotatoSpawner3D
 extends Node
 ## 3D [PotatoSpawner2D] that avoids campfires: their carved navmesh would make a potato inside

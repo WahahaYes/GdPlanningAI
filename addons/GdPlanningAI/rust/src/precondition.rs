@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2025 Ethan Wilson
+// https://github.com/WahahaYes/GdPlanningAI
+
 //! Preconditions: built-in comparisons evaluated in Rust, custom ones via GDScript `Callable`s.
 //!
 //! Builtins have a single implementation on the planning path:

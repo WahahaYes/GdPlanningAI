@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name CookPotatoAction
 extends Action
 ## Cooks a held raw potato at a campfire. Middle of the chain Go To (potato), Dig, Go To (fire),

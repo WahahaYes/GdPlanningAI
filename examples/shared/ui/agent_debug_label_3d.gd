@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 extends "res://examples/shared/ui/scroll_label_3d.gd"
 ## 3D version of [code]agent_debug_label.gd[/code] on a billboarded [Label3D] scroll.
 

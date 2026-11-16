@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2025 Ethan Wilson
+// https://github.com/WahahaYes/GdPlanningAI
+
 //! Planner scenarios as data: runs every case in `tests/scenarios/*.toml` through the engine's
 //! entry point, with a scripted host answering costs, effects and custom preconditions from the
 //! fixture. Each file is named after the `docs/BEHAVIORS.md` slug it proves; a case reports as

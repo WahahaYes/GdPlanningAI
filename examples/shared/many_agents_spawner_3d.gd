@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 extends Node
 ## 3D agent spawner: scatters agents between [member spawn_min] and [member spawn_max], cycles
 ## [member skins], and hands a camera rig an agent to follow.[br]

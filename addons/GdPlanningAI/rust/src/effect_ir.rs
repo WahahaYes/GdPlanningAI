@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2025 Ethan Wilson
+// https://github.com/WahahaYes/GdPlanningAI
+
 //! Native effect specs: declarative action effects evaluated on snapshots.
 //!
 //! An action may declare `effect_spec` (see `Action::get_effect_spec`) alongside its

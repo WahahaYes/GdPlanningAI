@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2025 Ethan Wilson
+// https://github.com/WahahaYes/GdPlanningAI
+
 // Stylized meadow ground: patchy grass colour with drifting cloud shadows.
 shader_type spatial;
 render_mode specular_disabled;

@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name Precondition
 extends RefCounted
 ## A condition on agent, world or object state, checked against simulated state during

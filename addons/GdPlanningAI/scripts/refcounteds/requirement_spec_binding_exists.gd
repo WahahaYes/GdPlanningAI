@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name RequirementSpecBindingExists
 extends RequirementSpec
 ## Requirement that a binding called [member binding_name] was provided, whatever its value.

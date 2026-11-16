@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name GdPAIWorldNode
 extends Node
 ## Holds the shared world state. Add exactly one to the scene; agents find it when ready.

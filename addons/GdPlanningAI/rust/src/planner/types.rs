@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2025 Ethan Wilson
+// https://github.com/WahahaYes/GdPlanningAI
+
 //! Search data structures.
 //!
 //! [`PlanBranch`] is one backward-search hypothesis: a partial chain plus its open needs, each

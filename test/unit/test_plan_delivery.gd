@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 extends GutTest
 ## [signal GdPAIAgent.plan_delivered] announces every installed plan, and the agent's accessors
 ## expose the action at the current step and whether a plan request is in flight.

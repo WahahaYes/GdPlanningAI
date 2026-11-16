@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 """Install Godot addons for CI by cloning the pins in addons.jsonc.
 
 Local development uses GodotEnv (``make addons-install``); CI deliberately

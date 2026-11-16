@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name PreconditionCustomWithDeps
 extends Precondition
 ## Custom precondition that is [code]false[/code] once any object its callable captures is freed.

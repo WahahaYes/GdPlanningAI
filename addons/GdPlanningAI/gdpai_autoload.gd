@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 extends Node
 ## Autoload singleton ([code]GdPAIAutoload[/code]) that owns the addon's [GdPAIPlanScheduler].[br]
 ##[br]

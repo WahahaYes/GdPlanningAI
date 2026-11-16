@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 extends OmniLight3D
 ## Flickers a fire's light; its energy, reach and flicker follow the flame's size (the fuel
 ## level, eased by the campfire runtime). Presentation only.

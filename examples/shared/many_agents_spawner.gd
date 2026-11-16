@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 extends Node
 ## Spawns [member agent_count] copies of [member agent_scene] at random points in
 ## [member spawn_rect]. Used by the stress-test scene; locks rotation so sprites stay upright,

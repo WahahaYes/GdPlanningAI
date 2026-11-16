@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name WanderGoal
 extends Goal
 ## Keep moving when nothing else needs doing (fixed reward 5).[br]

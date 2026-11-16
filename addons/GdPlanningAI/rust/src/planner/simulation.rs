@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2025 Ethan Wilson
+// https://github.com/WahahaYes/GdPlanningAI
+
 //! Resumable evaluation of action effects, costs and custom preconditions.
 //!
 //! Called without a response, a function that needs GDScript sends a [`CallbackRequest`] and

@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name PickUpWoodAction
 extends Action
 ## Takes a log from a wood pile. First half of the chain Go To (pile), Pick Up Wood, Go To

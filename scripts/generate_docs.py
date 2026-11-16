@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 """Keep docs/ARCHITECTURE.md and docs/generated/ in sync.
 
 The four layered diagrams live in ``docs/generated/architecture-*.mmd`` and are

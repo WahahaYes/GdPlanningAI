@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name DropItemAction
 extends Action
 ## Discards the held item, emptying the single held-item slot so pick-up and dig can run.

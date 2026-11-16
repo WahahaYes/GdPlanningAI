@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2025 Ethan Wilson
+// https://github.com/WahahaYes/GdPlanningAI
+
 // Parchment scroll for a Control (a ColorRect behind the on-screen guide). Rolls run along the
 // top and bottom; rect_size is the control's size in pixels, set by its owner.
 shader_type canvas_item;

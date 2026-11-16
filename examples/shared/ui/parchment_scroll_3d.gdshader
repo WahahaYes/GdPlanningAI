@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2025 Ethan Wilson
+// https://github.com/WahahaYes/GdPlanningAI
+
 // Billboarded parchment scroll drawn behind a Label3D. The quad's size comes in through the
 // scroll_size instance uniform, set by scroll_label_3d.gd.
 shader_type spatial;

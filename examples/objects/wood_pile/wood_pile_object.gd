@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name WoodPileObject
 extends GdPAIObjectData
 ## An endless wood supply for the campfire. Offers [PickUpWoodAction]; no simulated properties,

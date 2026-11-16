@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 extends GutTest
 ## Cross-agent isolation: two agents planning concurrently over one shared world
 ## board. Each agent's search simulates effects that mutate world snapshot

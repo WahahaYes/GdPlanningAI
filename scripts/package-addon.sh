@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 # Build the release archive GdPlanningAI-X.Y.Z.zip from a checkout whose bin/{linux,macos,windows}
 # hold real binaries (CI's build artifacts, or make build-release for a local trial).
 # GitHub's own source archives hold LFS pointers or stale binaries; this one holds the

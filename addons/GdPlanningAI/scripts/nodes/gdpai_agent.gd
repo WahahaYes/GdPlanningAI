@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name GdPAIAgent
 extends Node
 ## The AI brain of one entity: plans with its goals and actions, then executes the plan.

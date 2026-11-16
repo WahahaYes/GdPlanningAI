@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name Goal
 extends RefCounted
 ## Something an agent wants to achieve. Extend it to write a new goal.[br]
