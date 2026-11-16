@@ -66,7 +66,7 @@ func test_agents_pair_up_on_home_campfires() -> void:
 	var scene: Node3D = LARGE_SCENE.instantiate() as Node3D
 	await _settle_example(scene)
 	var campfires: Array[CampfireObject] = []
-	for node in GdPAIUTILS.get_children_in_group(scene, "CampfireObject"):
+	for node in GdPAIUtils.get_children_in_group(scene, "CampfireObject"):
 		var campfire: CampfireObject = node as CampfireObject
 		if campfire != null:
 			campfires.append(campfire)

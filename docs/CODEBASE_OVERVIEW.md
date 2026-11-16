@@ -33,7 +33,7 @@ addons/GdPlanningAI/
 ├── plugin.gd                 # EditorPlugin; registers the autoload singleton
 ├── plugin.cfg                # Plugin metadata (name, version, log_level)
 ├── gdpai_autoload.gd         # Autoload singleton GdPAIAutoload
-├── gdpai_utils.gd            # GdPAIUTILS helpers (get_child_of_type, etc.)
+├── gdpai_utils.gd            # GdPAIUtils helpers (get_child_of_type, etc.)
 ├── gdplanningai.gdextension  # GDExtension config; points at bin/<platform> libs
 ├── bin/                      # Built Rust shared libraries (linux/macos/windows)
 ├── rust/                     # Rust planning engine crate (see section 3)

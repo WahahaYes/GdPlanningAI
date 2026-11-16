@@ -153,7 +153,7 @@ func serialize_actions(actions: Array[Action]) -> Array[Dictionary]
 func serialize_goals(goals: Array[Goal], agent: GdPAIAgent) -> Array[Dictionary]
 ```
 
-### GdPAIUTILS
+### GdPAIUtils
 
 `addons/GdPlanningAI/gdpai_utils.gd`
 

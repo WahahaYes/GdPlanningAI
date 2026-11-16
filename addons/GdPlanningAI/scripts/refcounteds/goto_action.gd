@@ -32,8 +32,8 @@ var target_location: GdPAILocationData
 
 ## Returns the navigation agent below [param entity], or [code]null[/code].
 static func find_nav_agent(entity: Node) -> Node:
-	var nav_2d: Node = GdPAIUTILS.get_child_of_type(entity, NavigationAgent2D)
-	var nav_3d: Node = GdPAIUTILS.get_child_of_type(entity, NavigationAgent3D)
+	var nav_2d: Node = GdPAIUtils.get_child_of_type(entity, NavigationAgent2D)
+	var nav_3d: Node = GdPAIUtils.get_child_of_type(entity, NavigationAgent3D)
 	assert(
 		nav_2d == null or nav_3d == null,
 		"Entity should not have both a NavigationAgent2D and a NavigationAgent3D."

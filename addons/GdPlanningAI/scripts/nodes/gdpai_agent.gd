@@ -70,13 +70,13 @@ func _ready() -> void:
 	blackboard.set_property("entity", entity)
 	# Collect any GdPAI nodes under this agent's entity.
 	if entity != null:
-		var agent_objects: Array = GdPAIUTILS.get_children_in_group(entity, "GdPAIObjectData")
+		var agent_objects: Array = GdPAIUtils.get_children_in_group(entity, "GdPAIObjectData")
 		blackboard.set_property("GDPAI_OBJECTS", agent_objects)
 	# Apply behavior configurations.
 	for behavior_config in config.behavior_configs:
 		behavior_config.apply_to_agent(self)
 	# Try to find a world node.
-	world_node = GdPAIUTILS.get_child_of_type(get_tree().root, GdPAIWorldNode)
+	world_node = GdPAIUtils.get_child_of_type(get_tree().root, GdPAIWorldNode)
 	_bridge = GdPAIRustBridge.new()
 
 
@@ -201,7 +201,7 @@ func _start_plan_async() -> void:
 		push_error("GdPAIAgent: scheduler not available; async planning is required")
 		return
 
-	var agent_objects: Array = GdPAIUTILS.get_children_in_group(entity, "GdPAIObjectData")
+	var agent_objects: Array = GdPAIUtils.get_children_in_group(entity, "GdPAIObjectData")
 	blackboard.set_property("GDPAI_OBJECTS", agent_objects)
 
 	var ws: GdPAIBlackboard = world_node.get_world_state()

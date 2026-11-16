@@ -28,7 +28,7 @@ func _init(
 
 	var fruit: Node = fruit_tree.fruit_prefab.instantiate()
 	fruit.queue_free()
-	var food_item: FoodObject = GdPAIUTILS.get_child_of_type(fruit, FoodObject)
+	var food_item: FoodObject = GdPAIUtils.get_child_of_type(fruit, FoodObject)
 	if food_item == null:
 		push_error("ShakeTreeAction: fruit prefab has no FoodObject child")
 		_sim_hunger_gain = 0.0
