@@ -5,14 +5,14 @@
 class_name Goal
 extends RefCounted
 ## Something an agent wants to achieve. Extend it to write a new goal.[br]
-## [method compute_reward] says how much the agent wants it now; [method get_desired_state] says
+## [method get_reward] says how much the agent wants it now; [method get_desired_state] says
 ## when it is achieved. Both are read once per plan request, before the search, and may read live
 ## scene state. Register goals through a [GdPAIBehaviorConfig].
 
 
 # Override
 ## Returns how much the agent wants this goal now. Goals are tried from highest reward down.
-func compute_reward(_agent: GdPAIAgent) -> float:
+func get_reward(_agent: GdPAIAgent) -> float:
 	return 0
 
 

@@ -150,6 +150,7 @@ impl GdPAIPlanScheduler {
     /// Call once per frame: prints queued logs, runs requested callables, resumes engines, and
     /// delivers results to the agent's `_on_plan_ready` as a dictionary (`success`, `total_cost`,
     /// `goal_index`, `action_chain`, `action_bindings`). Cancelled jobs deliver nothing.
+    /// @experimental: Internal to GdPlanningAI; may change in any release.
     #[func]
     fn process_callbacks(&mut self) {
         crate::logger::process_logs();
@@ -322,6 +323,7 @@ impl GdPAIPlanScheduler {
     /// reward and the first with a plan wins. Budgets are clamped: `max_recursion` >= 1,
     /// `iteration_budget` >= 100, `time_slice_ms` = 0 disables time-slicing,
     /// `max_effect_fallbacks` >= 0 (per-search GDScript effect cap).
+    /// @experimental: Internal to GdPlanningAI; may change in any release.
     #[func]
     #[expect(clippy::too_many_arguments, reason = "matches godot bridge signature")]
     fn submit_plan(
@@ -460,6 +462,7 @@ impl GdPAIPlanScheduler {
     }
 
     /// Cancel all in-flight planning jobs for `agent`. No result is delivered.
+    /// @experimental: Internal to GdPlanningAI; may change in any release.
     #[func]
     fn cancel_agent_jobs(&mut self, agent: Gd<Object>) {
         let agent_instance_id = agent.instance_id().to_i64();
@@ -476,6 +479,7 @@ impl GdPAIPlanScheduler {
     }
 
     /// Cancels and removes all jobs; engines are freed off the main thread.
+    /// @experimental: Internal to GdPlanningAI; may change in any release.
     #[func]
     fn clear_active_jobs(&mut self) {
         for job in &mut self.active_jobs {
@@ -493,6 +497,7 @@ impl GdPAIPlanScheduler {
 
     /// Signal all active jobs to cancel but do not remove them from the registry.
     /// This allows process_callbacks to still recover the engines for debug tree inspection.
+    /// @experimental: Internal to GdPlanningAI; may change in any release.
     #[func]
     fn cancel_all_jobs(&mut self) {
         for job in &mut self.active_jobs {

@@ -6,6 +6,7 @@ class_name ProvisionSpecFact
 extends ProvisionSpec
 ## Provision of a fact called [member fact_name] with specific [member args]. Create it with
 ## [method ProvisionSpec.fact].
+## @experimental: Internal to GdPlanningAI; may change in any release.
 
 ## Name of the provided fact.
 var fact_name: String

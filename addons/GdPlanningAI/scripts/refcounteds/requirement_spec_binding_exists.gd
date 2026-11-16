@@ -6,6 +6,7 @@ class_name RequirementSpecBindingExists
 extends RequirementSpec
 ## Requirement that a binding called [member binding_name] was provided, whatever its value.
 ## Create it with [method RequirementSpec.binding_exists].
+## @experimental: Internal to GdPlanningAI; may change in any release.
 
 ## Name of the required binding.
 var binding_name: String

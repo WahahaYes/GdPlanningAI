@@ -33,7 +33,7 @@ addons/GdPlanningAI/
 ├── plugin.gd                 # EditorPlugin; registers the autoload singleton
 ├── plugin.cfg                # Plugin metadata (name, version, log_level)
 ├── gdpai_autoload.gd         # Autoload singleton GdPAIAutoload
-├── gdpai_utils.gd            # GdPAIUTILS helpers (get_child_of_type, etc.)
+├── gdpai_utils.gd            # GdPAIUtils helpers (get_child_of_type, etc.)
 ├── gdplanningai.gdextension  # GDExtension config; points at bin/<platform> libs
 ├── bin/                      # Built Rust shared libraries (linux/macos/windows)
 ├── rust/                     # Rust planning engine crate (see section 3)
@@ -114,18 +114,18 @@ The GDScript classes in `scripts/`, grouped by base type:
 
 ### RefCounted classes you extend
 
-| Class                          | File                                                   | Notes                                                                                                                                                                                                              |
-| ------------------------------ | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `Action`                       | `scripts/refcounteds/action.gd`                        | Planning-time overrides (`get_validity_checks`, `get_action_cost`, `get_preconditions`, `get_requirements`, `get_provisions`, `simulate_effect`) and execution-time overrides (`pre/perform/post_perform_action`). |
-| `GoToAction`                   | `scripts/refcounteds/goto_action.gd`                   | Extends `Action`. Wildcard `at_target` provision; handles navigation via `inject_binding`.                                                                                                                         |
-| `Goal`                         | `scripts/refcounteds/goal.gd`                          | `compute_reward`, `get_desired_state`.                                                                                                                                                                             |
-| `PropertyUpdater`              | `scripts/refcounteds/property_updater.gd`              | `update_properties` every frame, `initialize` once.                                                                                                                                                                |
-| `Precondition`                 | `scripts/refcounteds/precondition.gd`                  | Base plus static factories (agent, world state, world object proxy, custom).                                                                                                                                       |
-| `PreconditionBuiltin`          | `scripts/refcounteds/precondition_builtin.gd`          | Evaluated natively in Rust; no callback.                                                                                                                                                                           |
-| `PreconditionCustom`           | `scripts/refcounteds/precondition_custom.gd`           | Evaluated via a main-thread callback.                                                                                                                                                                              |
-| `PreconditionCustomWithDeps`   | `scripts/refcounteds/precondition_custom_with_deps.gd` | Adds `dependent_object_ids` for Rust liveness validation.                                                                                                                                                          |
-| `RequirementSpec` + subclasses | `scripts/refcounteds/requirement_spec*.gd`             | `binding_exists`, `binding_equals`, `binding_in_set`, `fact`.                                                                                                                                                      |
-| `ProvisionSpec` + subclasses   | `scripts/refcounteds/provision_spec*.gd`               | `binding`, `fact`, `fact_wildcard` (the wildcard is how `GoToAction` satisfies any location requirement).                                                                                                          |
+| Class                          | File                                                   | Notes                                                                                                                                                                                                       |
+| ------------------------------ | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Action`                       | `scripts/refcounteds/action.gd`                        | Planning-time overrides (`get_validity_checks`, `get_cost`, `get_preconditions`, `get_requirements`, `get_provisions`, `simulate_effect`) and execution-time overrides (`pre/perform/post_perform_action`). |
+| `GoToAction`                   | `scripts/refcounteds/goto_action.gd`                   | Extends `Action`. Wildcard `at_target` provision; handles navigation via `inject_binding`.                                                                                                                  |
+| `Goal`                         | `scripts/refcounteds/goal.gd`                          | `get_reward`, `get_desired_state`.                                                                                                                                                                          |
+| `PropertyUpdater`              | `scripts/refcounteds/property_updater.gd`              | `update_properties` every frame, `initialize` once.                                                                                                                                                         |
+| `Precondition`                 | `scripts/refcounteds/precondition.gd`                  | Base plus static factories (agent, world state, world object proxy, custom).                                                                                                                                |
+| `PreconditionBuiltin`          | `scripts/refcounteds/precondition_builtin.gd`          | Evaluated natively in Rust; no callback.                                                                                                                                                                    |
+| `PreconditionCustom`           | `scripts/refcounteds/precondition_custom.gd`           | Evaluated via a main-thread callback.                                                                                                                                                                       |
+| `PreconditionCustomWithDeps`   | `scripts/refcounteds/precondition_custom_with_deps.gd` | Adds `dependent_object_ids` for Rust liveness validation.                                                                                                                                                   |
+| `RequirementSpec` + subclasses | `scripts/refcounteds/requirement_spec*.gd`             | `binding_exists`, `binding_equals`, `binding_in_set`, `fact`.                                                                                                                                               |
+| `ProvisionSpec` + subclasses   | `scripts/refcounteds/provision_spec*.gd`               | `binding`, `fact`, `fact_wildcard` (the wildcard is how `GoToAction` satisfies any location requirement).                                                                                                   |
 
 ### Resource classes (config)
 
@@ -137,7 +137,7 @@ The GDScript classes in `scripts/`, grouped by base type:
 
 ### Rust-exposed classes (no `.gd` file)
 
-- `GdPAIBlackboard`: `set/get/erase/has_property`, `set_dict`, `get_object_for` (returns a `SimObjectProxy` snapshot), group queries. The reserved `GDPAI_OBJECTS` key holds arrays of `GdPAIObjectData` nodes.
+- `GdPAIBlackboard`: `set/get/erase/has_property`, `set_dict`, `get_object_for` (returns a `SimObjectProxy` snapshot), group queries. The reserved `GDPAI_OBJECTS` key (`GdPAIAgent.KEY_OBJECTS`) holds arrays of `GdPAIObjectData` nodes.
 - `SimObjectProxy`: a send-safe world-object snapshot (uid, groups, properties).
 - `GdPAIPlanScheduler`: the planning job manager and the callable dispatcher.
 
@@ -157,7 +157,7 @@ The agent lifecycle, from configuration to execution:
 1. **Plan ready**: `_on_plan_ready(result)` is generation-guarded so stale results from a superseded submission are discarded. It deserializes the plan into `{action_chain, bindings_by_position}`, sets the current goal from `result.goal_index`, and clones the actions via `clone_for_plan()`.
 1. **Execution**: plans run in three phases. **Pre**: every action's `pre_perform_action` runs; any FAILURE aborts the plan. **Action**: the current action's `perform_action(agent, delta)` returns SUCCESS (advance), RUNNING (stay), or FAILURE (abort). **Post**: every action's `post_perform_action` runs as guaranteed cleanup.
 
-Planning strategies: CONTINUOUS replans each frame once the current plan is done; ON_INTERVAL replans on a timer; ON_INTERVAL_FORCED replans every tick regardless of plan state; ON_DEMAND only plans when `manually_start_plan()` is called. `failure_backoff` delays the automatic strategies after a failed plan.
+Planning strategies: CONTINUOUS replans each frame once the current plan is done; ON_INTERVAL replans on a timer; ON_INTERVAL_FORCED replans every tick regardless of plan state; ON_DEMAND only plans when `request_plan()` is called. `failure_backoff` delays the automatic strategies after a failed plan.
 
 ______________________________________________________________________
 
@@ -224,7 +224,7 @@ ______________________________________________________________________
 ## 8. Developer tooling
 
 - **Formatting and linting**: `make necro-fix` (`necro --fix`: rustfmt, gdformat, GDScript spacing), `make necro` (house rules plus the rust, rust-style, gdscript and gdscript-style packs: rustfmt, clippy with warnings failing, and for GDScript a `:=` ban, borders, docstrings, spacing, gdformat and gdlint).
-- **`scripts/`**: `check_effect_spec.py`, `check_behaviors.py`, `check_godot_floor.py`, `check_readme_safety.py` (house rules necro runs).
+- **`scripts/`**: `check_effect_spec.py`, `check_behaviors.py`, `check_godot_floor.py`, `check_readme_safety.py`, `api_surface.py` (house rules necro runs; `make api` rewrites `docs/API.md` with the last).
 - **`necro/header.txt`**: the license, copyright and repo link every source file (`.gd`, `.rs`, `.gdshader`, `.py`, `.sh`, script templates included) opens with; `make necro-fix` writes it, and editing it updates every header.
 - **Hooks** (`.pre-commit-config.yaml`, run with prek at commit; tests are run by hand): the standard pre-commit hooks, gitleaks, mdformat (`--wrap=no`), ruff, shellcheck, necro, `check-docs` (README/LICENSE drift), `no-built-binaries` and `no-ai-attribution` (commit-msg).
 - **Third-party addons** (`addons.jsonc`): `gut` v9.6.0 (bitwes/Gut) + `GdTimeMachine` main (WahahaYes/GdTimeMachine), installed via GodotEnv, gitignored, cached under `.addons/`. All three editor plugins (GdPlanningAI, gut, GdTimeMachine) are enabled.
@@ -241,6 +241,7 @@ ______________________________________________________________________
 | `docs/AUTHORING_GUIDE.md`          | How to write actions, goals, preconditions and object data.          |
 | `docs/EXAMPLES.md`                 | What each demo scene shows and which scripts to read.                |
 | `docs/ALGORITHM.md`                | How the planner searches, with pseudocode of the engine.             |
+| `docs/API.md`                      | The public API: every class and signature, generated (`make api`).   |
 | `docs/ARCHITECTURE.md`             | Class diagrams, generated from `docs/generated/` (`make docs`).      |
 | `docs/BEHAVIORS.md`                | What the addon promises, each behavior with the tests that prove it. |
 | `docs/CODEBASE_OVERVIEW.md`        | This file: where things live, building and testing.                  |

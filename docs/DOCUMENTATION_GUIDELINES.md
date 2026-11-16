@@ -12,7 +12,7 @@ How code is documented in GdPlanningAI. `make necro` checks the mechanical rules
 
 - Put the class docstring (`##`) right after `class_name` / `extends`. Document `@export` and significant variables with `##` directly above, by meaning rather than implementation.
 - Document functions whose signature doesn't say it all.
-- Mark implementations of base-class contracts (`Action.get_action_cost()`, `Goal.compute_reward()`) with `# Override`.
+- Mark implementations of base-class contracts (`Action.get_cost()`, `Goal.get_reward()`) with `# Override`.
 - Always annotate types explicitly; never infer with `:=`.
 
 ```gdscript
@@ -27,7 +27,7 @@ extends Action
 
 # Override
 ## Returns the walk time; [code]INF[/code] rules the action out.
-func get_action_cost(_agent_blackboard: GdPAIBlackboard, _world_state: GdPAIBlackboard) -> float:
+func get_cost(_agent_blackboard: GdPAIBlackboard, _world_state: GdPAIBlackboard) -> float:
 	return 1.0
 ```
 

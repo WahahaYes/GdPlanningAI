@@ -10,7 +10,7 @@ extends Resource
 enum PlanningStrategy {
 	CONTINUOUS,  ## Plan whenever there is no plan.
 	ON_INTERVAL,  ## Every [member planning_interval] seconds, if there is no plan.
-	ON_DEMAND,  ## Only on [method GdPAIAgent.manually_start_plan].
+	ON_DEMAND,  ## Only on [method GdPAIAgent.request_plan].
 	ON_INTERVAL_FORCED,  ## Every [member planning_interval] seconds, replacing any plan.
 }
 
@@ -21,7 +21,7 @@ enum PlanningStrategy {
 @export var planning_interval: float = 0.5
 ## Seconds to wait after a failed plan before planning again on its own; [code]0[/code] retries
 ## at once. Idle (empty) plans do not count as failures, and
-## [method GdPAIAgent.manually_start_plan] ignores the wait.
+## [method GdPAIAgent.request_plan] ignores the wait.
 @export var failure_backoff: float = 0.0
 ## Maximum search depth; deeper branches are pruned.
 @export var max_recursion: int = 100

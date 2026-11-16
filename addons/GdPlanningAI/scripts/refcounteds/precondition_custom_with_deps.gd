@@ -6,6 +6,7 @@ class_name PreconditionCustomWithDeps
 extends Precondition
 ## Custom precondition that is [code]false[/code] once any object its callable captures is freed.
 ## Create it with [method Precondition.custom_with_deps].
+## @experimental: Internal to GdPlanningAI; may change in any release.
 
 ## Takes (agent blackboard, world blackboard) and returns a [bool].
 var eval_func: Callable

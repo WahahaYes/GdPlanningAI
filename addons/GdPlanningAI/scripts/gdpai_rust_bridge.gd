@@ -9,6 +9,7 @@ extends RefCounted
 ## Serialises actions and goals for [code]GdPAIPlanScheduler.submit_plan[/code], reading their
 ## declarative hooks on the main thread. Cost and effect hooks are passed as [Callable]s, so game
 ## state never crosses the language boundary.
+## @experimental: Internal to GdPlanningAI; may change in any release.
 
 
 ## Turns a planner [param result] into [code]action_chain[/code] (cloned via
@@ -59,7 +60,7 @@ func _extract_actions(actions: Array[Action]) -> Array[Dictionary]:
 			. append(
 				{
 					"name": action.get_title(),
-					"cost_callable": Callable(action, "get_action_cost"),
+					"cost_callable": Callable(action, "get_cost"),
 					"effect_callable": Callable(action, "simulate_effect"),
 					"effect_spec": effect_spec,
 					"preconditions": _extract_preconditions(action.get_preconditions()),
@@ -106,7 +107,7 @@ func _extract_goals(goals: Array[Goal], agent: GdPAIAgent) -> Array[Dictionary]:
 			. append(
 				{
 					"name": goal.get_title(),
-					"reward": goal.compute_reward(agent),
+					"reward": goal.get_reward(agent),
 					"desired_state": _extract_preconditions(goal.get_desired_state(agent)),
 				}
 			)

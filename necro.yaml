@@ -23,6 +23,12 @@ rules:
     message: The oldest supported Godot is not pinned in one place
     why: The library loads only on the Godot API it was built for and newer; an unpinned godot crate follows godot-rust's default (0.5 moved it to 4.6), so the shipped library can stop loading on a version compatibility_minimum still claims.
     fix: Give the godot dependency one api-4-N feature and set compatibility_minimum to the same version; `make test-compat` checks it on that Godot.
+  api-surface:
+    command: uv run scripts/api_surface.py --check
+    files: '^(addons/GdPlanningAI/.*\.(gd|rs)|docs/API\.md|scripts/api_surface\.py)$'
+    message: docs/API.md doesn't match the public API in the code
+    why: docs/API.md is the reviewed record of what users can call, extend and configure; a change to the surface has to show there as a diff, so a rename or a new public member is a deliberate choice in review.
+    fix: Run make api and commit docs/API.md with the change.
   readme-safety:
     command: uv run scripts/check_readme_safety.py
     files: '^(addons/GdPlanningAI/)?README\.md$'

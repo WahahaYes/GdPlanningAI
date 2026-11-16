@@ -7,7 +7,7 @@ extends RefCounted
 ## Base class for everything an agent can do. Extend it to write a new action.[br]
 ## [b]Declarative hooks[/b] ([code]get_*[/code]) describe the action to the planner; they are read
 ## once per plan request.[br]
-## [b]Planning hooks[/b] ([method get_action_cost], [method simulate_effect]) run on simulated
+## [b]Planning hooks[/b] ([method get_cost], [method simulate_effect]) run on simulated
 ## blackboards: no scene tree access, no [code]await[/code].[br]
 ## [b]Execution hooks[/b] ([code]*_perform_action[/code]) run the chosen plan on the main
 ## thread.[br]
@@ -25,6 +25,7 @@ enum Status {
 ## Index of this action in the executing plan, or [code]-1[/code] outside execution. Set by
 ## the agent before every execution hook; keys [method set_state] data. The [code]-1[/code]
 ## namespace is literal, so unpositioned access never collides with position [code]0[/code].
+## @experimental: Internal to GdPlanningAI; may change in any release.
 var chain_position: int = -1
 
 
@@ -36,7 +37,7 @@ func get_validity_checks() -> Array[Precondition]:
 
 # Override
 ## Returns the cost of this action in the simulated state; [code]INF[/code] rules it out.
-func get_action_cost(
+func get_cost(
 	_agent_blackboard: GdPAIBlackboard,
 	_world_state: GdPAIBlackboard,
 ) -> float:
@@ -137,6 +138,7 @@ func _scoped_key(key: String) -> String:
 
 ## Erases every scoped key for this instance at [param pos], regardless of
 ## [member chain_position]. Position-scoped, so repeated occurrences of one instance survive.
+## @experimental: Internal to GdPlanningAI; may change in any release.
 func erase_position_state(agent: GdPAIAgent, pos: int) -> void:
 	var prefix: String = str(get_instance_id()) + "_" + str(pos) + "_"
 	for key in agent.blackboard.get_dict().keys():
@@ -146,6 +148,7 @@ func erase_position_state(agent: GdPAIAgent, pos: int) -> void:
 
 
 ## Erases every scoped key for this instance at all positions, including unpositioned ones.
+## @experimental: Internal to GdPlanningAI; may change in any release.
 func erase_all_state(agent: GdPAIAgent) -> void:
 	var prefix: String = str(get_instance_id()) + "_"
 	for key in agent.blackboard.get_dict().keys():

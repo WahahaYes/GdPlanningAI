@@ -32,8 +32,8 @@ var target_location: GdPAILocationData
 
 ## Returns the navigation agent below [param entity], or [code]null[/code].
 static func find_nav_agent(entity: Node) -> Node:
-	var nav_2d: Node = GdPAIUTILS.get_child_of_type(entity, NavigationAgent2D)
-	var nav_3d: Node = GdPAIUTILS.get_child_of_type(entity, NavigationAgent3D)
+	var nav_2d: Node = GdPAIUtils.get_child_of_type(entity, NavigationAgent2D)
+	var nav_3d: Node = GdPAIUtils.get_child_of_type(entity, NavigationAgent3D)
 	assert(
 		nav_2d == null or nav_3d == null,
 		"Entity should not have both a NavigationAgent2D and a NavigationAgent3D."
@@ -63,7 +63,7 @@ func inject_binding(fact_name: String, value: Array) -> void:
 
 # Override
 ## Returns the straight-line distance to the target / 100, or [code]1.0[/code] while unbound.
-func get_action_cost(
+func get_cost(
 	agent_blackboard: GdPAIBlackboard,
 	world_state: GdPAIBlackboard,
 ) -> float:
@@ -102,11 +102,11 @@ func get_action_cost(
 ## Requires the agent's entity and location, and a valid fixed target if one is set.
 func get_validity_checks() -> Array[Precondition]:
 	var checks: Array[Precondition] = []
-	checks.append(Precondition.agent_has_property("entity"))
+	checks.append(Precondition.agent_has_property(GdPAIAgent.KEY_ENTITY))
 	checks.append(Precondition.agent_has_object_data_of_group("GdPAILocationData"))
 	# Only check target_location validity if it's set (during execution, not planning)
 	if target_location != null:
-		checks.append(Precondition.check_is_object_valid(target_location))
+		checks.append(Precondition.object_is_valid(target_location))
 	return checks
 
 

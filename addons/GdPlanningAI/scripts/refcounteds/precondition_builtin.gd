@@ -6,6 +6,7 @@ class_name PreconditionBuiltin
 extends Precondition
 ## Property comparison the engine evaluates natively. Create it with the static constructors on
 ## [Precondition]. Group targets are true if [i]any[/i] object in the group matches.
+## @experimental: Internal to GdPlanningAI; may change in any release.
 
 ## Specifies which blackboard to evaluate the precondition against.
 enum Target {

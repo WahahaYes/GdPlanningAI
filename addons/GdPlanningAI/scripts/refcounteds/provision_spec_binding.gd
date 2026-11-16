@@ -6,6 +6,7 @@ class_name ProvisionSpecBinding
 extends ProvisionSpec
 ## Provision of a binding called [member binding_name] with a fixed [member value]. Create it with
 ## [method ProvisionSpec.binding].
+## @experimental: Internal to GdPlanningAI; may change in any release.
 
 ## Name of the provided binding.
 var binding_name: String

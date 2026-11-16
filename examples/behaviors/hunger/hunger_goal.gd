@@ -16,7 +16,7 @@ var hunger_drop: float = 15.0
 
 
 # Override
-func compute_reward(agent: GdPAIAgent) -> float:
+func get_reward(agent: GdPAIAgent) -> float:
 	var hunger_val = agent.blackboard.get_property("hunger")
 	if hunger_val == null:
 		return 0.0

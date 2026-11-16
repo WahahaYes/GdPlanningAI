@@ -29,13 +29,13 @@ func clone_for_plan() -> Action:
 # Override
 func get_validity_checks() -> Array[Precondition]:
 	var checks: Array[Precondition] = []
-	checks.append(Precondition.agent_has_property("entity"))
+	checks.append(Precondition.agent_has_property(GdPAIAgent.KEY_ENTITY))
 	checks.append(Precondition.agent_has_object_data_of_group("GdPAILocationData"))
 	return checks
 
 
 # Override
-func get_action_cost(
+func get_cost(
 	_agent_blackboard: GdPAIBlackboard,
 	_world_state: GdPAIBlackboard,
 ) -> float:

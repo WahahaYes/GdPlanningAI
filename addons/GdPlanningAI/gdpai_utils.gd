@@ -2,7 +2,7 @@
 # Copyright 2025 Ethan Wilson
 # https://github.com/WahahaYes/GdPlanningAI
 
-class_name GdPAIUTILS
+class_name GdPAIUtils
 extends Object
 ## Static scene-tree helpers used throughout the addon. Safe to use from your own scripts, but
 ## only from the main thread and never from planning-time hooks.

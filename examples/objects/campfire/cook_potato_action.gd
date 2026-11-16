@@ -34,9 +34,9 @@ func _init(
 # Override
 func get_validity_checks() -> Array[Precondition]:
 	return [
-		Precondition.check_is_object_valid(campfire_ref),
-		Precondition.check_is_object_valid(object_location),
-		Precondition.check_is_object_valid(interactable_attribs),
+		Precondition.object_is_valid(campfire_ref),
+		Precondition.object_is_valid(object_location),
+		Precondition.object_is_valid(interactable_attribs),
 	]
 
 
@@ -59,7 +59,7 @@ func get_provisions() -> Array[ProvisionSpec]:
 
 
 # Override
-func get_action_cost(
+func get_cost(
 	_agent_blackboard: GdPAIBlackboard,
 	world_state: GdPAIBlackboard,
 ) -> float:

@@ -219,7 +219,7 @@ func test_binding_in_set_requires_world_group_membership() -> void:
 		}
 	]
 	var world: GdPAIBlackboard = _make_blackboard()
-	world.set_property("GDPAI_OBJECTS", [banana, rock])
+	world.set_property(GdPAIAgent.KEY_OBJECTS, [banana, rock])
 
 	var result: Dictionary = await _submit_plan_and_wait(
 		scheduler, _make_blackboard({"ate": false, "held_item": ""}), world, actions, goals, 120, 4

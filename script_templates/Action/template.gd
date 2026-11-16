@@ -24,12 +24,12 @@ func get_description() -> String:
 # Override
 func get_validity_checks() -> Array[Precondition]:
 	# Gates checked once against the initial state; a failing check drops the action.
-	# e.g. Precondition.check_is_object_valid(target)
+	# e.g. Precondition.object_is_valid(target)
 	return []
 
 
 # Override
-func get_action_cost(
+func get_cost(
 	_agent_blackboard: GdPAIBlackboard,
 	_world_state: GdPAIBlackboard,
 ) -> float:

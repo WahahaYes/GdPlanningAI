@@ -108,7 +108,7 @@ Unit tier: the built-in precondition evaluator is an algorithmic kernel.
 
 ### `plan-delivery-observed`
 
-**Scenario:** Given a finished plan, successful or not, when the agent installs it, then `plan_delivered` fires once with the full result dictionary so game code can branch on its `success` flag, `get_current_action()` returns the action at the current step or `null` before the plan starts, and `is_waiting_for_plan()` is true only while a request is in flight.
+**Scenario:** Given a finished plan, successful or not, when the agent installs it, then `plan_delivered` fires once with its success, the goal it serves, the plan as actions and its cost, `get_current_action()` returns the action at the current step or `null` before the plan starts, and `is_waiting_for_plan()` is true only while a request is in flight.
 
 **Proved by:** `test/unit/test_plan_delivery.gd`
 

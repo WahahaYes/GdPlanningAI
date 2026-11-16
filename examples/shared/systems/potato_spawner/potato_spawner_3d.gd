@@ -77,7 +77,7 @@ func _gather_campfire_positions() -> void:
 	var scene: Node = owner if owner != null else get_tree().current_scene
 	if scene == null:
 		return
-	for node in GdPAIUTILS.get_children_in_group(scene, "CampfireObject"):
+	for node in GdPAIUtils.get_children_in_group(scene, "CampfireObject"):
 		var campfire: CampfireObject = node as CampfireObject
 		if campfire == null:
 			continue

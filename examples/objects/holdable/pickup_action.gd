@@ -27,7 +27,7 @@ func _init(
 
 
 # Override
-func get_action_cost(
+func get_cost(
 	_agent_blackboard: GdPAIBlackboard,
 	_world_state: GdPAIBlackboard,
 ) -> float:
@@ -38,9 +38,9 @@ func get_action_cost(
 # Override
 func get_validity_checks() -> Array[Precondition]:
 	var checks: Array[Precondition] = []
-	checks.append(Precondition.check_is_object_valid(holdable_item))
-	checks.append(Precondition.check_is_object_valid(object_location))
-	checks.append(Precondition.check_is_object_valid(interactable_attribs))
+	checks.append(Precondition.object_is_valid(holdable_item))
+	checks.append(Precondition.object_is_valid(object_location))
+	checks.append(Precondition.object_is_valid(interactable_attribs))
 	return checks
 
 

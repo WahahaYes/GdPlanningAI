@@ -26,7 +26,7 @@ class GetFood:
 	func get_effect_spec() -> Array:
 		return [{"op": "set", "target": "agent", "prop": "has_food", "value": true}]
 
-	func get_action_cost(_agent_bb: GdPAIBlackboard, _world_state: GdPAIBlackboard) -> float:
+	func get_cost(_agent_bb: GdPAIBlackboard, _world_state: GdPAIBlackboard) -> float:
 		return 1.0
 
 	func perform_action(agent: GdPAIAgent, _delta: float) -> Action.Status:
@@ -44,7 +44,7 @@ class Eat:
 	func get_preconditions() -> Array[Precondition]:
 		return [Precondition.agent_property_equal_to("has_food", true)]
 
-	func get_action_cost(_agent_bb: GdPAIBlackboard, _world_state: GdPAIBlackboard) -> float:
+	func get_cost(_agent_bb: GdPAIBlackboard, _world_state: GdPAIBlackboard) -> float:
 		return 1.0
 
 	func simulate_effect(agent_bb: GdPAIBlackboard, _world_state: GdPAIBlackboard) -> void:
@@ -62,7 +62,7 @@ class Eat:
 class BeFed:
 	extends Goal
 
-	func compute_reward(_agent: GdPAIAgent) -> float:
+	func get_reward(_agent: GdPAIAgent) -> float:
 		return 1.0
 
 	func get_desired_state(_agent: GdPAIAgent) -> Array[Precondition]:
@@ -103,12 +103,12 @@ func _ready() -> void:
 	_agent.self_actions.append(Eat.new())
 	_agent.goals.append(BeFed.new())
 	_agent.plan_delivered.connect(_on_plan_delivered)
-	_agent.manually_start_plan()
+	_agent.request_plan()
 
 
 ## Keeps the delivered plan result.
-func _on_plan_delivered(result: Dictionary) -> void:
-	_delivered = result
+func _on_plan_delivered(success: bool, _goal: Goal, plan: Array[Action], _cost: float) -> void:
+	_delivered = {"success": success, "steps": plan.size()}
 
 
 ## Waits for the plan, then for the agent to run it.

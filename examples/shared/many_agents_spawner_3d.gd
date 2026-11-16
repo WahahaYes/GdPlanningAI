@@ -64,7 +64,7 @@ func _assign_home_campfires(agents: Array[Node3D]) -> void:
 	if scene == null:
 		return
 	var campfires: Array[CampfireObject] = []
-	for node in GdPAIUTILS.get_children_in_group(scene, "CampfireObject"):
+	for node in GdPAIUtils.get_children_in_group(scene, "CampfireObject"):
 		var campfire: CampfireObject = node as CampfireObject
 		if campfire != null:
 			campfires.append(campfire)
@@ -75,7 +75,7 @@ func _assign_home_campfires(agents: Array[Node3D]) -> void:
 		var group: String = "HomeCampfire%d" % (home + 1)
 		campfires[home].add_to_group(group)
 		var agent_node: GdPAIAgent = (
-			GdPAIUTILS.get_child_of_type(agents[i], GdPAIAgent) as GdPAIAgent
+			GdPAIUtils.get_child_of_type(agents[i], GdPAIAgent) as GdPAIAgent
 		)
 		if agent_node != null:
 			for goal in agent_node.goals:

@@ -8,7 +8,7 @@ extends Goal
 
 
 # Override
-func compute_reward(_agent: GdPAIAgent) -> float:
+func get_reward(_agent: GdPAIAgent) -> float:
 	# Read once per plan request; the highest-reward goal with a plan wins.
 	# May change over time to reflect dynamic needs (e.g. rising hunger).
 	return 0

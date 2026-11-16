@@ -1,6 +1,6 @@
 # Architecture
 
-The diagrams below are generated from `docs/generated/*.mmd` and embedded here. For exact method signatures, params, and return types see [api-spec.json](generated/api-spec.json); the diagrams show shortened names for readability.
+The diagrams below are generated from `docs/generated/*.mmd` and embedded here. For exact signatures see [API.md](API.md); the diagrams show shortened names for readability.
 
 ## Overview — [architecture-overview.mmd](generated/architecture-overview.mmd)
 
@@ -22,7 +22,7 @@ classDiagram
 
 ## Runtime — [architecture-runtime.mmd](generated/architecture-runtime.mmd)
 
-Shows the planning loop: how Agent, Scheduler, WorldNode, Blackboard, and the Rust bridge connect, with key methods only. Use it when tracing a live plan; see [api-spec.json](generated/api-spec.json) for full signatures.
+Shows the planning loop: how Agent, Scheduler, WorldNode, Blackboard, and the Rust bridge connect, with key methods only. Use it when tracing a live plan; see [API.md](API.md) for full signatures.
 
 ```mermaid
 classDiagram
@@ -36,10 +36,10 @@ classDiagram
     GdPlanningAIPlugin --> GdPAIAutoload : registers singleton
 
     class GdPAIAgent {
-        +signal plan_delivered(result)
+        +signal plan_delivered(success, goal, plan, cost)
         +get_current_goal()
         +get_current_plan()
-        +manually_start_plan()
+        +request_plan()
         +set_planning_strategy()
     }
     class GdPAIPlanScheduler {
@@ -113,7 +113,7 @@ classDiagram
         +Status SUCCESS
         +chain_position
         +get_validity_checks()
-        +get_action_cost()
+        +get_cost()
         +get_preconditions()
         +get_requirements()
         +get_provisions()
@@ -134,7 +134,7 @@ classDiagram
     }
     class Goal {
         <<extension point>>
-        +compute_reward()
+        +get_reward()
         +get_desired_state()
         +get_title()
         +get_description()
@@ -155,7 +155,7 @@ classDiagram
 
 ## Specs — [architecture-specs.mmd](generated/architecture-specs.mmd)
 
-Shows the Precondition, RequirementSpec, and ProvisionSpec hierarchies and what each to_bridge_dict sends across the Rust bridge. Use it when declaring planner constraints; see [api-spec.json](generated/api-spec.json) for exact bridge string shapes.
+Shows the Precondition, RequirementSpec, and ProvisionSpec hierarchies and what each to_bridge_dict sends across the Rust bridge. Use it when declaring planner constraints; see [API.md](API.md) for exact signatures.
 
 ```mermaid
 classDiagram

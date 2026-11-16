@@ -6,6 +6,7 @@ class_name RequirementSpecFact
 extends RequirementSpec
 ## Requirement that a fact called [member fact_name] with the given [member args] was provided by
 ## an earlier action. Create it with [method RequirementSpec.fact].
+## @experimental: Internal to GdPlanningAI; may change in any release.
 
 ## Name of the required fact.
 var fact_name: String

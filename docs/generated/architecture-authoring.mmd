@@ -32,7 +32,7 @@ classDiagram
         +Status SUCCESS
         +chain_position
         +get_validity_checks()
-        +get_action_cost()
+        +get_cost()
         +get_preconditions()
         +get_requirements()
         +get_provisions()
@@ -53,7 +53,7 @@ classDiagram
     }
     class Goal {
         <<extension point>>
-        +compute_reward()
+        +get_reward()
         +get_desired_state()
         +get_title()
         +get_description()

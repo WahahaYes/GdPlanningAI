@@ -28,7 +28,7 @@ func _init(
 
 	var fruit: Node = fruit_tree.fruit_prefab.instantiate()
 	fruit.queue_free()
-	var food_item: FoodObject = GdPAIUTILS.get_child_of_type(fruit, FoodObject)
+	var food_item: FoodObject = GdPAIUtils.get_child_of_type(fruit, FoodObject)
 	if food_item == null:
 		push_error("ShakeTreeAction: fruit prefab has no FoodObject child")
 		_sim_hunger_gain = 0.0
@@ -37,7 +37,7 @@ func _init(
 
 
 # Override
-func get_action_cost(
+func get_cost(
 	_agent_blackboard: GdPAIBlackboard,
 	_world_state: GdPAIBlackboard,
 ) -> float:
@@ -48,7 +48,7 @@ func get_action_cost(
 func get_validity_checks() -> Array[Precondition]:
 	var checks: Array[Precondition] = []
 	checks.append(Precondition.agent_has_property("hunger"))
-	checks.append(Precondition.check_is_object_valid(fruit_tree))
+	checks.append(Precondition.object_is_valid(fruit_tree))
 	checks.append(Precondition.agent_property_greater_than("hunger", 0.0))
 
 	# The cooldown is live scene state, so a custom check reads the node.

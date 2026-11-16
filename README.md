@@ -32,7 +32,7 @@ Objects carry a `GdPAIObjectData` node listing the actions they offer: a tree of
 
 You write three kinds of scripts, all in plain GDScript:
 
-- **Goals** say how much an NPC wants something right now (`compute_reward`) and when it's achieved (`get_desired_state`).
+- **Goals** say how much an NPC wants something right now (`get_reward`) and when it's achieved (`get_desired_state`).
 - **Actions** have preconditions, an effect the planner simulates, and the code that runs it in your game.
 - **Behavior configs** group related goals and actions, and an **agent config** combines them into an NPC type for its `GdPAIAgent` node.
 
@@ -41,7 +41,7 @@ class_name ThirstGoal
 extends Goal
 
 # The thirstier the NPC, the more it wants this.
-func compute_reward(agent: GdPAIAgent) -> float:
+func get_reward(agent: GdPAIAgent) -> float:
 	return agent.blackboard.get_property("thirst")
 
 # Done once thirst is low again.
@@ -104,6 +104,7 @@ The docs live in this repository; the addon install copies only the addon and it
 | Doc                                                                                                                 | What it covers                                                       |
 | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
 | [AUTHORING_GUIDE.md](https://github.com/WahahaYes/GdPlanningAI/blob/main/docs/AUTHORING_GUIDE.md)                   | Writing goals, actions, preconditions and world objects.             |
+| [API.md](https://github.com/WahahaYes/GdPlanningAI/blob/main/docs/API.md)                                           | Every public class, member and signature.                            |
 | [EXAMPLES.md](https://github.com/WahahaYes/GdPlanningAI/blob/main/docs/EXAMPLES.md)                                 | What each example scene shows and which scripts to read.             |
 | [ALGORITHM.md](https://github.com/WahahaYes/GdPlanningAI/blob/main/docs/ALGORITHM.md)                               | How the planner finds a plan, with pseudocode of the engine.         |
 | [CODEBASE_OVERVIEW.md](https://github.com/WahahaYes/GdPlanningAI/blob/main/docs/CODEBASE_OVERVIEW.md)               | Where things live, how Rust and GDScript talk, building, testing.    |

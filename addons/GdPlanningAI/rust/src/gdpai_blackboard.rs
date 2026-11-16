@@ -16,6 +16,9 @@ use crate::sim_object_proxy::SimObjectProxy;
 use godot::prelude::*;
 use std::collections::{HashMap, HashSet};
 
+/// The reserved key for world objects; GDScript names it `GdPAIAgent.KEY_OBJECTS`.
+const OBJECTS_KEY: &str = "GDPAI_OBJECTS";
+
 /// Key/value store for agent or world state, accessible from GDScript.
 ///
 /// Holds [b]properties[/b] ([method get_property], [method set_property]) and world [b]objects[/b]
@@ -89,7 +92,7 @@ impl GdPAIBlackboard {
     #[func]
     pub fn set_property(&mut self, key: GString, value: Variant) {
         let key_str = key.to_string();
-        if key_str == "GDPAI_OBJECTS" {
+        if key_str == OBJECTS_KEY {
             let old_uids: Vec<String> = self.objects.keys().cloned().collect();
             self.objects.clear();
             self.source_objects.clear();
@@ -142,7 +145,7 @@ impl GdPAIBlackboard {
     #[func]
     pub fn erase_property(&mut self, key: GString) {
         let key_str = key.to_string();
-        if key_str == "GDPAI_OBJECTS" {
+        if key_str == OBJECTS_KEY {
             let old_uids: Vec<String> = self.objects.keys().cloned().collect();
             self.objects.clear();
             self.source_objects.clear();

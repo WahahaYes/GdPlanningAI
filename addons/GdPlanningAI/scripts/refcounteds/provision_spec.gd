@@ -9,6 +9,7 @@ extends RefCounted
 
 
 ## Returns the engine's view of this provision. Implemented by subclasses; internal.
+## @experimental: Internal to GdPlanningAI; may change in any release.
 func to_bridge_dict() -> Dictionary:
 	push_error("ProvisionSpec.to_bridge_dict must be overridden")
 	return {}

@@ -36,7 +36,7 @@ func tended_group() -> String:
 
 
 # Override
-func compute_reward(agent: GdPAIAgent) -> float:
+func get_reward(agent: GdPAIAgent) -> float:
 	if agent.world_node == null:
 		return reward_value
 	var world_state: GdPAIBlackboard = agent.world_node.get_world_state()
@@ -56,7 +56,7 @@ func compute_reward(agent: GdPAIAgent) -> float:
 func get_desired_state(agent: GdPAIAgent) -> Array[Precondition]:
 	# Builtin, so the planner can find actions that raise current_fuel.
 	return [
-		Precondition.world_object_property_geq_than(
+		Precondition.world_object_property_at_least(
 			tended_group(), "current_fuel", target_fuel(_highest_fuel(agent))
 		)
 	]
