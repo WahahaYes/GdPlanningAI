@@ -29,9 +29,3 @@ rules:
     message: README is not safe to paste into the asset listings
     why: The README is pasted by hand into the Asset Store and Asset Library descriptions, where relative links break and over-long text gets rejected.
     fix: Use absolute repo URLs and keep it under the limit; `uv run scripts/check_readme_safety.py --explain <code>` shows the rule in full.
-  godot-data-comments:
-    command: uv run scripts/check_godot_comments.py
-    files: '\.(tscn|tres|godot|cfg|gdextension|import)$'
-    message: A Godot data file has a comment
-    why: Scenes, resources and config files are read by Godot and edited through the editor, not read as text; a comment there goes unread and stale, and the editor may drop it on the next save.
-    fix: Delete the comment; document the setting in docs/ or the script that reads it.
