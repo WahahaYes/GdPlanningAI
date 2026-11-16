@@ -1,4 +1,4 @@
-extends "res://examples/shared/ui/scroll_label_2d.gd"
+extends ScrollLabel2D
 ## Shows a [GdPAIAgent]'s current goal, action and [member debug_properties] on a parchment scroll.
 ## Presentation only; floats are shown to one decimal.
 
