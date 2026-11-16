@@ -67,7 +67,7 @@ func test_interval_skips_timeouts_during_backoff() -> void:
 func test_success_clears_backoff() -> void:
 	var agent: GdPAIAgent = _make_agent(GdPAIAgentConfig.PlanningStrategy.CONTINUOUS)
 	_answer(agent, FAILED)
-	agent.manually_start_plan()
+	agent.request_plan()
 	_answer(agent, IDLE)
 	var submitted: int = agent._plan_generation
 	agent._process(0.1)
@@ -79,5 +79,5 @@ func test_manual_start_ignores_backoff() -> void:
 	var agent: GdPAIAgent = _make_agent(GdPAIAgentConfig.PlanningStrategy.ON_DEMAND)
 	_answer(agent, FAILED)
 	var submitted: int = agent._plan_generation
-	agent.manually_start_plan()
+	agent.request_plan()
 	assert_eq(agent._plan_generation, submitted + 1, "Manual planning is not delayed")

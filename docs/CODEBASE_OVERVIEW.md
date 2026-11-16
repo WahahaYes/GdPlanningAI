@@ -157,7 +157,7 @@ The agent lifecycle, from configuration to execution:
 1. **Plan ready**: `_on_plan_ready(result)` is generation-guarded so stale results from a superseded submission are discarded. It deserializes the plan into `{action_chain, bindings_by_position}`, sets the current goal from `result.goal_index`, and clones the actions via `clone_for_plan()`.
 1. **Execution**: plans run in three phases. **Pre**: every action's `pre_perform_action` runs; any FAILURE aborts the plan. **Action**: the current action's `perform_action(agent, delta)` returns SUCCESS (advance), RUNNING (stay), or FAILURE (abort). **Post**: every action's `post_perform_action` runs as guaranteed cleanup.
 
-Planning strategies: CONTINUOUS replans each frame once the current plan is done; ON_INTERVAL replans on a timer; ON_INTERVAL_FORCED replans every tick regardless of plan state; ON_DEMAND only plans when `manually_start_plan()` is called. `failure_backoff` delays the automatic strategies after a failed plan.
+Planning strategies: CONTINUOUS replans each frame once the current plan is done; ON_INTERVAL replans on a timer; ON_INTERVAL_FORCED replans every tick regardless of plan state; ON_DEMAND only plans when `request_plan()` is called. `failure_backoff` delays the automatic strategies after a failed plan.
 
 ______________________________________________________________________
 

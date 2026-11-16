@@ -323,7 +323,7 @@ func test_agent_with_null_entity_skips_plan_submission() -> void:
 	var agent: GdPAIAgent = GdPAIAgent.new()
 	add_child_autofree(agent)
 	agent.goals.append(Goal.new())
-	agent.manually_start_plan()
+	agent.request_plan()
 	assert_false(agent._waiting_for_plan, "Null-entity agent should not leave a plan in flight")
 	assert_eq(agent._plan_generation, 0, "Null-entity agent should not submit a plan generation")
 	assert_true(

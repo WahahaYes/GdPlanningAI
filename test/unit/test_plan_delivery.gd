@@ -136,7 +136,7 @@ func test_waiting_flag_tracks_the_request() -> void:
 	var agent: GdPAIAgent = _make_agent()
 	assert_false(agent.is_waiting_for_plan(), "Idle before any request")
 
-	agent.manually_start_plan()
+	agent.request_plan()
 	assert_true(agent.is_waiting_for_plan(), "A submitted request is in flight")
 
 	_cancel_jobs()

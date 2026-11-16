@@ -103,7 +103,7 @@ func _ready() -> void:
 	_agent.self_actions.append(Eat.new())
 	_agent.goals.append(BeFed.new())
 	_agent.plan_delivered.connect(_on_plan_delivered)
-	_agent.manually_start_plan()
+	_agent.request_plan()
 
 
 ## Keeps the delivered plan result.

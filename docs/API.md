@@ -55,7 +55,7 @@ func get_current_plan_step() -> int
 func get_current_action() -> Action
 func is_waiting_for_plan() -> bool
 func set_planning_strategy(strategy: GdPAIAgentConfig.PlanningStrategy, interval: float = 0.5) -> void
-func manually_start_plan() -> void
+func request_plan() -> void
 ```
 
 ### GdPAIAgentConfig

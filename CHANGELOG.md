@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Breaking: `GdPAIAgent.manually_start_plan()` is `request_plan()`.**
 - **Breaking: `GdPAIUTILS` is `GdPAIUtils`.**
 - **Breaking: precondition constructors renamed.** `*_geq_than` is now `*_at_least` and `*_leq_than` is `*_at_most` (agent, world state and world object), and `check_is_object_valid` is `object_is_valid`. `world_state_property_not_equal_to` is new, so every target has the full set.
 - **Breaking: `plan_delivered` passes the plan, not the planner's result.** The signal is now `plan_delivered(success: bool, goal: Goal, plan: Array[Action], cost: float)`; handlers that read `result["success"]` take the arguments instead, and a failure passes `null`, an empty plan and `0.0`.

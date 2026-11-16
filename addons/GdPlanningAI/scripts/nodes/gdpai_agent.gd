@@ -171,7 +171,7 @@ func set_planning_strategy(
 
 ## Requests a plan now. The result retires any running plan through its
 ## [method Action.post_perform_action] cleanup before replacing it.
-func manually_start_plan() -> void:
+func request_plan() -> void:
 	if goals.size() == 0:
 		return
 
