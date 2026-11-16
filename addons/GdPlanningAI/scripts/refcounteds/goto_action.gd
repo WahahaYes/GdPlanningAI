@@ -102,7 +102,7 @@ func get_cost(
 ## Requires the agent's entity and location, and a valid fixed target if one is set.
 func get_validity_checks() -> Array[Precondition]:
 	var checks: Array[Precondition] = []
-	checks.append(Precondition.agent_has_property("entity"))
+	checks.append(Precondition.agent_has_property(GdPAIAgent.KEY_ENTITY))
 	checks.append(Precondition.agent_has_object_data_of_group("GdPAILocationData"))
 	# Only check target_location validity if it's set (during execution, not planning)
 	if target_location != null:

@@ -115,7 +115,7 @@ func test_gdpai_objects_property_creates_proxies():
 	add_child_autofree(obj2)
 	await get_tree().process_frame
 
-	bb.set_property("GDPAI_OBJECTS", [obj1, obj2])
+	bb.set_property(GdPAIAgent.KEY_OBJECTS, [obj1, obj2])
 
 	var enemies = bb.get_proxies_in_group("enemy")
 	assert_eq(enemies.size(), 1, "Should find 1 enemy")
@@ -134,7 +134,7 @@ func test_get_proxy_in_group_returns_first():
 	add_child_autofree(obj2)
 	await get_tree().process_frame
 
-	bb.set_property("GDPAI_OBJECTS", [obj1, obj2])
+	bb.set_property(GdPAIAgent.KEY_OBJECTS, [obj1, obj2])
 
 	var proxy = bb.get_proxy_in_group("enemy")
 	assert_not_null(proxy, "Should return a proxy")
@@ -147,7 +147,7 @@ func test_get_proxy_in_group_returns_null_when_not_found():
 	add_child_autofree(obj1)
 	await get_tree().process_frame
 
-	bb.set_property("GDPAI_OBJECTS", [obj1])
+	bb.set_property(GdPAIAgent.KEY_OBJECTS, [obj1])
 
 	var proxy = bb.get_proxy_in_group("ally")
 	assert_null(proxy, "Should return null when group not found")
@@ -160,7 +160,7 @@ func test_get_object_for_returns_proxy():
 	add_child_autofree(obj1)
 	await get_tree().process_frame
 
-	bb.set_property("GDPAI_OBJECTS", [obj1])
+	bb.set_property(GdPAIAgent.KEY_OBJECTS, [obj1])
 
 	var proxy = bb.get_object_for(obj1)
 	assert_not_null(proxy, "Should return proxy for the node")
@@ -176,7 +176,7 @@ func test_clone_preserves_object_proxies():
 	add_child_autofree(obj1)
 	await get_tree().process_frame
 
-	bb.set_property("GDPAI_OBJECTS", [obj1])
+	bb.set_property(GdPAIAgent.KEY_OBJECTS, [obj1])
 	bb.set_property("turn", 1)
 
 	var clone = bb.clone_for_simulation()

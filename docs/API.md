@@ -42,6 +42,8 @@ func get_description() -> String
 extends Node
 signal plan_delivered(success: bool, goal: Goal, plan: Array[Action], cost: float)
 const PRE_PHASE: int = -1
+const KEY_ENTITY: String = "entity"
+const KEY_OBJECTS: String = "GDPAI_OBJECTS"
 @export var entity: Node
 @export var config: GdPAIAgentConfig = GdPAIAgentConfig.new()
 var blackboard: GdPAIBlackboard

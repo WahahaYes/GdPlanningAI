@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Blackboard keys as constants.** `GdPAIAgent.KEY_ENTITY` (`"entity"`) and `GdPAIAgent.KEY_OBJECTS` (`"GDPAI_OBJECTS"`) name the keys the agent and world node write; the values are unchanged.
 - **Breaking: `Action.get_action_cost()` is `get_cost()` and `Goal.compute_reward()` is `get_reward()`.** Rename the overrides in your actions and goals.
 - **Breaking: `GdPAIAgent.manually_start_plan()` is `request_plan()`.**
 - **Breaking: `GdPAIUTILS` is `GdPAIUtils`.**

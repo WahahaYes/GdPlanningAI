@@ -16,6 +16,6 @@ extends Resource
 func generate_blackboard() -> GdPAIBlackboard:
 	var gen_blackboard = GdPAIBlackboard.new()
 	gen_blackboard.set_dict(blackboard_backend.duplicate(true))
-	if not gen_blackboard.has_property("GDPAI_OBJECTS"):
-		gen_blackboard.set_property("GDPAI_OBJECTS", [])
+	if not gen_blackboard.has_property(GdPAIAgent.KEY_OBJECTS):
+		gen_blackboard.set_property(GdPAIAgent.KEY_OBJECTS, [])
 	return gen_blackboard

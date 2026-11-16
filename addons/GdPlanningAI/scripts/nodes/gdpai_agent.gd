@@ -17,6 +17,12 @@ signal plan_delivered(success: bool, goal: Goal, plan: Array[Action], cost: floa
 
 ## Plan step meaning "pre-perform phase": the plan is installed but pre actions have not run.
 const PRE_PHASE: int = -1
+## Blackboard key holding the agent's [member entity], set when the agent is ready.
+const KEY_ENTITY: String = "entity"
+## Reserved blackboard key holding an [Array] of [GdPAIObjectData] nodes; the blackboard turns
+## them into proxies for group queries. The agent fills it with the object data under its entity,
+## the [GdPAIWorldNode] with the scene's.
+const KEY_OBJECTS: String = "GDPAI_OBJECTS"
 
 ## Top-level node of the controlled entity. Object data below it joins the agent's own state.
 @export var entity: Node
@@ -67,11 +73,11 @@ func _ready() -> void:
 
 	blackboard = config.blackboard_plan.generate_blackboard()
 	# Initial blackboard setup common for all agents.
-	blackboard.set_property("entity", entity)
+	blackboard.set_property(KEY_ENTITY, entity)
 	# Collect any GdPAI nodes under this agent's entity.
 	if entity != null:
 		var agent_objects: Array = GdPAIUtils.get_children_in_group(entity, "GdPAIObjectData")
-		blackboard.set_property("GDPAI_OBJECTS", agent_objects)
+		blackboard.set_property(KEY_OBJECTS, agent_objects)
 	# Apply behavior configurations.
 	for behavior_config in config.behavior_configs:
 		behavior_config.apply_to_agent(self)
@@ -202,7 +208,7 @@ func _start_plan_async() -> void:
 		return
 
 	var agent_objects: Array = GdPAIUtils.get_children_in_group(entity, "GdPAIObjectData")
-	blackboard.set_property("GDPAI_OBJECTS", agent_objects)
+	blackboard.set_property(KEY_OBJECTS, agent_objects)
 
 	var ws: GdPAIBlackboard = world_node.get_world_state()
 	if ws == null:
@@ -389,7 +395,7 @@ func _collect_worldly_actions(ws: GdPAIBlackboard) -> Array[Action]:
 	var actions: Array[Action] = []
 	if ws == null:
 		return actions
-	var raw_objects = ws.get_property("GDPAI_OBJECTS")
+	var raw_objects = ws.get_property(KEY_OBJECTS)
 	if raw_objects == null:
 		return actions
 	for gdpai_object: GdPAIObjectData in raw_objects:

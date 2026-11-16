@@ -41,4 +41,4 @@ func _refresh_objects() -> void:
 		return
 	var objects: Array = []
 	objects.append_array(tree.get_nodes_in_group("GdPAIObjectData"))
-	world_state.set_property("GDPAI_OBJECTS", objects)
+	world_state.set_property(GdPAIAgent.KEY_OBJECTS, objects)

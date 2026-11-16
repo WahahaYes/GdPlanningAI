@@ -137,7 +137,7 @@ The GDScript classes in `scripts/`, grouped by base type:
 
 ### Rust-exposed classes (no `.gd` file)
 
-- `GdPAIBlackboard`: `set/get/erase/has_property`, `set_dict`, `get_object_for` (returns a `SimObjectProxy` snapshot), group queries. The reserved `GDPAI_OBJECTS` key holds arrays of `GdPAIObjectData` nodes.
+- `GdPAIBlackboard`: `set/get/erase/has_property`, `set_dict`, `get_object_for` (returns a `SimObjectProxy` snapshot), group queries. The reserved `GDPAI_OBJECTS` key (`GdPAIAgent.KEY_OBJECTS`) holds arrays of `GdPAIObjectData` nodes.
 - `SimObjectProxy`: a send-safe world-object snapshot (uid, groups, properties).
 - `GdPAIPlanScheduler`: the planning job manager and the callable dispatcher.
 

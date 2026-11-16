@@ -330,7 +330,7 @@ func test_agent_with_null_entity_skips_plan_submission() -> void:
 		agent._last_submitted_actions.is_empty(), "Null-entity agent should submit no actions"
 	)
 	assert_eq(
-		agent.blackboard.get_property("GDPAI_OBJECTS"),
+		agent.blackboard.get_property(GdPAIAgent.KEY_OBJECTS),
 		[],
 		"Null-entity agent should not collect agent objects",
 	)
