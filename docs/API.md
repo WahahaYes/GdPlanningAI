@@ -11,7 +11,6 @@ The public surface of GdPlanningAI: every class, member and signature users can 
 ```gdscript
 extends RefCounted
 enum Status { FAILURE, RUNNING, SUCCESS }
-var chain_position: int
 func get_validity_checks() -> Array[Precondition]
 func get_cost(_agent_blackboard: GdPAIBlackboard, _world_state: GdPAIBlackboard) -> float
 func get_preconditions() -> Array[Precondition]
@@ -27,8 +26,6 @@ func set_state(agent: GdPAIAgent, key: String, value: Variant) -> void
 func get_state(agent: GdPAIAgent, key: String) -> Variant
 func erase_state(agent: GdPAIAgent, key: String) -> void
 func has_state(agent: GdPAIAgent, key: String) -> bool
-func erase_position_state(agent: GdPAIAgent, pos: int) -> void
-func erase_all_state(agent: GdPAIAgent) -> void
 func clone_for_plan() -> Action
 func get_title() -> String
 func get_description() -> String
@@ -144,17 +141,6 @@ func get_provided_actions() -> Array[Action]
 func get_sim_properties() -> Dictionary
 ```
 
-### GdPAIRustBridge
-
-`addons/GdPlanningAI/scripts/gdpai_rust_bridge.gd`
-
-```gdscript
-extends RefCounted
-func deserialize_plan_result(result: Dictionary, actions: Array[Action]) -> Dictionary
-func serialize_actions(actions: Array[Action]) -> Array[Dictionary]
-func serialize_goals(goals: Array[Goal], agent: GdPAIAgent) -> Array[Dictionary]
-```
-
 ### GdPAIUtils
 
 `addons/GdPlanningAI/gdpai_utils.gd`
@@ -223,7 +209,6 @@ func get_description() -> String
 
 ```gdscript
 extends RefCounted
-func to_bridge_dict() -> Dictionary
 static func custom(fn: Callable) -> Precondition
 static func custom_with_deps(fn: Callable, deps: Array[Object]) -> Precondition
 static func agent_has_property(prop: String) -> Precondition
@@ -250,6 +235,126 @@ static func world_object_has_property(group: String, property: String) -> Precon
 static func agent_has_object_data_of_group(group: String) -> Precondition
 static func world_state_has_object_data_of_group(group: String) -> Precondition
 static func object_is_valid(object: Variant) -> Precondition
+```
+
+### PropertyUpdater
+
+`addons/GdPlanningAI/scripts/refcounteds/property_updater.gd`
+
+```gdscript
+extends RefCounted
+func update_properties(_agent: GdPAIAgent, _delta: float) -> void
+func initialize(_agent: GdPAIAgent) -> void
+```
+
+### ProvisionSpec
+
+`addons/GdPlanningAI/scripts/refcounteds/provision_spec.gd`
+
+```gdscript
+extends RefCounted
+static func binding(name: String, value: Variant) -> ProvisionSpec
+static func fact(name: String, args: Array[Variant] = []) -> ProvisionSpec
+static func fact_wildcard(name: String) -> ProvisionSpec
+```
+
+### RequirementSpec
+
+`addons/GdPlanningAI/scripts/refcounteds/requirement_spec.gd`
+
+```gdscript
+extends RefCounted
+static func binding_exists(name: String) -> RequirementSpec
+static func binding_equals(name: String, value: Variant) -> RequirementSpec
+static func binding_in_set(name: String, set_name: String) -> RequirementSpec
+static func fact(name: String, args: Array[Variant] = []) -> RequirementSpec
+```
+
+## Rust (GDExtension)
+
+### GdPAIBlackboard
+
+```rust
+extends RefCounted
+fn get_property(key: GString) -> Variant
+fn set_property(key: GString, value: Variant)
+fn has_property(key: GString) -> bool
+fn erase_property(key: GString)
+fn get_dict() -> VarDictionary
+fn set_dict(dict: VarDictionary)
+fn get_proxies_in_group(group: GString) -> Array<Gd<SimObjectProxy>>
+fn get_proxy_in_group(group: GString) -> Variant
+fn get_node_in_group(group: GString) -> Variant
+fn get_nodes_in_group(group: GString) -> Array<Variant>
+fn get_object_for(node_or_id: Variant) -> Variant
+fn clone_for_simulation() -> Gd<GdPAIBlackboard>
+```
+
+### GdPAIPlanScheduler
+
+```rust
+extends Node
+@export var max_threads: i64
+fn active_job_count() -> i64
+fn get_pool_status() -> String
+fn get_effect_dispatch_stats() -> VarDictionary
+fn get_engine_version() -> String
+fn set_log_level(level: i64)
+fn get_debug_tree(agent: Gd<Object>) -> String
+```
+
+### SimObjectProxy
+
+```rust
+extends RefCounted
+fn is_in_group(group: GString) -> bool
+fn get_groups() -> Array<GString>
+fn get_property(key: GString) -> Variant
+fn set_property(key: GString, value: Variant)
+fn has_property(key: GString) -> bool
+```
+
+## Internal
+
+Marked `@experimental` in their docs: the addon's own plumbing (the Rust bridge, the specs it serializes, the scheduler's job control). Reachable, but any release may change them; semver covers only the sections above.
+
+### Action (members)
+
+`addons/GdPlanningAI/scripts/refcounteds/action.gd`
+
+```gdscript
+var chain_position: int
+func erase_position_state(agent: GdPAIAgent, pos: int) -> void
+func erase_all_state(agent: GdPAIAgent) -> void
+```
+
+### GdPAIPlanScheduler (members)
+
+```rust
+fn process_callbacks()
+fn submit_plan(agent: Gd<Object>, agent_bb: Gd<GdPAIBlackboard>, world_bb: Gd<GdPAIBlackboard>, actions: Array<VarDictionary>, goals: Array<VarDictionary>, max_recursion: i64, iteration_budget: i64, time_slice_ms: i64, max_effect_fallbacks: i64)
+fn cancel_agent_jobs(agent: Gd<Object>)
+fn clear_active_jobs()
+fn cancel_all_jobs()
+```
+
+### GdPAIRustBridge
+
+`addons/GdPlanningAI/scripts/gdpai_rust_bridge.gd`
+
+```gdscript
+extends RefCounted
+func deserialize_plan_result(result: Dictionary, actions: Array[Action]) -> Dictionary
+func serialize_actions(actions: Array[Action]) -> Array[Dictionary]
+func serialize_goals(goals: Array[Goal], agent: GdPAIAgent) -> Array[Dictionary]
+```
+
+### Precondition (members)
+
+`addons/GdPlanningAI/scripts/refcounteds/precondition.gd`
+
+```gdscript
+func to_bridge_dict() -> Dictionary
 ```
 
 ### PreconditionBuiltin
@@ -292,26 +397,12 @@ func _init(fn: Callable, deps: Array[Object] = []) -> void
 func to_bridge_dict() -> Dictionary
 ```
 
-### PropertyUpdater
-
-`addons/GdPlanningAI/scripts/refcounteds/property_updater.gd`
-
-```gdscript
-extends RefCounted
-func update_properties(_agent: GdPAIAgent, _delta: float) -> void
-func initialize(_agent: GdPAIAgent) -> void
-```
-
-### ProvisionSpec
+### ProvisionSpec (members)
 
 `addons/GdPlanningAI/scripts/refcounteds/provision_spec.gd`
 
 ```gdscript
-extends RefCounted
 func to_bridge_dict() -> Dictionary
-static func binding(name: String, value: Variant) -> ProvisionSpec
-static func fact(name: String, args: Array[Variant] = []) -> ProvisionSpec
-static func fact_wildcard(name: String) -> ProvisionSpec
 ```
 
 ### ProvisionSpecBinding
@@ -349,17 +440,12 @@ func _init(name: String) -> void
 func to_bridge_dict() -> Dictionary
 ```
 
-### RequirementSpec
+### RequirementSpec (members)
 
 `addons/GdPlanningAI/scripts/refcounteds/requirement_spec.gd`
 
 ```gdscript
-extends RefCounted
 func to_bridge_dict() -> Dictionary
-static func binding_exists(name: String) -> RequirementSpec
-static func binding_equals(name: String, value: Variant) -> RequirementSpec
-static func binding_in_set(name: String, set_name: String) -> RequirementSpec
-static func fact(name: String, args: Array[Variant] = []) -> RequirementSpec
 ```
 
 ### RequirementSpecBindingEquals
@@ -407,53 +493,4 @@ var fact_name: String
 var args: Array[Variant]
 func _init(name: String, fact_args: Array[Variant] = []) -> void
 func to_bridge_dict() -> Dictionary
-```
-
-## Rust (GDExtension)
-
-### GdPAIBlackboard
-
-```rust
-extends RefCounted
-fn get_property(key: GString) -> Variant
-fn set_property(key: GString, value: Variant)
-fn has_property(key: GString) -> bool
-fn erase_property(key: GString)
-fn get_dict() -> VarDictionary
-fn set_dict(dict: VarDictionary)
-fn get_proxies_in_group(group: GString) -> Array<Gd<SimObjectProxy>>
-fn get_proxy_in_group(group: GString) -> Variant
-fn get_node_in_group(group: GString) -> Variant
-fn get_nodes_in_group(group: GString) -> Array<Variant>
-fn get_object_for(node_or_id: Variant) -> Variant
-fn clone_for_simulation() -> Gd<GdPAIBlackboard>
-```
-
-### GdPAIPlanScheduler
-
-```rust
-extends Node
-@export var max_threads: i64
-fn process_callbacks()
-fn submit_plan(agent: Gd<Object>, agent_bb: Gd<GdPAIBlackboard>, world_bb: Gd<GdPAIBlackboard>, actions: Array<VarDictionary>, goals: Array<VarDictionary>, max_recursion: i64, iteration_budget: i64, time_slice_ms: i64, max_effect_fallbacks: i64)
-fn active_job_count() -> i64
-fn cancel_agent_jobs(agent: Gd<Object>)
-fn clear_active_jobs()
-fn cancel_all_jobs()
-fn get_pool_status() -> String
-fn get_effect_dispatch_stats() -> VarDictionary
-fn get_engine_version() -> String
-fn set_log_level(level: i64)
-fn get_debug_tree(agent: Gd<Object>) -> String
-```
-
-### SimObjectProxy
-
-```rust
-extends RefCounted
-fn is_in_group(group: GString) -> bool
-fn get_groups() -> Array<GString>
-fn get_property(key: GString) -> Variant
-fn set_property(key: GString, value: Variant)
-fn has_property(key: GString) -> bool
 ```

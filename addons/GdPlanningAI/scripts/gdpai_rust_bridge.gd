@@ -9,6 +9,7 @@ extends RefCounted
 ## Serialises actions and goals for [code]GdPAIPlanScheduler.submit_plan[/code], reading their
 ## declarative hooks on the main thread. Cost and effect hooks are passed as [Callable]s, so game
 ## state never crosses the language boundary.
+## @experimental: Internal to GdPlanningAI; may change in any release.
 
 
 ## Turns a planner [param result] into [code]action_chain[/code] (cloned via

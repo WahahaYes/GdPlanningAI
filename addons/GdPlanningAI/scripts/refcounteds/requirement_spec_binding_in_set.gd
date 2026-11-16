@@ -6,6 +6,7 @@ class_name RequirementSpecBindingInSet
 extends RequirementSpec
 ## Requirement that a binding called [member binding_name] was provided with an object that
 ## belongs to the group [member set_name]. Create it with [method RequirementSpec.binding_in_set].
+## @experimental: Internal to GdPlanningAI; may change in any release.
 
 ## Name of the required binding.
 var binding_name: String

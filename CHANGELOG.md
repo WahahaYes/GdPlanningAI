@@ -13,7 +13,7 @@
 
 ### For contributors
 
-- **`docs/API.md` lists the public API,** generated from the code (`make api`). necro fails while it's stale, so a change to the surface shows up as a diff in review. It replaces the hand-kept `docs/generated/api-spec.json`.
+- **`docs/API.md` lists the public API,** generated from the code (`make api`). necro fails while it's stale, so a change to the surface shows up as a diff in review. It replaces the hand-kept `docs/generated/api-spec.json`. Plumbing tagged `@experimental` in its docs (the Rust bridge, the spec subclasses and `to_bridge_dict`, the scheduler's job control, `Action`'s state cleanup) is listed apart as internal: reachable, but not covered by semver.
 - **No comments in Godot data files.** A necro rule rejects `;` comments in scenes, resources and config files.
 - **Failed CI jobs upload their step logs** (artifact `logs-<job>`).
 - **The Godot test targets import first.** `make godot-import` refreshes the class-name cache, so a new `class_name` or a fresh clone no longer leaves GUT running nothing.

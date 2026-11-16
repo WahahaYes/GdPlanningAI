@@ -12,6 +12,9 @@ variables, and functions whose names don't start with an underscore
 (constructors with parameters included). For Rust, the #[func] and #[export]
 members.
 
+A class or member whose doc comment carries Godot's `@experimental` tag is
+internal: it moves to the Internal section, which semver doesn't cover.
+
 Usage:
   uv run scripts/api_surface.py           rewrite docs/API.md
   uv run scripts/api_surface.py --check   report when docs/API.md is stale
@@ -33,6 +36,12 @@ OUT = ROOT / "docs" / "API.md"
 PREAMBLE = """# API
 
 The public surface of GdPlanningAI: every class, member and signature users can reach. Generated from the code by `scripts/api_surface.py` (`make api`); a change to the surface shows here as a diff, and necro fails while this file is stale. What each member does is in its docstring and [AUTHORING_GUIDE.md](AUTHORING_GUIDE.md).
+"""
+
+
+INTERNAL = """## Internal
+
+Marked `@experimental` in their docs: the addon's own plumbing (the Rust bridge, the specs it serializes, the scheduler's job control). Reachable, but any release may change them; semver covers only the sections above.
 """
 
 
@@ -74,29 +83,55 @@ def squash(parts: list[str]) -> str:
     return re.sub(r"\s+", " ", text)
 
 
+def tagged(doc: list[str]) -> bool:
+    """Whether a doc comment block carries the @experimental tag."""
+    return any(re.match(r"(##|///)\s*@experimental\b", d.strip()) for d in doc)
+
+
 def gd_statements(lines: list[str]):
-    """Yield the file's top-level statements, each joined onto one line."""
-    i = 0
+    """Yield (statement, doc) for each top-level statement: the statement joined onto one
+    line, and the ## block right above it."""
+    i, doc = 0, []
     while i < len(lines):
-        line = strip_comment(lines[i])
+        raw = lines[i]
+        line = strip_comment(raw)
         i += 1
+        if raw.startswith("##"):
+            doc.append(raw)
+            continue
         if not line or line[0] in " \t":
+            if not raw.strip():
+                doc = []
             continue
         parts = [line]
         while balance(" ".join(parts)) > 0 and i < len(lines):
             parts.append(strip_comment(lines[i]))
             i += 1
-        yield squash(parts)
+        yield squash(parts), doc
+        doc = []
 
 
-def gd_class(path: Path, autoloads: dict[str, str]) -> tuple[str, list[str]] | None:
-    """The class name and member lines of one script, or None when it isn't public."""
+def class_doc(lines: list[str]) -> list[str]:
+    """The script's class doc: its first block of ## lines."""
+    block: list[str] = []
+    for raw in lines:
+        if raw.startswith("##"):
+            block.append(raw)
+        elif block:
+            break
+    return block
+
+
+def gd_class(path: Path, autoloads: dict[str, str]):
+    """(name, class is internal, [(member line, internal)]) for one script, or None when it
+    defines no global class."""
     rel = path.relative_to(ADDON).as_posix()
     name = autoloads.get(rel)
     base = ""
-    members: list[str] = []
+    members: list[tuple[str, bool]] = []
     pending: list[str] = []
-    for stmt in gd_statements(path.read_text(encoding="utf-8").splitlines()):
+    lines = path.read_text(encoding="utf-8").splitlines()
+    for stmt, doc in gd_statements(lines):
         if m := re.match(r"class_name\s+(\w+)", stmt):
             name, pending = m[1], []
         elif m := re.match(r"extends\s+(\S+)", stmt):
@@ -107,10 +142,11 @@ def gd_class(path: Path, autoloads: dict[str, str]) -> tuple[str, list[str]] | N
             entry = member(stmt, pending)
             pending = []
             if entry:
-                members.append(entry)
+                members.append((entry, tagged(doc)))
     if name is None:
         return None
-    return name, [f"extends {base}"] + members if base else members
+    head = [(f"extends {base}", False)] if base else []
+    return name, tagged(class_doc(lines)), head + members
 
 
 def member(stmt: str, annotations: list[str]) -> str | None:
@@ -153,21 +189,28 @@ def autoload_scripts() -> dict[str, str]:
     }
 
 
-def rust_classes() -> list[tuple[str, list[str]]]:
-    """Each GodotClass in the crate with its #[export] fields and #[func] methods."""
-    classes: dict[str, list[str]] = {}
+def rust_classes():
+    """(name, class is internal, [(member line, internal)]) for each GodotClass in the crate,
+    with its #[export] fields and #[func] methods."""
+    classes: dict[str, list[tuple[str, bool]]] = {}
+    internal: dict[str, bool] = {}
     for path in sorted(RUST_SRC.rglob("*.rs")):
         lines = path.read_text(encoding="utf-8").splitlines()
-        base, current, impl, attrs = "", None, None, []
+        base, current, impl, attrs, doc, class_tag = "", None, None, [], [], False
         for i, raw in enumerate(lines):
             line = raw.strip()
+            if line.startswith("///"):
+                doc.append(line)
+                continue
             if m := re.match(r"#\[class\(.*base\s*=\s*(\w+)", line):
                 base = m[1]
+                class_tag = class_tag or tagged(doc)
             elif m := re.match(r"pub struct (\w+)", line):
                 if base:
                     current = m[1]
-                    classes[current] = [f"extends {base}"]
-                base = ""
+                    classes[current] = [(f"extends {base}", False)]
+                    internal[current] = class_tag
+                base, class_tag = "", False
             elif current and line == "}":
                 current = None
             elif m := re.match(r"impl (\w+) \{", line):
@@ -180,7 +223,9 @@ def rust_classes() -> list[tuple[str, list[str]]]:
                 and (m := re.match(r"(?:pub\s+)?(\w+):\s*(.+?),?$", line))
             ):
                 if "#[export]" in attrs or "#[var]" in attrs:
-                    classes[current].append(f"@export var {m[1]}: {m[2]}")
+                    classes[current].append(
+                        (f"@export var {m[1]}: {m[2]}", tagged(doc))
+                    )
                 attrs = []
             elif impl and "#[func]" in attrs and re.match(r"(pub\s+)?fn ", line):
                 parts = [line]
@@ -192,29 +237,60 @@ def rust_classes() -> list[tuple[str, list[str]]]:
                 sig = re.sub(r"^pub\s+", "", sig)
                 sig = re.sub(r"\(&(mut )?self,?\s*", "(", sig)
                 sig = re.sub(r"\b(?:crate|\w+)::(?:\w+::)*(\w+)", r"\1", sig)
-                classes[impl].append(sig)
+                classes[impl].append((sig, tagged(doc)))
                 attrs = []
-            elif line and not line.startswith("///"):
+            elif line:
                 attrs = []
-    return list(classes.items())
+            if not line.startswith("#[") and not re.match(r"#\[class", line):
+                doc = []
+    return [(name, internal[name], members) for name, members in classes.items()]
+
+
+def block(name: str, where: str, lang: str, lines: list[str]) -> str:
+    """One class's heading and code block."""
+    loc = f"`{where}`\n\n" if where else ""
+    return f"### {name}\n\n{loc}```{lang}\n" + "\n".join(lines) + "\n```\n"
 
 
 def render() -> str:
     autoloads = autoload_scripts()
-    gd = []
+    classes = []  # (sort key, name, where, lang, class internal, members)
     for path in sorted(ADDON.rglob("*.gd")):
         entry = gd_class(path, autoloads)
         if entry:
-            gd.append((path.relative_to(ROOT).as_posix(), *entry))
+            classes.append(
+                (
+                    entry[0].lower(),
+                    entry[0],
+                    path.relative_to(ROOT).as_posix(),
+                    "gdscript",
+                    *entry[1:],
+                )
+            )
+    for name, is_internal, members in rust_classes():
+        classes.append((name.lower(), name, "", "rust", is_internal, members))
+    classes.sort()
     out = [PREAMBLE]
-    out.append("## GDScript\n")
-    for rel, name, members in sorted(gd, key=lambda e: e[1].lower()):
-        out.append(
-            f"### {name}\n\n`{rel}`\n\n```gdscript\n" + "\n".join(members) + "\n```\n"
-        )
-    out.append("## Rust (GDExtension)\n")
-    for name, members in sorted(rust_classes(), key=lambda e: e[0].lower()):
-        out.append(f"### {name}\n\n```rust\n" + "\n".join(members) + "\n```\n")
+    for title, lang in (("GDScript", "gdscript"), ("Rust (GDExtension)", "rust")):
+        out.append(f"## {title}\n")
+        for _, name, where, kind, is_internal, members in classes:
+            if kind == lang and not is_internal:
+                out.append(
+                    block(name, where, lang, [m for m, hidden in members if not hidden])
+                )
+    out.append(INTERNAL)
+    for _, name, where, lang, is_internal, members in classes:
+        if is_internal:
+            out.append(block(name, where, lang, [m for m, _ in members]))
+        elif any(hidden for _, hidden in members):
+            out.append(
+                block(
+                    f"{name} (members)",
+                    where,
+                    lang,
+                    [m for m, hidden in members if hidden],
+                )
+            )
     return "\n".join(out)
 
 

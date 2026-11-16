@@ -5,6 +5,7 @@
 class_name PreconditionCustom
 extends Precondition
 ## Precondition backed by a [Callable]; create it with [method Precondition.custom].
+## @experimental: Internal to GdPlanningAI; may change in any release.
 
 ## Takes (agent blackboard, world blackboard) and returns a [bool].
 var eval_func: Callable
