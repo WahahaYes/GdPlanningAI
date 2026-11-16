@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name CampfireObject
 extends GdPAIObjectData
 ## A campfire: fuel agents keep topped up and cook at.[br]

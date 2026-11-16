@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 # Refreshes the project's .godot import and class-name caches with a headless import.
 # A nonzero exit after a finished import (editor layout loaded, class and extension caches
 # written) warns; one before that fails and prints the log. Run from the project root.

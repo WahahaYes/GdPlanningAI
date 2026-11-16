@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 """Effect-spec check for GdPlanningAI's example Actions, a necro rule (necro.yaml).
 
 Prints one necro hit-line per violation, ``path:line: message``, and exits 0;

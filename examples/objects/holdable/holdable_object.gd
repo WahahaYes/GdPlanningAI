@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name HoldableObject
 extends GdPAIObjectData
 ## An item that can be picked up into the agent's [code]held_item[/code] slot. Offers a

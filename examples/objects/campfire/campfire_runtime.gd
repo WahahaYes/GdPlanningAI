@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 extends Node
 ## Burns the campfire down and updates its visuals. Sits on the prefab root, shared by the 2D and
 ## 3D prefabs (hence the untyped visual nodes).[br]

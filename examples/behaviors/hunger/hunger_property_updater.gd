@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name HungerPropertyUpdater
 extends PropertyUpdater
 ## Creates the agent's [code]hunger[/code] property and raises it every frame, capped at 100.

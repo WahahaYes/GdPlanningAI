@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name AddFuelAction
 extends Action
 ## Adds held wood to a campfire. Last step of the maintain-fire chain: Go To (pile), Pick Up

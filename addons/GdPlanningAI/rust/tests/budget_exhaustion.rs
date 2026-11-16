@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2025 Ethan Wilson
+// https://github.com/WahahaYes/GdPlanningAI
+
 //! Regression test for search-budget exhaustion yielding Pending instead of Complete.
 //!
 //! Verifies that when the iteration budget is exhausted before a complete plan can be

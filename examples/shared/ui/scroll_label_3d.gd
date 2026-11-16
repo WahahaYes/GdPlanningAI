@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 extends Label3D
 ## [Label3D] on a parchment scroll that faces the camera with it and resizes to the text.
 ## The scroll is an internal quad drawn with [member scroll_material]; hiding the label

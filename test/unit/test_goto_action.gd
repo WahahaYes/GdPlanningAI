@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 extends GutTest
 ## GoToAction ends a blocked walk by arriving only when the agent is near its path's end.
 

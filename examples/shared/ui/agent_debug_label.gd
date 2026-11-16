@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 extends ScrollLabel2D
 ## Shows a [GdPAIAgent]'s current goal, action and [member debug_properties] on a parchment scroll.
 ## Presentation only; floats are shown to one decimal.

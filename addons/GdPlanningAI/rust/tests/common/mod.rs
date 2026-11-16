@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2025 Ethan Wilson
+// https://github.com/WahahaYes/GdPlanningAI
+
 //! Shared helpers for the integration tests: snapshot builders, a stand-in for the Godot main
 //! thread, and a loop that runs an engine to completion.
 

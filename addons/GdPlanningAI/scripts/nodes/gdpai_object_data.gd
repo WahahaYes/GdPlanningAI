@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name GdPAIObjectData
 extends Node
 ## Makes a scene object visible to the planner. Extend it per kind of world object (a campfire,

@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2025 Ethan Wilson
+// https://github.com/WahahaYes/GdPlanningAI
+
 //! GOAP search: backward from the goal's unmet preconditions, then forward verification.
 //! Send-safe; GDScript work is requested from the main thread.
 //!

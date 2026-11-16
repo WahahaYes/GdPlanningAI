@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name FruitTreeObject
 extends GdPAIObjectData
 ## A fruit tree that drops bananas when shaken, then rests for [member cooldown_window].[br]

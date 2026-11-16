@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2025 Ethan Wilson
+// https://github.com/WahahaYes/GdPlanningAI
+
 //! Send-safe action/goal/precondition specs and channel message types.
 //!
 //! The specs ([`ActionSpec`], [`GoalSpec`], [`PreconditionSpec`]) are what the planner thread

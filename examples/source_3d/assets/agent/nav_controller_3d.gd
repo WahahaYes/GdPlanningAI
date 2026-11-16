@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 extends Node
 ## Moves a [CharacterBody3D] along its [NavigationAgent3D] path. [GoToAction] only sets the
 ## target; this turns the path into motion.[br]

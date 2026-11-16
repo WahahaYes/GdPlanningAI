@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name RequirementSpecFact
 extends RequirementSpec
 ## Requirement that a fact called [member fact_name] with the given [member args] was provided by

@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2025 Ethan Wilson
+// https://github.com/WahahaYes/GdPlanningAI
+
 // Low-poly flame tongue: an unshaded cone that sways, twists and pulses. Colours above 1 let
 // the environment's glow bloom it. Each flame sets its own flame_color and phase.
 shader_type spatial;

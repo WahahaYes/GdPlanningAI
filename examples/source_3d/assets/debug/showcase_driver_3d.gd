@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 extends Node3D
 ## Drives the agent showcase scene: gives each agent a skin and held item, turns planning off,
 ## and wanders them around, to inspect skins and animations side by side. Not a planning

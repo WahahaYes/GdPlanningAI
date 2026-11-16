@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2025 Ethan Wilson
+// https://github.com/WahahaYes/GdPlanningAI
+
 //! Planning-time snapshot of a `GdPAIObjectData` node, built from `get_sim_properties()`.
 //!
 //! The GDScript-facing form of [`crate::snapshot::SimObjectData`]; main-thread only, since its

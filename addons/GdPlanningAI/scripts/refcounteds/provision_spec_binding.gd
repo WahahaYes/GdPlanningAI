@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name ProvisionSpecBinding
 extends ProvisionSpec
 ## Provision of a binding called [member binding_name] with a fixed [member value]. Create it with

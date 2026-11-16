@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2025 Ethan Wilson
+// https://github.com/WahahaYes/GdPlanningAI
+
 //! Search tree recorded for debugging when the log level is [`LogLevel::Debug`]; exposed as
 //! `get_debug_tree` on the scheduler. The search never reads it back.
 //!

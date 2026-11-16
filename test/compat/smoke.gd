@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 extends Node
 ## Smoke test for the oldest supported Godot, run by [code]scripts/compat-smoke.sh[/code] in a
 ## throwaway project that holds the addon as the release zip lays it out. One agent must plan a

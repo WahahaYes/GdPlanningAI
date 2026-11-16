@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name PropertyUpdater
 extends RefCounted
 ## Changes an agent's blackboard over time, outside planning (hunger rising, stamina

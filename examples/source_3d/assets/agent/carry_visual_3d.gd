@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 extends Node3D
 ## Shows the agent's [code]held_item[/code] as a prop bobbing above its head. Presentation only:
 ## it polls the blackboard (which has no change signal) and never writes back.

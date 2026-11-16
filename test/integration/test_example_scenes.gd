@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 extends "res://test/shared/scene_smoke_base.gd"
 ## Example scene checks that need a look inside the scene; the data-driven cases live in
 ## res://test/scenarios/scenes.cfg.

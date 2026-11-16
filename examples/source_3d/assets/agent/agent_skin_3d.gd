@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 extends Node3D
 ## Swappable 3D agent skin: instances a KayKit Adventurers character as [code]Body[/code] and
 ## plays idle or walk from [member entity]'s horizontal speed. Presentation only.[br]

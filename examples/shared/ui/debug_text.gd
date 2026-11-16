@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name DebugText
 extends RefCounted
 ## One switch for the examples' debug text: the on-screen controls guide and the labels over

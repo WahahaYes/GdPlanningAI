@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 """The oldest supported Godot is stated once and built for.
 
 A GDExtension loads on the Godot API it was built against and newer. The

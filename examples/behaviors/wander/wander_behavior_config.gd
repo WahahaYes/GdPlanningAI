@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name WanderBehaviorConfig
 extends GdPAIBehaviorConfig
 ## Idle behavior: a [WanderGoal] with a small reward, so any real need takes priority. Adds no

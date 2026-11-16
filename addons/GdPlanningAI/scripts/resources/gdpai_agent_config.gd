@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name GdPAIAgentConfig
 extends Resource
 ## Per-agent settings: when it plans, how much search effort it may spend, its starting

@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name GdPAIInteractable
 extends GdPAIObjectData
 ## World object agents can interact with. Exposes interaction limits to the planner; the addon

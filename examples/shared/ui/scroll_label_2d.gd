@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name ScrollLabel2D
 extends Label
 ## 2D counterpart of [code]scroll_label_3d.gd[/code]: a [Label] on a parchment scroll that

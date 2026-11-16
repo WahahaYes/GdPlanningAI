@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name DebugTextSwitch
 extends Node
 ## The [DebugText] switch for scenes without the 3D camera rig (the 2D examples): H hides or

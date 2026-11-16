@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 # Smoke-test the addon on the oldest Godot it claims to support (compatibility_minimum in
 # gdplanningai.gdextension, equal to the godot crate's api-4-N feature). Lays the addon out as the release zip does (git archive of HEAD per
 # .gitattributes, plus the Linux library from addons/GdPlanningAI/bin/linux), adds

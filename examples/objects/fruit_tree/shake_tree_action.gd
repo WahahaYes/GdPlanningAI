@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name ShakeTreeAction
 extends Action
 ## Shakes a fruit tree to drop fruit. Navigation is GoTo's job, via [code]at_target[/code].[br]

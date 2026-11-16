@@ -29,3 +29,8 @@ rules:
     message: README is not safe to paste into the asset listings
     why: The README is pasted by hand into the Asset Store and Asset Library descriptions, where relative links break and over-long text gets rejected.
     fix: Use absolute repo URLs and keep it under the limit; `uv run scripts/check_readme_safety.py --explain <code>` shows the rule in full.
+  source-header:
+    command: necro header --template necro/header.txt --similar 80 -- '*.gd' '*.rs' '*.gdshader' '*.py' '*.sh'
+    message: A source file doesn't open with the license header
+    why: Files are copied out of the repo one at a time, into users' projects and into the asset stores; the header keeps the license, the copyright and where the file came from with each one.
+    fix: necro --fix writes the lines of necro/header.txt at the top; change that file to change every header.

@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name PreconditionCustom
 extends Precondition
 ## Precondition backed by a [Callable]; create it with [method Precondition.custom].

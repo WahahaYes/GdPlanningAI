@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 extends GutTest
 ## Requirements and provisions through `submit_plan`, for what the Rust fixtures
 ## (rust/tests/scenarios/) cannot show: initial provisions derived from agent

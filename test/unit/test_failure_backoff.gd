@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 extends GutTest
 ## [member GdPAIAgentConfig.failure_backoff] delays automatic planning after a failed plan.
 ## Submissions are counted by [code]_plan_generation[/code]; no world node is needed for that.

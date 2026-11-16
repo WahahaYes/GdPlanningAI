@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2025 Ethan Wilson
+// https://github.com/WahahaYes/GdPlanningAI
+
 //! Finds actions that satisfy a branch's open needs.
 //!
 //! Requirements are matched symbolically against provisions. Preconditions are matched by

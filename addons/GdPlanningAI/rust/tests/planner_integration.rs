@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2025 Ethan Wilson
+// https://github.com/WahahaYes/GdPlanningAI
+
 //! Engine behavior the scenario fixtures (`scenarios.rs`) cannot express: how many effect
 //! callbacks a plan costs. Result-shaped planner cases belong in `tests/scenarios/`.
 

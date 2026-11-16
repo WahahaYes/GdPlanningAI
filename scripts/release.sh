@@ -1,4 +1,8 @@
 #!/bin/sh
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 # Cut a release in one command. main and v* tags are protected, so it goes
 # the way any change does: a PR that must pass the required `ci` check.
 #

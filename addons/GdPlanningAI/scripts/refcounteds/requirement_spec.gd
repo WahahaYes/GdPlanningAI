@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name RequirementSpec
 extends RefCounted
 ## Something an earlier action in the plan must provide, matched by name against its

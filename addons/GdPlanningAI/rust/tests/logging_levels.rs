@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2025 Ethan Wilson
+// https://github.com/WahahaYes/GdPlanningAI
+
 //! `search-is-debuggable`: at [`LogLevel::Info`] plans complete and `TreeDump::summary` reports
 //! branch counts without recording a tree; at [`LogLevel::Debug`] `TreeDump::format` produces
 //! the full `PLANNER SEARCH TREE` dump.

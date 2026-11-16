@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name EatHeldFoodAction
 extends Action
 ## Eats the held item. End of every food chain; needs no Go To since the food is in hand.[br]

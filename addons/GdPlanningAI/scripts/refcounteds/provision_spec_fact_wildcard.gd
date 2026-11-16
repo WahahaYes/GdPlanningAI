@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name ProvisionSpecFactWildcard
 extends ProvisionSpec
 ## Provision of a fact that satisfies any requirement with the same fact name, whatever its

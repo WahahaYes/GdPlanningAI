@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2025 Ethan Wilson
+// https://github.com/WahahaYes/GdPlanningAI
+
 //! Backward-chaining Dijkstra search over [`PlanBranch`]es.
 //!
 //! A [`BranchState::Searching`] branch has open needs; [`find_candidates`] proposes actions that

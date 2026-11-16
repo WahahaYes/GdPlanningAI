@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 extends "res://test/shared/scene_smoke_base.gd"
 ## The 3D campfire's flame hides and its light goes off when the fire is out.
 

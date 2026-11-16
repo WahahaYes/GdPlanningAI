@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 class_name GdPAILocationData
 extends GdPAIObjectData
 ## Position of an object, live and simulated. Set one of [member location_node_2d] or

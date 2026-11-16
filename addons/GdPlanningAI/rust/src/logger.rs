@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2025 Ethan Wilson
+// https://github.com/WahahaYes/GdPlanningAI
+
 //! Tiered logging: [`log_error!`](crate::log_error), [`log_warn!`](crate::log_warn),
 //! [`log_info!`](crate::log_info) (default level) and [`log_debug!`](crate::log_debug).
 //!

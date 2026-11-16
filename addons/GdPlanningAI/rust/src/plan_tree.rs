@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2025 Ethan Wilson
+// https://github.com/WahahaYes/GdPlanningAI
+
 //! The plan result type shared between the planner and the scheduler.
 //!
 //! [`PlanResult`] is produced on a planner thread by

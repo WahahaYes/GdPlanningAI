@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Ethan Wilson
+# https://github.com/WahahaYes/GdPlanningAI
+
 extends "res://test/shared/scene_smoke_base.gd"
 ## Every built-in action declares a native effect spec, so planning the large campfire scene
 ## must never round-trip an effect through GDScript. Cost and custom-precondition callables
