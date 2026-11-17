@@ -2,18 +2,26 @@
 
 ## Unreleased
 
-- **Blackboard keys as constants.** `GdPAIAgent.KEY_ENTITY` (`"entity"`) and `GdPAIAgent.KEY_OBJECTS` (`"GDPAI_OBJECTS"`) name the keys the agent and world node write; the values are unchanged.
-- **Breaking: `Action.get_action_cost()` is `get_cost()` and `Goal.compute_reward()` is `get_reward()`.** Rename the overrides in your actions and goals.
-- **Breaking: `GdPAIAgent.manually_start_plan()` is `request_plan()`.**
-- **Breaking: `GdPAIUTILS` is `GdPAIUtils`.**
-- **Breaking: precondition constructors renamed.** `*_geq_than` is now `*_at_least` and `*_leq_than` is `*_at_most` (agent, world state and world object), and `check_is_object_valid` is `object_is_valid`. `world_state_property_not_equal_to` is new, so every target has the full set.
+## 1.0.0 - 2026-11-16
+
+- **The API is stable.** [docs/API.md](docs/API.md) lists the public API, and from 1.0 it changes only under semantic versioning. Plumbing tagged `@experimental` (the Rust bridge, the spec subclasses and `to_bridge_dict`, the scheduler's job control, `Action`'s state cleanup) is listed apart as internal: reachable, but not covered by semver.
+- **Breaking: renames for 1.0.** Update your scripts:
+  - `Action.get_action_cost()` is `get_cost()` and `Goal.compute_reward()` is `get_reward()`; rename the overrides in your actions and goals.
+  - `GdPAIAgent.manually_start_plan()` is `request_plan()`.
+  - `GdPAIUTILS` is `GdPAIUtils`.
+  - Precondition constructors: `*_geq_than` is `*_at_least`, `*_leq_than` is `*_at_most` (agent, world state and world object), and `check_is_object_valid` is `object_is_valid`. `world_state_property_not_equal_to` is new, so every target has the full set.
 - **Breaking: `plan_delivered` passes the plan, not the planner's result.** The signal is now `plan_delivered(success: bool, goal: Goal, plan: Array[Action], cost: float)`; handlers that read `result["success"]` take the arguments instead, and a failure passes `null`, an empty plan and `0.0`.
-- **Go To gives up when the agent stops getting closer.** An agent that keeps moving without shortening its path for `GoToAction.PROGRESS_WINDOW` (3 s), for example jostled near a crowded target, now arrives if it is near the path's end and otherwise fails and replans, instead of walking forever.
+- **Blackboard keys as constants.** `GdPAIAgent.KEY_ENTITY` (`"entity"`) and `GdPAIAgent.KEY_OBJECTS` (`"GDPAI_OBJECTS"`) name the keys the agent and world node write; the values are unchanged.
+- **Go To gives up when the NPC stops getting closer.** An NPC that keeps moving without shortening its path for `GoToAction.PROGRESS_WINDOW` (3 s), for example jostled near a crowded target, now arrives if it is near the path's end and otherwise fails and replans, instead of walking forever.
 - **No save prompt after a clean editor start.** The plugin registers its autoload only when enabled, not on every launch ([#106](https://github.com/WahahaYes/GdPlanningAI/issues/106)).
+
+### Known issues
+
+- **Godot 4.7 can crash on exit after a project's first headless import with the addon** (`godot --headless --import`). The import itself completes, and later runs exit cleanly. It happens with every godot-rust build we tried, 0.3.0's included, and not on Godot 4.2.
 
 ### For contributors
 
-- **`docs/API.md` lists the public API,** generated from the code (`make api`). necro fails while it's stale, so a change to the surface shows up as a diff in review. It replaces the hand-kept `docs/generated/api-spec.json`. Plumbing tagged `@experimental` in its docs (the Rust bridge, the spec subclasses and `to_bridge_dict`, the scheduler's job control, `Action`'s state cleanup) is listed apart as internal: reachable, but not covered by semver.
+- **`docs/API.md` is generated from the code** (`make api`), and necro fails while it's stale, so a change to the API shows up as a diff in review. It replaces the hand-kept `docs/generated/api-spec.json`.
 - **No comments in Godot data files.** A necro rule rejects `;` comments in scenes, resources and config files.
 - **Failed CI jobs upload their step logs** (artifact `logs-<job>`).
 - **The Godot test targets import first.** `make godot-import` refreshes the class-name cache, so a new `class_name` or a fresh clone no longer leaves GUT running nothing.
